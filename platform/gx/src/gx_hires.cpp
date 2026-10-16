@@ -369,13 +369,16 @@ static void queryFormats() {
     }
     logmsg("texture pack: the GPU takes BC1-BC3 %s and BC7 %s", s_s3tc ? "compressed" : "decoded to RGBA",
            s_bptc ? "compressed" : "decoded to RGBA");
-    if (maxSize()) logmsg("texture pack: images over %d are halved until they fit", maxSize());
+    if (maxSize())
+        logmsg("texture pack: images held as RGBA over %dx%d texels are halved until they fit", maxSize(), maxSize());
 }
 
-// SMS_TEXTURE_PACK_MAX_SIZE: replacements wider or taller than this are halved
-// until they fit, before any decoding to RGBA (0, the default: no limit). On
-// a phone, whose GPU usually takes no BC7, the UHD pack's 8192x8192 images
-// would each need 341 MiB as RGBA, and its 16384x16384 ones over a GiB.
+// SMS_TEXTURE_PACK_MAX_SIZE: replacements held as RGBA (PNGs, and blocks the
+// GPU cannot take) with more texels than a square this wide are halved until
+// they fit, before any decoding (0, the default: no limit). A GPU without BC7
+// would need 341 MiB for each of the UHD pack's 8192x8192 images, and over a
+// GiB for its 16384x16384 ones; blocks it takes stay whole, at a quarter of
+// that. Texels, not the longer side, so the pack's 4160x400 strips stay HD.
 static int maxSize() {
     static const int size = [] {
         const char* e = getenv("SMS_TEXTURE_PACK_MAX_SIZE");
@@ -384,11 +387,12 @@ static int maxSize() {
     return size;
 }
 
-// The levels to drop from a w x h image's top for it to fit maxSize.
+// The levels to drop from the top of a w x h RGBA image for it to fit maxSize.
 static int levelsOverMax(int w, int h) {
+    const uint64_t most = uint64_t(maxSize()) * uint64_t(maxSize());
     int n = 0;
-    if (maxSize())
-        while (std::max(std::max(1, w >> n), std::max(1, h >> n)) > maxSize()) n++;
+    if (most)
+        while (uint64_t(std::max(1, w >> n)) * uint64_t(std::max(1, h >> n)) > most) n++;
     return n;
 }
 
@@ -468,10 +472,10 @@ static bool decodeDds(const std::string& path, Loaded* L, int* dropped = nullptr
         return block ? size_t((lw + 3) / 4) * size_t((lh + 3) / 4) * bsz : size_t(lw) * lh * 4;
     };
     int lw = w, lh = h, count = std::min(mips, full);
-    // Levels over maxSize are skipped while the file has smaller ones, the
-    // rest made from its last (as blocks: a large level never sits in memory
-    // as RGBA).
-    const int drop = levelsOverMax(w, h);
+    // Levels of an image decoded to RGBA over maxSize are skipped while the
+    // file has smaller ones, the rest made from its last (as blocks: a large
+    // level never sits in memory as RGBA).
+    const int drop = gpu ? 0 : levelsOverMax(w, h);
     std::vector<uint8_t> made;
     if (dropped) *dropped = drop;
     for (int m = 0; m < drop; m++) {
