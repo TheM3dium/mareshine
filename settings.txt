@@ -16,6 +16,9 @@ texture_packs = on
 # texture_pack_pending_mb = 256
 # Texture pack data sent to the GPU per frame during play, in MiB (0: no limit).
 # texture_pack_upload_mb = 8
+# Largest texture pack image, in texels across: larger ones are halved until
+# they fit, saving video memory (0, the default: no limit).
+# texture_pack_max_size = 0
 
 # Compile the shaders each level is known to use while it loads (and others
 # while time allows), instead of when they are first drawn (default on).

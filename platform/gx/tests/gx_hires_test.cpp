@@ -91,6 +91,7 @@ static PFNGLGETINTEGERVPROC realGet;
 // Calls that send data (storage made without data is not counted), and the
 // largest single one.
 static int compressedCalls, rgbaCalls, maxLevel;
+static int topWidth;  // of the last level 0 sent whole
 static size_t uploadedBytes, largestCall;
 static void sentData(size_t n) { uploadedBytes += n; largestCall = std::max(largestCall, n); }
 // The texels (RGBA) of level watchLevel when it is sent whole.
@@ -113,6 +114,7 @@ static void watch(GLint l, GLsizei w, GLsizei h, GLenum f, const void* p) {
 }
 static void APIENTRY recordCompressed(GLenum t, GLint l, GLenum f, GLsizei w, GLsizei h, GLint b, GLsizei n, const void* p) {
     if (p) { ++compressedCalls; sentData(size_t(n)); }
+    if (p && !l) topWidth = w;
     watch(l, w, h, f, p);
     realCompressed(t,l,f,w,h,b,n,p);
 }
@@ -124,6 +126,7 @@ static void APIENTRY recordCompressedSub(GLenum t, GLint l, GLint x, GLint y, GL
 }
 static void APIENTRY recordImage(GLenum t, GLint l, GLint f, GLsizei w, GLsizei h, GLint b, GLenum fmt, GLenum ty, const void* p) {
     if (p) { ++rgbaCalls; sentData(size_t(w)*h*4); }
+    if (p && !l) topWidth = w;
     watch(l, w, h, fmt, p);
     realImage(t,l,f,w,h,b,fmt,ty,p);
 }
@@ -142,7 +145,7 @@ static void APIENTRY noCompression(GLenum name, GLint* value) {
     else if (name == GL_MAJOR_VERSION || name == GL_MINOR_VERSION) *value = 3;
     else realGet(name,value);
 }
-static void resetRecord() { compressedCalls = rgbaCalls = 0; uploadedBytes = largestCall = 0; maxLevel = -1; }
+static void resetRecord() { compressedCalls = rgbaCalls = 0; uploadedBytes = largestCall = 0; maxLevel = -1; topWidth = 0; }
 
 // Encodes a block for the levels a pack leaves out and decodes it with bcdec;
 // the largest difference of the checked channels (from `first`).
@@ -206,6 +209,9 @@ int main(int argc, char** argv) {
     const bool sync = argc > 1 && std::strcmp(argv[1], "--sync") == 0;
     const bool disabled = argc > 1 && std::strcmp(argv[1], "--no-preload") == 0;
     const bool whole = argc > 1 && std::strcmp(argv[1], "--all") == 0;
+    // As on a phone: images over 16 are halved, and the GPU takes no blocks.
+    const bool limited = argc > 1 && std::strcmp(argv[1], "--max-size") == 0;
+    if (limited) env("SMS_TEXTURE_PACK_MAX_SIZE", "16");
     checkEncoder();
     env("SMS_TEXTURE_PACK_SYNC", sync ? "1" : "0");
     env("SMS_TEXTURE_PACK_PRELOAD", disabled ? "0" : whole ? "all" : "1");
@@ -229,6 +235,8 @@ int main(int argc, char** argv) {
         many.push_back(bti(i));
         dds(dir/(textureName(many.back())+".dds"), 512, 512, 1);
     }
+    auto oversized = bti(9);
+    dds(dir/(textureName(oversized)+".dds"), 64, 64, 1, true);
     auto big = bti(7);
     dds(dir/(textureName(big)+".dds"), 4096, 4096, 1);  // 8 MiB of blocks
     env("SMS_TEXTURE_PACKS", "0"); env("SMS_TEXTURE_PACK_PENDING_MB", "1"); env("SMS_TEXTURE_PACK_MB", "1");
@@ -237,7 +245,7 @@ int main(int argc, char** argv) {
     gx::hiresShutdown();
     env("SMS_TEXTURE_PACKS", dir.string());
     realGet = gx::gl::gx_glGetIntegerv;
-    if (fallback) gx::gl::gx_glGetIntegerv = noCompression;
+    if (fallback || limited) gx::gl::gx_glGetIntegerv = noCompression;
     expect(gx::hiresEnabled(), "texture index starts after context initialization");
     gx::gl::gx_glGetIntegerv = realGet;
     realCompressed = gx::gl::gx_glCompressedTexImage2D; realImage = gx::gl::gx_glTexImage2D;
@@ -274,6 +282,23 @@ int main(int argc, char** argv) {
             "the whole pack loads from the start");
         expect(gx::hiresStats().residentBytes > (1u << 20), "the whole pack stays past the memory budget");
         GXPC_Shutdown(); std::filesystem::remove_all(dir);
+        return failures ? 1 : 0;
+    }
+    if (limited) {
+        prepare(single, "single.bti");
+        expect(rgbaCalls == 5 && topWidth == 16, "an image within the size limit keeps its size");
+        std::vector<uint8_t> model(0x80);
+        std::memcpy(model.data(), "J3D2bmd3", 8); be32(model, 0x0C, 1);
+        std::memcpy(model.data()+0x20, "TEX1", 4); be32(model, 0x24, 0x60);
+        model[0x29] = 1; be32(model, 0x2C, 0x20);
+        std::copy(partial.begin(), partial.end(), model.begin()+0x40);
+        prepare(model, "map.bmd");
+        expect(rgbaCalls == 5 && topWidth == 16, "an image over the size limit starts at the file's level that fits");
+        prepare(oversized, "oversized.bti");
+        expect(rgbaCalls == 5 && topWidth == 16 && uploadedBytes == (256 + 64 + 16 + 4 + 1) * 4,
+            "an image with no level that fits is halved as blocks, then decoded");
+        GXPC_Shutdown(); std::filesystem::remove_all(dir);
+        std::printf("HD texture tests: %d failures\n", failures);
         return failures ? 1 : 0;
     }
     prepare(single, "single.bti");
