@@ -211,7 +211,9 @@ int main(int argc, char** argv) {
     const bool whole = argc > 1 && std::strcmp(argv[1], "--all") == 0;
     // As on a phone: images over 16 are halved, and the GPU takes no blocks.
     const bool limited = argc > 1 && std::strcmp(argv[1], "--max-size") == 0;
-    if (limited) env("SMS_TEXTURE_PACK_MAX_SIZE", "16");
+    // The same on a GPU that takes the blocks (most new phones do).
+    const bool limitedBlocks = argc > 1 && std::strcmp(argv[1], "--max-size-blocks") == 0;
+    if (limited || limitedBlocks) env("SMS_TEXTURE_PACK_MAX_SIZE", "16");
     checkEncoder();
     env("SMS_TEXTURE_PACK_SYNC", sync ? "1" : "0");
     env("SMS_TEXTURE_PACK_PRELOAD", disabled ? "0" : whole ? "all" : "1");
@@ -235,8 +237,9 @@ int main(int argc, char** argv) {
         many.push_back(bti(i));
         dds(dir/(textureName(many.back())+".dds"), 512, 512, 1);
     }
-    auto oversized = bti(9);
+    auto oversized = bti(9), strip = bti(35);
     dds(dir/(textureName(oversized)+".dds"), 64, 64, 1, true);
+    dds(dir/(textureName(strip)+".dds"), 64, 4, 1, true);  // 256 texels: within a limit of 16x16
     auto big = bti(7);
     dds(dir/(textureName(big)+".dds"), 4096, 4096, 1);  // 8 MiB of blocks
     env("SMS_TEXTURE_PACKS", "0"); env("SMS_TEXTURE_PACK_PENDING_MB", "1"); env("SMS_TEXTURE_PACK_MB", "1");
@@ -297,6 +300,27 @@ int main(int argc, char** argv) {
         prepare(oversized, "oversized.bti");
         expect(rgbaCalls == 5 && topWidth == 16 && uploadedBytes == (256 + 64 + 16 + 4 + 1) * 4,
             "an image with no level that fits is halved as blocks, then decoded");
+        prepare(strip, "strip.bti");
+        expect(topWidth == 64, "a wide image within the limit's texels keeps its size");
+        GXPC_Shutdown(); std::filesystem::remove_all(dir);
+        std::printf("HD texture tests: %d failures\n", failures);
+        return failures ? 1 : 0;
+    }
+    if (limitedBlocks) {  // blocks the GPU takes stay whole: a quarter of RGBA's memory
+        std::vector<uint8_t> model(0x80);
+        std::memcpy(model.data(), "J3D2bmd3", 8); be32(model, 0x0C, 1);
+        std::memcpy(model.data()+0x20, "TEX1", 4); be32(model, 0x24, 0x60);
+        model[0x29] = 1; be32(model, 0x2C, 0x20);
+        std::copy(partial.begin(), partial.end(), model.begin()+0x40);
+        prepare(model, "map.bmd");
+        expect(compressedCalls == 3 && rgbaCalls == 0 && topWidth == 32, "the size limit leaves blocks the GPU takes whole");
+        prepare(oversized, "oversized.bti");
+        expect(compressedCalls == 1 && rgbaCalls == 0 && topWidth == 64 && uploadedBytes == 64 * 64,
+            "a single-level block image the GPU takes keeps its size");
+        complete();
+        int scale = 0;
+        expect(maxLevel == 6 && gx::hiresTexture(textureName(oversized), 0, 8, 4, &scale) != 0,
+            "it gains its other levels and is drawn");
         GXPC_Shutdown(); std::filesystem::remove_all(dir);
         std::printf("HD texture tests: %d failures\n", failures);
         return failures ? 1 : 0;
