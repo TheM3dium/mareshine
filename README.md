@@ -129,6 +129,11 @@ You need JDK 17 and the Android SDK with NDK and CMake 3.22.1. The APK ends up i
 Mareshine was developed with the help of an AI assistant (Claude by Anthropic) and tested by hand
 on real devices. Bug reports are welcome.
 
+## License
+
+Mareshine's own changes are under the MIT License; the parts that come from other projects keep
+their own terms (the PC port is MIT, the decompilation CC0). See [LICENSE.md](LICENSE.md).
+
 ## Disclaimer
 
 Mareshine is an unofficial fan project and is not affiliated with, endorsed or sponsored by
