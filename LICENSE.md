@@ -6,7 +6,7 @@ Mareshine combines work from several projects, each under its own terms.
 | --- | --- | --- |
 | Graphics layer, platform layer, port patches and tools that come from the PC port | [chasem-dev/sms-pc-port](https://github.com/chasem-dev/sms-pc-port) | MIT, see [below](#sms-pc-port) |
 | The decompilation (`decomp/` submodule) | [chasem-dev/sms-english](https://github.com/chasem-dev/sms-english), based on [doldecomp/sms](https://github.com/doldecomp/sms) | CC0 1.0 (public domain dedication) |
-| The original Android port | [jbcgames/sms-android](https://github.com/jbcgames/sms-android) | No license stated; all rights remain with its author. |
+| The original Android port | [jbcgames/sms-android](https://github.com/jbcgames/sms-android) | No license stated; all rights remain with its author. A license has been requested ([jbcgames/sms-android#6](https://github.com/jbcgames/sms-android/issues/6)). |
 | Mareshine's own changes and additions | this repository | MIT, see [below](#mareshine) |
 | Third-party libraries (SDL2, Dear ImGui, stb, bcdec, Khronos headers) | their projects | their own licenses, kept in their folders or in their files (for example `third_party/SDL2-android/LICENSE.txt`, `platform/gx/third_party/imgui/LICENSE.txt`, and the end of `platform/gx/src/third_party/stb_image.h` and `bcdec.h`) |
 
