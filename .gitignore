@@ -34,3 +34,8 @@ android/**/.externalNativeBuild/
 *.apk
 *.aab
 
+
+# Release signing keys never go into the repository
+*.jks
+*.keystore
+keystore.properties

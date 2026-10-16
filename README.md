@@ -1,105 +1,138 @@
-# Super Mario Sunshine - Android Port (`sms-android`)
+<p align="center">
+  <img src="android/app/src/main/res/drawable-nodpi/mareshine_logo.webp" alt="Mareshine" width="480">
+</p>
 
-Port nativo de **Super Mario Sunshine** para dispositivos Android (ARM64 / `arm64-v8a`) acelerado por hardware mediante **OpenGL ES 3.0**, con controles táctiles personalizables integrados en pantalla y soporte plug-and-play para gamepads físicos (USB y Bluetooth).
+# Mareshine
 
----
+**Mareshine** is an Android port of *Super Mario Sunshine* (GameCube), built natively from the
+[Super Mario Sunshine decompilation](https://github.com/doldecomp/sms) with an OpenGL ES 3 renderer.
+It is a fork of [jbcgames/sms-android](https://github.com/jbcgames/sms-android) and brings over many
+features of [chasem-dev's PC port](https://github.com/chasem-dev/sms-pc-port).
 
-## 📋 Requisitos Previos
+**No game data is included.** You need your own copy of the game: the North American disc
+(GMSE01, revision 0) as an `.iso`. To play in a language other than English, you also need your
+own copy of the European release (GMSP01) as an `.iso`.
 
-1. **Dispositivo Android**:
-   - Arquitectura: ARM64 (`arm64-v8a`).
-   - Versión de Android: Android 8.0 (Oreo) o superior.
-   - Soporte gráfico: OpenGL ES 3.0 o superior.
-2. **Copia original del juego**:
-   - Archivo ISO de *Super Mario Sunshine* (versión USA GameCube, código `GMSE01`).
-   - Nombre recomendado del archivo: `GMSE01.iso`.
+<p align="center">
+  <img src="docs/screenshots/launcher.jpg" alt="Launcher" width="32%">
+  <img src="docs/screenshots/settings.jpg" alt="Settings" width="32%">
+  <img src="docs/screenshots/touch-layout.jpg" alt="Touch layout editor" width="32%">
+</p>
 
----
+## Features
 
-## 🚀 Guía de Instalación Rápida
+### New in Mareshine
 
-### Paso 1: Instalar el APK
+- **Modern UI** inspired by [Dusklight](https://github.com/TwilitRealm/dusklight): a launcher, tabbed
+  settings (Game, Video, Input, Cheats, Other) with a description for
+  every option, usable with a remote, a controller or touch, and an in-game pause menu (resume,
+  settings, restart, quit)
+- **Data folder** (as in Dusklight): one folder of your choice holds your settings, saves, disc
+  image, texture packs, cutscenes, language packs and logs, and stays when the app is reinstalled
+- **Background shader compilation**: the game's known shaders (from the PC port's list) are
+  compiled in the background while the menu shows and while you play, with a small notice,
+  inspired by Dusklight, that can be turned off
+- **Adaptive layout**: the app's menus and settings adapt to the display size, so they look right
+  on phones, tablets and TVs alike, clear of camera cutouts, system bars and rounded corners
+- **Customizable touch controls**: a touch layout editor (position and size of every button,
+  opacity, hide when idle)
+- **Controller settings**: controller choice, button mapping, dead zone, sensitivity and stick
+  calibration
+- **MP4 cutscenes**: the HD cutscenes can be converted to MP4 on the device and played with the
+  hardware video decoder, for devices too weak to play them in the game's own THP format, which
+  has to be decoded in software
+- **Cutscene frame**: an image fills the bars beside the 4:3 movies, with its own frame for movies
+  that need one, faded in and out
+- **Movies at their true shape**: wide movies are scaled across the 16:9 screen instead of sitting
+  in the 4:3 area, and dark capture edges are hidden under the frame
+- **HD texture packs in the app**: download the Super Mario Sunshine UHD texture pack in HD or
+  Ultra HD and its HD extras right in the app, turn them on or off, or use your own texture pack
+  (compatible with Dolphin texture packs for the North American version)
+- **HD cutscenes in the app**: download the PC port's HD cutscene pack, rebuilt from your own disc
+  and checked
+- **Game languages on the device**: French, German, Spanish and Italian, built on the device from
+  your own European disc; nothing is downloaded
+- **Safety and help**: a disc check before the game starts, saves written safely, logs and crash
+  reports, and a Recommended (HD) graphics preset
+- **App languages**: English, German, Spanish, French and Italian
 
-1. Descarga el archivo `app-release.apk` desde la sección de **Releases** del repositorio o desde la compilación local (`android/app/build/outputs/apk/release/app-release.apk`).
-2. En tu dispositivo Android, abre el instalador de paquetes y confirma la instalación.
-   - *Nota:* Si Android muestra una advertencia de orígenes desconocidos, habilita el permiso para instalar la aplicación.
+### Brought over from [chasem-dev's PC port](https://github.com/chasem-dev/sms-pc-port)
 
-Si utilizas una PC con ADB:
-```bash
-adb install -r app-release.apk
+- **HD cutscene pack**: the PC port's HD versions of the game's movies
+- **Shader warm-up**: each stage's shaders are prepared while it loads, so new areas stutter far
+  less
+- **120 FPS**: the PC port's framerate patches, as an option beside 30 and 60 FPS
+- **Cheats**: god mode, infinite lives, infinite FLUDD, movement speed, jump height, coin
+  multiplier
+- **Game language support**: the game code that plays the North American version in other
+  languages
+
+### From [jbcgames' sms-android](https://github.com/jbcgames/sms-android)
+
+- The native Android port itself: the game built from the decompilation with an OpenGL ES 3
+  renderer, touch controls, controller support, widescreen, HD texture pack support, and graphics
+  options such as
+  internal resolution, MSAA, anisotropic filtering, FXAA and draw distance
+
+## Future ideas
+
+- **Mod support**, as in Dusklight: install gameplay mods, texture packs and other changes from a
+  Mods menu
+- **Movies from the European release**: its cutscenes come with audio in other languages, which
+  could be used to match the language you play in
+
+## Requirements
+
+- Android 8.0 or newer, 64-bit ARM (`arm64-v8a`), OpenGL ES 3.0
+- Your own *Super Mario Sunshine* disc image: North America, GMSE01, revision 0
+
+The APK has been tested extensively on an **NVIDIA Shield TV** and a **Pixel 9 Pro**.
+
+## Getting started
+
+1. Install the APK.
+2. Open Mareshine and pick your disc image (Settings → Game → Disc image), or place it in `iso/`
+   inside the data folder. It is checked first.
+3. Optionally choose a data folder (Settings → Game → Data folder) and download a texture pack or
+   the HD cutscenes (Settings → Video).
+4. Press **Play**.
+
+## Building
+
+The Android app is built with Gradle from the `android/` folder; the game code comes from the
+`decomp/` submodule and is compiled by CMake through the Android NDK.
+
+```sh
+git submodule update --init --recursive
+cd android
+./gradlew assembleRelease
 ```
 
----
+You need JDK 17 and the Android SDK with NDK and CMake 3.22.1. The APK ends up in
+`android/app/build/outputs/apk/release/`. Desktop builds are described in [BUILD.md](BUILD.md).
 
-### Paso 2: Colocar la ISO del Juego (`GMSE01.iso`)
+## Credits
 
-El juego busca automáticamente la imagen del disco en varias rutas comunes de almacenamiento. La forma más sencilla es colocar tu archivo ISO en la carpeta **Descargas (Download)** de tu teléfono:
+- **[jbcgames](https://github.com/jbcgames/sms-android)**: the original Android port this project
+  continues
+- **[chasem-dev](https://github.com/chasem-dev/sms-pc-port)**: the PC port, its graphics layer,
+  HD cutscene pack, shader warm-up, cheats and framerate patches
+- **[doldecomp](https://github.com/doldecomp/sms)**: the Super Mario Sunshine decompilation
+- **[TwilitRealm](https://github.com/TwilitRealm/dusklight)**: Dusklight, whose launcher, data
+  folder and background shader compilation inspired Mareshine's
+- **qashto and razius**: the Super Mario Sunshine UHD texture pack
+- **Libraries**: SDL2, stb, Dear ImGui, bcdec
+- **TheM3dium**: the Android improvements in this fork
 
-- Ruta recomendada:
-  ```text
-  /sdcard/Download/GMSE01.iso
-  ```
-  *(o renombrado como `Super Mario Sunshine.iso` / `Super Mario Sunshine (USA).iso`)*
+### About how it was made
 
-Otras rutas admitidas automáticamente:
-- `/sdcard/sms/GMSE01.iso`
-- `Android/data/com.jbcgames.sunshine/files/GMSE01.iso`
+Mareshine was developed with the help of an AI assistant (Claude by Anthropic) and tested by hand
+on real devices. Bug reports are welcome.
 
-Para transferir la ISO desde la computadora vía ADB:
-```bash
-adb push "GMSE01.iso" /sdcard/Download/GMSE01.iso
-```
+## Disclaimer
 
----
-
-### Paso 3: Permisos de Almacenamiento
-
-Al abrir el juego por primera vez en Android 11 o superior:
-1. Concede el permiso de acceso a archivos/almacenamiento si el sistema lo solicita, para que la aplicación pueda leer la ISO desde `/sdcard/Download/`.
-2. Si la app no encuentra la ISO de forma automática, puedes conceder el permiso en:
-   - **Ajustes > Aplicaciones > Super Mario Sunshine > Permisos > Almacenamiento / Archivos**.
-
----
-
-## 🎮 Controles
-
-### Controles Táctiles en Pantalla
-El port cuenta con un overlay táctil optimizado y estilizado diseñado para jugar cómodamente en pantallas táctiles:
-
-| Control | Función |
-| :--- | :--- |
-| **Stick Virtual (Izquierda)** | Movimiento de Mario / Navegación en menús. |
-| **Botón A (Verde)** | Saltar / Confirmar / Hablar. |
-| **Botón B (Rojo)** | Agacharse / Bucear / Cancelar. |
-| **Botón X (Amarillo)** | Cambiar boquilla del FLUDD (Hover, Rocket, Turbo). |
-| **Botón Y (Azul cielo)** | Vista en primera persona / Apuntar. |
-| **Botón R (Azul)** | Disparo de agua continuo en movimiento (Soft spray). |
-| **Botón R+ (Azul marino)** | Disparo de agua fijo a máxima presión (Hard spray). |
-| **Botón L (Plata)** | Centrar cámara detrás de Mario. |
-| **Botón Z (Púrpura)** | Abrir mapa de Isla Delfino / Guía. |
-| **Botón START (Naranja)** | Menú de pausa. |
-| **Botón HUD (Gris superior)** | Cambiar opacidad de los controles táctiles en pantalla o ciclar visibilidad. |
-| **Deslizar en mitad derecha** | Control de cámara libre analógica (C-Stick). |
-
-### Mandos Físicos (Gamepads Bluetooth / USB)
-Si conectas un mando de Xbox, PlayStation, Switch Pro Controller o GameCube con adaptador USB, el juego mapea los botones de forma 1:1 automáticamente mediante SDL2.
-
----
-
-## 🛠️ Compilación desde el Código Fuente
-
-Si deseas compilar el APK tú mismo:
-
-1. **Requisitos de desarrollo**:
-   - JDK 17
-   - Android SDK (API 34)
-   - Android NDK `26.3.11579264`
-   - CMake 3.22.1+
-
-2. **Compilar el proyecto**:
-   ```bash
-   cd android
-   ./gradlew assembleRelease
-   ```
-   El APK generado se encontrará en:
-   `android/app/build/outputs/apk/release/app-release.apk`
+Mareshine is an unofficial fan project and is not affiliated with, endorsed or sponsored by
+Nintendo. *Super Mario Sunshine* and all related names and characters are trademarks and property
+of Nintendo. This project contains no game data, assets or copyrighted material from the game; you
+must own the game and use your own disc image. Please do not ask for or share game files.
+Provided as is, without any warranty.

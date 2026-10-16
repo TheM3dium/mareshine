@@ -14,6 +14,8 @@
 #include <ctype.h>
 #include <dlfcn.h>
 #include <vector>
+#include <time.h>
+#include <math.h>
 #include "touch_controller.h"
 
 // --- SDL2 event ABI (SDL_events.h, SDL_scancode.h, SDL_gamecontroller.h) ---
@@ -58,6 +60,7 @@ struct TouchFingerEvent {
 extern "C" {
 __attribute__((weak)) void sms_gx_set_event_callback(void (*cb)(const union SDL_Event* ev));
 __attribute__((weak)) void sms_gx_pump_events(void);
+__attribute__((weak)) int sms_gx_pad_count(void);
 __attribute__((weak)) int GXPC_IsHeadless(void);
 __attribute__((weak)) int GXPC_MouseCaptured(void);
 }
@@ -67,6 +70,26 @@ __attribute__((weak)) int GXPC_MouseCaptured(void);
 //   SMS_CAMERA_SPEED=percent   scales manual camera rotation (100 = retail)
 //   SMS_FREE_CAMERA=1          the camera stays where it is put (no auto swing-back)
 //   SMS_MOUSE_SENSITIVITY=%    mouse look speed, when the GX layer captures the mouse
+#ifdef __ANDROID__
+// The in-game menu (SunshineActivity / GameMenuActivity): Esc, Select + Start,
+// the controller's Home/Guide button or the MENU touch button ask the Java
+// side to open it; the game pauses while it is shown.
+extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(uint32_t command, int param);
+extern "C" __attribute__((visibility("default"))) void port_open_menu(void)
+{
+	static uint64_t s_last;
+	timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	uint64_t now = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+	if (now - s_last < 800) // one press, one menu
+		return;
+	s_last = now;
+	port_log("[pad] in-game menu requested\n");
+	if (SDL_AndroidSendMessage)
+		SDL_AndroidSendMessage(0x8001, 0); // SunshineActivity.COMMAND_OPEN_MENU
+}
+#endif
+
 extern "C" {
 int port_free_camera      = 0;
 f32 port_camera_speed_x   = 1.0f;
@@ -144,6 +167,103 @@ bool g_key[512];
 s16 g_axis[6];
 bool g_cbtn[21];
 bool g_inited;
+
+// Game controller mapping (SMS_PAD_MAP): which SDL controller button (bN) or
+// axis (aN, positive half) drives each GameCube input, e.g.
+//   SMS_PAD_MAP=A=b0 B=b1 X=b2 Y=b3 Z=b9,b4 L=a4 R=a5 R_SOFT=b10 START=b6
+//               DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2
+// Controls left out keep these defaults; "none" unbinds one. STICK and
+// CSTICK name the first axis of a stick (a0 left, a2 right). R_SOFT is a
+// half-pressed R (spray while moving).
+enum PadIn {
+	P_A, P_B, P_X, P_Y, P_Z, P_L, P_R, P_RSOFT, P_START,
+	P_DUP, P_DDOWN, P_DLEFT, P_DRIGHT, P_STICK, P_CSTICK, P_COUNT
+};
+const char* const kPadNames[P_COUNT] = {
+	"A", "B", "X", "Y", "Z", "L", "R", "R_SOFT", "START",
+	"DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "STICK", "CSTICK",
+};
+struct PadSrc {
+	char kind; // 'b' button, 'a' axis, 0 unused
+	int idx;
+};
+const int kMaxPadSrc = 3;
+PadSrc g_pmap[P_COUNT][kMaxPadSrc];
+const char* const kDefaultPadMap =
+    "A=b0 B=b1 X=b2 Y=b3 Z=b9,b4 L=a4 R=a5 R_SOFT=b10 START=b6 "
+    "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2";
+
+void parse_pad_map(const char* text)
+{
+	char buf[1024];
+	snprintf(buf, sizeof buf, "%s", text);
+	char* save = NULL;
+	for (char* tok = strtok_r(buf, " \t;\n", &save); tok; tok = strtok_r(NULL, " \t;\n", &save)) {
+		char* eq = strchr(tok, '=');
+		if (!eq)
+			continue;
+		*eq   = 0;
+		int c = -1;
+		for (int i = 0; i < P_COUNT; i++)
+			if (strcasecmp(kPadNames[i], tok) == 0)
+				c = i;
+		if (c < 0) {
+			port_log("[pad] SMS_PAD_MAP: unknown control '%s'\n", tok);
+			continue;
+		}
+		memset(g_pmap[c], 0, sizeof g_pmap[c]);
+		int n = 0;
+		for (char* v = eq + 1; *v && n < kMaxPadSrc;) {
+			char* comma = strchr(v, ',');
+			if (comma)
+				*comma = 0;
+			if ((v[0] == 'b' || v[0] == 'a') && isdigit((unsigned char)v[1])) {
+				int idx = atoi(v + 1);
+				if ((v[0] == 'b' && idx < 21) || (v[0] == 'a' && idx < 6))
+					g_pmap[c][n++] = { v[0], idx };
+			}
+			if (!comma)
+				break;
+			v = comma + 1;
+		}
+	}
+}
+
+// How far a mapped input is pressed, 0..255.
+int pad_level(int c)
+{
+	int best = 0;
+	for (int i = 0; i < kMaxPadSrc; i++) {
+		const PadSrc& s = g_pmap[c][i];
+		int v = 0;
+		if (s.kind == 'b')
+			v = g_cbtn[s.idx] ? 255 : 0;
+		else if (s.kind == 'a')
+			v = g_axis[s.idx] > 0 ? g_axis[s.idx] * 255 / 32767 : 0;
+		if (v > best)
+			best = v;
+	}
+	return best;
+}
+bool pad_held(int c) { return pad_level(c) >= 128; }
+int pad_stick_axis(int c, int fallback)
+{
+	return g_pmap[c][0].kind == 'a' && (g_pmap[c][0].idx == 0 || g_pmap[c][0].idx == 2) ? g_pmap[c][0].idx : fallback;
+}
+
+// SMS_TOUCH_CONTROLS: auto (hidden while a game controller is in use), on, off.
+// settings.txt turns on/off into 1/0.
+int g_touchMode = 0; // 0 auto, 1 on, 2 off
+int parse_touch_mode(const char* t)
+{
+	if (!t)
+		return 0;
+	if (!strcasecmp(t, "on") || !strcmp(t, "1") || !strcasecmp(t, "always"))
+		return 1;
+	if (!strcasecmp(t, "off") || !strcmp(t, "0") || !strcasecmp(t, "never"))
+		return 2;
+	return 0;
+}
 // SMS_CAMERA_INVERT_X / SMS_CAMERA_INVERT_Y=1 flip the C-stick, which only
 // turns the camera.
 bool g_invert_cx, g_invert_cy;
@@ -229,8 +349,13 @@ void on_event(const union SDL_Event* ev)
 		if (type == sdl::KEYDOWN)
 			for (int i = 0; i < g_nbind[C_QUIT]; i++)
 				if (g_bind[C_QUIT][i] == k->scancode) {
+#ifdef __ANDROID__
+					if (!k->repeat)
+						port_open_menu(); // Esc opens the in-game menu; quitting is there
+#else
 					port_log("[pad] quit key pressed\n");
 					exit(0);
+#endif
 				}
 		break;
 	}
@@ -281,12 +406,80 @@ bool held(int c)
 	return false;
 }
 
-s8 axis8(int v, int range)
+// Analog sticks (Settings → INPUT):
+//   SMS_STICK_DEADZONE / SMS_CSTICK_DEADZONE   percent of the throw ignored around
+//                                              the centre (radial; 8 by default)
+//   SMS_STICK_SENSITIVITY / SMS_CSTICK_...     percent; above 100 full deflection
+//                                              is reached earlier
+//   SMS_CAL_LEFT / SMS_CAL_RIGHT               a physical stick's calibration from
+//                                              the app (beta): "cx,cy,minx,maxx,
+//                                              miny,maxy" in raw units (-1..1)
+// Deadzone and sensitivity belong to the stick's role (move / camera), the
+// calibration to the physical stick (axes 0/1 left, 2/3 right).
+struct StickCal {
+	bool on;
+	float cx, cy, minx, maxx, miny, maxy;
+};
+StickCal g_cal[2];
+float g_dz[2]   = { 0.08f, 0.08f }; // [0] move stick, [1] camera stick
+float g_sens[2] = { 1.0f, 1.0f };
+
+void stick_init()
 {
-	int x = v * range / 32767;
-	if (x > -8 && x < 8)
-		x = 0; // dead zone
-	return (s8)(x > 127 ? 127 : x < -128 ? -128 : x);
+	const char* dz[2] = { "SMS_STICK_DEADZONE", "SMS_CSTICK_DEADZONE" };
+	const char* se[2] = { "SMS_STICK_SENSITIVITY", "SMS_CSTICK_SENSITIVITY" };
+	for (int i = 0; i < 2; i++) {
+		if (const char* e = getenv(dz[i])) {
+			float v = (float)atof(e) / 100.0f;
+			g_dz[i] = v < 0 ? 0 : v > 0.6f ? 0.6f : v;
+		}
+		if (const char* e = getenv(se[i])) {
+			float v = (float)atof(e) / 100.0f;
+			g_sens[i] = v < 0.25f ? 0.25f : v > 3.0f ? 3.0f : v;
+		}
+	}
+	const char* cal[2] = { "SMS_CAL_LEFT", "SMS_CAL_RIGHT" };
+	for (int i = 0; i < 2; i++) {
+		StickCal& c = g_cal[i];
+		const char* e = getenv(cal[i]);
+		c.on = e && sscanf(e, "%f,%f,%f,%f,%f,%f", &c.cx, &c.cy, &c.minx, &c.maxx, &c.miny, &c.maxy) == 6
+		       && c.maxx > c.cx && c.minx < c.cx && c.maxy > c.cy && c.miny < c.cy;
+		if (c.on)
+			port_log("[pad] %s stick calibrated: centre %.3f,%.3f x %.2f..%.2f y %.2f..%.2f\n", i ? "right" : "left",
+			         c.cx, c.cy, c.minx, c.maxx, c.miny, c.maxy);
+	}
+	port_log("[pad] sticks: dead zone %d%%/%d%%, sensitivity %d%%/%d%%\n", (int)(g_dz[0] * 100 + 0.5f),
+	         (int)(g_dz[1] * 100 + 0.5f), (int)(g_sens[0] * 100 + 0.5f), (int)(g_sens[1] * 100 + 0.5f));
+}
+
+float cal_axis(float v, float c, float mn, float mx)
+{
+	float r = v >= c ? (v - c) / (mx - c > 0.05f ? mx - c : 0.05f) : (v - c) / (c - mn > 0.05f ? c - mn : 0.05f);
+	return r > 1 ? 1 : r < -1 ? -1 : r;
+}
+
+// A controller stick as GameCube stick units (about +-100 at the rim, y up).
+void read_stick(int base, int role, int* ox, int* oy)
+{
+	float fx = g_axis[base] / 32767.0f, fy = g_axis[base + 1] / 32767.0f;
+	const StickCal& c = g_cal[base >= 2 ? 1 : 0];
+	if (c.on) {
+		fx = cal_axis(fx, c.cx, c.minx, c.maxx);
+		fy = cal_axis(fy, c.cy, c.miny, c.maxy);
+	}
+	float r = sqrtf(fx * fx + fy * fy);
+	float dz = g_dz[role];
+	if (r <= dz || r < 1e-4f) {
+		*ox = *oy = 0;
+		return;
+	}
+	float nr = (r - dz) / (1.0f - dz) * g_sens[role];
+	if (nr > 1.0f)
+		nr = 1.0f;
+	fx *= nr / r;
+	fy *= nr / r;
+	*ox = (int)lrintf(fx * 100.0f);
+	*oy = (int)lrintf(-fy * 100.0f);
 }
 
 void autopress_init();
@@ -303,6 +496,16 @@ void init()
 		port_log("[pad] camera: free camera %s, speed %d%%\n", port_free_camera ? "on" : "off",
 		         (int)(port_camera_speed_x * 100.0f + 0.5f));
 	parse_bindings(kDefaultBindings, "defaults");
+	parse_pad_map(kDefaultPadMap);
+	stick_init();
+	if (const char* r = getenv("SMS_R1_SOFT_SPRAY"))
+		if (!strcmp(r, "0"))
+			parse_pad_map("Z=b9,b4,b10 R_SOFT=none");
+	if (const char* m = getenv("SMS_PAD_MAP")) {
+		parse_pad_map(m);
+		port_log("[pad] controller mapping: %s\n", m);
+	}
+	g_touchMode = parse_touch_mode(getenv("SMS_TOUCH_CONTROLS"));
 	g_invert_cx = env_on("SMS_CAMERA_INVERT_X");
 	g_invert_cy = env_on("SMS_CAMERA_INVERT_Y");
 	if (g_invert_cx || g_invert_cy)
@@ -452,46 +655,70 @@ extern "C" u32 PADRead(PADStatus* status)
 	PADStatus& s = status[0];
 	u16 b        = 0;
 	static const struct {
-		int control;
+		int control; // keyboard (bindings.txt)
+		int pad;     // game controller (SMS_PAD_MAP)
 		u16 bit;
-		int cbutton; // SDL_CONTROLLER_BUTTON_*
 	} map[] = {
-		{ C_A, PAD_BUTTON_A, 0 },          { C_B, PAD_BUTTON_B, 1 },          { C_X, PAD_BUTTON_X, 2 },
-		{ C_Y, PAD_BUTTON_Y, 3 },          { C_Z, PAD_TRIGGER_Z, 10 },        { C_START, PAD_BUTTON_START, 6 },
-		{ C_DUP, PAD_BUTTON_UP, 11 },      { C_DDOWN, PAD_BUTTON_DOWN, 12 }, { C_DLEFT, PAD_BUTTON_LEFT, 13 },
-		{ C_DRIGHT, PAD_BUTTON_RIGHT, 14 },
+		{ C_A, P_A, PAD_BUTTON_A },             { C_B, P_B, PAD_BUTTON_B },
+		{ C_X, P_X, PAD_BUTTON_X },             { C_Y, P_Y, PAD_BUTTON_Y },
+		{ C_Z, P_Z, PAD_TRIGGER_Z },            { C_START, P_START, PAD_BUTTON_START },
+		{ C_DUP, P_DUP, PAD_BUTTON_UP },        { C_DDOWN, P_DDOWN, PAD_BUTTON_DOWN },
+		{ C_DLEFT, P_DLEFT, PAD_BUTTON_LEFT },  { C_DRIGHT, P_DRIGHT, PAD_BUTTON_RIGHT },
 	};
-	static bool s_r1_soft_inited = false;
-	static bool s_r1_soft = true;
-	if (!s_r1_soft_inited) {
-		s_r1_soft_inited = true;
-		if (const char* r = getenv("SMS_R1_SOFT_SPRAY"))
-			s_r1_soft = strcmp(r, "0") != 0;
-	}
 
-	// Exit combo: Back (Select) + Start
+	// Select + Start (and the Home/Guide button): the in-game menu on
+	// Android, quit elsewhere.
+#ifdef __ANDROID__
+	{
+		static bool s_comboWas;
+		bool combo = (g_cbtn[4] && g_cbtn[6]) || g_cbtn[5];
+		if (combo && !s_comboWas)
+			port_open_menu();
+		s_comboWas = combo;
+		if (combo) { // the menu takes the press; the game does not see Start
+			g_cbtn[4] = g_cbtn[5] = g_cbtn[6] = false;
+		}
+	}
+#else
 	if (g_cbtn[4] && g_cbtn[6]) {
 		port_log("[pad] Exit combo pressed (Select + Start)\n");
 		exit(0);
 	}
+#endif
 
-	for (size_t i = 0; i < sizeof map / sizeof map[0]; i++) {
-		if (map[i].control == C_Z) {
-			if (held(C_Z) || g_cbtn[4] || g_cbtn[9] || (!s_r1_soft && g_cbtn[10]))
-				b |= PAD_TRIGGER_Z;
-		} else {
-			if (held(map[i].control) || g_cbtn[map[i].cbutton])
-				b |= map[i].bit;
+	// Touch controls: hidden while a game controller is in use (auto), or as set.
+	// The in-game menu can change SMS_TOUCH_CONTROLS while the game runs.
+	{
+		static int s_touchPoll;
+		if (++s_touchPoll >= 30) {
+			s_touchPoll = 0;
+			g_touchMode = parse_touch_mode(getenv("SMS_TOUCH_CONTROLS"));
 		}
+		int pads = sms_gx_pad_count ? sms_gx_pad_count() : 0;
+		static int s_lastPads = -1;
+		if (pads != s_lastPads) {
+			if (pads == 0) { // a controller went away: release what it held
+				memset(g_axis, 0, sizeof g_axis);
+				memset(g_cbtn, 0, sizeof g_cbtn);
+			}
+			s_lastPads = pads;
+		}
+		bool show = g_touchMode == 1 || (g_touchMode == 0 && pads == 0);
+		if (show != touch_controller_is_visible())
+			touch_controller_set_visible(show);
 	}
+
+	for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
+		if (held(map[i].control) || pad_held(map[i].pad))
+			b |= map[i].bit;
 	// Triggers: a key is a full press (analog 255 plus the digital click).
-	int tl = g_axis[4] > 0 ? g_axis[4] * 255 / 32767 : 0;
-	int tr = g_axis[5] > 0 ? g_axis[5] * 255 / 32767 : 0;
+	int tl = pad_level(P_L);
+	int tr = pad_level(P_R);
 	if (held(C_L))
 		tl = 255;
 	if (held(C_R))
 		tr = 255;
-	if (s_r1_soft && g_cbtn[10]) {
+	if (pad_held(P_RSOFT)) {
 		// Soft R press: spray water while running without locking movement into aim
 		if (tr < 180)
 			tr = 180;
@@ -516,12 +743,19 @@ extern "C" u32 PADRead(PADStatus* status)
 		x = x * 7 / 10;
 		y = y * 7 / 10;
 	}
-	s.stickX    = (s8)(x ? x : axis8(g_axis[0], 100));
-	s.stickY    = (s8)(y ? y : axis8(-g_axis[1], 100));
+	int ms      = pad_stick_axis(P_STICK, 0);
+	int cs      = pad_stick_axis(P_CSTICK, 2);
+	int sx, sy, scx, scy;
+	read_stick(ms, 0, &sx, &sy);
+	read_stick(cs, 1, &scx, &scy);
+	s.stickX    = (s8)(x || y ? x : sx);
+	s.stickY    = (s8)(x || y ? y : sy);
 	int cx      = held(C_CRIGHT) * 100 - held(C_CLEFT) * 100;
 	int cy      = held(C_CUP) * 100 - held(C_CDOWN) * 100;
-	cx          = cx ? cx : axis8(g_axis[2], 100);
-	cy          = cy ? cy : axis8(-g_axis[3], 100);
+	if (!cx && !cy) {
+		cx = scx;
+		cy = scy;
+	}
 	s.substickX = (s8)(g_invert_cx ? -cx : cx);
 	s.substickY = (s8)(g_invert_cy ? -cy : cy);
 	touch_controller_update_pad(&s);

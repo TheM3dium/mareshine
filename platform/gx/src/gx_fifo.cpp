@@ -82,10 +82,17 @@ uint64_t hashBytes(const void* data, size_t n, uint64_t seed) {
 // the unmodified OSCachedToPhysical macro (addr - 0x80000000) assumes.
 static uint8_t* s_memBase = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(0x80000000u));
 static uint32_t s_memSize = 0x01800000;
+// When MEM1 lives elsewhere (GXPC_SetMemoryWindow; e.g. on Android, where
+// 0x80000000 is often taken), game code that still uses the decomp's
+// OSCachedToPhysical (addr - 0x80000000) produces addresses offset by this
+// much; physToPtr accepts both kinds.
+static uint32_t s_legacyDelta = 0;
 
 void* physToPtr(uint32_t phys) {
     phys &= 0x3FFFFFFF;
     if (!phys) return nullptr;
+    if (phys >= s_memSize && s_legacyDelta && ((phys - s_legacyDelta) & 0x3FFFFFFF) < s_memSize)
+        phys = (phys - s_legacyDelta) & 0x3FFFFFFF;
     return s_memBase + phys;
 }
 
@@ -897,8 +904,9 @@ using namespace gx;
 extern "C" {
 
 void GXPC_SetMemoryWindow(void* base, uint32_t size) {
-    s_memBase = static_cast<uint8_t*>(base);
-    s_memSize = size;
+    s_memBase     = static_cast<uint8_t*>(base);
+    s_memSize     = size;
+    s_legacyDelta = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(base) - 0x80000000u) & 0x3FFFFFFF;
 }
 
 void GXPC_AddBigEndianRange(const void* p, uint32_t size) {

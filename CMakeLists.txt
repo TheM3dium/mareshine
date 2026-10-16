@@ -435,7 +435,7 @@ else()
     target_link_libraries(sms PRIVATE ws2_32) # platform/netplay
   endif()
   if(ANDROID)
-    target_link_libraries(sms PRIVATE log android GLESv3 EGL SDL2)
+    target_link_libraries(sms PRIVATE log android GLESv3 EGL SDL2 mediandk) # mediandk: platform/thp/mp4_movies.cpp
   endif()
   if(TARGET sms_gx)
     target_link_libraries(sms PRIVATE -Wl,--whole-archive sms_gx -Wl,--no-whole-archive)

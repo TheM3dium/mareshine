@@ -219,6 +219,15 @@ const char* hiresDumpDir() {
     return dir;
 }
 
+bool loadImageRgba(const char* path, std::vector<uint8_t>& rgba, int& w, int& h) {
+    int n = 0;
+    uint8_t* px = stbi_load(path, &w, &h, &n, 4);
+    if (!px) return false;
+    rgba.assign(px, px + size_t(w) * h * 4);
+    stbi_image_free(px);
+    return true;
+}
+
 void hiresDump(const std::string& name, const uint8_t* rgba, uint32_t w, uint32_t h) {
     static std::unordered_set<std::string> done;
     const char* dir = hiresDumpDir();
@@ -505,6 +514,14 @@ static void upload(Replacement& r, Loaded* L, int unit, uint32_t gxW, uint32_t g
         r.state = Replacement::FAILED;
         return;
     }
+    // smaller than the texture it replaces: a placeholder, not an upscale (the
+    // big Sunshine pack has solid black ones for the European title's splash
+    // pieces, which played over the logo as opaque blocks), so the original
+    if (uint32_t(L->w) < gxW && uint32_t(L->h) < gxH) {
+        logmsg("texture pack: ignoring a %dx%d replacement for a %ux%u texture", L->w, L->h, gxW, gxH);
+        r.state = Replacement::FAILED;
+        return;
+    }
     int scale = 0;
     while (scale < 6 && (gxW << (scale + 1)) <= uint32_t(L->w) && (gxH << (scale + 1)) <= uint32_t(L->h)) scale++;
     glGenTextures(1, &r.tex);
@@ -627,3 +644,4 @@ void hiresShutdown() {
 uint32_t hiresUploadedCount() { return s_uploaded; }
 
 }  // namespace gx
+

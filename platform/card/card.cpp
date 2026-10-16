@@ -13,6 +13,10 @@
 #include <sys/stat.h>
 #include "port_host.h"
 #include <errno.h>
+#include <string.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -52,7 +56,7 @@ std::string card_dir()
 		g_dir = std::string(x) + "/sms-port/card-a";
 #elif defined(__ANDROID__)
 	else
-		g_dir = "/sdcard/Android/data/com.jbcgames.sunshine/files/card-a";
+		g_dir = "/sdcard/Android/data/io.github.them3dium.mareshine/files/card-a";
 #else
 	else if (const char* h = getenv("HOME"))
 		g_dir = std::string(h) + "/.local/share/sms-port/card-a";
@@ -86,20 +90,42 @@ bool read_all(const std::string& path, std::vector<u8>& out)
 	return true;
 }
 
+// Writes a whole file through <path>.tmp and a rename, so a full disk, a
+// pulled card or a crash mid-write leaves the previous save intact instead of
+// a truncated one.
+bool write_file(const std::string& path, const void* data, size_t size)
+{
+	std::string tmp = path + ".tmp";
+	FILE* fp        = fopen(tmp.c_str(), "wb");
+	if (!fp) {
+		port_log("[card] cannot write %s: %s\n", tmp.c_str(), strerror(errno));
+		return false;
+	}
+	bool ok = fwrite(data, 1, size, fp) == size;
+	ok      = fflush(fp) == 0 && ok;
+#ifndef _WIN32
+	ok = fsync(fileno(fp)) == 0 && ok;
+#endif
+	ok = fclose(fp) == 0 && ok;
+	if (ok) {
+#ifdef _WIN32
+		remove(path.c_str()); // rename does not replace on Windows
+#endif
+		ok = rename(tmp.c_str(), path.c_str()) == 0;
+	}
+	if (!ok) {
+		port_log("[card] SAVE FAILED for %s: %s (the previous save is kept)\n", path.c_str(), strerror(errno));
+		remove(tmp.c_str());
+	}
+	return ok;
+}
+
 void save(int no)
 {
-	CardFile& f     = g_files[no];
-	std::string b   = card_dir() + "/" + safe(f.name);
-	FILE* fp        = fopen((b + ".dat").c_str(), "wb");
-	if (fp) {
-		fwrite(f.data.data(), 1, f.data.size(), fp);
-		fclose(fp);
-	}
-	fp = fopen((b + ".stat").c_str(), "wb");
-	if (fp) {
-		fwrite(&f.stat, 1, sizeof f.stat, fp);
-		fclose(fp);
-	}
+	CardFile& f   = g_files[no];
+	std::string b = card_dir() + "/" + safe(f.name);
+	write_file(b + ".dat", f.data.data(), f.data.size());
+	write_file(b + ".stat", &f.stat, sizeof f.stat);
 }
 
 void load()
@@ -140,11 +166,7 @@ void save_index()
 		t += (g_files[i].used ? g_files[i].name : std::string()) + "\n";
 	while (t.size() > 1 && t[t.size() - 1] == '\n' && t[t.size() - 2] == '\n')
 		t.erase(t.size() - 1);
-	FILE* fp = fopen((card_dir() + "/index.txt").c_str(), "wb");
-	if (fp) {
-		fwrite(t.data(), 1, t.size(), fp);
-		fclose(fp);
-	}
+	write_file(card_dir() + "/index.txt", t.data(), t.size());
 }
 
 int find(const char* name)

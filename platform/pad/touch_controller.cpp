@@ -1,4 +1,12 @@
 #include "touch_controller.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <string>
+
+// pad.cpp (Android): asks the app to open the in-game menu.
+extern "C" void port_open_menu(void) __attribute__((weak));
+extern "C" void GXPC_SetOverlayAlpha(float alpha) __attribute__((weak));
 #include <sms_gx/gx_pc.h>
 #include <algorithm>
 #include <cmath>
@@ -24,6 +32,7 @@ enum TouchButtonId {
     TBTN_Z,
     TBTN_START,
     TBTN_OPACITY,
+    TBTN_MENU,
     TBTN_COUNT
 };
 
@@ -36,6 +45,7 @@ struct TouchButton {
     uint8_t baseR, baseG, baseB;
     bool pressed;
     int64_t fingerId;
+    bool hidden; // SMS_TOUCH_LAYOUT: not shown, not pressable
 };
 
 // Button layout definitions
@@ -50,7 +60,8 @@ TouchButton s_buttons[TBTN_COUNT] = {
     { TBTN_R_HARD, "R+",   0.82f, 0.44f, 0.062f, PAD_TRIGGER_R,      31,  78,  121, false, -1 }, // Deep Blue (Aim Spray)
     { TBTN_Z,      "Z",    0.92f, 0.16f, 0.062f, PAD_TRIGGER_Z,      155, 89,  182, false, -1 }, // Purple
     { TBTN_START,  "START",0.50f, 0.08f, 0.050f, PAD_BUTTON_START,  230, 126, 34,  false, -1 }, // Orange
-    { TBTN_OPACITY,"HUD",  0.40f, 0.08f, 0.045f, 0,                  127, 140, 141, false, -1 }  // Settings/HUD
+    { TBTN_OPACITY,"HUD",  0.40f, 0.08f, 0.045f, 0,                  127, 140, 141, false, -1 }, // Settings/HUD
+    { TBTN_MENU,   "MENU", 0.60f, 0.08f, 0.050f, 0,                  69,  90,  100, false, -1 }  // in-game menu (port_open_menu)
 };
 
 // Virtual Analog Stick State
@@ -76,11 +87,113 @@ struct CameraSwipe {
 
 CameraSwipe s_cam = { false, -1, 0, 0, 0, 0 };
 
+
 int s_winW = 1280;
 int s_winH = 720;
 float s_hudOpacity = 0.70f;
 bool s_visible = true;
 bool s_inited = false;
+
+// Where the sticks rest: x, y as fractions of the window, r (the reach) as a
+// fraction of its height. The layout editor in the app moves and sizes them.
+struct StickLayout {
+    float x, y, r;
+    bool hidden;
+};
+StickLayout s_stickL = { 0.16f, 0.72f, 0.14f, false };
+StickLayout s_cstickL = { 0.61f, 0.76f, 0.11f, false };
+
+// SMS_TOUCH_LAYOUT (the app's touch layout editor): "NAME=x,y,size,shown;..."
+// for A B X Y L R RPLUS Z START HUD MENU and STICK CSTICK. Names left out keep
+// their place. SMS_TOUCH_OPACITY: percent. SMS_TOUCH_AUTOHIDE: seconds without
+// a touch after which the controls fade out (0 never); a touch brings them back.
+const char* const kTouchNames[] = { "A", "B", "X", "Y", "L", "R", "RPLUS", "Z", "START", "HUD", "MENU" };
+float s_autoHide = 0;
+double s_lastTouch = 0;
+bool s_layoutLoaded = false;
+
+double nowSec()
+{
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
+
+// The built-in places, kept so a changed SMS_TOUCH_LAYOUT can drop entries.
+struct SavedPlace { float x, y, r; };
+SavedPlace s_defButtons[TBTN_COUNT];
+StickLayout s_defStick, s_defCStick;
+bool s_defSaved = false;
+
+void loadLayout()
+{
+    if (s_layoutLoaded) return;
+    s_layoutLoaded = true;
+    if (!s_defSaved) {
+        s_defSaved = true;
+        for (int i = 0; i < TBTN_COUNT; i++) s_defButtons[i] = { s_buttons[i].relX, s_buttons[i].relY, s_buttons[i].relRadius };
+        s_defStick = s_stickL;
+        s_defCStick = s_cstickL;
+    } else {
+        for (int i = 0; i < TBTN_COUNT; i++) {
+            s_buttons[i].relX = s_defButtons[i].x;
+            s_buttons[i].relY = s_defButtons[i].y;
+            s_buttons[i].relRadius = s_defButtons[i].r;
+            s_buttons[i].hidden = false;
+        }
+        s_stickL = s_defStick;
+        s_cstickL = s_defCStick;
+        s_hudOpacity = 0.70f;
+        s_autoHide = 0;
+    }
+    if (const char* e = getenv("SMS_TOUCH_OPACITY"); e && *e) {
+        float v = (float)atof(e) / 100.0f;
+        s_hudOpacity = v < 0.05f ? 0.05f : v > 1.0f ? 1.0f : v;
+    }
+    if (const char* e = getenv("SMS_TOUCH_AUTOHIDE"); e && *e) s_autoHide = (float)atof(e);
+    const char* e = getenv("SMS_TOUCH_LAYOUT");
+    if (!e || !*e) return;
+    std::string all = e;
+    size_t pos = 0;
+    while (pos < all.size()) {
+        size_t end = all.find(';', pos);
+        std::string item = all.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+        pos = end == std::string::npos ? all.size() : end + 1;
+        size_t eq = item.find('=');
+        if (eq == std::string::npos) continue;
+        std::string name = item.substr(0, eq);
+        float x, y, r;
+        int shown = 1;
+        if (sscanf(item.c_str() + eq + 1, "%f,%f,%f,%d", &x, &y, &r, &shown) < 3) continue;
+        x = std::max(0.0f, std::min(1.0f, x));
+        y = std::max(0.0f, std::min(1.0f, y));
+        r = std::max(0.02f, std::min(0.4f, r));
+        if (name == "STICK") s_stickL = { x, y, r, shown == 0 };
+        else if (name == "CSTICK") s_cstickL = { x, y, r, shown == 0 };
+        else
+            for (int i = 0; i < TBTN_COUNT; i++)
+                if (name == kTouchNames[i]) {
+                    s_buttons[i].relX = x;
+                    s_buttons[i].relY = y;
+                    s_buttons[i].relRadius = r;
+                    s_buttons[i].hidden = shown == 0;
+                }
+    }
+}
+
+void placeSticks()
+{
+    s_stick.radius = s_winH * s_stickL.r;
+    s_stick.anchorX = s_winW * s_stickL.x;
+    s_stick.anchorY = s_winH * s_stickL.y;
+    s_stick.currX = s_stick.anchorX;
+    s_stick.currY = s_stick.anchorY;
+    s_cstick.radius = s_winH * s_cstickL.r;
+    s_cstick.anchorX = s_winW * s_cstickL.x;
+    s_cstick.anchorY = s_winH * s_cstickL.y;
+    s_cstick.currX = s_cstick.anchorX;
+    s_cstick.currY = s_cstick.anchorY;
+}
 
 // Sprite Cache
 struct Sprite {
@@ -435,18 +548,18 @@ Sprite makeCStickKnobSprite(int size, bool pressed)
 
 void rebuildSprites()
 {
-    int baseStickSize = int(s_winH * 0.28f);
-    if (baseStickSize < 64) baseStickSize = 64;
-    if (baseStickSize > 256) baseStickSize = 256;
+    int baseStickSize = int(s_winH * s_stickL.r * 2.0f);
+    if (baseStickSize < 48) baseStickSize = 48;
+    if (baseStickSize > 400) baseStickSize = 400;
     s_stickBaseSprite = makeStickBaseSprite(baseStickSize);
 
     int knobSize = int(baseStickSize * 0.44f);
     s_stickKnobSprite = makeStickKnobSprite(knobSize, false);
     s_stickKnobPressedSprite = makeStickKnobSprite(knobSize, true);
 
-    int cstickBaseSize = int(s_winH * 0.22f);
-    if (cstickBaseSize < 48) cstickBaseSize = 48;
-    if (cstickBaseSize > 200) cstickBaseSize = 200;
+    int cstickBaseSize = int(s_winH * s_cstickL.r * 2.0f);
+    if (cstickBaseSize < 40) cstickBaseSize = 40;
+    if (cstickBaseSize > 360) cstickBaseSize = 360;
     s_cstickBaseSprite = makeCStickBaseSprite(cstickBaseSize);
 
     int cstickKnobSize = int(cstickBaseSize * 0.46f);
@@ -455,8 +568,8 @@ void rebuildSprites()
 
     for (int i = 0; i < TBTN_COUNT; ++i) {
         int btnPx = int(s_buttons[i].relRadius * 2.0f * s_winH);
-        if (btnPx < 32) btnPx = 32;
-        if (btnPx > 180) btnPx = 180;
+        if (btnPx < 24) btnPx = 24;
+        if (btnPx > 320) btnPx = 320;
         s_buttonSprites[i][0] = makeButtonSprite(btnPx, s_buttons[i].baseR, s_buttons[i].baseG, s_buttons[i].baseB, s_buttons[i].label, false);
         s_buttonSprites[i][1] = makeButtonSprite(btnPx, s_buttons[i].baseR, s_buttons[i].baseG, s_buttons[i].baseB, s_buttons[i].label, true);
     }
@@ -470,28 +583,18 @@ void touch_controller_init(void)
 {
     if (s_inited) return;
     s_inited = true;
+    loadLayout();
+    s_lastTouch = nowSec();
 
-    // Default positioning for main left stick
     s_stick.active = false;
     s_stick.fingerId = -1;
-    s_stick.radius = s_winH * 0.14f;
-    s_stick.anchorX = s_winW * 0.16f;
-    s_stick.anchorY = s_winH * 0.72f;
-    s_stick.currX = s_stick.anchorX;
-    s_stick.currY = s_stick.anchorY;
     s_stick.stickX = 0;
     s_stick.stickY = 0;
-
-    // Default positioning for right C-stick
     s_cstick.active = false;
     s_cstick.fingerId = -1;
-    s_cstick.radius = s_winH * 0.11f;
-    s_cstick.anchorX = s_winW * 0.61f;
-    s_cstick.anchorY = s_winH * 0.76f;
-    s_cstick.currX = s_cstick.anchorX;
-    s_cstick.currY = s_cstick.anchorY;
     s_cstick.stickX = 0;
     s_cstick.stickY = 0;
+    placeSticks();
 
     rebuildSprites();
 }
@@ -503,18 +606,9 @@ void touch_controller_resize(int winW, int winH)
 
     s_winW = winW;
     s_winH = winH;
-
-    s_stick.radius = winH * 0.14f;
-    s_stick.anchorX = winW * 0.16f;
-    s_stick.anchorY = winH * 0.72f;
-    s_stick.currX = s_stick.anchorX;
-    s_stick.currY = s_stick.anchorY;
-
-    s_cstick.radius = winH * 0.11f;
-    s_cstick.anchorX = winW * 0.61f;
-    s_cstick.anchorY = winH * 0.76f;
-    s_cstick.currX = s_cstick.anchorX;
-    s_cstick.currY = s_cstick.anchorY;
+    loadLayout();
+    if (!s_inited) s_lastTouch = nowSec();
+    placeSticks();
 
     rebuildSprites();
     s_inited = true;
@@ -527,9 +621,11 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
 
     float px = normX * s_winW;
     float py = normY * s_winH;
+    s_lastTouch = nowSec(); // wakes faded controls
 
     // Check buttons first
     for (int i = 0; i < TBTN_COUNT; ++i) {
+        if (s_buttons[i].hidden) continue;
         float bx = s_buttons[i].relX * s_winW;
         float by = s_buttons[i].relY * s_winH;
         float br = s_buttons[i].relRadius * s_winH;
@@ -543,12 +639,19 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
             if (s_buttons[i].id == TBTN_OPACITY) {
                 touch_controller_cycle_opacity();
             }
+            if (s_buttons[i].id == TBTN_MENU) {
+                if (port_open_menu) port_open_menu();
+            }
             return;
         }
     }
 
-    // Left side: Main Virtual Joystick
-    if (px < s_winW * 0.40f && py > s_winH * 0.28f) {
+    // Main stick: around its place (and, while it sits on the left, the whole
+    // lower-left area, as before)
+    float hx = s_stickL.x * s_winW, hy = s_stickL.y * s_winH, hr = s_stickL.r * s_winH;
+    bool nearStick = std::sqrt((px - hx) * (px - hx) + (py - hy) * (py - hy)) <= hr * 3.0f;
+    bool leftArea = s_stickL.x < 0.4f && px < s_winW * 0.40f && py > s_winH * 0.28f;
+    if (!s_stickL.hidden && (nearStick || leftArea)) {
         if (!s_stick.active) {
             s_stick.active = true;
             s_stick.fingerId = fingerId;
@@ -563,10 +666,10 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
     }
 
     // Right-center area: C-Stick touch zone
-    float cdx = px - s_cstick.anchorX;
-    float cdy = py - s_cstick.anchorY;
+    float cdx = px - s_cstickL.x * s_winW;
+    float cdy = py - s_cstickL.y * s_winH;
     float cdist = std::sqrt(cdx * cdx + cdy * cdy);
-    if (cdist <= s_cstick.radius * 2.2f || (px >= s_winW * 0.50f && px <= s_winW * 0.71f && py > s_winH * 0.45f)) {
+    if (!s_cstickL.hidden && cdist <= s_cstickL.r * s_winH * 2.2f) {
         if (!s_cstick.active) {
             s_cstick.active = true;
             s_cstick.fingerId = fingerId;
@@ -597,6 +700,7 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
 void touch_controller_on_finger_move(int64_t fingerId, float normX, float normY)
 {
     if (!s_visible) return;
+    s_lastTouch = nowSec();
     float px = normX * s_winW;
     float py = normY * s_winH;
 
@@ -779,19 +883,44 @@ void touch_controller_update_pad(PADStatus* status)
 
 void touch_controller_draw(int winW, int winH)
 {
+    // the in-game menu bumps SMS_TOUCH_REV after the touch settings changed
+    // (opacity, hiding, layout): read them again
+    static std::string s_rev;
+    if (const char* rev = getenv("SMS_TOUCH_REV")) {
+        if (s_rev != rev) {
+            s_rev = rev;
+            s_layoutLoaded = false;
+            loadLayout();
+            placeSticks();
+            rebuildSprites();
+        }
+    }
     if (!s_visible || s_hudOpacity <= 0.01f || !GXPC_DrawOverlay) return;
     if (!s_inited || winW != s_winW || winH != s_winH) {
         touch_controller_resize(winW, winH);
     }
 
+    // opacity, and the fade after SMS_TOUCH_AUTOHIDE seconds without a touch
+    float alpha = s_hudOpacity / 0.70f; // the sprites are drawn for 70%
+    if (s_autoHide > 0) {
+        bool held = s_stick.active || s_cstick.active || s_cam.active;
+        for (int i = 0; i < TBTN_COUNT && !held; ++i) held = s_buttons[i].pressed;
+        if (held) s_lastTouch = nowSec();
+        double idle = nowSec() - s_lastTouch;
+        if (idle > s_autoHide) alpha *= float(std::max(0.0, 1.0 - (idle - s_autoHide) / 0.6));
+    }
+    if (alpha <= 0.01f) return;
+    if (GXPC_SetOverlayAlpha) GXPC_SetOverlayAlpha(std::min(1.0f, alpha));
+
     // 1. Draw main virtual joystick (Left)
-    float baseX = s_stick.active ? s_stick.anchorX : (s_winW * 0.16f);
-    float baseY = s_stick.active ? s_stick.anchorY : (s_winH * 0.72f);
+    float baseX = s_stick.active ? s_stick.anchorX : (s_winW * s_stickL.x);
+    float baseY = s_stick.active ? s_stick.anchorY : (s_winH * s_stickL.y);
     int baseW = s_stickBaseSprite.w;
     int baseH = s_stickBaseSprite.h;
     int drawBaseX = int(baseX - baseW * 0.5f);
     int drawBaseY = int(baseY - baseH * 0.5f);
 
+    if (!s_stickL.hidden)
     GXPC_DrawOverlay(s_stickBaseSprite.pixels.data(), baseW, baseH, drawBaseX, drawBaseY, 1, winW, winH);
 
     // Main Knob
@@ -801,16 +930,18 @@ void touch_controller_draw(int winW, int winH)
     int drawKnobX = int(knobX - knobSp.w * 0.5f);
     int drawKnobY = int(knobY - knobSp.h * 0.5f);
 
+    if (!s_stickL.hidden)
     GXPC_DrawOverlay(knobSp.pixels.data(), knobSp.w, knobSp.h, drawKnobX, drawKnobY, 1, winW, winH);
 
     // 2. Draw C-stick (Right)
-    float cbaseX = s_cstick.active ? s_cstick.anchorX : (s_winW * 0.61f);
-    float cbaseY = s_cstick.active ? s_cstick.anchorY : (s_winH * 0.76f);
+    float cbaseX = s_cstick.active ? s_cstick.anchorX : (s_winW * s_cstickL.x);
+    float cbaseY = s_cstick.active ? s_cstick.anchorY : (s_winH * s_cstickL.y);
     int cbaseW = s_cstickBaseSprite.w;
     int cbaseH = s_cstickBaseSprite.h;
     int drawCBaseX = int(cbaseX - cbaseW * 0.5f);
     int drawCBaseY = int(cbaseY - cbaseH * 0.5f);
 
+    if (!s_cstickL.hidden)
     GXPC_DrawOverlay(s_cstickBaseSprite.pixels.data(), cbaseW, cbaseH, drawCBaseX, drawCBaseY, 1, winW, winH);
 
     float cknobX = s_cstick.active ? s_cstick.currX : cbaseX;
@@ -819,18 +950,20 @@ void touch_controller_draw(int winW, int winH)
     int drawCKnobX = int(cknobX - cknobSp.w * 0.5f);
     int drawCKnobY = int(cknobY - cknobSp.h * 0.5f);
 
+    if (!s_cstickL.hidden)
     GXPC_DrawOverlay(cknobSp.pixels.data(), cknobSp.w, cknobSp.h, drawCKnobX, drawCKnobY, 1, winW, winH);
 
     // 3. Draw all buttons
     for (int i = 0; i < TBTN_COUNT; ++i) {
         const Sprite& sp = s_buttonSprites[i][s_buttons[i].pressed ? 1 : 0];
-        if (sp.pixels.empty()) continue;
+        if (sp.pixels.empty() || s_buttons[i].hidden) continue;
 
         int bx = int(s_buttons[i].relX * winW - sp.w * 0.5f);
         int by = int(s_buttons[i].relY * winH - sp.h * 0.5f);
 
         GXPC_DrawOverlay(sp.pixels.data(), sp.w, sp.h, bx, by, 1, winW, winH);
     }
+    if (GXPC_SetOverlayAlpha) GXPC_SetOverlayAlpha(1.0f);
 }
 
 void touch_controller_set_opacity(float opacity)

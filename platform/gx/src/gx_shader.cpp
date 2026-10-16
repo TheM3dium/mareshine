@@ -7,11 +7,19 @@
 #include "gx_glcache.h"
 
 #include <stdio.h>
+#include <sys/file.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
+#include <algorithm>
+#include <chrono>
 #include <unordered_map>
 #include <vector>
+
+#ifdef __ANDROID__
+#include <EGL/egl.h>  // eglGetProcAddress: glMaxShaderCompilerThreadsKHR
+#endif
 
 namespace gx {
 
@@ -356,7 +364,10 @@ static std::string swizzle(uint32_t swap) {
     return s;
 }
 
-static std::string genFS(const ShaderKey& k) {
+// indScale: the indirect scale registers (BP_RAS1_SS0/SS1) the program is
+// made for, from its ProgramKey: the warm-up compiles programs while the GX
+// state holds other values.
+static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
     std::string s = kFsHeader;
     char buf[2048];
     s += "void main() {\n"
@@ -367,7 +378,7 @@ static std::string genFS(const ShaderKey& k) {
     // indirect texture lookups
     for (uint32_t i = 0; i < k.numInd; i++) {
         uint32_t map = (k.iref >> (6 * i)) & 7, coord = (k.iref >> (6 * i + 3)) & 7;
-        uint32_t ss = (g.bp[i < 2 ? BP_RAS1_SS0 : BP_RAS1_SS1] >> ((i & 1) * 8)) & 0xFF;
+        uint32_t ss = (indScale[i < 2 ? 0 : 1] >> ((i & 1) * 8)) & 0xFF;
         snprintf(buf, sizeof buf,
                  "  ivec3 ind%u = texi(texture(u_tex[%u], proj(v_tc%u) / vec2(%d.0, %d.0))).abg;\n", i, map, coord,
                  1 << (ss & 15), 1 << ((ss >> 4) & 15));
@@ -550,21 +561,6 @@ static std::string genFS(const ShaderKey& k) {
 }
 
 // ------------------------------------------------------------------ compile / cache
-static GLuint compile(GLenum type, const std::string& src) {
-    GLuint sh = glCreateShader(type);
-    const char* p = src.c_str();
-    glShaderSource(sh, 1, &p, nullptr);
-    glCompileShader(sh);
-    GLint ok = 0;
-    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
-        char log[4096];
-        glGetShaderInfoLog(sh, sizeof log, nullptr, log);
-        logmsg("shader compile failed:\n%s\n--- source ---\n%s", log, src.c_str());
-    }
-    return sh;
-}
-
 // The program cache key: the shader key plus the indirect scale factors,
 // which are baked into the code. Compared as bytes (buildKey zero-fills).
 struct ProgramKey {
@@ -582,7 +578,7 @@ static const ShaderProgram* s_lastProgram = nullptr;
 #pragma pack(push, 1)
 struct ShaderCacheFileHeader {
     uint32_t magic;       // 0x534D5343 ('SMSC')
-    uint32_t version;     // 1
+    uint32_t version;     // kShaderCacheVersion
 };
 struct ShaderCacheEntryHeader {
     ProgramKey key;
@@ -590,6 +586,15 @@ struct ShaderCacheEntryHeader {
     uint32_t binaryLength;
 };
 #pragma pack(pop)
+
+// 2: fragment shaders take the indirect scale from the program key (programs
+// made by the warm-up under version 1 could have another one baked in).
+static const uint32_t kShaderCacheVersion = 2;
+
+// The cache file is shared with the launcher's background compile
+// (GXPC_PrecompileShaders, another process): readers take a shared lock,
+// writers an exclusive one, held until the file is closed.
+static void lockCache(FILE* f, int op) { flock(fileno(f), op); }
 
 static bool isShaderCacheEnabled() {
     static int s_enabled = -1;
@@ -649,9 +654,10 @@ static void saveProgramToCache(const ProgramKey& key, GLuint p) {
     std::string path = getShaderCachePath();
     FILE* f = fopen(path.c_str(), "ab+");
     if (!f) return;
+    lockCache(f, LOCK_EX);
     fseek(f, 0, SEEK_END);
     if (ftell(f) == 0) {
-        ShaderCacheFileHeader hdr = { 0x534D5343, 1 };
+        ShaderCacheFileHeader hdr = { 0x534D5343, kShaderCacheVersion };
         fwrite(&hdr, sizeof(hdr), 1, f);
     }
     ShaderCacheEntryHeader eh;
@@ -663,40 +669,79 @@ static void saveProgramToCache(const ProgramKey& key, GLuint p) {
     fclose(f);
 }
 
-static ShaderProgram compileProgramFromSource(const ProgramKey& key) {
-    g_statShaderCompiles++;
-    const ShaderKey& k = key.k;
-    std::string vs = genVS(k), fs = genFS(k);
-    GLuint v = compile(GL_VERTEX_SHADER, vs), f = compile(GL_FRAGMENT_SHADER, fs);
-    GLuint p = glCreateProgram();
-    glAttachShader(p, v);
-    glAttachShader(p, f);
+// A program is compiled in two halves: started (issueProgram), then checked
+// and set up (finishProgram). Started together, as the warm-up does, a driver
+// with GL_KHR_parallel_shader_compile compiles them at the same time.
+struct PendingProgram {
+    ProgramKey key;
+    std::string vs, fs;
+    GLuint v = 0, f = 0, p = 0;
+};
+
+static GLuint startCompile(GLenum type, const std::string& src) {
+    GLuint sh = glCreateShader(type);
+    const char* p = src.c_str();
+    glShaderSource(sh, 1, &p, nullptr);
+    glCompileShader(sh);
+    return sh;
+}
+
+static void issueProgram(PendingProgram& j) {
+    j.vs = genVS(j.key.k);
+    j.fs = genFS(j.key.k, j.key.indScale);
+    j.v = startCompile(GL_VERTEX_SHADER, j.vs);
+    j.f = startCompile(GL_FRAGMENT_SHADER, j.fs);
+    j.p = glCreateProgram();
+    glAttachShader(j.p, j.v);
+    glAttachShader(j.p, j.f);
     static const char* attrs[] = {"a_pos", "a_nrm", "a_bin", "a_tan", "a_clr0", "a_clr1", "a_tex0", "a_tex1", "a_tex2",
                                   "a_tex3", "a_tex4", "a_tex5", "a_tex6", "a_tex7", "a_mtx"};
-    for (GLuint i = 0; i < 15; i++) glBindAttribLocation(p, i, attrs[i]);
-    glBindFragDataLocation(p, 0, "o_color");
-    glLinkProgram(p);
+    for (GLuint i = 0; i < 15; i++) glBindAttribLocation(j.p, i, attrs[i]);
+    glBindFragDataLocation(j.p, 0, "o_color");
+    glLinkProgram(j.p);
+}
+
+static void logCompileFailure(GLuint sh, const std::string& src) {
     GLint ok = 0;
-    glGetProgramiv(p, GL_LINK_STATUS, &ok);
+    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if (ok) return;
+    char log[4096];
+    glGetShaderInfoLog(sh, sizeof log, nullptr, log);
+    logmsg("shader compile failed:\n%s\n--- source ---\n%s", log, src.c_str());
+}
+
+static ShaderProgram finishProgram(PendingProgram& j) {
+    g_statShaderCompiles++;
+    GLint ok = 0;
+    glGetProgramiv(j.p, GL_LINK_STATUS, &ok);
     if (!ok) {
+        logCompileFailure(j.v, j.vs);
+        logCompileFailure(j.f, j.fs);
         char log[4096];
-        glGetProgramInfoLog(p, sizeof log, nullptr, log);
+        glGetProgramInfoLog(j.p, sizeof log, nullptr, log);
         logmsg("program link failed: %s", log);
     }
-    glDeleteShader(v);
-    glDeleteShader(f);
+    glDeleteShader(j.v);
+    glDeleteShader(j.f);
     ShaderProgram sp;
-    setupProgramUniforms(p, sp);
+    setupProgramUniforms(j.p, sp);
     sp.id = int(g_statShaderCompiles);
     if (const char* dir = getenv("SMS_GX_DUMP_SHADERS")) {
         char path[1024];
         snprintf(path, sizeof path, "%s/prog%d.vs", dir, sp.id);
-        if (FILE* file = fopen(path, "w")) { fputs(vs.c_str(), file); fclose(file); }
+        if (FILE* file = fopen(path, "w")) { fputs(j.vs.c_str(), file); fclose(file); }
         snprintf(path, sizeof path, "%s/prog%d.fs", dir, sp.id);
-        if (FILE* file = fopen(path, "w")) { fputs(fs.c_str(), file); fclose(file); }
+        if (FILE* file = fopen(path, "w")) { fputs(j.fs.c_str(), file); fclose(file); }
     }
-    saveProgramToCache(key, p);
+    if (ok) saveProgramToCache(j.key, j.p);
     return sp;
+}
+
+static ShaderProgram compileProgramFromSource(const ProgramKey& key) {
+    PendingProgram j;
+    j.key = key;
+    issueProgram(j);
+    return finishProgram(j);
 }
 
 const ShaderProgram* shaderForCurrentState() {
@@ -757,56 +802,303 @@ static void prewarmCommonShaders() {
     if (s_programs.find(pk5) == s_programs.end()) s_programs[pk5] = compileProgramFromSource(pk5);
 }
 
+// How far the cache file has been read: the launcher's background compile
+// (GXPC_PrecompileShaders) keeps adding to it while the game runs, and each
+// stage load (shaderPrepareStage) takes what came since.
+static long s_cacheEnd = 0;
+
+// The cache file's programs from s_cacheEnd on (all of it the first time);
+// returns how many were new.
+static size_t loadCachedPrograms() {
+    FILE* f = fopen(getShaderCachePath().c_str(), "rb");
+    if (!f) return 0;
+    lockCache(f, LOCK_SH);
+    size_t loaded = 0;
+    ShaderCacheFileHeader hdr;
+    if (fread(&hdr, sizeof hdr, 1, f) == 1 && hdr.magic == 0x534D5343 && hdr.version == kShaderCacheVersion) {
+        if (s_cacheEnd > long(sizeof hdr) && fseek(f, s_cacheEnd, SEEK_SET) != 0) s_cacheEnd = 0;
+        ShaderCacheEntryHeader eh;
+        std::vector<uint8_t> bin;
+        while (fread(&eh, sizeof eh, 1, f) == 1) {
+            if (eh.binaryLength == 0 || eh.binaryLength > (16u << 20)) break;
+            if (s_programs.count(eh.key)) {  // made here (or read) already
+                if (fseek(f, long(eh.binaryLength), SEEK_CUR) != 0) break;
+            } else {
+                bin.resize(eh.binaryLength);
+                if (fread(bin.data(), 1, eh.binaryLength, f) != eh.binaryLength) break;
+                GLuint p = glCreateProgram();
+                glProgramBinary(p, eh.binaryFormat, bin.data(), eh.binaryLength);
+                GLint ok = 0;
+                glGetProgramiv(p, GL_LINK_STATUS, &ok);
+                if (ok) {
+                    ShaderProgram sp;
+                    setupProgramUniforms(p, sp);
+                    sp.id = (int)s_programs.size();
+                    s_programs[eh.key] = sp;
+                    loaded++;
+                } else {
+                    glDeleteProgram(p);
+                }
+            }
+            s_cacheEnd = ftell(f);
+        }
+    }
+    fclose(f);
+    return loaded;
+}
+
 void shaderInit() {
     if (!isShaderCacheEnabled()) return;
 
-    if (glProgramBinary) {
-        GLint numFormats = 0;
-        glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, &numFormats);
-        if (numFormats > 0) {
-            std::string path = getShaderCachePath();
-            FILE* f = fopen(path.c_str(), "rb");
-            if (f) {
-                ShaderCacheFileHeader hdr;
-                if (fread(&hdr, sizeof(hdr), 1, f) == 1 && hdr.magic == 0x534D5343 && hdr.version == 1) {
-                    size_t loaded = 0;
-                    ShaderCacheEntryHeader eh;
-                    while (fread(&eh, sizeof(eh), 1, f) == 1) {
-                        if (eh.binaryLength == 0 || eh.binaryLength > (16u << 20)) break;
-                        std::vector<uint8_t> bin(eh.binaryLength);
-                        if (fread(bin.data(), 1, eh.binaryLength, f) != eh.binaryLength) break;
-
-                        GLuint p = glCreateProgram();
-                        glProgramBinary(p, eh.binaryFormat, bin.data(), eh.binaryLength);
-                        GLint ok = 0;
-                        glGetProgramiv(p, GL_LINK_STATUS, &ok);
-                        if (ok) {
-                            ShaderProgram sp;
-                            setupProgramUniforms(p, sp);
-                            sp.id = (int)s_programs.size();
-                            s_programs[eh.key] = sp;
-                            loaded++;
-                        } else {
-                            glDeleteProgram(p);
-                        }
-                    }
-                    if (loaded > 0) {
-                        logmsg("shader: successfully pre-loaded %zu programs from cache (%s)", loaded, path.c_str());
-                    }
-                }
-                fclose(f);
-            }
+    GLint numFormats = 0;
+    if (glProgramBinary) glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, &numFormats);
+    if (numFormats > 0) {
+        std::string path = getShaderCachePath();
+        if (FILE* f = fopen(path.c_str(), "rb+")) {  // an older layout: start again
+            lockCache(f, LOCK_EX);
+            ShaderCacheFileHeader hdr;
+            const bool empty = fread(&hdr, sizeof hdr, 1, f) != 1;
+            if (!empty && (hdr.magic != 0x534D5343 || hdr.version != kShaderCacheVersion) &&
+                ftruncate(fileno(f), 0) == 0)
+                logmsg("shader: cache %s was an older version, cleared", path.c_str());
+            fclose(f);
         }
+        size_t loaded = loadCachedPrograms();
+        if (loaded > 0) logmsg("shader: successfully pre-loaded %zu programs from cache (%s)", loaded, path.c_str());
     }
 
     prewarmCommonShaders();
     logmsg("shader: initialized cache and pre-warmed %zu active shaders", s_programs.size());
 }
 
+// ------------------------------------------------------------------ warm-up
+// A program is otherwise compiled when a draw first needs it, and a stage's
+// arrival needs dozens: the stutter of its first seconds. The program cache
+// makes that once per device; the warm-up makes it before gameplay, from the
+// program keys the game's stages are known to draw with (gx_shader_keys.inc,
+// the PC port's recordings). While a stage loads (shaderPrepareStage, from
+// TMarDirector::direct), its own programs are compiled, then the other known
+// ones for up to a second (a quarter without GL_KHR_parallel_shader_compile),
+// so a device's first loads make the lot. Programs the cache already holds
+// cost nothing. SMS_GX_SHADER_WARMUP=0 turns it off.
+//
+// The PC port's keys have two more ShaderKey words (earlyZ and depthOnly,
+// after fogType) than this renderer's; they are dropped when the keys are read.
+#include "gx_shader_keys.inc"
+
+static int s_warmState = -1;  // -1 not set up, 0 off, 1 on
+static bool s_parallel = false;
+static std::vector<ProgramKey> s_warmKeys;                      // each once
+static std::unordered_map<int, std::vector<size_t>> s_stageKeys;  // a stage's, in s_warmKeys
+static size_t s_warmNext = 0;  // the next of the others to compile
+
+// The known program keys (each once) and each stage's, in `keys`; false if
+// gx_shader_keys.inc is not in a layout this renderer can read.
+static bool decodeWarmKeys(std::vector<ProgramKey>& keys, std::unordered_map<int, std::vector<size_t>>& stageKeys) {
+    // the PC port's layout 1: ShaderKey up to fogType (113 words), earlyZ,
+    // depthOnly, then indScale[2]
+    const uint32_t kUpWords = 117, kUpDropped = 113, kWords = sizeof(ProgramKey) / 4;
+    static_assert(sizeof(ProgramKey) == (117 - 2) * 4, "ProgramKey no longer matches the PC port's key layout 1");
+    if (kWarmLayout != 1 || kWarmKeySize != kUpWords * 4 || kWarmFormat != 2) {
+        logmsg("shader warm-up: off (gx_shader_keys.inc is for key layout %u of %u bytes)", unsigned(kWarmLayout),
+               unsigned(kWarmKeySize));
+        return false;
+    }
+    // The programs (each its count of nonzero words, then each as its index
+    // and its value, LEB128), then each stage's (its number, its count, their
+    // indices; 16 bits each but the number); the PC port's tools/gx/shader_keys.py.
+    const uint8_t* p = kWarmKeys;
+    const uint8_t* const end = kWarmKeys + sizeof kWarmKeys;
+    auto u16 = [&] { uint32_t v = p + 2 <= end ? uint32_t(p[0]) | uint32_t(p[1]) << 8 : 0; p += 2; return v; };
+    const uint32_t count = u16();
+    std::vector<size_t> index(count);  // the file's key number -> keys
+    std::unordered_map<ProgramKey, size_t, ProgramKeyHash> seen;
+    for (uint32_t n = 0; n < count && p < end; n++) {
+        uint32_t words[kWords] = {};
+        for (int c = *p++; c > 0 && p < end; c--) {
+            const uint32_t i = *p++;
+            uint32_t v = 0;
+            for (int shift = 0; p < end; shift += 7) {
+                v |= uint32_t(*p & 0x7F) << shift;
+                if (!(*p++ & 0x80)) break;
+            }
+            if (i < kUpDropped) words[i] = v;
+            else if (i >= kUpDropped + 2 && i < kUpWords) words[i - 2] = v;
+        }
+        ProgramKey key;
+        memcpy(&key, words, sizeof key);
+        auto it = seen.emplace(key, keys.size());
+        if (it.second) keys.push_back(key);
+        index[n] = it.first->second;
+    }
+    while (p + 3 <= end) {
+        const int stage = *p++;
+        std::vector<size_t>& mine = stageKeys[stage];
+        for (uint32_t n = u16(); n > 0 && p + 2 <= end; n--) {
+            const uint32_t i = u16();
+            if (i < count && std::find(mine.begin(), mine.end(), index[i]) == mine.end()) mine.push_back(index[i]);
+        }
+    }
+    return true;
+}
+
+// whether the driver compiles in the background; asks for all its threads
+static bool enableParallelCompile() {
+    bool parallel = false;
+    GLint n = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+    for (GLint i = 0; i < n; i++) {
+        const char* x = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, GLuint(i)));
+        if (x && (!strcmp(x, "GL_KHR_parallel_shader_compile") || !strcmp(x, "GL_ARB_parallel_shader_compile")))
+            parallel = true;
+    }
+#ifdef __ANDROID__
+    // as many compiler threads as the driver offers (its default may be fewer)
+    typedef void (*MaxThreadsFn)(GLuint);
+    if (parallel)
+        if (auto maxThreads = reinterpret_cast<MaxThreadsFn>(eglGetProcAddress("glMaxShaderCompilerThreadsKHR")))
+            maxThreads(0xFFFFFFFFu);
+#endif
+    if (getenv("SMS_GX_SHADER_WARMUP_SERIAL")) parallel = false;
+    return parallel;
+}
+
+static void warmSetup() {
+    s_warmState = 0;
+    const char* e = getenv("SMS_GX_SHADER_WARMUP");
+    if (e && (!strcmp(e, "0") || !strcmp(e, "off"))) return;
+    if (!decodeWarmKeys(s_warmKeys, s_stageKeys)) return;
+    s_parallel = enableParallelCompile();
+    size_t cached = 0;
+    for (const ProgramKey& k : s_warmKeys) cached += s_programs.count(k);
+    s_warmState = 1;
+    logmsg("shader warm-up: %zu known programs, %zu cached%s", s_warmKeys.size(), cached,
+           s_parallel ? ", compiled in parallel" : "");
+}
+
+// compiles `keys` together; returns how many were made
+static uint32_t warmCompile(const std::vector<const ProgramKey*>& keys) {
+    std::vector<PendingProgram> jobs(keys.size());
+    for (size_t i = 0; i < keys.size(); i++) {
+        jobs[i].key = *keys[i];
+        issueProgram(jobs[i]);
+    }
+    for (PendingProgram& j : jobs) s_programs[j.key] = finishProgram(j);
+    return uint32_t(jobs.size());
+}
+
+// While a stage loads (before its first frame): its known programs, compiled
+// together, then others while time allows.
+void shaderPrepareStage(int stage) {
+    if (s_warmState < 0) warmSetup();
+    s_lastProgram = nullptr;
+    if (isShaderCacheEnabled() && glProgramBinary)
+        if (size_t got = loadCachedPrograms())
+            logmsg("shader: took %zu programs the background compile made", got);
+    if (s_warmState != 1) return;
+    const auto start = std::chrono::steady_clock::now();
+    auto elapsed = [&] { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); };
+    std::vector<const ProgramKey*> batch;
+    auto it = s_stageKeys.find(stage & 0xFF);
+    if (it != s_stageKeys.end())
+        for (size_t i : it->second)
+            if (!s_programs.count(s_warmKeys[i])) batch.push_back(&s_warmKeys[i]);
+    const uint32_t own = warmCompile(batch);
+    uint32_t others = 0;
+    const double budget = s_parallel ? 1000 : 250;
+    const size_t perBatch = s_parallel ? 16 : 1;  // about half a second each on a Tegra X1
+    while (s_warmNext < s_warmKeys.size() && elapsed() < budget) {
+        batch.clear();
+        while (batch.size() < perBatch && s_warmNext < s_warmKeys.size()) {
+            const ProgramKey& k = s_warmKeys[s_warmNext++];
+            if (!s_programs.count(k)) batch.push_back(&k);
+        }
+        others += warmCompile(batch);
+    }
+    if (own || others)
+        logmsg("shader warm-up: compiled %u programs for stage %d and %u others in %.1f ms%s", own, stage & 0xFF,
+               others, elapsed(), s_warmNext < s_warmKeys.size() ? "" : " (all known programs made)");
+}
+
+// ------------------------------------------------------------------ background compile
+// GXPC_PrecompileShaders, for the launcher (gx_precompile.cpp): with a GL
+// context of its own, before the game starts, compiles every known program
+// the cache file does not hold yet and adds it to the file. Nothing of the
+// renderer's state is used, so it can run beside a game in another process.
+
+// the program keys the cache file holds
+static std::unordered_map<ProgramKey, bool, ProgramKeyHash> cachedKeys() {
+    std::unordered_map<ProgramKey, bool, ProgramKeyHash> keys;
+    FILE* f = fopen(getShaderCachePath().c_str(), "rb+");
+    if (!f) return keys;
+    lockCache(f, LOCK_EX);
+    ShaderCacheFileHeader hdr;
+    if (fread(&hdr, sizeof hdr, 1, f) != 1 || hdr.magic != 0x534D5343 || hdr.version != kShaderCacheVersion) {
+        if (ftruncate(fileno(f), 0) != 0) {}  // an older layout: start again, as shaderInit does
+    } else {
+        ShaderCacheEntryHeader eh;
+        while (fread(&eh, sizeof eh, 1, f) == 1) {
+            if (eh.binaryLength == 0 || eh.binaryLength > (16u << 20)) break;
+            if (fseek(f, long(eh.binaryLength), SEEK_CUR) != 0) break;
+            keys[eh.key] = true;
+        }
+    }
+    fclose(f);
+    return keys;
+}
+
+}  // namespace gx
+
+// progress(done, total, user) after each batch, and once with done == 0
+// before the first; a nonzero return stops. Returns the programs made, or -1
+// without a usable context or key list.
+extern "C" int GXPC_PrecompileShaders(int (*progress)(int done, int total, void* user), void* user) {
+    using namespace gx;
+    if (!isShaderCacheEnabled() || !glProgramBinary || !glGetProgramBinary) return -1;
+    std::vector<ProgramKey> known;
+    std::unordered_map<int, std::vector<size_t>> stages;
+    if (!decodeWarmKeys(known, stages)) return -1;
+    auto cached = cachedKeys();
+    std::vector<const ProgramKey*> todo;
+    for (const ProgramKey& k : known)
+        if (!cached.count(k)) todo.push_back(&k);
+    const int total = int(todo.size());
+    logmsg("shader precompile: %zu known programs, %d to compile", known.size(), total);
+    if (progress && progress(0, total, user)) return 0;
+    const bool parallel = enableParallelCompile();
+    const size_t perBatch = parallel ? 16 : 1;
+    const auto start = std::chrono::steady_clock::now();
+    int done = 0;
+    for (size_t i = 0; i < todo.size();) {
+        std::vector<PendingProgram> jobs;
+        for (; i < todo.size() && jobs.size() < perBatch; i++) {
+            jobs.emplace_back();
+            jobs.back().key = *todo[i];
+            issueProgram(jobs.back());
+        }
+        for (PendingProgram& j : jobs) {
+            GLint ok = 0;
+            glGetProgramiv(j.p, GL_LINK_STATUS, &ok);
+            if (ok) saveProgramToCache(j.key, j.p);
+            glDeleteShader(j.v);
+            glDeleteShader(j.f);
+            glDeleteProgram(j.p);
+        }
+        done += int(jobs.size());
+        if (progress && progress(done, total, user)) break;
+    }
+    logmsg("shader precompile: compiled %d programs in %.1f s", done,
+           std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+    return done;
+}
+
+namespace gx {
+
 void shaderShutdown() {
     for (auto& kv : s_programs) glDeleteProgram(kv.second.prog);
     s_programs.clear();
     s_lastProgram = nullptr;
+    s_cacheEnd = 0;
 }
 
 }  // namespace gx

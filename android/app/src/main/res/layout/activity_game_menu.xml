@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- In-game menu over the paused game, in the launcher's (Dusklight) style. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/dl_scrim_strong" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start|center_vertical"
+        android:layout_marginStart="56dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:shadowColor="#CC000000"
+            android:shadowDy="4"
+            android:shadowRadius="10"
+            android:text="PAUSED"
+            android:textColor="#FFC93C"
+            android:textSize="54sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvNote"
+            android:layout_width="360dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="sans-serif-condensed"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="6"
+            android:text="Unsaved progress is lost when you restart or quit. Save in the game first."
+            android:textColor="@color/dl_text"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="420dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="24dp"
+        android:orientation="vertical">
+
+        <Button
+            android:id="@+id/btnResume"
+            style="@style/DlMenuItem"
+            android:text="RESUME" />
+
+        <Button
+            android:id="@+id/btnTouch"
+            style="@style/DlMenuItem"
+            android:text="TOUCH CONTROLS" />
+
+        <Button
+            android:id="@+id/btnGraphics"
+            style="@style/DlMenuItem"
+            android:text="SETTINGS" />
+
+        <Button
+            android:id="@+id/btnRestart"
+            style="@style/DlMenuItem"
+            android:text="RESTART GAME" />
+
+        <Button
+            android:id="@+id/btnQuit"
+            style="@style/DlMenuItem"
+            android:text="QUIT TO MAIN MENU" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvTouchValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="40dp"
+        android:layout_marginBottom="24dp"
+        android:fontFamily="sans-serif-condensed"
+        android:shadowColor="#CC000000"
+        android:shadowRadius="4"
+        android:textColor="@color/dl_dim"
+        android:textSize="14sp" />
+</FrameLayout>

@@ -9,10 +9,12 @@
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
     <application
+        android:name=".SunshineApp"
         android:allowBackup="true"
         android:hardwareAccelerated="true"
         android:appCategory="game"
@@ -22,7 +24,7 @@
         android:enableOnBackInvokedCallback="false">
 
         <activity
-            android:name="com.jbcgames.sunshine.LauncherActivity"
+            android:name="io.github.them3dium.mareshine.LauncherActivity"
             android:screenOrientation="sensorLandscape"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:exported="true"
@@ -34,22 +36,88 @@
         </activity>
 
         <activity
-            android:name="com.jbcgames.sunshine.SunshineActivity"
+            android:name="io.github.them3dium.mareshine.SunshineActivity"
+            android:process=":game"
             android:screenOrientation="sensorLandscape"
             android:alwaysRetainTaskState="true"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:exported="true"
             android:label="@string/app_name"
-            android:launchMode="singleInstance"
+            android:launchMode="singleTask"
+            android:taskAffinity="io.github.them3dium.mareshine.game"
             android:preferMinimalPostProcessing="true">
         </activity>
 
+        <!-- compiles the shader cache while the menu shows (ShaderService) -->
+        <service
+            android:name="io.github.them3dium.mareshine.ShaderService"
+            android:process=":shaders"
+            android:exported="false" />
+
         <activity
-            android:name="com.jbcgames.sunshine.AdvancedSettingsActivity"
+            android:name="io.github.them3dium.mareshine.SettingsActivity"
             android:screenOrientation="sensorLandscape"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
-            android:exported="true"
-            android:label="Ajustes Avanzados">
+            android:exported="false"
+            android:label="Settings">
+        </activity>
+
+        <activity
+            android:name="io.github.them3dium.mareshine.GameMenuActivity"
+            android:process=":game"
+            android:taskAffinity="io.github.them3dium.mareshine.game"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false">
+        </activity>
+
+        <activity
+            android:name="io.github.them3dium.mareshine.LanguagePackActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="Languages">
+        </activity>
+
+        <activity
+            android:name="io.github.them3dium.mareshine.CutsceneActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="HD cutscenes">
+        </activity>
+
+        <activity
+            android:name="io.github.them3dium.mareshine.TexturePackActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="Texture pack">
+        </activity>
+
+        <activity
+            android:name="io.github.them3dium.mareshine.TouchLayoutActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="Touch layout">
+        </activity>
+
+        <activity
+            android:name="io.github.them3dium.mareshine.StickCalibrationActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="Calibrate sticks">
+        </activity>
+
+        <activity
+            android:name="io.github.them3dium.mareshine.ControllerSettingsActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="Controller Settings">
         </activity>
     </application>
 

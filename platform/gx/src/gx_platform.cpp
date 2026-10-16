@@ -4,6 +4,7 @@
 // is available.  Headless (tests, CI, no display): an EGL context without a
 // surface.  GXInit brings this up automatically if the host has not called
 // GXPC_Init itself, and every GXCopyDisp presents the XFB to the window.
+#include <strings.h>
 #include "gx_internal.h"
 #include "gx_window_layout.h"
 #include "sms_gx/gx_pc.h"
@@ -36,6 +37,14 @@ enum Mode { MODE_NONE, MODE_WINDOW, MODE_HEADLESS, MODE_EXTERNAL };
 Mode s_mode = MODE_NONE;
 int s_forceHeadless = -1;  // -1: decide from the environment
 bool s_autoPresent = true;
+bool s_skipPresent = false;
+// Average seconds a present takes (drawing the XFB, the overlay and the swap).
+// A skip request (GXPC_SkipNextPresent) is only followed when presenting is
+// that slow: then the swap waits for the display and skipping one catches the
+// game up; a quick present gains nothing by being left out.
+double s_presentCost = 0;
+const double kSkipPresentCost = 0.002;
+double s_lastPresent = 0;  // the last display copy's present, 0 when skipped
 int s_vsync = 0;
 uint32_t s_frame = 0;
 
@@ -61,6 +70,17 @@ bool envTrue(const char* name) {
 
 #ifdef SMS_GX_HAVE_SDL2
 void* sdlGetProc(const char* name) { return SDL_GL_GetProcAddress(name); }
+
+// SMS_PAD_DEVICE=name: only the game controller with that name (as Android or
+// SDL reports it, case ignored) is used; unset or empty uses every controller.
+bool padAllowed(int deviceIndex) {
+    const char* want = getenv("SMS_PAD_DEVICE");
+    if (!want || !*want) return true;
+    const char* name = SDL_GameControllerNameForIndex(deviceIndex);
+    bool ok = name && strcasecmp(name, want) == 0;
+    if (!ok) logmsg("Ignoring Game Controller %s (SMS_PAD_DEVICE=%s)", name ? name : "?", want);
+    return ok;
+}
 
 // SMS_WINDOW_MODE: windowed (default), borderless (fullscreen at the desktop's
 // resolution) or fullscreen (exclusive, at SMS_FULLSCREEN_MODE=WxH[@Hz] or the
@@ -249,7 +269,7 @@ bool openWindow(int scale) {
         captureMouse((SDL_GetWindowFlags(s_window) & SDL_WINDOW_INPUT_FOCUS) != 0);
     }
     for (int i = 0; i < SDL_NumJoysticks(); ++i) {
-        if (SDL_IsGameController(i)) {
+        if (SDL_IsGameController(i) && padAllowed(i)) {
             if (SDL_GameController* c = SDL_GameControllerOpen(i)) {
                 s_pads.push_back(c);
                 logmsg("Opened Game Controller %d: %s", i, SDL_GameControllerName(c));
@@ -341,7 +361,12 @@ void dumpFrame(const void* xfb) {
 void onDisplayCopy(const void* xfb) {
     s_frame++;
     dumpFrame(xfb);
-    if (s_autoPresent) GXPC_Present(xfb);
+    const bool skip = s_skipPresent && s_presentCost >= kSkipPresentCost;
+    s_skipPresent = false;
+    s_lastPresent = 0;
+    if (!s_autoPresent) return;
+    if (skip) sms_gx_pump_events();
+    else GXPC_Present(xfb);
 }
 }  // namespace
 
@@ -377,6 +402,8 @@ void GXPC_SetWindowIcon(const uint8_t* rgba, int w, int h) {
 #endif
 }
 void GXPC_SetAutoPresent(int enable) { s_autoPresent = enable != 0; }
+void GXPC_SkipNextPresent(int skip) { s_skipPresent = skip != 0; }
+double GXPC_LastPresentSeconds(void) { return s_lastPresent; }
 int GXPC_MouseCaptured(void) {
 #ifdef SMS_GX_HAVE_SDL2
     return s_mouseCaptured;
@@ -446,11 +473,28 @@ void GXPC_Present(const void* xfb) {
         double t2 = nowSeconds();
         g_presentSeconds += t1 - t0;
         g_swapSeconds += t2 - t1;
+        s_lastPresent = t2 - t0;
+        s_presentCost += (s_lastPresent - s_presentCost) * 0.1;
         GXPC_EndPresent();
         sms_gx_pump_events();
     }
 #else
     (void)xfb;
+#endif
+}
+
+// The number of game controllers in use (platform/pad hides the touch
+// controls while there is one).
+extern "C" int sms_gx_pad_count(void) {
+#ifdef SMS_GX_HAVE_SDL2
+    // TV remotes (the Shield's, virtual ones) show up as game controllers too,
+    // but they have no stick: they must not hide the touch controls.
+    int n = 0;
+    for (SDL_GameController* c : s_pads)
+        if (SDL_GameControllerHasAxis(c, SDL_CONTROLLER_AXIS_LEFTX)) n++;
+    return n;
+#else
+    return 0;
 #endif
 }
 
@@ -469,7 +513,7 @@ void sms_gx_pump_events(void) {
     while (SDL_PollEvent(&ev)) {
         switch (ev.type) {
         case SDL_CONTROLLERDEVICEADDED:
-            if (SDL_IsGameController(ev.cdevice.which)) {
+            if (SDL_IsGameController(ev.cdevice.which) && padAllowed(ev.cdevice.which)) {
                 bool found = false;
                 for (SDL_GameController* c : s_pads) {
                     if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(c)) == ev.cdevice.which) {

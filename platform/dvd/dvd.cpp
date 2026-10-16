@@ -21,6 +21,10 @@
 #include <algorithm>
 #include "disc/gcdisc.h"
 #include <sms_hd_movies.h>
+#include <sms_language.h>
+#include <deque>
+#include <map>
+#include <mutex>
 
 namespace {
 
@@ -43,6 +47,20 @@ DVDDiskID g_disk_id;
 // Files and folders mods add (not on the disc), by lower-case absolute path
 // without the leading '/'; their entries follow the disc's in g_fst.
 std::unordered_map<std::string, u32> g_added;
+
+// Files replaced inside disc archives, by the archive's entry: a mod folder
+// named after an archive (files/data/scene/bianco0.szs/map/message.bmg)
+// replaces that file inside it. The archive is rebuilt with them when it is
+// opened and kept in memory for the next few opens.
+struct ArchivePatch {
+	std::map<std::string, std::string> files; // lower-case path below the archive's root folder -> host file
+	std::vector<u8> built;                     // the rebuilt archive, while cached
+	const u8* orig_mem = nullptr;              // what the entry served before
+	u32 orig_len       = 0;
+};
+std::unordered_map<u32, ArchivePatch> g_patches;
+std::deque<u32> g_patched_recent; // rebuilt archives in memory, oldest first
+std::mutex g_patch_mutex;
 
 u32 be32(const u8* p) { return (u32)p[0] << 24 | (u32)p[1] << 16 | (u32)p[2] << 8 | p[3]; }
 
@@ -251,6 +269,193 @@ s32 do_read(DVDFileInfo* fi, void* addr, s32 length, s32 offset)
 	return done;
 }
 
+// --- Files replaced inside archives (g_patches) --------------------------------
+void put32(u8* p, u32 v)
+{
+	p[0] = (u8)(v >> 24);
+	p[1] = (u8)(v >> 16);
+	p[2] = (u8)(v >> 8);
+	p[3] = (u8)v;
+}
+
+bool yaz0_decode(const std::vector<u8>& in, std::vector<u8>& out)
+{
+	if (in.size() < 16)
+		return false;
+	u32 n = be32(&in[4]);
+	out.clear();
+	out.reserve(n);
+	size_t i = 16;
+	while (out.size() < n) {
+		if (i >= in.size())
+			return false;
+		u8 code = in[i++];
+		for (int b = 0; b < 8 && out.size() < n; b++, code <<= 1) {
+			if (code & 0x80) {
+				if (i >= in.size())
+					return false;
+				out.push_back(in[i++]);
+				continue;
+			}
+			if (i + 1 >= in.size())
+				return false;
+			u32 b1 = in[i++], b2 = in[i++];
+			size_t dist = ((b1 & 15) << 8 | b2) + 1;
+			u32 len     = b1 >> 4;
+			if (len == 0) {
+				if (i >= in.size())
+					return false;
+				len = in[i++] + 0x12;
+			} else {
+				len += 2;
+			}
+			if (dist > out.size())
+				return false;
+			for (u32 k = 0; k < len && out.size() < n; k++)
+				out.push_back(out[out.size() - dist]);
+		}
+	}
+	return true;
+}
+
+// A valid Yaz0 stream holding `raw` as literals only (the loaders expect one
+// where the disc had one; packing it again would only cost load time).
+std::vector<u8> yaz0_store(const std::vector<u8>& raw)
+{
+	std::vector<u8> out(16, 0);
+	memcpy(out.data(), "Yaz0", 4);
+	put32(&out[4], (u32)raw.size());
+	out.reserve(16 + raw.size() + raw.size() / 8 + 1);
+	for (size_t i = 0; i < raw.size(); i += 8) {
+		out.push_back(0xFF);
+		out.insert(out.end(), raw.begin() + i, raw.begin() + std::min(raw.size(), i + 8));
+	}
+	return out;
+}
+
+bool read_host(const std::string& path, std::vector<u8>& out)
+{
+	FILE* f = fopen(path.c_str(), "rb");
+	if (!f)
+		return false;
+	out.clear();
+	u8 buf[65536];
+	size_t n;
+	while ((n = fread(buf, 1, sizeof buf, f)) > 0)
+		out.insert(out.end(), buf, buf + n);
+	fclose(f);
+	return true;
+}
+
+// Replaces files in RARC archive `a` (big-endian, as on the disc): the new
+// data is appended and the file entries pointed at it. Only replaces; the
+// archive's folders and file list stay as they are.
+bool rarc_replace(std::vector<u8>& a, const std::map<std::string, std::string>& files, const char* name)
+{
+	if (a.size() < 0x40 || memcmp(a.data(), "RARC", 4) || be32(&a[0x18]) != 0) {
+		port_log("[dvd] %s: not an archive this can change\n", name);
+		return false;
+	}
+	u32 dataStart = 0x20 + be32(&a[0x0C]);
+	u32 nodeCount = be32(&a[0x20]), nodes = 0x20 + be32(&a[0x24]);
+	u32 entryCount = be32(&a[0x28]), entries = 0x20 + be32(&a[0x2C]);
+	u32 strings = 0x20 + be32(&a[0x34]);
+	if (nodes + nodeCount * 16 > a.size() || entries + entryCount * 20 > a.size() || strings >= a.size())
+		return false;
+	auto name_at = [&](u32 off) {
+		std::string n;
+		for (u32 i = strings + off; i < a.size() && a[i]; i++)
+			n += (char)tolower(a[i]);
+		return n;
+	};
+	// every file's path below the root folder -> its entry
+	std::map<std::string, u32> paths;
+	std::vector<std::pair<u32, std::string>> todo = { { 0u, std::string() } };
+	while (!todo.empty()) {
+		auto [node, path] = todo.back();
+		todo.pop_back();
+		if (node >= nodeCount)
+			return false;
+		const u8* nd = &a[nodes + node * 16];
+		u32 count = (u32)nd[10] << 8 | nd[11], first = be32(nd + 12);
+		for (u32 k = first; k < first + count && k < entryCount; k++) {
+			const u8* e  = &a[entries + k * 20];
+			std::string n = name_at((u32)e[6] << 8 | e[7]);
+			if (n == "." || n == "..")
+				continue;
+			if (e[4] & 0x02)
+				todo.push_back({ be32(e + 8), path + "/" + n });
+			else
+				paths[path + "/" + n] = k;
+		}
+	}
+	int done = 0;
+	for (const auto& f : files) {
+		auto it = paths.find(f.first);
+		if (it == paths.end()) {
+			port_log("[dvd] %s has no %s to replace\n", name, f.first.c_str());
+			continue;
+		}
+		std::vector<u8> data;
+		if (!read_host(f.second, data)) {
+			port_log("[dvd] cannot read %s\n", f.second.c_str());
+			continue;
+		}
+		a.resize((a.size() + 31) & ~(size_t)31, 0);
+		u8* e = &a[entries + it->second * 20];
+		put32(e + 8, (u32)(a.size() - dataStart));
+		put32(e + 12, (u32)data.size());
+		a.insert(a.end(), data.begin(), data.end());
+		done++;
+	}
+	a.resize((a.size() + 31) & ~(size_t)31, 0);
+	put32(&a[0x04], (u32)a.size());
+	put32(&a[0x10], (u32)(a.size() - dataStart)); // data length
+	put32(&a[0x14], (u32)(a.size() - dataStart)); // of it in main RAM (all of it)
+	return done > 0;
+}
+
+// Rebuilds archive `entry` with its replaced files if it has any, before it
+// is opened; the last few rebuilt archives stay in memory.
+void prepare_patched(u32 entry)
+{
+	std::lock_guard<std::mutex> lock(g_patch_mutex);
+	auto it = g_patches.find(entry);
+	if (it == g_patches.end())
+		return;
+	ArchivePatch& p = it->second;
+	Entry& d        = g_fst[entry];
+	if (!p.built.empty()) {
+		g_patched_recent.erase(std::remove(g_patched_recent.begin(), g_patched_recent.end(), entry),
+		                       g_patched_recent.end());
+		g_patched_recent.push_back(entry);
+		return;
+	}
+	std::vector<u8> src(p.orig_len), raw;
+	DVDFileInfo fi;
+	memset(&fi, 0, sizeof fi);
+	fi.startAddr = entry;
+	if (do_read(&fi, src.data(), (s32)src.size(), 0) != (s32)src.size())
+		return;
+	bool packed = src.size() >= 4 && !memcmp(src.data(), "Yaz0", 4);
+	if (packed ? !yaz0_decode(src, raw) : (raw.swap(src), false))
+		return;
+	if (!rarc_replace(raw, p.files, d.name.c_str()))
+		return;
+	p.built  = packed ? yaz0_store(raw) : std::move(raw);
+	d.mem    = p.built.data();
+	d.length = (u32)p.built.size();
+	g_patched_recent.push_back(entry);
+	while (g_patched_recent.size() > 4) { // the oldest goes back to being made on its next open
+		u32 old = g_patched_recent.front();
+		g_patched_recent.pop_front();
+		ArchivePatch& q  = g_patches[old];
+		g_fst[old].mem    = q.orig_mem;
+		g_fst[old].length = q.orig_len;
+		std::vector<u8>().swap(q.built);
+	}
+}
+
 } // namespace
 
 // The disc source: SMS_DISC_IMAGE; or port_disc_root when the command line or
@@ -363,7 +568,30 @@ static u32 add_entry(const std::string& abs, bool dir, const std::string& host, 
 	return idx;
 }
 
-static void overlay_dir(const std::string& host, const std::string& rel, int* replaced, int* added)
+// The files below a folder: {path below it, host path}.
+static void list_files(const std::string& host, const std::string& rel,
+                       std::vector<std::pair<std::string, std::string>>& out)
+{
+	DIR* dp = opendir(host.c_str());
+	if (!dp)
+		return;
+	while (dirent* e = readdir(dp)) {
+		if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
+			continue;
+		std::string h = host + "/" + e->d_name, r = rel + "/" + e->d_name;
+		struct stat st;
+		if (stat(h.c_str(), &st) != 0)
+			continue;
+		if (S_ISDIR(st.st_mode))
+			list_files(h, r, out);
+		else
+			out.push_back({ r, h });
+	}
+	closedir(dp);
+}
+
+static void overlay_dir(const std::string& host, const std::string& rel, int* replaced, int* added,
+                        int* inside = nullptr)
 {
 	DIR* dp = opendir(host.c_str());
 	if (!dp)
@@ -379,11 +607,27 @@ static void overlay_dir(const std::string& host, const std::string& rel, int* re
 		if (stat(h.c_str(), &st) != 0)
 			continue;
 		if (S_ISDIR(st.st_mode)) {
-			overlay_dir(h, r, replaced, added);
+			s32 a = lookup_disc(("/" + r).c_str());
+			if (a >= 0 && !g_fst[a].dir) { // named after a disc archive: files inside it
+				std::vector<std::pair<std::string, std::string>> files;
+				list_files(h, std::string(), files);
+				ArchivePatch& p = g_patches[(u32)a];
+				for (auto& f : files) {
+					std::string low = f.first;
+					for (char& c : low)
+						c = (char)tolower((unsigned char)c);
+					p.files[low] = f.second;
+				}
+				if (inside)
+					(*inside) += (int)files.size();
+				continue;
+			}
+			overlay_dir(h, r, replaced, added, inside);
 			continue;
 		}
 		s32 e = lookup_disc(("/" + r).c_str());
 		if (e >= 0 && !g_fst[e].dir) { // the disc's file, replaced
+			g_patches.erase((u32)e); // a later mod's whole archive wins over files put inside it
 			Entry& d    = g_fst[e];
 			d.host      = h;
 			d.length    = (u32)st.st_size;
@@ -438,8 +682,19 @@ static void apply_mods()
 		overlay_dir(files, std::string(), &replaced, &added);
 		port_log("[dvd] HD cutscenes: %d movies replaced (%s)\n", replaced, pack);
 	}
+	// The language pack, before explicit mods so that a mod's own files win.
+	if (const char* pack = port_language_pack_dir()) {
+		int replaced = 0, added = 0, inside = 0;
+		overlay_dir(std::string(pack) + "/files", std::string(), &replaced, &added, &inside);
+		port_log("[dvd] language %s: %d disc files replaced, %d inside archives (%s)\n", port_language_code(),
+		         replaced, inside, pack);
+	}
 	// Explicit mods may provide their own story movies or other assets.
 	apply_user_mods();
+	for (auto& p : g_patches) {
+		p.second.orig_mem = g_fst[p.first].mem;
+		p.second.orig_len = g_fst[p.first].length;
+	}
 }
 
 extern "C" void port_dvd_init(void)
@@ -527,6 +782,8 @@ extern "C" BOOL DVDFastOpen(s32 entry, DVDFileInfo* fi)
 {
 	if (entry < 0 || (u32)entry >= g_fst.size() || g_fst[entry].dir)
 		return FALSE;
+	if (!g_patches.empty())
+		prepare_patched((u32)entry);
 	memset(fi, 0, sizeof *fi);
 	fi->startAddr = (u32)entry;
 	fi->length    = g_fst[entry].length;

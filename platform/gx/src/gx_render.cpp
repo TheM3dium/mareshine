@@ -8,6 +8,8 @@
 
 #include <math.h>
 #include <algorithm>
+#include <chrono>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -116,6 +118,7 @@ static GLuint s_copyProg, s_copyVao;
 static GLint s_copyUMode, s_copyURect, s_copyUAlphaOne;
 static GLuint s_tmpFbo;
 static GLuint s_overlayTex;
+static float s_overlayAlpha = 1.0f;  // GXPC_SetOverlayAlpha
 static GLuint s_overlayProg;
 static GLint s_overlayRect, s_overlayWindow;
 static GXPCStats s_lastFrameStats;
@@ -1875,6 +1878,13 @@ int GXPC_Init(GXPCGetProcFn getProc, int efbScale) {
     return glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
 }
 
+void GXPC_PrepareStage(int stage) {
+    if (!s_ready) return;
+    flushBatch();
+    glcInvalidate();
+    shaderPrepareStage(stage);
+}
+
 void GXPC_Shutdown(void) {
     if (!s_ready) return;
     textureShutdown();
@@ -2046,6 +2056,163 @@ uint32_t peekZ(int x, int y) {
 
 extern "C" {
 
+// The cutscene frame (SMS_CUTSCENE_FRAME=<image>) while a movie plays
+// (GXPC_SetBackdropMovie). The image, scaled to cover the window, fills the
+// bars beside the picture's 4:3 middle (the game draws movies into its
+// widened frame too, so the bars are part of the picture). A movie may have
+// its own, overlay_<movie>.png beside it: that one is laid over everything
+// with its transparency, so it can also cover bars inside the movie itself
+// (Entrance has them at the top and bottom).
+struct BackdropImage {
+    GLuint tex = 0;
+    int w = 0, h = 0;
+    bool tried = false;
+};
+static std::unordered_map<std::string, BackdropImage> s_backdrops;
+static std::string s_backdropMovie;
+static bool s_backdropOn = false;
+static GLuint s_backdropProg = 0;
+static GLint s_backdropUFlip = -1, s_backdropUAlpha = -1;
+// it fades in when a movie starts and out when it ends
+static const double kBackdropFade = 0.3;  // seconds
+static double s_fadeT0 = 0;
+static float s_fadeFrom = 0;
+static bool s_fadingOut = false;
+static int s_lastKeepX = 0, s_lastKeepW = 0;
+
+static double backdropClock() {
+    using namespace std::chrono;
+    return duration<double>(steady_clock::now().time_since_epoch()).count();
+}
+
+static float backdropAlpha() {
+    const double t = backdropClock() - s_fadeT0;
+    if (s_backdropOn) return float(std::min(1.0, t / kBackdropFade));
+    if (s_fadingOut) return float(std::max(0.0, double(s_fadeFrom) * (1.0 - t / kBackdropFade)));
+    return 0.0f;
+}
+
+extern "C" void GXPC_SetBackdropMovie(const char* ownOverlay) {
+    if (ownOverlay) {
+        if (!s_backdropOn) s_fadeT0 = backdropClock();
+        s_backdropOn = true;
+        s_fadingOut = false;
+        s_backdropMovie = ownOverlay;
+    } else if (s_backdropOn) {  // the movie's frame stays while it fades out
+        s_fadeFrom = backdropAlpha();
+        s_backdropOn = false;
+        s_fadingOut = true;
+        s_fadeT0 = backdropClock();
+    }
+}
+extern "C" void GXPC_SetBackdropActive(int on) { GXPC_SetBackdropMovie(on ? "" : nullptr); }
+// the movie's width in the game's 640-wide units (more when it is drawn
+// across the widened frame), so the frame goes only beside it
+static float s_movieWidth = 640.0f;
+extern "C" void GXPC_SetMovieWidth(float width) { s_movieWidth = width > 0 ? width : 640.0f; }
+
+static const BackdropImage* backdropImage(const std::string& path) {
+    BackdropImage& b = s_backdrops[path];
+    if (b.tried) return b.tex ? &b : nullptr;
+    b.tried = true;
+    struct stat st;
+    if (stat(path.c_str(), &st) != 0) return nullptr;
+    std::vector<uint8_t> rgba;
+    if (!loadImageRgba(path.c_str(), rgba, b.w, b.h)) {
+        logmsg("cutscene frame: cannot read %s (a PNG is needed)", path.c_str());
+        return nullptr;
+    }
+    glGenTextures(1, &b.tex);
+    glBindTexture(GL_TEXTURE_2D, b.tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, b.w, b.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    logmsg("cutscene frame: %s (%dx%d)", path.c_str(), b.w, b.h);
+    return &b;
+}
+
+static void drawBackdrop(int winW, int winH, int keepX, int keepW) {
+    if (!s_backdropOn && !s_fadingOut) return;
+    const float alpha = backdropAlpha();
+    if (s_backdropOn) {
+        s_lastKeepX = keepX;
+        s_lastKeepW = keepW;
+    } else {  // fading out after the movie: where the movie was
+        if (alpha <= 0.0f) {
+            s_fadingOut = false;
+            return;
+        }
+        keepX = s_lastKeepX;
+        keepW = s_lastKeepW;
+    }
+    const char* frame = getenv("SMS_CUTSCENE_FRAME");
+    if (!frame || !*frame || !strcmp(frame, "0")) return;
+    const BackdropImage* img = nullptr;
+    bool own = false;
+    if (!s_backdropMovie.empty() && (img = backdropImage(s_backdropMovie)))
+        own = true;
+    else
+        img = backdropImage(frame);
+    if (!img) return;
+    if (!own && keepX <= 0 && keepX + keepW >= winW) return; // no bars beside the picture
+    if (!s_backdropProg) {
+#ifdef SMS_GLES
+        static const char* fs = R"(#version 300 es
+precision mediump float;
+uniform sampler2D u_tex;
+uniform float u_alpha;
+in vec2 v_uv;
+layout(location = 0) out vec4 o_color;
+void main() { vec4 c = texture(u_tex, v_uv); o_color = vec4(c.rgb, c.a * u_alpha); }
+)";
+#else
+        static const char* fs = R"(#version 330 core
+uniform sampler2D u_tex;
+uniform float u_alpha;
+in vec2 v_uv;
+out vec4 o_color;
+void main() { vec4 c = texture(u_tex, v_uv); o_color = vec4(c.rgb, c.a * u_alpha); }
+)";
+#endif
+        s_backdropProg = compileProgram(kPostVs, fs);
+        glUseProgram(s_backdropProg);
+        glUniform1i(glGetUniformLocation(s_backdropProg, "u_tex"), 0);
+        s_backdropUFlip = glGetUniformLocation(s_backdropProg, "u_flip");
+        s_backdropUAlpha = glGetUniformLocation(s_backdropProg, "u_alpha");
+    }
+    // cover the window, keeping the image's shape
+    const float k = std::max(float(winW) / float(img->w), float(winH) / float(img->h));
+    const int dw = int(float(img->w) * k + 0.5f), dh = int(float(img->h) * k + 0.5f);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glBindSampler(0, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindVertexArray(s_copyVao);
+    glViewport((winW - dw) / 2, (winH - dh) / 2, dw, dh);
+    glUseProgram(s_backdropProg);
+    glUniform1i(s_backdropUFlip, 1);  // the image's row 0 is its top
+    glUniform1f(s_backdropUAlpha, alpha);
+    glBindTexture(GL_TEXTURE_2D, img->tex);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+    if (own) {  // over everything, with its transparency
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    } else {    // the bars beside the picture
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, std::max(0, keepX), winH);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glScissor(keepX + keepW, 0, std::max(0, winW - keepX - keepW), winH);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glDisable(GL_SCISSOR_TEST);
+    }
+    glDisable(GL_BLEND);
+    glBindVertexArray(s_vao);
+}
+
 int GXPC_PresentXFB(const void* xfb, int winW, int winH) {
     flushBatch();
     glcInvalidate();
@@ -2065,6 +2232,16 @@ int GXPC_PresentXFB(const void* xfb, int winW, int winH) {
         vh = vh / baseH * baseH;
         vw = int(float(vh) * aspect + 0.5f);
     }
+    // A movie's frame is 448 lines that the 4:3 mapping above shows as 480,
+    // so its picture would come out 7 % too narrow. Movies are shown with
+    // square pixels instead, at the window's height: the picture keeps its
+    // shape and the widened frame's empty sides go past the window's edges.
+    int keepW = std::min(vw, int(float(vh) * 4.0f / 3.0f + 0.5f));  // the movie's width
+    if (s_backdropOn && s_post.aspect == 0 && x.h > 0) {
+        vh = winH;
+        vw = int(float(x.w) * float(winH) / float(x.h) + 0.5f);
+        keepW = std::min(vw, int(float(vw) * s_movieWidth / float(s_efbW) + 0.5f));  // its share of the frame's width
+    }
     int ox = (winW - vw) / 2, oy = (winH - vh) / 2;
     glDisable(GL_SCISSOR_TEST);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -2072,6 +2249,7 @@ int GXPC_PresentXFB(const void* xfb, int winW, int winH) {
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     postPresent(x.tex, x.w, x.h, ox, oy, vw, vh);
+    drawBackdrop(winW, winH, ox + (vw - keepW) / 2, keepW);
     glViewport(0, 0, winW, winH);
     // Framebuffer 0 stays bound through the swap: macOS presents nothing
     // (a black window) if an FBO is bound at SDL_GL_SwapWindow.
@@ -2184,6 +2362,10 @@ void GXPC_GetTimes(GXPCTimes* out) {
 void GXPC_SetDetailedTimers(int on) { g_gxStats = on || statsEnv(); }
 void GXPC_SetIdleClock(double (*idleSeconds)(void)) { s_idleClock = idleSeconds; }
 
+// Multiplies the alpha of the following GXPC_DrawOverlay calls (touch controls
+// fading out); 1 draws them as they are.
+void GXPC_SetOverlayAlpha(float alpha) { s_overlayAlpha = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha; }
+
 void GXPC_DrawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH) {
     if (!s_ready || !rgba || w <= 0 || h <= 0) return;
     flushBatch();
@@ -2210,7 +2392,8 @@ precision highp sampler2D;
 uniform sampler2D u_color;
 in vec2 v_uv;
 layout(location = 0) out vec4 o_color;
-void main() { o_color = texture(u_color, v_uv); }
+uniform float u_alpha;
+void main() { o_color = texture(u_color, v_uv) * vec4(1.0, 1.0, 1.0, u_alpha); }
 )";
 #else
         static const char* vs = R"(#version 330 core
@@ -2227,7 +2410,8 @@ void main() {
 uniform sampler2D u_color;
 in vec2 v_uv;
 out vec4 o_color;
-void main() { o_color = texture(u_color, v_uv); }
+uniform float u_alpha;
+void main() { o_color = texture(u_color, v_uv) * vec4(1.0, 1.0, 1.0, u_alpha); }
 )";
 #endif
         s_overlayProg = compileProgram(vs, fs);
@@ -2291,6 +2475,7 @@ void main() { o_color = texture(u_color, v_uv); }
     glViewport(0, 0, winW, winH);
     glUseProgram(s_overlayProg);
     glUniform1i(glGetUniformLocation(s_overlayProg, "u_color"), 0);
+    glUniform1f(glGetUniformLocation(s_overlayProg, "u_alpha"), s_overlayAlpha);
     glBindVertexArray(s_copyVao);
     float rect[4] = {float(x), float(winH - y - h * scale), float(w * scale), float(h * scale)};
     float window[2] = {float(winW), float(winH)};

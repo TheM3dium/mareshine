@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A settings row: rounded, dim border; gold border when focused. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="10dp" />
+            <solid android:color="#40FFC531" />
+            <stroke android:width="2dp" android:color="#FFC531" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="10dp" />
+            <solid android:color="#33FFC531" />
+            <stroke android:width="1dp" android:color="#FFC531" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="10dp" />
+            <solid android:color="#B3123A5C" />
+            <stroke android:width="1dp" android:color="#2A5A85" />
+        </shape>
+    </item>
+</selector>

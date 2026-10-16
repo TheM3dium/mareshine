@@ -1,127 +1,179 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Main menu, in the style of Dusklight's: the title on the left, PLAY /
+     SETTINGS / QUIT on the right, the disc status at the bottom right and a
+     panel for messages at the bottom. With a working disc the app usually
+     starts the game straight away (Settings → GAME → Start game
+     automatically), so this shows when that is off or no disc is set. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121218"
-    android:fillViewport="true">
+    android:background="#0A1B30">
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <!-- title: the Mareshine logo (LauncherActivity moves it up when the message panel would reach it) -->
+    <ImageView
+        android:id="@+id/ivLogo"
+        android:layout_width="380dp"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:layout_gravity="start|center_vertical"
+        android:layout_marginStart="40dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="Mareshine"
+        android:src="@drawable/mareshine_logo" />
 
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Super Mario Sunshine"
-            android:textColor="#FFCC00"
-            android:textSize="28sp"
-            android:textStyle="bold" />
+    <TextView
+        android:id="@+id/tvVersion"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="40dp"
+        android:fontFamily="sans-serif-condensed"
+        android:shadowColor="#CC000000"
+        android:shadowRadius="4"
+        android:textColor="@color/dl_text"
+        android:textSize="15sp" />
 
-        <TextView
-            android:id="@+id/tvSubtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Android Native Port"
-            android:textColor="#B0BEC5"
-            android:textSize="14sp" />
+    <!-- menu -->
+    <LinearLayout
+        android:id="@+id/menu"
+        android:layout_width="380dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="24dp"
+        android:orientation="vertical">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:background="#1E1E2C"
-            android:orientation="vertical"
-            android:padding="20dp">
+            <Button
+                android:id="@+id/btnPlay"
+                style="@style/DlMenuItem"
+                android:text="PLAY" />
 
-            <TextView
-                android:id="@+id/tvStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Buscando ISO del juego..."
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+            <Button
+                android:id="@+id/btnSettings"
+                style="@style/DlMenuItem"
+                android:text="SETTINGS" />
 
-            <TextView
-                android:id="@+id/tvPath"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textColor="#90A4AE"
-                android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/tvProgress"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:textColor="#64B5F6"
-                android:textSize="14sp"
-                android:visibility="gone" />
-
-            <ProgressBar
-                android:id="@+id/progressBar"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:max="100"
-                android:visibility="gone" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:orientation="vertical">
-
-                <Button
-                    android:id="@+id/btnPlay"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:backgroundTint="#2E7D32"
-                    android:paddingTop="12dp"
-                    android:paddingBottom="12dp"
-                    android:text="🎮 INICIAR JUEGO"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:visibility="gone" />
-
-                <Button
-                    android:id="@+id/btnSelectIso"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:backgroundTint="#1565C0"
-                    android:paddingTop="12dp"
-                    android:paddingBottom="12dp"
-                    android:text="📂 SELECCIONAR ISO DEL DISPOSITIVO"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnAdvancedSettings"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:backgroundTint="#455A64"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="10dp"
-                    android:text="⚙️ AJUSTES AVANZADOS (GRÁFICOS)"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-            </LinearLayout>
-
-        </LinearLayout>
-
+            <Button
+                android:id="@+id/btnQuit"
+                style="@style/DlMenuItem"
+                android:text="QUIT" />
     </LinearLayout>
 
-</ScrollView>
+    <!-- disc status -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="40dp"
+        android:layout_marginBottom="24dp"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="4"
+            android:textColor="@color/dl_ok"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/tvDiscInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="sans-serif-condensed"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="4"
+            android:textColor="@color/dl_dim"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- bottom left: the shader compile (ShaderService), then the messages -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="24dp"
+        android:layout_marginBottom="20dp"
+        android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/panelShaders"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/dl_panel"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:indeterminateTint="@color/dl_gold" />
+
+        <TextView
+            android:id="@+id/tvShaders"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_text"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <!-- messages: ISO details, warnings, copy / hash progress -->
+    <LinearLayout
+        android:id="@+id/panelInfo"
+        android:layout_width="520dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/dl_panel"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/tvPath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_text"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvDataDir"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_dim"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvProgress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_gold"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:max="100"
+            android:progressTint="@color/dl_gold"
+            android:visibility="gone" />
+    </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>

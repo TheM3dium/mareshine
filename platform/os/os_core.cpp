@@ -150,6 +150,14 @@ extern "C" void OSPanic(const char* file, int line, const char* msg, ...)
 	va_list ap;
 	va_start(ap, msg);
 #ifdef __ANDROID__
+	{ // also into game.log (port_log), so a panic shows in the crash report
+		char text[1024];
+		va_list copy;
+		va_copy(copy, ap);
+		vsnprintf(text, sizeof text, msg, copy);
+		va_end(copy);
+		port_log("[OSPanic] %s:%d: %s\n", file, line, text);
+	}
 	__android_log_print(ANDROID_LOG_FATAL, "SMS_OSPanic", "[OSPanic] %s:%d", file, line);
 	__android_log_vprint(ANDROID_LOG_FATAL, "SMS_OSPanic", msg, ap);
 #else

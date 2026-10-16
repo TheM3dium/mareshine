@@ -89,16 +89,23 @@ const char* port_disc_root =
 int port_disc_explicit = 0;
 // SMS_SKIP_MOVIES=1 reports every THP movie as finished at once (patch 0016).
 extern "C" int port_skip_movies;
+extern "C" void port_cheats_init(void);  // misc/port_cheats.cpp
 int port_skip_movies = 0;
 // SMS_WIDESCREEN: the displayed width over the GameCube's 4:3 (1 when off);
 // the game camera (widescreen-01 patch) and sms_gx widen by it.
 extern "C" float port_widescreen;
 float port_widescreen = 1.0f;
 extern "C" __attribute__((weak)) void GXPC_SetWidescreen(float widthOver43);
-// SMS_FRAME_RATE: 30 (the game's own) or 60, for gameplay (the Application
-// patch framerate-01 reads it; logos, menus and movies stay at 30).
+extern "C" __attribute__((weak)) void GXPC_SetMemoryWindow(void* base, uint32_t size);
+// SMS_FRAME_RATE: 30 (the game's own, Android's default), 60 or 120, for
+// gameplay (the Application patch framerate-01 reads it; logos, menus and
+// movies stay at 30). port_active_frame_rate is the rate in force now.
 extern "C" int port_frame_rate;
 int port_frame_rate = 30;
+extern "C" int port_active_frame_rate;
+int port_active_frame_rate = 30;
+extern "C" int port_high_fps_active;
+int port_high_fps_active = 0;
 
 // "16:9", "21:9", "16:10", "on" (16:9), "off"/"0", or a ratio such as 1.85.
 static float parse_widescreen(const char* v)
@@ -119,11 +126,105 @@ static float parse_widescreen(const char* v)
 	return f;
 }
 
+#ifdef __ANDROID__
+// SMS_LOG_DIR (set by the Android app: <data folder>/logs): everything
+// port_log writes also goes to game.log there (the previous session's is kept
+// as game.prev.log). A fatal signal copies it to crash-<date>-<time>.log.
+// The file is written with write(2), unbuffered, so it is complete when the
+// process dies.
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <time.h>
+static int s_log_fd = -2; // -2 not opened yet, -1 off
+static char s_log_path[512];
+static char s_log_dir[448];
+
+static int log_fd()
+{
+	if (s_log_fd != -2)
+		return s_log_fd;
+	s_log_fd       = -1;
+	const char* dir = getenv("SMS_LOG_DIR");
+	if (!dir || !*dir || strlen(dir) >= sizeof s_log_dir)
+		return -1;
+	snprintf(s_log_dir, sizeof s_log_dir, "%s", dir);
+	mkdir(s_log_dir, 0775);
+	snprintf(s_log_path, sizeof s_log_path, "%s/game.log", s_log_dir);
+	char prev[512];
+	snprintf(prev, sizeof prev, "%s/game.prev.log", s_log_dir);
+	rename(s_log_path, prev);
+	s_log_fd = open(s_log_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0664);
+	if (s_log_fd >= 0) {
+		// stderr (the GX layer's [sms_gx] lines, [endian], ...) goes nowhere on
+		// Android: send it to game.log too.
+		fflush(stderr);
+		dup2(s_log_fd, 2);
+		setvbuf(stderr, nullptr, _IONBF, 0);
+		char head[128];
+		time_t t = time(nullptr);
+		struct tm tm;
+		localtime_r(&t, &tm);
+		int n = (int)strftime(head, sizeof head, "[log] session started %Y-%m-%d %H:%M:%S\n", &tm);
+		if (n > 0 && write(s_log_fd, head, (size_t)n) < 0) {
+		}
+		if (const char* info = getenv("SMS_DEVICE_INFO")) { // app version, device, Android
+			char line[512];
+			n = snprintf(line, sizeof line, "[log] %s\n", info);
+			if (n > 0 && write(s_log_fd, line, (size_t)(n < (int)sizeof line ? n : (int)sizeof line - 1)) < 0) {
+			}
+		}
+	}
+	return s_log_fd;
+}
+
+// Copies game.log to crash-<date>-<time>.log (open/read/write only: called
+// from the crash handler).
+static void log_save_crash()
+{
+	if (s_log_fd < 0)
+		return;
+	fsync(s_log_fd);
+	time_t t = time(nullptr);
+	struct tm tm;
+	localtime_r(&t, &tm);
+	char name[64], path[600];
+	strftime(name, sizeof name, "crash-%Y%m%d-%H%M%S.log", &tm);
+	snprintf(path, sizeof path, "%s/%s", s_log_dir, name);
+	int in = open(s_log_path, O_RDONLY | O_CLOEXEC);
+	int out = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0664);
+	if (in >= 0 && out >= 0) {
+		char buf[16384];
+		ssize_t n;
+		while ((n = read(in, buf, sizeof buf)) > 0)
+			if (write(out, buf, (size_t)n) != n)
+				break;
+		fsync(out);
+	}
+	if (in >= 0)
+		close(in);
+	if (out >= 0)
+		close(out);
+	__android_log_print(ANDROID_LOG_ERROR, "SMS", "crash report written to %s", path);
+}
+#endif
+
 extern "C" void port_log(const char* fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
 #ifdef __ANDROID__
+	int fd = log_fd();
+	if (fd >= 0) {
+		char buf[2048];
+		va_list copy;
+		va_copy(copy, ap);
+		int n = vsnprintf(buf, sizeof buf, fmt, copy);
+		va_end(copy);
+		if (n > (int)sizeof buf - 1)
+			n = (int)sizeof buf - 1;
+		if (n > 0 && write(fd, buf, (size_t)n) < 0) {
+		}
+	}
 	__android_log_vprint(ANDROID_LOG_INFO, "SMS", fmt, ap);
 #else
 	std::vfprintf(stderr, fmt, ap);
@@ -249,6 +350,9 @@ static void crash_handler(int sig, siginfo_t* si, void* uc)
 	crash_symbolise(bt, n);
 #endif
 	port_stub_report();
+#ifdef __ANDROID__
+	log_save_crash();
+#endif
 #ifdef __APPLE__
 	// Under Rosetta, a translated process that dies from a re-raised fatal
 	// signal hangs in the kernel's exit path (state UE, unkillable). Exit
@@ -258,6 +362,28 @@ static void crash_handler(int sig, siginfo_t* si, void* uc)
 	signal(sig, SIG_DFL);
 	raise(sig);
 #endif
+}
+#endif
+
+#ifdef __ANDROID__
+// Android: claim MEM1's address as soon as libmain is loaded. Later (when the
+// game starts) the GPU driver or the Java heap may already sit at 0x80000000,
+// and MEM1 elsewhere breaks GX addresses that live in 24-bit fields.
+static void* s_early_mem1;
+static size_t s_early_mem1_size;
+__attribute__((constructor)) static void android_reserve_mem1()
+{
+	size_t size = 64u << 20;
+	if (const char* e = getenv("SMS_MEM_MB"))
+		size = (size_t)atoi(e) << 20;
+	void* want = (void*)(uintptr_t)0x80000000u;
+	void* p    = mmap(want, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+	if (p == want) {
+		s_early_mem1      = p;
+		s_early_mem1_size = size;
+	} else if (p != MAP_FAILED) {
+		munmap(p, size);
+	}
 }
 #endif
 
@@ -304,6 +430,26 @@ static void map_mem1()
 		mb = (u32)atoi(e);
 	port_mem1_size = mb << 20;
 	void* want = (void*)(uintptr_t)0x80000000u;
+#ifdef __ANDROID__
+	// Reserved when the library was loaded (see android_reserve_mem1), before
+	// the GPU driver and the Java heap could take the address.
+	if (s_early_mem1 && s_early_mem1_size >= port_mem1_size) {
+		port_mem1_base = (u8*)s_early_mem1;
+		port_log("[port] MEM1: %u MiB at %p (reserved at load)\n", port_mem1_size >> 20, s_early_mem1);
+		return;
+	}
+	{ // who holds 0x80000000?
+		FILE* m = fopen("/proc/self/maps", "r");
+		char line[512];
+		while (m && fgets(line, sizeof line, m)) {
+			unsigned long lo, hi;
+			if (sscanf(line, "%lx-%lx", &lo, &hi) == 2 && hi > 0x80000000ul && lo < 0x80000000ul + port_mem1_size)
+				port_log("[port] MEM1 range taken by: %s", line);
+		}
+		if (m)
+			fclose(m);
+	}
+#endif
 #ifdef _WIN32
 	void* p = VirtualAlloc(want, port_mem1_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (p != want) {
@@ -336,6 +482,14 @@ static void map_mem1()
 	}
 #endif
 	port_mem1_base = (u8*)p;
+	// GX keeps texture, TLUT and copy addresses in 24-bit register fields
+	// (address >> 5, so offsets below 512 MiB): with MEM1 away from
+	// 0x80000000 they must be measured from where MEM1 really is, or every
+	// texture reads the wrong memory (garbage textures on Android).
+	if (p != (void*)(uintptr_t)0x80000000u && GXPC_SetMemoryWindow) {
+		GXPC_SetMemoryWindow(p, port_mem1_size);
+		port_log("[port] GX memory window moved to %p\n", p);
+	}
 	port_log("[port] MEM1: %u MiB at %p\n", mb, p);
 }
 
@@ -569,8 +723,9 @@ static const struct {
 	{ "hd_cutscenes", "SMS_HD_CUTSCENES" }, // follows HD textures; 0 disables
 	{ "widescreen", "SMS_WIDESCREEN" },
 	{ "widescreen_hud", "SMS_WIDESCREEN_HUD" }, // centre or edges
-	{ "frame_rate", "SMS_FRAME_RATE" },         // 30 or 60
+	{ "frame_rate", "SMS_FRAME_RATE" },         // 30, 60 or 120
 	{ "mod", "SMS_MOD" },
+	{ "language", "SMS_LANGUAGE" }, // en (default), or any pack in languages/<code>
 	{ "resolution", "SMS_GX_SCALE" },
 	{ "render_scale", "SMS_RENDER_SCALE" },
 	{ "draw_distance", "SMS_DRAW_DISTANCE" },
@@ -629,7 +784,7 @@ static const char* settings_path()
 	if (const char* p = getenv("SMS_SETTINGS"))
 		return p;
 #ifdef __ANDROID__
-	static std::string s_android_settings = "/sdcard/Android/data/com.jbcgames.sunshine/files/settings.txt";
+	static std::string s_android_settings = "/sdcard/Android/data/io.github.them3dium.mareshine/files/settings.txt";
 	if (access(s_android_settings.c_str(), R_OK) == 0)
 		return s_android_settings.c_str();
 #endif
@@ -845,6 +1000,9 @@ static void load_settings()
 
 extern "C" void port_init(int argc, char** argv)
 {
+#ifdef __ANDROID__
+	log_fd(); // open game.log (and catch stderr) before anything logs
+#endif
 	run_launcher(argc, argv);
 	load_settings();
 	pick_glx_vendor();
@@ -855,10 +1013,13 @@ extern "C" void port_init(int argc, char** argv)
 		GXPC_SetWidescreen(port_widescreen);
 	if (port_widescreen > 1.0f)
 		port_log("[port] widescreen: %.3f times the 4:3 width\n", port_widescreen);
-	if (const char* r = getenv("SMS_FRAME_RATE"))
-		port_frame_rate = atoi(r) == 60 ? 60 : 30;
-	if (port_frame_rate == 60)
-		port_log("[port] frame rate: 60 during gameplay\n");
+	if (const char* r = getenv("SMS_FRAME_RATE")) {
+		port_frame_rate = (!strcmp(r, "60") || !strcmp(r, "120")) ? atoi(r) : 30;
+		if (strcmp(r, "30") && strcmp(r, "60") && strcmp(r, "120"))
+			port_log("[port] unsupported frame rate '%s'; using 30\n", r);
+	}
+	port_log("[port] frame rate: %d during gameplay\n", port_frame_rate);
+	port_cheats_init();
 	if (const char* s = getenv("SMS_RENDER_SCALE"))
 		port_log("[port] render scale: %s\n", s);
 	if (const char* d = getenv("SMS_DRAW_DISTANCE"))

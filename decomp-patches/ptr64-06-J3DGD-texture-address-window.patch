@@ -1,0 +1,41 @@
+Reason: port: J3D's display-list texture and TLUT addresses are built with OSPhysicalToCached and OR'd into the BP register without a mask; with MEM1 away from 0x80000000 (Android, where the Java heap holds that range) bit 24 survives and turns TX_SETIMAGE3 for one map into another's, so models draw with the wrong textures. Use GX's address mapping (GXPC_PtrToPhys) masked to the 24-bit field.
+--- a/libs/JSystem/src/JRenderer.cpp	2026-10-15 16:13:27.414031664 +0200
++++ b/libs/JSystem/src/JRenderer.cpp	2026-10-15 16:13:27.427828804 +0200
+@@ -1,6 +1,9 @@
+ #include <JSystem/JRenderer.hpp>
+ #include <dolphin/gd/GDTransform.h>
+ #include <dolphin/os.h>
++#ifdef TARGET_PC
++extern "C" u32 GXPC_PtrToPhys(const void* ptr);
++#endif
+ 
+ void J3DGDLoadTexMtxImm(MtxPtr mtx, u32 i, GXTexMtxType type)
+ {
+@@ -280,7 +283,15 @@
+ {
+ 	// clang-format off
+ 	u32 reg =
++#ifdef TARGET_PC
++		// GX's own address mapping, masked to the 24-bit field: with MEM1
++		// away from 0x80000000 (Android) the retail expression leaves bit 24
++		// set and corrupts the register id, so textures load into the wrong
++		// texture map.
++		(u32) ((GXPC_PtrToPhys(image) >> 5) & 0xFFFFFF) |
++#else
+ 		(u32) ((u32)OSPhysicalToCached(image) >> 5) |
++#endif
+ 		(u32) GXTexImage3Ids[map] << 24;
+ 	// clang-format on
+ 
+@@ -316,7 +327,11 @@
+ 	GDOverflowCheck(5);
+ 	// clang-format off
+ 	J3DGDWriteBPCmd(
++#ifdef TARGET_PC
++		(u32) ((GXPC_PtrToPhys(tlut) >> 5) & 0xFFFFFF) |
++#else
+ 		(u32) ((u32)OSPhysicalToCached(tlut) >> 5) |
++#endif
+ 		(u32) 0x64 << 24
+ 	);
+ 	// clang-format on

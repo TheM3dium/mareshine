@@ -1,0 +1,44 @@
+Reason: port: tell the host which movie is open and which frame is drawn, so an HD picture source (platform/thp/mp4_movies.cpp, hardware-decoded MP4) can stand in for the THP's own picture
+--- a/libs/THPPlayer/src/THPPlayer.c
++++ b/libs/THPPlayer/src/THPPlayer.c
+@@ -17,6 +17,7 @@
+ #include <JSystem/JAudio/JASystem/JASAiCtrl.hpp>
+ #ifdef TARGET_PC
+ #include <sms_modhook.h>
++#include <sms_hd_movies.h>
+ #endif
+ 
+ #pragma opt_strength_reduction off
+@@ -231,12 +232,20 @@
+ 	ActivePlayer.targetVolume = ActivePlayer.curVolume;
+ 	ActivePlayer.rampCount    = 0;
+ 
++#ifdef TARGET_PC
++	// an HD picture source for this movie (platform/thp/mp4_movies.cpp)
++	port_thp_opened(fileName, ActivePlayer.videoInfo.xSize, ActivePlayer.videoInfo.ySize,
++	                ActivePlayer.header.numFrames);
++#endif
+ 	return TRUE;
+ }
+ 
+ BOOL THPPlayerClose()
+ {
+ 	if (ActivePlayer.open && ActivePlayer.state == 0) {
++#ifdef TARGET_PC
++		port_thp_closed();
++#endif
+ 		ActivePlayer.open = FALSE;
+ 		DVDClose(&ActivePlayer.fileInfo);
+ 		return TRUE;
+@@ -695,6 +704,11 @@
+ 	if (ActivePlayer.open && ActivePlayer.state != 0
+ 	    && ActivePlayer.dispTextureSet != NULL) {
+ 		THPGXYuv2RgbSetup(rmode);
++#ifdef TARGET_PC
++		// the frame being drawn, for an HD picture source
++		port_thp_draw_frame((ActivePlayer.dispTextureSet->frameNumber + ActivePlayer.initReadFrame)
++		                    % ActivePlayer.header.numFrames);
++#endif
+ 		THPGXYuv2RgbDraw(ActivePlayer.dispTextureSet->ytexture,
+ 		                 ActivePlayer.dispTextureSet->utexture,
+ 		                 ActivePlayer.dispTextureSet->vtexture, x, y,

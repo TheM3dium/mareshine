@@ -186,6 +186,8 @@ unsigned hiresTexture(const std::string& name, int unit, uint32_t gxW, uint32_t 
 void hiresShutdown();
 const char* hiresDumpDir();  // SMS_TEXTURE_DUMP, or null
 void hiresDump(const std::string& name, const uint8_t* rgba, uint32_t w, uint32_t h);
+// An image file as RGBA8, top row first (the cutscene frame); false if unreadable.
+bool loadImageRgba(const char* path, std::vector<uint8_t>& rgba, int& w, int& h);
 void hiresEndFrame();  // once per display copy
 uint32_t hiresUploadedCount();
 uint64_t xxh64(const void* data, size_t len, uint64_t seed);
@@ -207,6 +209,7 @@ struct ShaderProgram {
 };
 const ShaderProgram* shaderForCurrentState();
 void shaderInit();
+void shaderPrepareStage(int stage);  // while a stage loads: its programs (the warm-up)
 void shaderShutdown();
 
 // ---------------------------------------------------------------- util

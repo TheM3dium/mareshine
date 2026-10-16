@@ -39,6 +39,11 @@ int GXPC_InitAuto(int efbScale);             /* 1 on success */
 int GXPC_IsHeadless(void);
 void GXPC_SetAutoPresent(int enable);
 void GXPC_Present(const void* xfb);          /* window mode: draw XFB, swap, pump events */
+void GXPC_SetBackdropMovie(const char* ownOverlay); /* NULL: no movie; "": a movie (the frame); a path: its own overlay */
+void GXPC_SetBackdropActive(int on); /* a movie plays: the cutscene frame (SMS_CUTSCENE_FRAME) fills the window behind it */
+void GXPC_SetStreamingRange(const void* p, uint32_t bytes); /* textures there are video frames: always uploaded, no pack lookup */
+void GXPC_SkipNextPresent(int skip);         /* the next GXCopyDisp is not presented (events still pumped), if presenting is slow */
+double GXPC_LastPresentSeconds(void);        /* the last GXCopyDisp's present, 0 if it was not presented */
 uint32_t GXPC_FrameCount(void);              /* display copies so far */
 /* Window (taskbar / Dock) icon: w x h RGBA8 pixels, copied. Applied to the
  * SDL window now, or when it opens; ignored without a window. */
@@ -81,12 +86,19 @@ float GXPC_GetWidescreen(void);
 union SDL_Event;
 void sms_gx_set_event_callback(void (*cb)(const union SDL_Event* ev));
 void sms_gx_pump_events(void);
+/* Game controllers in use (SMS_PAD_DEVICE limits them to one by name). */
+int sms_gx_pad_count(void);
+/* Alpha (0..1) for the following GXPC_DrawOverlay calls. */
+void GXPC_SetOverlayAlpha(float alpha);
 
 /* Call once with an OpenGL 3.3 core context current (SDL, EGL, ...), before the
  * game calls GXInit.  efbScale multiplies the 640x528 EFB (1 = native).
  * Returns 0 on failure (missing entry points, FBO creation failed). */
 int GXPC_Init(GXPCGetProcFn getProc, int efbScale);
 void GXPC_Shutdown(void);
+/* As a stage finishes loading (before its first frame): compiles the shader
+ * programs it is known to draw with (the warm-up, gx_shader.cpp). */
+void GXPC_PrepareStage(int stage);
 
 /* 32-bit "physical" addresses appear inside command streams: display lists
  * built by GD/J3D carry texture, TLUT, vertex-array and EFB-copy addresses.

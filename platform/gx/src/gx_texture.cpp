@@ -209,6 +209,24 @@ static uint32_t s_maxBytes = 0;
 static uint32_t s_gen = 1;
 static std::vector<uint8_t> s_decodeBuf;
 
+// Video frames (the HD movie pools, GXPC_SetStreamingRange): new data every
+// frame, so no change hash and no texture pack lookup.
+static uintptr_t s_streamLo = 0, s_streamHi = 0;
+
+// I8 as one byte per texel (uploaded as R8, read as I via the texture's
+// swizzle): a quarter of the RGBA data, and a straight detile.
+static void decodeI8(const uint8_t* src, uint32_t w, uint32_t h, uint8_t* out) {
+    const uint32_t cols = (w + 7) / 8, rows = (h + 3) / 4;
+    for (uint32_t ty = 0; ty < rows; ty++)
+        for (uint32_t tx = 0; tx < cols; tx++, src += 32)
+            for (uint32_t r = 0; r < 4; r++) {
+                const uint32_t y = ty * 4 + r, x = tx * 8;
+                if (y >= h) continue;
+                const uint32_t n = x + 8 <= w ? 8 : w - x;
+                memcpy(out + size_t(y) * w + x, src + r * 8, n);
+            }
+}
+
 struct CopyEntry {
     GLuint tex;
     int w, h;
@@ -521,7 +539,12 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
         s_rangesSorted = false;
         if (total > s_maxBytes) s_maxBytes = total;
     }
-    if (e.checkedGen != s_gen || upload) {
+    const bool streamed = reinterpret_cast<uintptr_t>(ptr) >= s_streamLo && reinterpret_cast<uintptr_t>(ptr) < s_streamHi;
+    if (streamed) {
+        upload = true;  // a video frame: always new
+        e.checkedGen = s_gen;
+        e.bytes = total;
+    } else if (e.checkedGen != s_gen || upload) {
         g_statTexHashBytes += total;
         uint64_t dh = hashBytes(ptr, total);
         uint64_t th = tlut ? hashBytes(tlut, tlutBytes) : 0;
@@ -539,7 +562,7 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
         decodeTexture(ptr, fmt, w, h, tlut, (tlutReg >> 10) & 3, rgba.data());
         hiresDump(hiresName(ptr, fmt, w, h, mipmapped, tlut, tlutBytes, false), rgba.data(), w, h);
     }
-    if (upload && hiresEnabled()) {  // a texture pack's replacement for the new data
+    if (upload && !streamed && hiresEnabled()) {  // a texture pack's replacement for the new data
         e.hires = hiresName(ptr, fmt, w, h, mipmapped, tlut, tlutBytes, true);
         // the same image dumped from a use with the other mipmap setting
         if (e.hires.empty()) e.hires = hiresName(ptr, fmt, w, h, !mipmapped, tlut, tlutBytes, true);
@@ -554,11 +577,25 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         const uint8_t* src = ptr;
         uint32_t lw = w, lh = h;
+        const bool i8 = (fmt & 15) == 1;
+        // R8 read back as I (r, r, r, r) for I8; RGBA8 for everything else
+        const GLint swz[4] = {GL_RED, i8 ? GL_RED : GL_GREEN, i8 ? GL_RED : GL_BLUE, i8 ? GL_RED : GL_ALPHA};
+        glTexParameteri(GL_TEXTURE_2D, 0x8E42 /* GL_TEXTURE_SWIZZLE_R */, swz[0]);
+        glTexParameteri(GL_TEXTURE_2D, 0x8E43 /* GL_TEXTURE_SWIZZLE_G */, swz[1]);
+        glTexParameteri(GL_TEXTURE_2D, 0x8E44 /* GL_TEXTURE_SWIZZLE_B */, swz[2]);
+        glTexParameteri(GL_TEXTURE_2D, 0x8E45 /* GL_TEXTURE_SWIZZLE_A */, swz[3]);
         for (uint32_t l = 0; l < levels; l++) {
-            s_decodeBuf.resize(size_t(lw) * lh * 4);
-            decodeTexture(src, fmt, lw, lh, tlut, (tlutReg >> 10) & 3, s_decodeBuf.data());
-            glTexImage2D(GL_TEXTURE_2D, GLint(l), GL_RGBA8, GLsizei(lw), GLsizei(lh), 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                         s_decodeBuf.data());
+            if (i8) {
+                s_decodeBuf.resize(size_t(lw) * lh);
+                decodeI8(src, lw, lh, s_decodeBuf.data());
+                glTexImage2D(GL_TEXTURE_2D, GLint(l), GL_R8, GLsizei(lw), GLsizei(lh), 0, GL_RED, GL_UNSIGNED_BYTE,
+                             s_decodeBuf.data());
+            } else {
+                s_decodeBuf.resize(size_t(lw) * lh * 4);
+                decodeTexture(src, fmt, lw, lh, tlut, (tlutReg >> 10) & 3, s_decodeBuf.data());
+                glTexImage2D(GL_TEXTURE_2D, GLint(l), GL_RGBA8, GLsizei(lw), GLsizei(lh), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                             s_decodeBuf.data());
+            }
             src += texLevelBytes(fmt, lw, lh);
             lw = lw > 1 ? lw / 2 : 1;
             lh = lh > 1 ? lh / 2 : 1;
@@ -579,3 +616,8 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
 }
 
 }  // namespace gx
+
+extern "C" void GXPC_SetStreamingRange(const void* p, uint32_t bytes) {
+    gx::s_streamLo = reinterpret_cast<uintptr_t>(p);
+    gx::s_streamHi = gx::s_streamLo + bytes;
+}
