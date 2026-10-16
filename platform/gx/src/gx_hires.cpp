@@ -351,6 +351,8 @@ void hiresNoteOriginal(const std::string& name, std::vector<float> coverage) {
     s_original[name] = std::move(coverage);
 }
 
+static int maxSize();
+
 static void queryFormats() {
     GLint n = 0, major = 0, minor = 0;
     glGetIntegerv(GL_NUM_EXTENSIONS, &n);
@@ -361,8 +363,51 @@ static void queryFormats() {
         const char* e = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, GLuint(i)));
         if (!e) continue;
         if (!strcmp(e, "GL_EXT_texture_compression_s3tc")) s_s3tc = true;
-        if (!strcmp(e, "GL_ARB_texture_compression_bptc")) s_bptc = true;
+        // The desktop extension's name, and OpenGL ES's (most phones have neither).
+        if (!strcmp(e, "GL_ARB_texture_compression_bptc") || !strcmp(e, "GL_EXT_texture_compression_bptc"))
+            s_bptc = true;
     }
+    logmsg("texture pack: the GPU takes BC1-BC3 %s and BC7 %s", s_s3tc ? "compressed" : "decoded to RGBA",
+           s_bptc ? "compressed" : "decoded to RGBA");
+    if (maxSize()) logmsg("texture pack: images over %d are halved until they fit", maxSize());
+}
+
+// SMS_TEXTURE_PACK_MAX_SIZE: replacements wider or taller than this are halved
+// until they fit, before any decoding to RGBA (0, the default: no limit). On
+// a phone, whose GPU usually takes no BC7, the UHD pack's 8192x8192 images
+// would each need 341 MiB as RGBA, and its 16384x16384 ones over a GiB.
+static int maxSize() {
+    static const int size = [] {
+        const char* e = getenv("SMS_TEXTURE_PACK_MAX_SIZE");
+        return e && atoi(e) > 0 ? atoi(e) : 0;
+    }();
+    return size;
+}
+
+// The levels to drop from a w x h image's top for it to fit maxSize.
+static int levelsOverMax(int w, int h) {
+    int n = 0;
+    if (maxSize())
+        while (std::max(std::max(1, w >> n), std::max(1, h >> n)) > maxSize()) n++;
+    return n;
+}
+
+static inline void boxTexel(const uint8_t* a, const uint8_t* b, const uint8_t* c, const uint8_t* d, bool cutout,
+                            uint8_t* o);
+
+// An RGBA image (lw x lh) at half its size, by a 2x2 box filter.
+static std::vector<uint8_t> halveRgba(const std::vector<uint8_t>& src, int lw, int lh) {
+    int nw = std::max(1, lw / 2), nh = std::max(1, lh / 2);
+    std::vector<uint8_t> dst(size_t(nw) * nh * 4);
+    for (int y = 0; y < nh; y++)
+        for (int x = 0; x < nw; x++) {
+            int x0 = std::min(2 * x, lw - 1), x1 = std::min(2 * x + 1, lw - 1);
+            int y0 = std::min(2 * y, lh - 1), y1 = std::min(2 * y + 1, lh - 1);
+            boxTexel(&src[(size_t(y0) * lw + x0) * 4], &src[(size_t(y0) * lw + x1) * 4],
+                     &src[(size_t(y1) * lw + x0) * 4], &src[(size_t(y1) * lw + x1) * 4], false,
+                     &dst[(size_t(y) * nw + x) * 4]);
+        }
+    return dst;
 }
 
 // DDS (the format most Dolphin packs ship in): BC1-3 and BC7 blocks with the
@@ -382,7 +427,11 @@ static bool readFile(const std::string& path, std::vector<uint8_t>& out) {
     return ok;
 }
 
-static bool decodeDds(const std::string& path, Loaded* L) {
+static std::vector<uint8_t> halveBlocks(int fmt, const std::vector<uint8_t>& src, int lw, int lh);
+
+// `dropped`: the levels over maxSize it left out (the explicit _mip<n> files'
+// numbers count them).
+static bool decodeDds(const std::string& path, Loaded* L, int* dropped = nullptr) {
     std::vector<uint8_t> file;
     if (!readFile(path, file) || file.size() < 128 || memcmp(file.data(), "DDS ", 4) != 0) return false;
     const uint8_t* d = file.data();
@@ -415,16 +464,41 @@ static bool decodeDds(const std::string& path, Loaded* L) {
     // missing ones are encoded in the same format (completeChain).
     bool gpu = (fmt <= DDS_BC3 && s_s3tc) || (fmt == DDS_BC7 && s_bptc);
     static const GLenum kGl[] = {0, 0x83F1, 0x83F2, 0x83F3, 0x8E8C};  // S3TC DXT1/3/5 RGBA, BPTC UNORM
-    L->w = w;
-    L->h = h;
+    auto bytesOf = [&](int lw, int lh) {
+        return block ? size_t((lw + 3) / 4) * size_t((lh + 3) / 4) * bsz : size_t(lw) * lh * 4;
+    };
+    int lw = w, lh = h, count = std::min(mips, full);
+    // Levels over maxSize are skipped while the file has smaller ones, the
+    // rest made from its last (as blocks: a large level never sits in memory
+    // as RGBA).
+    const int drop = levelsOverMax(w, h);
+    std::vector<uint8_t> made;
+    if (dropped) *dropped = drop;
+    for (int m = 0; m < drop; m++) {
+        int nw = std::max(1, lw / 2), nh = std::max(1, lh / 2);
+        if (made.empty() && m + 1 < count && off + bytesOf(lw, lh) + bytesOf(nw, nh) <= file.size()) {
+            off += bytesOf(lw, lh);
+            count--;
+        } else {
+            if (made.empty()) {
+                if (off + bytesOf(lw, lh) > file.size()) return false;
+                made.assign(d + off, d + off + bytesOf(lw, lh));
+            }
+            made = block ? halveBlocks(fmt, made, lw, lh) : halveRgba(made, lw, lh);
+            count = 1;
+        }
+        lw = nw;
+        lh = nh;
+    }
+    L->w = lw;
+    L->h = lh;
     L->compressed = gpu ? kGl[fmt] : 0;
     L->blocks = gpu ? fmt : 0;
-    int lw = w, lh = h;
-    for (int m = 0; m < std::min(mips, full); m++) {
+    for (int m = 0; m < count; m++) {
         int bw = (lw + 3) / 4, bh = (lh + 3) / 4;
-        size_t bytes = block ? size_t(bw) * bh * bsz : size_t(lw) * lh * 4;
-        if (off + bytes > file.size()) break;
-        const uint8_t* src = d + off;
+        size_t bytes = bytesOf(lw, lh);
+        if (made.empty() && off + bytes > file.size()) break;
+        const uint8_t* src = made.empty() ? d + off : made.data();
         if (gpu) {
             L->levels.emplace_back(src, src + bytes);
         } else if (block) {  // decode whole blocks into a padded image, then crop
@@ -794,6 +868,14 @@ static std::vector<uint8_t> nextBlockLevel(int fmt, const std::vector<uint8_t>& 
     return dst;
 }
 
+// A compressed level (lw x lh) at half its size, as nextBlockLevel makes it.
+static std::vector<uint8_t> halveBlocks(int fmt, const std::vector<uint8_t>& src, int lw, int lh) {
+    Loaded none;
+    Coverage cov;
+    cov.L = &none;
+    return nextBlockLevel(fmt, src, lw, lh, false, &cov, 0);
+}
+
 // Complete every replacement's mip chain down to 1x1 with 2x2 box filtering,
 // whatever levels the pack supplied: the sampler minifies a replacement as far
 // as its original (samplerFor), and without the lower levels a far wall
@@ -997,15 +1079,16 @@ static Loaded* decode(const std::string& name, bool whole, bool cached = true) {
         if (it != s_original.end()) L->original = it->second;
     }
     if (endsWith(f.path, ".dds") || endsWith(f.path, ".DDS")) {
-        if (!decodeDds(f.path, L)) {
+        int dropped = 0;
+        if (!decodeDds(f.path, L, &dropped)) {
             logmsg("texture pack: cannot read %s (not a DDS of a supported format)", f.path.c_str());
             L->failed = true;
         }
         if (!L->failed) {
             int lw = std::max(1, L->w >> (L->levels.size() - 1));
             int lh = std::max(1, L->h >> (L->levels.size() - 1));
-            for (size_t level = L->levels.size(); level <= f.mips.size() && (lw > 1 || lh > 1); ++level) {
-                const std::string& path = f.mips[level - 1];
+            for (size_t level = L->levels.size(); level + dropped <= f.mips.size() && (lw > 1 || lh > 1); ++level) {
+                const std::string& path = f.mips[level + dropped - 1];
                 Loaded mip;
                 lw = std::max(1, lw / 2);
                 lh = std::max(1, lh / 2);
@@ -1028,8 +1111,15 @@ static Loaded* decode(const std::string& name, bool whole, bool cached = true) {
     }
     L->levels.emplace_back(px, px + size_t(L->w) * L->h * 4);
     stbi_image_free(px);
+    const int dropped = levelsOverMax(L->w, L->h);
+    for (int m = 0; m < dropped; m++) {
+        L->levels[0] = halveRgba(L->levels[0], L->w, L->h);
+        L->w = std::max(1, L->w / 2);
+        L->h = std::max(1, L->h / 2);
+    }
     int lw = L->w, lh = L->h;
-    for (const std::string& mp : f.mips) {  // explicit levels, in order, while their sizes fit
+    for (size_t i = size_t(dropped); i < f.mips.size(); i++) {  // explicit levels, in order, while their sizes fit
+        const std::string& mp = f.mips[i];
         lw = std::max(1, lw / 2);
         lh = std::max(1, lh / 2);
         int mw, mh;

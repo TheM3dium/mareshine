@@ -761,6 +761,7 @@ static const struct {
 	{ "texture_pack_preload", "SMS_TEXTURE_PACK_PRELOAD" },
 	{ "texture_pack_pending_mb", "SMS_TEXTURE_PACK_PENDING_MB" },
 	{ "texture_pack_upload_mb", "SMS_TEXTURE_PACK_UPLOAD_MB" },
+	{ "texture_pack_max_size", "SMS_TEXTURE_PACK_MAX_SIZE" },
 	{ "shader_warmup", "SMS_GX_SHADER_WARMUP" },
 	{ "hd_cutscenes", "SMS_HD_CUTSCENES" }, // follows HD textures; 0 disables
 	{ "widescreen", "SMS_WIDESCREEN" },
