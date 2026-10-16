@@ -127,7 +127,8 @@ You need JDK 17 and the Android SDK with NDK and CMake 3.22.1. The APK ends up i
 ### About how it was made
 
 Mareshine was developed with the help of an AI assistant (Claude by Anthropic) and tested by hand
-on real devices. Bug reports are welcome.
+on real devices. The logo and the app icon were made with ChatGPT (OpenAI). Bug reports are
+welcome.
 
 ## License
 
