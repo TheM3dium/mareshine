@@ -74,13 +74,6 @@ own copy of the European release (GMSP01) as an `.iso`.
   options such as
   internal resolution, MSAA, anisotropic filtering, FXAA and draw distance
 
-## Future ideas
-
-- **Mod support**, as in Dusklight: install gameplay mods, texture packs and other changes from a
-  Mods menu
-- **Movies from the European release**: its cutscenes come with audio in other languages, which
-  could be used to match the language you play in
-
 ## Requirements
 
 - Android 8.0 or newer, 64-bit ARM (`arm64-v8a`), OpenGL ES 3.0
