@@ -400,7 +400,10 @@ public class SettingsActivity extends AppActivity {
         mList.addView(v, lp);
         r.view = v;
         r.valueView = val;
-        v.setOnClickListener(x -> { if (r.enabled) r.click(); });
+        v.setOnClickListener(x -> {
+            mDesc.setText(r.desc); // on a touchscreen a row is not focused: tapping it shows what it does
+            if (r.enabled) r.click();
+        });
         v.setOnFocusChangeListener((x, has) -> {
             if (!has) return;
             if (mOpen != null) closeOptions(false);
@@ -413,7 +416,6 @@ public class SettingsActivity extends AppActivity {
             return false;
         });
         mRows.add(r);
-        if (mRows.size() == 1) mDesc.setText(r.desc);
         refreshRow(r);
     }
 
