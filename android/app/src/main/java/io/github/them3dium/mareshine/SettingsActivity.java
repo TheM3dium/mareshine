@@ -697,9 +697,9 @@ public class SettingsActivity extends AppActivity {
 
         section("STARTUP");
         add(new Row("Start game automatically",
-            "When a working disc image is set, opening the app starts the game straight away. "
-                + "Turn it off to see this menu first.") {
-            boolean on() { return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_AUTOSTART, true); }
+            "When a working disc image is set, opening the app starts the game straight away, without this "
+                + "menu.") {
+            boolean on() { return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_AUTOSTART, false); }
             @Override String value() { return on() ? "On" : "Off"; }
             @Override void step(int dir) {
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_AUTOSTART, !on()).apply();

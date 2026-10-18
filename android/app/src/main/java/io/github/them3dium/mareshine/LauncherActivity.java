@@ -103,7 +103,7 @@ public class LauncherActivity extends AppActivity {
         boolean fromGame = getIntent() != null && getIntent().getBooleanExtra(EXTRA_FROM_GAME, false);
         if (fromGame) syncAfterGame();
         if (savedInstanceState == null && !fromGame && mFoundIsoFile != null
-                && getSharedPreferences("sunshine", MODE_PRIVATE).getBoolean(SettingsActivity.PREF_AUTOSTART, true)
+                && getSharedPreferences("sunshine", MODE_PRIVATE).getBoolean(SettingsActivity.PREF_AUTOSTART, false)
                 && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting) {
             tvStatus.post(this::launchGame);
         }

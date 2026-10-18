@@ -26,7 +26,7 @@
  "App folder": "Carpeta de la app",
  "STARTUP": "INICIO",
  "Start game automatically": "Iniciar el juego automáticamente",
- "When a working disc image is set, opening the app starts the game straight away. Turn it off to see this menu first.": "Si hay una imagen de disco válida, al abrir la app el juego empieza directamente. Desactívalo para ver primero este menú.",
+ "When a working disc image is set, opening the app starts the game straight away, without this menu.": "Si hay una imagen de disco válida, al abrir la app el juego empieza directamente, sin este menú.",
  "Recommended (HD)": "Recomendado (HD)",
  "Low": "Bajo",
  "Medium": "Medio",
