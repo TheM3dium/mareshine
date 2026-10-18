@@ -2,7 +2,7 @@
 """Check that the game and the code mods agree on the integer and float types
 of results and arguments wherever one calls the other.
 
-  abi_check.py [-v] SMS_BINARY MODS_LIBRARY
+  abi_check.py [-v] [--by-unit] SMS_BINARY MODS_LIBRARY
 
 The mods are compiled against SunshineHeaderInterface's declarations of the
 game's functions and classes, the game against the decomp's, and a C++ symbol
@@ -25,8 +25,10 @@ another value than the console's, wherever the two sides disagree:
 - floats: f32 against f64, or a float against an integer, is a mismatch.
 
 It compares, from the binary's DWARF (the game's declarations from g++'s
-units, the mods' from clang's; the mods are built with -fstandalone-debug so
-that every class they use is described):
+units, the mods' from clang's, or with --by-unit, where clang builds both as
+on Android, the mods' from their library's units and the game's from the
+others; the mods are built with -fstandalone-debug so that every class they
+use is described):
 
 - every game function the mods call or take the address of (a symbol their
   library leaves undefined), and every game virtual function the mods could
@@ -67,8 +69,25 @@ FUNCS = {"DW_TAG_subprogram", "DW_TAG_subroutine_type"}
 SHIM = re.compile(r"^__sms_mod_word_abi<\(lambda at (.+):(\d+):\d+\), ")
 
 
-def read(binary, tool):
-    """-> (types, {"gcc": decls, "clang": decls}, bases, patch targets)."""
+def mod_units(lib, tool):
+    """The names of the compile units in the mods' library."""
+    out = subprocess.run([tool, "--debug-info", "--recurse-depth=0", lib], capture_output=True, text=True,
+                         errors="replace").stdout
+    names, unit = set(), False
+    for line in out.splitlines():
+        m = TAG.match(line)
+        if m:
+            unit = m.group(3) == "DW_TAG_compile_unit"
+            continue
+        m = ATTR.match(line)
+        if unit and m and m.group(1) == "DW_AT_name":
+            names.add(m.group(2).strip('"'))
+    return names
+
+
+def read(binary, tool, mods=frozenset()):
+    """-> (types, {"gcc": decls, "clang": decls}, bases, patch targets). Units
+    named in mods are the mods' ("clang"); without mods, those clang built."""
     p = subprocess.Popen([tool, "--debug-info", binary], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                          text=True, errors="replace", bufsize=1 << 20)
     types = {}  # offset -> DIE: tag, name, size, enc, type (the type it refers to), params
@@ -126,8 +145,10 @@ def read(binary, tool):
         if not m:
             continue
         a, v = m.groups()
-        if a == "DW_AT_producer":
+        if a == "DW_AT_producer" and not mods:
             side = "clang" if "clang" in v else "gcc"
+        elif a == "DW_AT_name" and die["tag"] == "DW_TAG_compile_unit" and mods:
+            side = "clang" if v.strip('"') in mods else "gcc"
         elif a in ("DW_AT_linkage_name", "DW_AT_MIPS_linkage_name"):
             die["link"] = v.strip('"')
         elif a == "DW_AT_name":
@@ -531,17 +552,18 @@ def check_patches(types, decls, shims, named, verbose):
 def main():
     args = sys.argv[1:]
     verbose = "-v" in args
-    args = [a for a in args if a != "-v"]
+    by_unit = "--by-unit" in args
+    args = [a for a in args if a not in ("-v", "--by-unit")]
     if len(args) != 2:
         sys.exit(__doc__)
     binary, modlib = args
-    tool = shutil.which("llvm-dwarfdump") or next(
+    tool = os.environ.get("SMS_LLVM_DWARFDUMP") or shutil.which("llvm-dwarfdump") or next(
         (shutil.which("llvm-dwarfdump-%d" % v) for v in range(30, 13, -1) if shutil.which("llvm-dwarfdump-%d" % v)), None)
     if not tool:
         print("abi_check: no llvm-dwarfdump, not checked")
         return
     used = referenced(modlib)
-    types, decls, bases, shims = read(binary, tool)
+    types, decls, bases, shims = read(binary, tool, mod_units(modlib, tool) if by_unit else frozenset())
     g, c = decls["gcc"], decls["clang"]
     bad = []
     # Game functions the mods call or take the address of, by symbol, and game

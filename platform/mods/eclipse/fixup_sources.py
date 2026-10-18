@@ -174,8 +174,13 @@ SHI_GAME_TYPES = [
     game_types("include/JSystem/JKernel/JKRHeap.hxx", r"\bvirtual u32(\s+dump_sort\s*\()", r"virtual bool\1"),
     game_types("include/JSystem/JKernel/JKRHeap.hxx", r"\bvirtual u8(\s+changeGroupID\s*\()", r"virtual s32\1"),
     game_types("include/JSystem/JStage/JSGCamera.hxx", r"\bvirtual s32(\s+JSGGetViewType\s*\(\s*\)\s*const)", r"virtual bool\1"),
-    # The game's axis is a (signed) char; the mods pass 'x', 'y' or 'z'.
-    game_types("include/Dolphin/MTX.h", r"(PSMTXRotRad\(Mtx \w+, )u8(\s+axis)", r"\1signed char\2"),
+    # The game's axis is a plain char: signed on x86, unsigned on ARM (the
+    # mods' char is unsigned everywhere); the mods pass 'x', 'y' or 'z'.
+    game_types("include/Dolphin/MTX.h", r"(PSMTXRotRad\(Mtx \w+, )u8(\s+axis)", r"\1sms_game_char\2"),
+    # TSmallEnemy's virtual functions, which no mod calls or overrides.
+    game_types("include/SMS/Enemy/SmallEnemy.hxx",
+               r"\bvirtual u32(\s+(?:changeByJuice|doKeepDistance|isFindMario)\s*\()", r"virtual bool\1"),
+    game_types("include/SMS/Enemy/SmallEnemy.hxx", r"\bvirtual bool(\s+isInhibitedForceMove\s*\()", r"virtual int\1"),
 ]
 
 # The mods' patch targets as the game calls them.

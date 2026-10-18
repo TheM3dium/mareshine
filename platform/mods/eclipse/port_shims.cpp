@@ -27,13 +27,36 @@
 #include <System/GameSequence.hpp>
 #include <System/ScenarioArchiveName.hpp>
 #include <Enemy/Emario.hpp>
+#if defined(__clang__) && defined(__ELF__)
+#include <Enemy/BossPakkun.hpp>
+#include <JSystem/J2D/J2DOrthoGraph.hpp>
+#include <JSystem/JSupport/JSUMemoryInputStream.hpp>
+#include <JSystem/JSupport/JSUMemoryOutputStream.hpp>
+#include <MoveBG/Item.hpp>
+#include <MoveBG/MapObjBall.hpp>
+#include <MoveBG/MapObjBase.hpp>
+#include <MoveBG/MapObjGeneral.hpp>
+#include <MoveBG/MapObjRailBlock.hpp>
+#include <Strategic/HitActor.hpp>
+#endif
 
 // sym is the mods' C++ name; asm labels are literal, so add the platform's
 // prefix (Mach-O and 32-bit COFF put an underscore before every C name).
 #define SHIM_STR2(x) #x
 #define SHIM_STR(x) SHIM_STR2(x)
-#define SHIM(ret, name, sym, ...) \
+#define SHIM_NEW(ret, name, sym, ...) \
 	extern "C" ret name(__VA_ARGS__) __asm__(SHIM_STR(__USER_LABEL_PREFIX__) sym); ret name(__VA_ARGS__)
+#if defined(__clang__) && defined(__ELF__)
+// Clang on ELF (Android), which adds no prefix, takes a shim's name for the
+// inline function the shim runs, and the shim would call itself. There the
+// shims are plain functions, built unoptimized (cmake/eclipse.cmake), so that
+// clang emits each inline function they run under its own name for the mods;
+// tools/mods/structor_aliases.py adds a constructor's or destructor's other
+// variant (complete- or base-object) where the mods call that.
+#define SHIM(ret, name, sym, ...) extern "C" ret name(__VA_ARGS__); ret name(__VA_ARGS__)
+#else
+#define SHIM SHIM_NEW
+#endif
 
 typedef JGeometry::TVec3<f32> Vec3f;
 
@@ -168,7 +191,8 @@ SHIM(f32, shim_TSpcSlice_getDataFloat, "_ZNK9TSpcSlice12getDataFloatEv", const T
 
 // Free functions
 SHIM(f32, shim_MsWrap_f, "_Z6MsWrapIfET_S0_S0_S0_", f32 t, f32 l, f32 r) { return MsWrap<f32>(t, l, r); }
-SHIM(void, shim_SpcTrace, "_Z8SpcTracePKcz", const char*, ...) { }
+// Not in the game at all.
+SHIM_NEW(void, shim_SpcTrace, "_Z8SpcTracePKcz", const char*, ...) { }
 
 // Retail function names BetterSunshineEngine declares extern "C"
 extern "C" void setShineFlag__12TFlagManagerFUc(TFlagManager* self, u16 flag)
@@ -181,3 +205,28 @@ extern "C" void setShineFlag__12TFlagManagerFUc(TFlagManager* self, u16 flag)
 // retail offset (lwz r, 0x150(r31)): the port's hook passes the TEMario
 // (zz-modhook-50) and the mod reads the member here (fixup_sources.py).
 extern "C" void* sms_mod_emario_mario(void* emario) { return static_cast<TEMario*>(emario)->mEnemyMario; }
+
+#if defined(__clang__) && defined(__ELF__)
+// Destructors of game classes the mods call: GCC emits a class's destructors
+// with its vtable, clang only those the game calls, and the game only
+// deletes these. Called here, unoptimized, each is emitted (above).
+void sms_eclipse_emit_destructors(void** p)
+{
+	static_cast<J2DOrthoGraph*>(p[0])->J2DOrthoGraph::~J2DOrthoGraph();
+	static_cast<JSUMemoryInputStream*>(p[1])->JSUMemoryInputStream::~JSUMemoryInputStream();
+	static_cast<JSUMemoryOutputStream*>(p[2])->JSUMemoryOutputStream::~JSUMemoryOutputStream();
+	static_cast<TScenarioArchiveName*>(p[3])->TScenarioArchiveName::~TScenarioArchiveName();
+	static_cast<TRailMapObj*>(p[4])->TRailMapObj::~TRailMapObj();
+	static_cast<TNerveBPTakeOff*>(p[5])->TNerveBPTakeOff::~TNerveBPTakeOff();
+	static_cast<TNerveBPFly*>(p[6])->TNerveBPFly::~TNerveBPFly();
+	static_cast<TNerveBPHover*>(p[7])->TNerveBPHover::~TNerveBPHover();
+	static_cast<TBPTornado*>(p[8])->TBPTornado::~TBPTornado();
+	static_cast<THitActor*>(p[9])->THitActor::~THitActor();
+	static_cast<TBossPakkunManager*>(p[10])->TBossPakkunManager::~TBossPakkunManager();
+	static_cast<TBossPakkun*>(p[11])->TBossPakkun::~TBossPakkun();
+	static_cast<TMapObjBase*>(p[12])->TMapObjBase::~TMapObjBase();
+	static_cast<TMapObjGeneral*>(p[13])->TMapObjGeneral::~TMapObjGeneral();
+	static_cast<TMapObjBall*>(p[14])->TMapObjBall::~TMapObjBall();
+	static_cast<TCoin*>(p[15])->TCoin::~TCoin();
+}
+#endif
