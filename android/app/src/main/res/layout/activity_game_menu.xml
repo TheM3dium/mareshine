@@ -17,51 +17,47 @@
         android:background="#E60A1B30"
         android:orientation="vertical">
 
-        <HorizontalScrollView
+        <!-- GameMenuActivity keeps it clear of the camera cutout and shrinks the
+             entries when they do not fit in one row -->
+        <LinearLayout
+            android:id="@+id/barRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fillViewport="true"
-            android:scrollbars="none">
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp">
+            <Button
+                android:id="@+id/btnResume"
+                style="@style/DlBarItem"
+                android:text="RESUME" />
 
-                <Button
-                    android:id="@+id/btnResume"
-                    style="@style/DlBarItem"
-                    android:text="RESUME" />
+            <Button
+                android:id="@+id/btnSaveStates"
+                style="@style/DlBarItem"
+                android:text="SAVE STATES" />
 
-                <Button
-                    android:id="@+id/btnSaveStates"
-                    style="@style/DlBarItem"
-                    android:text="SAVE STATES" />
+            <Button
+                android:id="@+id/btnAchievements"
+                style="@style/DlBarItem"
+                android:text="ACHIEVEMENTS" />
 
-                <Button
-                    android:id="@+id/btnAchievements"
-                    style="@style/DlBarItem"
-                    android:text="ACHIEVEMENTS" />
+            <Button
+                android:id="@+id/btnGraphics"
+                style="@style/DlBarItem"
+                android:text="SETTINGS" />
 
-                <Button
-                    android:id="@+id/btnGraphics"
-                    style="@style/DlBarItem"
-                    android:text="SETTINGS" />
+            <Button
+                android:id="@+id/btnRestart"
+                style="@style/DlBarItem"
+                android:text="RESTART" />
 
-                <Button
-                    android:id="@+id/btnRestart"
-                    style="@style/DlBarItem"
-                    android:text="RESTART" />
-
-                <Button
-                    android:id="@+id/btnQuit"
-                    style="@style/DlBarItem"
-                    android:text="MAIN MENU ✕" />
-            </LinearLayout>
-        </HorizontalScrollView>
+            <Button
+                android:id="@+id/btnQuit"
+                style="@style/DlBarItem"
+                android:text="MAIN MENU ✕" />
+        </LinearLayout>
 
         <View
             android:layout_width="match_parent"

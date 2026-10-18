@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.os.Process;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -66,6 +67,59 @@ public class GameMenuActivity extends AppActivity {
         findViewById(R.id.btnRestart).setOnClickListener(v -> leaveGame(true));
         findViewById(R.id.btnQuit).setOnClickListener(v -> leaveGame(false));
         findViewById(R.id.btnResume).requestFocus();
+        fitBar();
+    }
+
+    // The bar and the dimming cover the whole screen, up to the edges; only
+    // the entries and the note keep clear of a camera cutout and rounded
+    // corners (AppActivity would inset the whole screen).
+    @Override
+    protected boolean keepClearOfSystemUi() { return false; }
+
+    private boolean mBarFitted; // shrunk once per layout (insets come more than once)
+
+    private void fitBar() {
+        mBarFitted = false;
+        final android.widget.LinearLayout row = findViewById(R.id.barRow);
+        final TextView note = findViewById(R.id.tvNote);
+        final float density = getResources().getDisplayMetrics().density;
+        final int pad = Math.round(16 * density);
+        row.setOnApplyWindowInsetsListener((v, insets) -> {
+            int[] safe = AppActivity.safeArea(this, insets, density);
+            v.setPadding(safe[0] + pad, safe[1], safe[2] + pad, 0);
+            android.view.ViewGroup.MarginLayoutParams lp = (android.view.ViewGroup.MarginLayoutParams) note.getLayoutParams();
+            lp.leftMargin = safe[0] + Math.round(32 * density);
+            lp.bottomMargin = safe[3] + Math.round(24 * density);
+            note.setLayoutParams(lp);
+            v.post(() -> shrinkToFit(row));
+            return insets;
+        });
+        row.requestApplyInsets();
+    }
+
+    // the entries in one row: smaller text and padding when they do not fit
+    private void shrinkToFit(android.widget.LinearLayout row) {
+        if (mBarFitted) return;
+        int avail = row.getWidth() - row.getPaddingLeft() - row.getPaddingRight();
+        if (avail <= 0) return;
+        int total = 0;
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View c = row.getChildAt(i);
+            c.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+            total += c.getMeasuredWidth();
+        }
+        mBarFitted = true;
+        if (total <= avail) return;
+        float f = Math.max(0.45f, (float) avail / total * 0.98f);
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View c = row.getChildAt(i);
+            if (c instanceof TextView) {
+                TextView t = (TextView) c;
+                t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, t.getTextSize() * f);
+                t.setPadding(Math.round(t.getPaddingLeft() * f), t.getPaddingTop(), Math.round(t.getPaddingRight() * f),
+                    t.getPaddingBottom());
+            }
+        }
     }
 
     // A state was saved or a load asked for: back into the game, which carries
