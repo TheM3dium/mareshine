@@ -174,6 +174,11 @@ void GXPC_SetIdleClock(double (*idleSeconds)(void));
 /* Blend an RGBA image (row 0 = top) onto the window at (x, y) from its top-left,
  * magnified by scale.  Call between GXPC_PresentXFB and the swap. */
 void GXPC_DrawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
+// The same for an image that stays the same from frame to frame (the touch
+// controls' sprites): uploaded once, by its pixel pointer, until
+// GXPC_ForgetOverlayCache (call it when such images are rebuilt or freed).
+void GXPC_DrawOverlayStatic(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
+void GXPC_ForgetOverlayCache(void);
 /* Debug overlay (backtick in the window): toggle, and draw it before a swap. */
 void GXPC_OverlayToggle(void);
 void GXPC_OverlayDraw(int winW, int winH);

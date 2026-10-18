@@ -2387,7 +2387,37 @@ void GXPC_SetIdleClock(double (*idleSeconds)(void)) { s_idleClock = idleSeconds;
 // fading out); 1 draws them as they are.
 void GXPC_SetOverlayAlpha(float alpha) { s_overlayAlpha = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha; }
 
+// Images drawn with GXPC_DrawOverlayStatic (the touch controls' sprites),
+// uploaded once each: they are the same every frame, and uploading them all
+// again each frame cost about 5 ms per frame on a Shield TV.
+struct StaticOverlay {
+    GLuint tex;
+    int w, h;
+};
+static std::unordered_map<const uint8_t*, StaticOverlay> s_staticOverlays;
+
+static void drawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH, bool cached);
+
 void GXPC_DrawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH) {
+    drawOverlay(rgba, w, h, x, y, scale, winW, winH, false);
+}
+
+void GXPC_DrawOverlayStatic(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH) {
+    drawOverlay(rgba, w, h, x, y, scale, winW, winH, true);
+}
+
+void GXPC_ForgetOverlayCache(void) {
+    if (s_staticOverlays.empty()) return; // also before GL is up: nothing to free
+    for (auto& kv : s_staticOverlays) {
+        glDeleteTextures(1, &kv.second.tex);
+        glcForgetTexture(kv.second.tex);
+    }
+    s_staticOverlays.clear();
+}
+
+}  // extern "C"
+
+static void drawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH, bool cached) {
     if (!s_ready || !rgba || w <= 0 || h <= 0) return;
     flushBatch();
     glcInvalidate();
@@ -2474,11 +2504,33 @@ void main() { o_color = texture(u_color, v_uv) * vec4(1.0, 1.0, 1.0, u_alpha); }
     glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &eqAlpha);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    if (!s_overlayTex) glGenTextures(1, &s_overlayTex);
-    glBindTexture(GL_TEXTURE_2D, s_overlayTex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    StaticOverlay* so = nullptr;
+    if (cached) {
+        auto it = s_staticOverlays.find(rgba);
+        if (it != s_staticOverlays.end() && (it->second.w != w || it->second.h != h)) {
+            glDeleteTextures(1, &it->second.tex);
+            s_staticOverlays.erase(it);
+            it = s_staticOverlays.end();
+        }
+        if (it != s_staticOverlays.end()) {
+            so = &it->second;
+            glBindTexture(GL_TEXTURE_2D, so->tex);
+        } else {
+            StaticOverlay n = {0, w, h};
+            glGenTextures(1, &n.tex);
+            so = &(s_staticOverlays[rgba] = n);
+            glBindTexture(GL_TEXTURE_2D, so->tex);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        }
+    } else {
+        if (!s_overlayTex) glGenTextures(1, &s_overlayTex);
+        glBindTexture(GL_TEXTURE_2D, s_overlayTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    }
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
@@ -2525,6 +2577,8 @@ void main() { o_color = texture(u_color, v_uv) * vec4(1.0, 1.0, 1.0, u_alpha); }
     if (clip1) glEnable(GL_CLIP_DISTANCE1);
 #endif
 }
+
+extern "C" {
 
 void GXPC_GetStats(GXPCStats* out) {
     *out = s_stats;

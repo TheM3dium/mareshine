@@ -86,7 +86,7 @@ public class TouchLayoutActivity extends AppActivity {
         mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f));
         mElems.add(new Elem("Z", "Z", 0xFF9B59B6, false, 0.92f, 0.16f, 0.062f));
         mElems.add(new Elem("START", "START", 0xFFE67E22, false, 0.50f, 0.08f, 0.050f));
-        mElems.add(new Elem("HUD", "HUD", 0xFF7F8C8D, false, 0.40f, 0.08f, 0.045f));
+        mElems.add(new Elem("HUD", "HIDE", 0xFF7F8C8D, false, 0.40f, 0.08f, 0.045f)); // hides the other controls
         mElems.add(new Elem("MENU", "MENU", 0xFF455A64, false, 0.60f, 0.08f, 0.050f));
         mElems.add(new Elem("SAVE", "SAVE", 0xFF16A085, false, 0.74f, 0.08f, 0.042f)); // quick save
         mElems.add(new Elem("LOAD", "LOAD", 0xFFD35400, false, 0.83f, 0.08f, 0.042f)); // quick load (held)

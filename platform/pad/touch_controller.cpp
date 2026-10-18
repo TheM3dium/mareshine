@@ -18,6 +18,9 @@ extern "C" void GXPC_SetOverlayAlpha(float alpha) __attribute__((weak));
 
 extern "C" {
 __attribute__((weak)) void GXPC_DrawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
+// the sprites are the same every frame: uploaded once (sms_gx), forgotten when rebuilt
+__attribute__((weak)) void GXPC_DrawOverlayStatic(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
+__attribute__((weak)) void GXPC_ForgetOverlayCache(void);
 }
 
 namespace {
@@ -63,7 +66,7 @@ TouchButton s_buttons[TBTN_COUNT] = {
     { TBTN_R_HARD, "R+",   0.82f, 0.44f, 0.062f, PAD_TRIGGER_R,      31,  78,  121, false, -1 }, // Deep Blue (Aim Spray)
     { TBTN_Z,      "Z",    0.92f, 0.16f, 0.062f, PAD_TRIGGER_Z,      155, 89,  182, false, -1 }, // Purple
     { TBTN_START,  "START",0.50f, 0.08f, 0.050f, PAD_BUTTON_START,  230, 126, 34,  false, -1 }, // Orange
-    { TBTN_OPACITY,"HUD",  0.40f, 0.08f, 0.045f, 0,                  127, 140, 141, false, -1 }, // Settings/HUD
+    { TBTN_OPACITY,"HIDE", 0.40f, 0.08f, 0.045f, 0,                  127, 140, 141, false, -1 }, // hides the others (SHOW brings them back); "HUD" in SMS_TOUCH_LAYOUT
     { TBTN_MENU,   "MENU", 0.60f, 0.08f, 0.050f, 0,                  69,  90,  100, false, -1 }, // in-game menu (port_open_menu)
     // save states (platform/savestate): small, at the top right beside Z, out
     // of the way of the play buttons; LOAD only once held (kLoadHoldSeconds)
@@ -101,6 +104,9 @@ CameraSwipe s_cam = { false, -1, 0, 0, 0, 0 };
 int s_winW = 1280;
 int s_winH = 720;
 float s_hudOpacity = 0.70f;
+// the HUD button hides (and shows again) every other touch control; while
+// they are hidden they do not react either, only the HUD button does
+bool s_hideOthers = false;
 bool s_visible = true;
 bool s_inited = false;
 
@@ -247,6 +253,7 @@ const Glyph5x7 kGlyphs5x7[] = {
     { 'T', { 0x01, 0x01, 0x7F, 0x01, 0x01 } },
     { 'U', { 0x3F, 0x40, 0x40, 0x40, 0x3F } },
     { 'V', { 0x1F, 0x20, 0x40, 0x20, 0x1F } },
+    { 'W', { 0x3F, 0x40, 0x38, 0x40, 0x3F } },
     { 'X', { 0x63, 0x14, 0x08, 0x14, 0x63 } },
     { 'Y', { 0x07, 0x08, 0x70, 0x08, 0x07 } },
     { 'Z', { 0x61, 0x51, 0x49, 0x45, 0x43 } },
@@ -573,6 +580,8 @@ Sprite makeCStickKnobSprite(int size, bool pressed)
 
 void rebuildSprites()
 {
+    // new sprites may get the old ones' memory: the cached textures go
+    if (GXPC_ForgetOverlayCache) GXPC_ForgetOverlayCache();
     int baseStickSize = int(s_winH * s_stickL.r * 2.0f);
     if (baseStickSize < 48) baseStickSize = 48;
     if (baseStickSize > 400) baseStickSize = 400;
@@ -662,7 +671,13 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
             s_buttons[i].fingerId = fingerId;
 
             if (s_buttons[i].id == TBTN_OPACITY) {
-                touch_controller_cycle_opacity();
+                s_hideOthers = !s_hideOthers;
+                s_buttons[i].label = s_hideOthers ? "SHOW" : "HIDE";
+                rebuildSprites(); // its new label
+            } else if (s_hideOthers) {
+                s_buttons[i].pressed = false;
+                s_buttons[i].fingerId = -1;
+                continue; // hidden: only the HUD button reacts
             }
             if (s_buttons[i].id == TBTN_MENU) {
                 if (port_open_menu) port_open_menu();
@@ -677,6 +692,8 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
             return;
         }
     }
+
+    if (s_hideOthers) return; // the sticks and the camera are hidden too
 
     // Main stick: around its place (and, while it sits on the left, the whole
     // lower-left area, as before)
@@ -921,6 +938,13 @@ void touch_controller_update_pad(PADStatus* status)
     }
 }
 
+// a sprite: from its cached texture when sms_gx has them
+static void drawSprite(const uint8_t* px, int w, int h, int x, int y, int winW, int winH)
+{
+    if (GXPC_DrawOverlayStatic) GXPC_DrawOverlayStatic(px, w, h, x, y, 1, winW, winH);
+    else GXPC_DrawOverlay(px, w, h, x, y, 1, winW, winH);
+}
+
 void touch_controller_draw(int winW, int winH)
 {
     // the in-game menu bumps SMS_TOUCH_REV after the touch settings changed
@@ -960,8 +984,8 @@ void touch_controller_draw(int winW, int winH)
     int drawBaseX = int(baseX - baseW * 0.5f);
     int drawBaseY = int(baseY - baseH * 0.5f);
 
-    if (!s_stickL.hidden)
-    GXPC_DrawOverlay(s_stickBaseSprite.pixels.data(), baseW, baseH, drawBaseX, drawBaseY, 1, winW, winH);
+    if (!s_stickL.hidden && !s_hideOthers)
+    drawSprite(s_stickBaseSprite.pixels.data(), baseW, baseH, drawBaseX, drawBaseY, winW, winH);
 
     // Main Knob
     float knobX = s_stick.active ? s_stick.currX : baseX;
@@ -970,8 +994,8 @@ void touch_controller_draw(int winW, int winH)
     int drawKnobX = int(knobX - knobSp.w * 0.5f);
     int drawKnobY = int(knobY - knobSp.h * 0.5f);
 
-    if (!s_stickL.hidden)
-    GXPC_DrawOverlay(knobSp.pixels.data(), knobSp.w, knobSp.h, drawKnobX, drawKnobY, 1, winW, winH);
+    if (!s_stickL.hidden && !s_hideOthers)
+    drawSprite(knobSp.pixels.data(), knobSp.w, knobSp.h, drawKnobX, drawKnobY, winW, winH);
 
     // 2. Draw C-stick (Right)
     float cbaseX = s_cstick.active ? s_cstick.anchorX : (s_winW * s_cstickL.x);
@@ -981,8 +1005,8 @@ void touch_controller_draw(int winW, int winH)
     int drawCBaseX = int(cbaseX - cbaseW * 0.5f);
     int drawCBaseY = int(cbaseY - cbaseH * 0.5f);
 
-    if (!s_cstickL.hidden)
-    GXPC_DrawOverlay(s_cstickBaseSprite.pixels.data(), cbaseW, cbaseH, drawCBaseX, drawCBaseY, 1, winW, winH);
+    if (!s_cstickL.hidden && !s_hideOthers)
+    drawSprite(s_cstickBaseSprite.pixels.data(), cbaseW, cbaseH, drawCBaseX, drawCBaseY, winW, winH);
 
     float cknobX = s_cstick.active ? s_cstick.currX : cbaseX;
     float cknobY = s_cstick.active ? s_cstick.currY : cbaseY;
@@ -990,18 +1014,19 @@ void touch_controller_draw(int winW, int winH)
     int drawCKnobX = int(cknobX - cknobSp.w * 0.5f);
     int drawCKnobY = int(cknobY - cknobSp.h * 0.5f);
 
-    if (!s_cstickL.hidden)
-    GXPC_DrawOverlay(cknobSp.pixels.data(), cknobSp.w, cknobSp.h, drawCKnobX, drawCKnobY, 1, winW, winH);
+    if (!s_cstickL.hidden && !s_hideOthers)
+    drawSprite(cknobSp.pixels.data(), cknobSp.w, cknobSp.h, drawCKnobX, drawCKnobY, winW, winH);
 
     // 3. Draw all buttons
     for (int i = 0; i < TBTN_COUNT; ++i) {
         const Sprite& sp = s_buttonSprites[i][s_buttons[i].pressed ? 1 : 0];
         if (sp.pixels.empty() || s_buttons[i].hidden) continue;
+        if (s_hideOthers && s_buttons[i].id != TBTN_OPACITY) continue;
 
         int bx = int(s_buttons[i].relX * winW - sp.w * 0.5f);
         int by = int(s_buttons[i].relY * winH - sp.h * 0.5f);
 
-        GXPC_DrawOverlay(sp.pixels.data(), sp.w, sp.h, bx, by, 1, winW, winH);
+        drawSprite(sp.pixels.data(), sp.w, sp.h, bx, by, winW, winH);
     }
     if (GXPC_SetOverlayAlpha) GXPC_SetOverlayAlpha(1.0f);
 }
