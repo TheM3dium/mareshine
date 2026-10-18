@@ -254,7 +254,6 @@
  "Note: Select + Start together always quits the game.": "Remarque : Select + Start ensemble quittent toujours le jeu.",
  "Reset to defaults": "Rétablir les valeurs par défaut",
  "💾 Save": "💾 Enregistrer",
- "Touch layout saved. It applies the next time the game starts.": "Disposition tactile enregistrée. Elle s'applique au prochain démarrage du jeu.",
  "Size −": "Taille −",
  "Size +": "Taille +",
  "Hide": "Masquer",
@@ -511,5 +510,6 @@
  "Performance overlay": "Affichage des performances",
  "Shows the frame rate at the top left of the game, and how long a frame takes and what for. The numbers are written to the log too, which helps when the game runs slowly on a device.\n\nApplies the next time the game starts.": "Affiche en haut à gauche du jeu la fréquence d'images, la durée d'une image et à quoi elle sert. Les valeurs sont aussi écrites dans le journal, ce qui aide quand le jeu est lent sur un appareil.\n\nS'applique au prochain lancement du jeu.",
  "The North American game is English only. The European release also has French, German, Spanish and Italian: pick your own European disc image with the button below, and the app makes the languages from it. Nothing is downloaded.\n\nIt must be a plain .iso or .gcm file. You can also copy it into iso/pal/ in your data folder. When the languages are made, you can delete it.": "La version nord-américaine est uniquement en anglais. La version européenne a aussi le français, l'allemand, l'espagnol et l'italien : choisis ta propre image disque européenne avec le bouton ci-dessous, et l'app en crée les langues. Rien n'est téléchargé.\n\nCe doit être un fichier .iso ou .gcm normal. Tu peux aussi le copier dans iso/pal/ de ton dossier de données. Une fois les langues créées, tu peux le supprimer.",
- "The HD cutscenes are converted to MP4 (%s) and play from them now.": "Les cinématiques HD sont converties en MP4 (%s) et sont lues à partir de là désormais."
+ "The HD cutscenes are converted to MP4 (%s) and play from them now.": "Les cinématiques HD sont converties en MP4 (%s) et sont lues à partir de là désormais.",
+ "Touch layout saved. In the game it applies as soon as you go back to it.": "Disposition tactile enregistrée. En jeu, elle s'applique dès que tu y retournes."
 }

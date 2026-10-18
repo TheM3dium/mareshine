@@ -254,7 +254,6 @@
  "Note: Select + Start together always quits the game.": "Nota: Select + Start insieme chiudono sempre il gioco.",
  "Reset to defaults": "Ripristina predefiniti",
  "💾 Save": "💾 Salva",
- "Touch layout saved. It applies the next time the game starts.": "Layout touch salvato. Si applica al prossimo avvio del gioco.",
  "Size −": "Dimensione −",
  "Size +": "Dimensione +",
  "Hide": "Nascondi",
@@ -512,5 +511,6 @@
  "Performance overlay": "Indicatore prestazioni",
  "Shows the frame rate at the top left of the game, and how long a frame takes and what for. The numbers are written to the log too, which helps when the game runs slowly on a device.\n\nApplies the next time the game starts.": "Mostra in alto a sinistra nel gioco la frequenza dei fotogrammi, quanto dura un fotogramma e per cosa. I valori finiscono anche nel log, utile quando il gioco è lento su un dispositivo.\n\nVale dal prossimo avvio del gioco.",
  "The North American game is English only. The European release also has French, German, Spanish and Italian: pick your own European disc image with the button below, and the app makes the languages from it. Nothing is downloaded.\n\nIt must be a plain .iso or .gcm file. You can also copy it into iso/pal/ in your data folder. When the languages are made, you can delete it.": "La versione nordamericana è solo in inglese. La versione europea ha anche francese, tedesco, spagnolo e italiano: scegli la tua immagine del disco europea con il pulsante qui sotto e l'app ne crea le lingue. Non viene scaricato nulla.\n\nDeve essere un normale file .iso o .gcm. Puoi anche copiarlo in iso/pal/ nella tua cartella dati. Quando le lingue sono pronte, puoi eliminarlo.",
- "The HD cutscenes are converted to MP4 (%s) and play from them now.": "I filmati HD sono stati convertiti in MP4 (%s) e ora vengono riprodotti da lì."
+ "The HD cutscenes are converted to MP4 (%s) and play from them now.": "I filmati HD sono stati convertiti in MP4 (%s) e ora vengono riprodotti da lì.",
+ "Touch layout saved. In the game it applies as soon as you go back to it.": "Layout touch salvato. Nel gioco vale appena ci torni."
 }

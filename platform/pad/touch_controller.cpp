@@ -64,7 +64,7 @@ TouchButton s_buttons[TBTN_COUNT] = {
     { TBTN_L,      "L",    0.08f, 0.16f, 0.072f, PAD_TRIGGER_L,      149, 165, 166, false, -1 }, // Silver
     { TBTN_R,      "R",    0.91f, 0.52f, 0.072f, 0,                  41,  128, 185, false, -1 }, // Ocean Blue (Soft Run Spray)
     { TBTN_R_HARD, "R+",   0.82f, 0.44f, 0.062f, PAD_TRIGGER_R,      31,  78,  121, false, -1 }, // Deep Blue (Aim Spray)
-    { TBTN_Z,      "Z",    0.92f, 0.16f, 0.062f, PAD_TRIGGER_Z,      155, 89,  182, false, -1 }, // Purple
+    { TBTN_Z,      "Z",    0.90f, 0.30f, 0.062f, PAD_TRIGGER_Z,      155, 89,  182, false, -1 }, // Purple, near R and R+
     { TBTN_START,  "START",0.50f, 0.08f, 0.050f, PAD_BUTTON_START,  230, 126, 34,  false, -1 }, // Orange
     { TBTN_OPACITY,"HIDE", 0.40f, 0.08f, 0.045f, 0,                  127, 140, 141, false, -1 }, // hides the others (SHOW brings them back); "HUD" in SMS_TOUCH_LAYOUT
     { TBTN_MENU,   "MENU", 0.60f, 0.08f, 0.050f, 0,                  69,  90,  100, false, -1 }, // in-game menu (port_open_menu)

@@ -255,7 +255,6 @@
  "Note: Select + Start together always quits the game.": "Hinweis: Select + Start zusammen beendet das Spiel immer.",
  "Reset to defaults": "Auf Standard zurücksetzen",
  "💾 Save": "💾 Speichern",
- "Touch layout saved. It applies the next time the game starts.": "Touch-Layout gespeichert. Es gilt ab dem nächsten Spielstart.",
  "Size −": "Größe −",
  "Size +": "Größe +",
  "Hide": "Ausblenden",
@@ -512,5 +511,6 @@
  "Performance overlay": "Leistungsanzeige",
  "Shows the frame rate at the top left of the game, and how long a frame takes and what for. The numbers are written to the log too, which helps when the game runs slowly on a device.\n\nApplies the next time the game starts.": "Zeigt oben links im Spiel die Bildrate und wie lange ein Frame dauert und wofür. Die Werte landen auch im Log, das hilft, wenn das Spiel auf einem Gerät langsam läuft.\n\nGilt ab dem nächsten Spielstart.",
  "The North American game is English only. The European release also has French, German, Spanish and Italian: pick your own European disc image with the button below, and the app makes the languages from it. Nothing is downloaded.\n\nIt must be a plain .iso or .gcm file. You can also copy it into iso/pal/ in your data folder. When the languages are made, you can delete it.": "Die nordamerikanische Version ist nur auf Englisch. Die europäische Version hat zusätzlich Französisch, Deutsch, Spanisch und Italienisch: Wähle mit dem Knopf unten dein eigenes europäisches Disc-Image, und die App erstellt daraus die Sprachen. Es wird nichts heruntergeladen.\n\nEs muss eine normale .iso- oder .gcm-Datei sein. Du kannst sie auch nach iso/pal/ in deinem Datenordner kopieren. Wenn die Sprachen erstellt sind, kannst du sie löschen.",
- "The HD cutscenes are converted to MP4 (%s) and play from them now.": "Die HD-Zwischensequenzen sind in MP4 umgewandelt (%s) und werden ab jetzt daraus abgespielt."
+ "The HD cutscenes are converted to MP4 (%s) and play from them now.": "Die HD-Zwischensequenzen sind in MP4 umgewandelt (%s) und werden ab jetzt daraus abgespielt.",
+ "Touch layout saved. In the game it applies as soon as you go back to it.": "Touch-Layout gespeichert. Im Spiel gilt es, sobald du zurückgehst."
 }

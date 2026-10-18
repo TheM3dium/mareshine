@@ -84,7 +84,7 @@ public class TouchLayoutActivity extends AppActivity {
         mElems.add(new Elem("L", "L", 0xFF95A5A6, false, 0.08f, 0.16f, 0.072f));
         mElems.add(new Elem("R", "R", 0xFF2980B9, false, 0.91f, 0.52f, 0.072f));
         mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f));
-        mElems.add(new Elem("Z", "Z", 0xFF9B59B6, false, 0.92f, 0.16f, 0.062f));
+        mElems.add(new Elem("Z", "Z", 0xFF9B59B6, false, 0.90f, 0.30f, 0.062f));
         mElems.add(new Elem("START", "START", 0xFFE67E22, false, 0.50f, 0.08f, 0.050f));
         mElems.add(new Elem("HUD", "HIDE", 0xFF7F8C8D, false, 0.40f, 0.08f, 0.045f)); // hides the other controls
         mElems.add(new Elem("MENU", "MENU", 0xFF455A64, false, 0.60f, 0.08f, 0.050f));
@@ -156,7 +156,7 @@ public class TouchLayoutActivity extends AppActivity {
         m.put("SMS_TOUCH_LAYOUT", sb.toString());
         m.put("SMS_TOUCH_OPACITY", Integer.toString(Math.round(mOpacity * 100)));
         Settings.write(this, m);
-        Toast.makeText(this, t("Touch layout saved. It applies the next time the game starts."), Toast.LENGTH_LONG).show();
+        Toast.makeText(this, t("Touch layout saved. In the game it applies as soon as you go back to it."), Toast.LENGTH_LONG).show();
         finish();
     }
 
@@ -410,7 +410,9 @@ public class TouchLayoutActivity extends AppActivity {
                 w / 2, h - dp(14), p);
 
             for (Elem e : mElems) {
-                float cx = e.x * w, cy = e.y * h, r = e.r * h;
+                // drawn as big as the game draws them (touch_controller.cpp: a
+                // button's circle is 0.92 of its radius, a stick's 0.94)
+                float cx = e.x * w, cy = e.y * h, r = e.r * h * (e.stick ? 0.94f : 0.92f);
                 int a = e.shown ? Math.round(225 * Math.min(1f, mOpacity / 0.7f)) : 60;
                 p.setPathEffect(e.shown ? null : new DashPathEffect(new float[] {dp(6), dp(5)}, 0));
                 if (e.stick) {
