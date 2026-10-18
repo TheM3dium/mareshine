@@ -10,6 +10,9 @@
 
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- the Wi-Fi sync finds the other device in the home network (NSD) -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- installs its own updates (Updates.java), after the player confirms -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -74,6 +77,14 @@
         <activity
             android:name="io.github.them3dium.mareshine.AchievementsActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false">
+        </activity>
+
+        <!-- syncing with another device in the same Wi-Fi (WifiSyncActivity) -->
+        <activity
+            android:name="io.github.them3dium.mareshine.WifiSyncActivity"
             android:screenOrientation="sensorLandscape"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:exported="false">

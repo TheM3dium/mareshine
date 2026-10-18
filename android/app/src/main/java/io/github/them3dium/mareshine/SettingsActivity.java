@@ -1499,8 +1499,9 @@ public class SettingsActivity extends AppActivity {
         Row syncFile = new Action("Sync file",
             t("Keeps your game saves, save states and achievements the same on several devices, through one file "
                 + "in Google Drive, Dropbox or any other storage your device offers. Create it on the first device, "
-                + "then choose the same file on the others.\n\nMareshine syncs when it starts and when you leave "
-                + "the game. Anything it replaces is kept in sync-backups/ in your data folder.")
+                + "then choose the same file on the others (or use the Wi-Fi sync below).\n\nMareshine syncs when "
+                + "it starts and when you leave the game. Anything it replaces is kept in sync-backups/ in your "
+                + "data folder.")
                 + (mInGame ? syncNote : ""),
             () -> {
                 String n = Sync.fileName(ctx());
@@ -1509,6 +1510,12 @@ public class SettingsActivity extends AppActivity {
             this::chooseSyncFile);
         syncFile.enabled = !mInGame;
         add(syncFile);
+        Row wifi = new Action("Sync with a device in the same Wi-Fi",
+            t("Without a cloud: open this on both devices, choose the other one and enter the code it shows. "
+                + "Works on TVs too.") + (mInGame ? syncNote : ""),
+            null, () -> startActivity(new Intent(this, WifiSyncActivity.class)));
+        wifi.enabled = !mInGame;
+        add(wifi);
         add(new Toggle(Sync.SETTING_STATES, "Sync save states",
             "Save states can be large, which makes each sync take longer. On another device a save state loads "
                 + "the place it was saved at.", true, false));

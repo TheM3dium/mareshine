@@ -83,9 +83,17 @@ final class Sync {
             c.getContentResolver().takePersistableUriPermission(u,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         } catch (Exception ignored) {}
-        SharedPreferences.Editor e = prefs(c).edit().clear();
+        SharedPreferences.Editor e = clearFile(c);
         e.putString("uri", u.toString());
         e.apply();
+    }
+
+    // the sync file's settings and hashes; the Wi-Fi sync's stay ("base:<side>:<part>")
+    private static SharedPreferences.Editor clearFile(Context c) {
+        SharedPreferences.Editor e = prefs(c).edit();
+        for (String k : prefs(c).getAll().keySet())
+            if (k.equals("uri") || (k.startsWith("base:") && k.indexOf(':', 5) < 0)) e.remove(k);
+        return e;
     }
 
     static void forget(Context c) {
@@ -96,7 +104,7 @@ final class Sync {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             } catch (Exception ignored) {}
         }
-        prefs(c).edit().clear().apply();
+        clearFile(c).apply();
     }
 
     static String fileName(Context c) {
@@ -111,6 +119,56 @@ final class Sync {
     static long lastSync(Context c) { return prefs(c).getLong("last", 0); }
     static String lastResult(Context c) { return prefs(c).getString("result", ""); }
 
+    // --- where the sync file is ---------------------------------------------------
+
+    // The other side of a sync: one zip that is read whole and written whole.
+    // key names it for the hashes this device remembers per other side.
+    interface Remote {
+        String key();
+        // the zip into dst; false when there is none yet
+        boolean read(File dst) throws Exception;
+        void write(File src) throws Exception;
+    }
+
+    // the sync file picked with the system's file picker
+    static final class PickedFile implements Remote {
+        private final Context c;
+        private final Uri u;
+        PickedFile(Context c, Uri u) { this.c = c; this.u = u; }
+        public String key() { return "file"; }
+        public boolean read(File dst) throws Exception {
+            try (InputStream in = c.getContentResolver().openInputStream(u)) {
+                if (in == null) return false;
+                try (OutputStream o = new FileOutputStream(dst)) { copy(in, o); }
+            }
+            return dst.length() > 0;
+        }
+        public void write(File src) throws Exception {
+            OutputStream o;
+            try {
+                o = c.getContentResolver().openOutputStream(u, "wt");
+            } catch (Exception e) {
+                o = c.getContentResolver().openOutputStream(u, "w");
+            }
+            if (o == null) throw new IOException(t("the sync file cannot be written"));
+            try (OutputStream out = o; InputStream in = new FileInputStream(src)) { copy(in, out); }
+        }
+    }
+
+    // a zip on this device: the one a device sharing in the Wi-Fi offers (WifiSync)
+    static final class LocalFile implements Remote {
+        private final File f;
+        private final String key;
+        LocalFile(File f, String key) { this.f = f; this.key = key; }
+        public String key() { return key; }
+        public boolean read(File dst) throws Exception {
+            if (!f.isFile() || f.length() == 0) return false;
+            copy(f, dst);
+            return true;
+        }
+        public void write(File src) throws Exception { copy(src, f); }
+    }
+
     // --- running ------------------------------------------------------------
 
     // changed: something was synced, or it failed (both worth showing)
@@ -122,7 +180,17 @@ final class Sync {
     // up or it failed: then message is null or the error).
     static void run(Context c, Done done) {
         final Context app = c.getApplicationContext();
-        if (!configured(app) || sRunning) {
+        if (!configured(app)) {
+            if (done != null) done.done(null, false);
+            return;
+        }
+        run(app, new PickedFile(app, uri(app)), done);
+    }
+
+    // with any other side (the Wi-Fi sync's)
+    static void run(Context c, Remote remoteSide, Done done) {
+        final Context app = c.getApplicationContext();
+        if (sRunning) {
             if (done != null) done.done(null, false);
             return;
         }
@@ -131,7 +199,7 @@ final class Sync {
             String msg;
             boolean changed = false;
             try {
-                Result r = syncNow(app);
+                Result r = syncNow(app, remoteSide);
                 msg = r.summary(app);
                 changed = r.changed();
             } catch (Exception e) {
@@ -173,7 +241,8 @@ final class Sync {
         long modified;    // their newest change
     }
 
-    private static synchronized Result syncNow(Context c) throws Exception {
+    // the same, on the calling thread (WifiSync's sharing side)
+    static synchronized Result syncNow(Context c, Remote side) throws Exception {
         Result res = new Result();
         File data = DataDir.get(c);
         File inDir = new File(c.getCacheDir(), "sync-in");
@@ -183,7 +252,10 @@ final class Sync {
         // the sync file as it is now (empty or new: nothing in it)
         JSONObject remote = new JSONObject();
         Map<String, File> remoteFiles = new HashMap<>();
-        try (InputStream in = c.getContentResolver().openInputStream(uri(c))) {
+        File fetched = new File(c.getCacheDir(), "sync-remote.zip");
+        fetched.delete();
+        boolean have = side.read(fetched);
+        try (InputStream in = have ? new FileInputStream(fetched) : null) {
             if (in != null) {
                 ZipInputStream z = new ZipInputStream(in);
                 ZipEntry e;
@@ -227,7 +299,7 @@ final class Sync {
             JSONObject rp = remoteParts.optJSONObject(n);
             String L = lp != null ? lp.hash : null;
             String R = rp != null ? rp.optString("hash", null) : null;
-            String B = p.getString("base:" + n, null);
+            String B = p.getString(baseKey(side, n), null);
             boolean localChanged = !eq(L, B), remoteChanged = !eq(R, B);
             String take; // "local", "remote", or "same"
             if (eq(L, R)) take = "same";
@@ -321,27 +393,25 @@ final class Sync {
                     for (Map.Entry<String, File> f : files.entrySet()) put(z, f.getKey(), f.getValue());
                 if (achLocal.isFile()) put(z, ACH, achLocal);
             }
-            OutputStream o;
-            try {
-                o = c.getContentResolver().openOutputStream(uri(c), "wt");
-            } catch (Exception e) {
-                o = c.getContentResolver().openOutputStream(uri(c), "w");
-            }
-            if (o == null) throw new IOException(t("the sync file cannot be written"));
-            try (OutputStream out = o; InputStream in = new FileInputStream(tmp)) {
-                copy(in, out);
-            }
+            side.write(tmp);
             tmp.delete();
         }
         SharedPreferences.Editor ed = p.edit();
         for (Map.Entry<String, String> be : bases.entrySet()) {
-            if (be.getValue() == null) ed.remove("base:" + be.getKey());
-            else ed.putString("base:" + be.getKey(), be.getValue());
+            if (be.getValue() == null) ed.remove(baseKey(side, be.getKey()));
+            else ed.putString(baseKey(side, be.getKey()), be.getValue());
         }
         ed.apply();
+        fetched.delete();
         deleteTree(inDir);
         trimBackups(data);
         return res;
+    }
+
+    // the hashes remembered for one other side (the sync file keeps the old
+    // keys: "base:" + part)
+    private static String baseKey(Remote side, String part) {
+        return side.key().equals("file") ? "base:" + part : "base:" + side.key() + ":" + part;
     }
 
     // --- this device's data ---------------------------------------------------
