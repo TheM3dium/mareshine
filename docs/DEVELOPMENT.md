@@ -230,7 +230,6 @@ The everyday options are in the [README](../README.md#options); this is the full
 ## Progress log
 
 With the disc image, the 32-bit Linux build boots through the Nintendo logo, the Dolby screen, the opening THP movie and the title, creates a save file on the host memory card, shows file select, and on a scripted run (`SMS_AUTOPRESS=start@1400+20,a@3000+30,stick_left@3300+40,a@3500+30,stick_right@3700+60,a@3900+30`) walks Mario to block A, opens the file menu, starts a new game and plays the airstrip opening cutscene.
-Frames from that run are in [`shots/`](shots/) (`title-*`, `filesel-*`, `airstrip-*`, and `compare-*` next to retail).
 Since then the scripted plaza and beach reference runs have become the regression checks, and warps reach episode 0 of the airstrip and of each stage from Bianco Hills to Pianta Village; [64-BIT.md](64-BIT.md) records those runs.
 
 ## Performance
