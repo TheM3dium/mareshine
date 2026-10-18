@@ -760,6 +760,12 @@ public class LauncherActivity extends AppActivity {
     private boolean mSyncBeforeStart;
 
     private void launchSunshine() {
+        // the game still running in the background: back into it, without a
+        // sync (it would change the saves under the running game)
+        if (gameRunning()) {
+            startSunshineNow();
+            return;
+        }
         if (Sync.configured(this) && !mSyncBeforeStart) {
             mSyncBeforeStart = true;
             Toast.makeText(this, t("Syncing…"), Toast.LENGTH_SHORT).show();
@@ -773,12 +779,20 @@ public class LauncherActivity extends AppActivity {
         startSunshineNow();
     }
 
+    private boolean gameRunning() {
+        android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> ps = am == null ? null : am.getRunningAppProcesses();
+        if (ps != null) for (android.app.ActivityManager.RunningAppProcessInfo p : ps)
+            if (p.processName != null && p.processName.endsWith(":game")) return true;
+        return false;
+    }
+
     // back from the game: what it saved goes to the sync file
     private void syncAfterGame() {
         if (!Sync.configured(this)) return;
-        tvStatus.postDelayed(() -> Sync.run(this, (msg, changed) -> {
+        tvStatus.postDelayed(() -> { if (!gameRunning()) Sync.run(this, (msg, changed) -> {
             if (changed && msg != null) Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
-        }), 1500); // the game's process needs a moment to go away
+        }); }, 1500); // the game's process needs a moment to go away
     }
 
     private void startSunshineNow() {
