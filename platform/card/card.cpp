@@ -392,3 +392,10 @@ extern "C" s32 CARDDelete(s32 chan, char* fileName)
 	int no = find(fileName);
 	return no < 0 ? CARD_RESULT_NOFILE : (s32)CARDFastDelete(chan, no);
 }
+
+// For save states: the memory card folder (savestates/ goes beside it)
+extern "C" const char* port_card_dir(void)
+{
+	static std::string dir = card_dir();
+	return dir.c_str();
+}

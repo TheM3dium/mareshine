@@ -34,6 +34,7 @@ public class GameMenuActivity extends AppActivity {
     private TextView tvTouchValue;
     private TextView tvNote;
     private boolean mSettingsChanged;
+    private static final int REQUEST_STATES = 1;
     private String mLang;
 
     @Override
@@ -62,6 +63,8 @@ public class GameMenuActivity extends AppActivity {
         tvTouchValue = findViewById(R.id.tvTouchValue);
         btnTouch = findViewById(R.id.btnTouch);
         findViewById(R.id.btnResume).setOnClickListener(v -> finish());
+        findViewById(R.id.btnSaveStates).setOnClickListener(v ->
+            startActivityForResult(new Intent(this, SaveStatesActivity.class), REQUEST_STATES));
         btnTouch.setOnClickListener(v -> cycleTouch());
         findViewById(R.id.btnGraphics).setOnClickListener(v -> {
             mSettingsChanged = true;
@@ -71,6 +74,14 @@ public class GameMenuActivity extends AppActivity {
         findViewById(R.id.btnQuit).setOnClickListener(v -> leaveGame(false));
         updateTouchLabel();
         findViewById(R.id.btnResume).requestFocus();
+    }
+
+    // A state was saved or a load asked for: back into the game, which carries
+    // it out at its next frame.
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request == REQUEST_STATES && result == RESULT_OK) finish();
     }
 
     // --- touch controls (live) -------------------------------------------

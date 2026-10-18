@@ -10,6 +10,7 @@
 #include "port_platform.h"
 #include <dolphin/pad.h>
 #include <string.h>
+#include "port_savestate.h"
 #include <strings.h>
 #include <ctype.h>
 #include <dlfcn.h>
@@ -103,14 +104,14 @@ enum Control {
 	C_DUP, C_DDOWN, C_DLEFT, C_DRIGHT,
 	C_UP, C_DOWN, C_LEFT, C_RIGHT,
 	C_CUP, C_CDOWN, C_CLEFT, C_CRIGHT,
-	C_HALF, C_QUIT, C_COUNT
+	C_HALF, C_QUIT, C_SAVESTATE, C_LOADSTATE, C_COUNT
 };
 const char* const kControlNames[C_COUNT] = {
 	"A", "B", "X", "Y", "Z", "L", "R", "START",
 	"DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT",
 	"STICK_UP", "STICK_DOWN", "STICK_LEFT", "STICK_RIGHT",
 	"CSTICK_UP", "CSTICK_DOWN", "CSTICK_LEFT", "CSTICK_RIGHT",
-	"HALF_TILT", "QUIT",
+	"HALF_TILT", "QUIT", "SAVE_STATE", "LOAD_STATE",
 };
 
 struct KeyName {
@@ -127,6 +128,7 @@ const KeyName kKeys[] = {
 	{ "ESC", 41 }, { "BACKSPACE", 42 }, { "TAB", 43 }, { "SPACE", 44 }, { "MINUS", 45 }, { "EQUALS", 46 },
 	{ "LBRACKET", 47 }, { "RBRACKET", 48 }, { "SEMICOLON", 51 }, { "APOSTROPHE", 52 }, { "COMMA", 54 },
 	{ "PERIOD", 55 }, { "SLASH", 56 }, { "F1", 58 }, { "F2", 59 }, { "F3", 60 }, { "F4", 61 },
+	{ "F5", 62 }, { "F6", 63 },
 	{ "RIGHT", 79 }, { "LEFT", 80 }, { "DOWN", 81 }, { "UP", 82 },
 	{ "KP_DIVIDE", 84 }, { "KP_MULTIPLY", 85 }, { "KP_MINUS", 86 }, { "KP_PLUS", 87 }, { "KP_ENTER", 88 },
 	{ "KP_1", 89 }, { "KP_2", 90 }, { "KP_3", 91 }, { "KP_4", 92 }, { "KP_5", 93 }, { "KP_6", 94 },
@@ -157,7 +159,9 @@ const char* const kDefaultBindings =
     "CSTICK_LEFT = J\n"
     "CSTICK_RIGHT = L\n"
     "HALF_TILT = LCTRL\n"
-    "QUIT = ESCAPE\n";
+    "QUIT = ESCAPE\n"
+    "SAVE_STATE = F5\n"
+    "LOAD_STATE = F6\n";
 
 const int kMaxKeys = 8;
 int g_bind[C_COUNT][kMaxKeys];
@@ -177,11 +181,11 @@ bool g_inited;
 // half-pressed R (spray while moving).
 enum PadIn {
 	P_A, P_B, P_X, P_Y, P_Z, P_L, P_R, P_RSOFT, P_START,
-	P_DUP, P_DDOWN, P_DLEFT, P_DRIGHT, P_STICK, P_CSTICK, P_COUNT
+	P_DUP, P_DDOWN, P_DLEFT, P_DRIGHT, P_STICK, P_CSTICK, P_HOTKEY, P_SAVESTATE, P_LOADSTATE, P_COUNT
 };
 const char* const kPadNames[P_COUNT] = {
 	"A", "B", "X", "Y", "Z", "L", "R", "R_SOFT", "START",
-	"DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "STICK", "CSTICK",
+	"DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "STICK", "CSTICK", "HOTKEY", "SAVE_STATE", "LOAD_STATE",
 };
 struct PadSrc {
 	char kind; // 'b' button, 'a' axis, 0 unused
@@ -190,8 +194,9 @@ struct PadSrc {
 const int kMaxPadSrc = 3;
 PadSrc g_pmap[P_COUNT][kMaxPadSrc];
 const char* const kDefaultPadMap =
-    "A=b0 B=b1 X=b2 Y=b3 Z=b9,b4 L=a4 R=a5 R_SOFT=b10 START=b6 "
-    "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2";
+    "A=b0 B=b1 X=b2 Y=b3 Z=b9 L=a4 R=a5 R_SOFT=b10 START=b6 "
+    "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2 "
+    "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9"; // Select held: + R1 quick save, + L1 quick load
 
 void parse_pad_map(const char* text)
 {
@@ -230,14 +235,19 @@ void parse_pad_map(const char* text)
 }
 
 // How far a mapped input is pressed, 0..255.
+// Buttons the game does not see this frame: the hotkey's own, and while it is
+// held the buttons it combines with (the save state controls below).
+bool g_masked[21];
+
 int pad_level(int c)
 {
+	const bool hotkeyPart = c == P_HOTKEY || c == P_SAVESTATE || c == P_LOADSTATE;
 	int best = 0;
 	for (int i = 0; i < kMaxPadSrc; i++) {
 		const PadSrc& s = g_pmap[c][i];
 		int v = 0;
 		if (s.kind == 'b')
-			v = g_cbtn[s.idx] ? 255 : 0;
+			v = g_cbtn[s.idx] && (hotkeyPart || !g_masked[s.idx]) ? 255 : 0;
 		else if (s.kind == 'a')
 			v = g_axis[s.idx] > 0 ? g_axis[s.idx] * 255 / 32767 : 0;
 		if (v > best)
@@ -685,6 +695,29 @@ extern "C" u32 PADRead(PADStatus* status)
 		exit(0);
 	}
 #endif
+
+	// Save states (platform/savestate). On a controller the hotkey (Select
+	// by default) turns two buttons into quick save and quick load while it is
+	// held (+ R1 saves, + L1 loads); the game sees neither the hotkey nor, while
+	// it is held, those two. All three are set in SMS_PAD_MAP like the others.
+	// The keys (F5, F6) save and load at once.
+	{
+		memset(g_masked, 0, sizeof g_masked);
+		const bool hotkey = pad_held(P_HOTKEY);
+		for (int c : { P_HOTKEY, P_SAVESTATE, P_LOADSTATE })
+			for (int i = 0; i < kMaxPadSrc; i++)
+				if (g_pmap[c][i].kind == 'b' && (c == P_HOTKEY || hotkey))
+					g_masked[g_pmap[c][i].idx] = true;
+		static bool s_saveWas, s_loadWas;
+		const bool save = held(C_SAVESTATE) || (hotkey && pad_held(P_SAVESTATE));
+		const bool load = held(C_LOADSTATE) || (hotkey && pad_held(P_LOADSTATE));
+		if (save && !s_saveWas)
+			port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_SAVE);
+		if (load && !s_loadWas)
+			port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_LOAD_NEWEST);
+		s_saveWas = save;
+		s_loadWas = load;
+	}
 
 	// Touch controls: hidden while a game controller is in use (auto), or as set.
 	// The in-game menu can change SMS_TOUCH_CONTROLS while the game runs.

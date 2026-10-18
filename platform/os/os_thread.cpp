@@ -748,3 +748,19 @@ extern "C" void OSWaitCond(OSCond* c, OSMutex* m)
 extern "C" void OSSignalCond(OSCond* c) { OSWakeupThread(&c->queue); }
 
 extern "C" double port_idle_seconds(void) { return g_idle_seconds; }
+
+// For save states (platform/savestate): the game's threads, and whether
+// interrupt work is waiting (a state is saved and loaded only without any).
+extern "C" int port_os_thread_list(OSThread** out, int max)
+{
+	int n = 0;
+	for (size_t i = 0; i < g_threads.size(); i++) {
+		if (host_of(g_threads[i])->cancelled)
+			continue;
+		if (n < max)
+			out[n] = g_threads[i];
+		n++;
+	}
+	return n;
+}
+extern "C" int port_os_irq_work_pending(void) { return !g_deferred.empty(); }

@@ -52,6 +52,9 @@ own copy of the European release (GMSP01) as an `.iso`.
   and checked
 - **Subtitles in cutscenes**: the movies' subtitles in the game's language, shown even when they
   are off in the game's own options (on by default, can be turned off)
+- **Save states**: five slots in the pause menu (save, load, delete, with a picture of the moment);
+  quick save and quick load with the SAVE and LOAD touch buttons or, on a controller, the hotkey
+  (Select + R1 saves, Select + L1 loads, all freely mappable)
 - **Updates**: Mareshine checks GitHub for a new release once a day and offers it; it is downloaded
   and installed only after you confirm
 - **Game languages on the device**: French, German, Spanish and Italian, built on the device from
@@ -66,6 +69,8 @@ own copy of the European release (GMSP01) as an `.iso`.
 - **Shader warm-up**: each stage's shaders are prepared while it loads, so new areas stutter far
   less
 - **120 FPS**: the PC port's framerate patches, as an option beside 30 and 60 FPS
+- **Save state system**: saving and loading the game exactly at any moment in a level (on Android
+  exactly within one run of the app, by position after a restart)
 - **Cheats**: god mode, infinite lives, infinite FLUDD, movement speed, jump height, coin
   multiplier
 - **Game language support**: the game code that plays the North American version in other

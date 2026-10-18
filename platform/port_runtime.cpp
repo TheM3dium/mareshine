@@ -90,6 +90,9 @@ int port_disc_explicit = 0;
 // SMS_SKIP_MOVIES=1 reports every THP movie as finished at once (patch 0016).
 extern "C" int port_skip_movies;
 extern "C" void port_cheats_init(void);  // misc/port_cheats.cpp
+#ifdef __ANDROID__
+extern "C" void port_savestate_android_init(void); // savestate/savestate_android.cpp
+#endif
 // Cutscene subtitles whatever the game's own option says (settings.txt
 // SMS_SUBTITLES, on unless 0; decomp-patches/zzz-subtitles-01-always).
 extern "C" int port_subtitles_always;
@@ -1024,6 +1027,9 @@ extern "C" void port_init(int argc, char** argv)
 	}
 	port_log("[port] frame rate: %d during gameplay\n", port_frame_rate);
 	port_cheats_init();
+#ifdef __ANDROID__
+	port_savestate_android_init();
+#endif
 	if (const char* sub = getenv("SMS_SUBTITLES"))
 		port_subtitles_always = strcmp(sub, "0") != 0;
 	port_log("[port] cutscene subtitles: %s\n", port_subtitles_always ? "always" : "game option");

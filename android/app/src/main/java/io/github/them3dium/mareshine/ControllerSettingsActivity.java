@@ -56,10 +56,14 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         {"DPAD_DOWN", "D-pad down"},
         {"DPAD_LEFT", "D-pad left"},
         {"DPAD_RIGHT", "D-pad right"},
+        {"HOTKEY", "Hotkey  (hold it for the two below)"},
+        {"SAVE_STATE", "Hotkey + this: quick save"},
+        {"LOAD_STATE", "Hotkey + this: quick load"},
     };
     private static final String DEFAULT_MAP =
-        "A=b0 B=b1 X=b2 Y=b3 Z=b9,b4 L=a4 R=a5 R_SOFT=b10 START=b6 "
-        + "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2";
+        "A=b0 B=b1 X=b2 Y=b3 Z=b9 L=a4 R=a5 R_SOFT=b10 START=b6 "
+        + "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2 "
+        + "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9";
 
     private static final String[] TOUCH_OPTIONS = {
         "Auto (hide while a controller is connected)", "Always show", "Always hide"
@@ -112,7 +116,15 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         }
         parseMap(DEFAULT_MAP);
         String m = mSettings.get("SMS_PAD_MAP");
-        if (m != null) parseMap(m);
+        if (m != null) {
+            parseMap(m);
+            // a mapping from before the hotkey: Select was a second Z; it is
+            // the hotkey now (the game does not see the hotkey's button)
+            if (!m.toUpperCase().contains("HOTKEY=") && mMap.containsKey("Z")) {
+                String z = mMap.get("Z").replaceAll("(^|,)b4(?=,|$)", "").replaceAll("^,|,$", "");
+                mMap.put("Z", z.isEmpty() ? "b9" : z);
+            }
+        }
     }
 
     private void parseMap(String text) {

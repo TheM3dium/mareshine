@@ -1,4 +1,5 @@
 #include "touch_controller.h"
+#include "port_savestate.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -33,6 +34,8 @@ enum TouchButtonId {
     TBTN_START,
     TBTN_OPACITY,
     TBTN_MENU,
+    TBTN_SAVE,
+    TBTN_LOAD,
     TBTN_COUNT
 };
 
@@ -61,8 +64,15 @@ TouchButton s_buttons[TBTN_COUNT] = {
     { TBTN_Z,      "Z",    0.92f, 0.16f, 0.062f, PAD_TRIGGER_Z,      155, 89,  182, false, -1 }, // Purple
     { TBTN_START,  "START",0.50f, 0.08f, 0.050f, PAD_BUTTON_START,  230, 126, 34,  false, -1 }, // Orange
     { TBTN_OPACITY,"HUD",  0.40f, 0.08f, 0.045f, 0,                  127, 140, 141, false, -1 }, // Settings/HUD
-    { TBTN_MENU,   "MENU", 0.60f, 0.08f, 0.050f, 0,                  69,  90,  100, false, -1 }  // in-game menu (port_open_menu)
+    { TBTN_MENU,   "MENU", 0.60f, 0.08f, 0.050f, 0,                  69,  90,  100, false, -1 }, // in-game menu (port_open_menu)
+    // save states (platform/savestate): small, at the top right beside Z, out
+    // of the way of the play buttons; LOAD only once held (kLoadHoldSeconds)
+    { TBTN_SAVE,   "SAVE", 0.74f, 0.08f, 0.042f, 0,                  22,  160, 133, false, -1 }, // quick save
+    { TBTN_LOAD,   "LOAD", 0.83f, 0.08f, 0.042f, 0,                  211, 84,  0,   false, -1 }  // quick load (hold)
 };
+const double kLoadHoldSeconds = 0.5;
+double s_loadSince = -1;
+bool s_loadFired = false;
 
 // Virtual Analog Stick State
 struct VirtualStick {
@@ -104,10 +114,10 @@ StickLayout s_stickL = { 0.16f, 0.72f, 0.14f, false };
 StickLayout s_cstickL = { 0.61f, 0.76f, 0.11f, false };
 
 // SMS_TOUCH_LAYOUT (the app's touch layout editor): "NAME=x,y,size,shown;..."
-// for A B X Y L R RPLUS Z START HUD MENU and STICK CSTICK. Names left out keep
+// for A B X Y L R RPLUS Z START HUD MENU SAVE LOAD and STICK CSTICK. Names left out keep
 // their place. SMS_TOUCH_OPACITY: percent. SMS_TOUCH_AUTOHIDE: seconds without
 // a touch after which the controls fade out (0 never); a touch brings them back.
-const char* const kTouchNames[] = { "A", "B", "X", "Y", "L", "R", "RPLUS", "Z", "START", "HUD", "MENU" };
+const char* const kTouchNames[] = { "A", "B", "X", "Y", "L", "R", "RPLUS", "Z", "START", "HUD", "MENU", "SAVE", "LOAD" };
 float s_autoHide = 0;
 double s_lastTouch = 0;
 bool s_layoutLoaded = false;
@@ -642,6 +652,13 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
             if (s_buttons[i].id == TBTN_MENU) {
                 if (port_open_menu) port_open_menu();
             }
+            if (s_buttons[i].id == TBTN_SAVE) {
+                port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_SAVE);
+            }
+            if (s_buttons[i].id == TBTN_LOAD) {
+                s_loadSince = nowSec();
+                s_loadFired = false;
+            }
             return;
         }
     }
@@ -833,6 +850,14 @@ void touch_controller_on_finger_up(int64_t fingerId, float /*normX*/, float /*no
 void touch_controller_update_pad(PADStatus* status)
 {
     if (!status || !s_visible) return;
+
+    // LOAD loads the quick slot once held long enough (a brush of the
+    // finger does not throw the player's progress away)
+    if (s_buttons[TBTN_LOAD].pressed && !s_loadFired && s_loadSince >= 0
+        && nowSec() - s_loadSince >= kLoadHoldSeconds) {
+        s_loadFired = true;
+        port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_LOAD_NEWEST);
+    }
 
     // Merge digital buttons
     for (int i = 0; i < TBTN_COUNT; ++i) {

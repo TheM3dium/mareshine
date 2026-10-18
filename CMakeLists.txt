@@ -436,6 +436,14 @@ else()
   endif()
   if(ANDROID)
     target_link_libraries(sms PRIVATE log android GLESv3 EGL SDL2 mediandk) # mediandk: platform/thp/mp4_movies.cpp
+    # Save states copy the game's own global variables: the link map says
+    # where they are, and tools/savestate_ranges.py writes that into the
+    # library (as offsets from its load address; platform/savestate).
+    target_link_options(sms PRIVATE "LINKER:-Map=${CMAKE_BINARY_DIR}/sms.map")
+    add_custom_command(TARGET sms POST_BUILD
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/savestate_ranges.py
+        --map ${CMAKE_BINARY_DIR}/sms.map --exe $<TARGET_FILE:sms> --archive libsms_game.a
+      COMMENT "Recording the game's data for save states")
   endif()
   if(TARGET sms_gx)
     target_link_libraries(sms PRIVATE -Wl,--whole-archive sms_gx -Wl,--no-whole-archive)

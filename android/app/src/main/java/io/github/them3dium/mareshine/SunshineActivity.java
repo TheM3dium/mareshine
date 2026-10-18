@@ -229,11 +229,46 @@ public class SunshineActivity extends SDLActivity {
 
     // platform/pad's port_open_menu (SDL_AndroidSendMessage)
     private static final int COMMAND_OPEN_MENU = 0x8001;
+    // platform/savestate/savestate_android.cpp: a save state message (code << 8 | slot)
+    private static final int COMMAND_SAVESTATE = 0x8002;
+
+    // The save state's message ("Saved to slot 1") for a moment at the top
+    // of the game, in the shader notice's style.
+    private TextView mStateNotice;
+    private final Runnable mHideNotice = () -> { if (mStateNotice != null) mStateNotice.animate().alpha(0f).setDuration(300); };
+
+    private void showStateNotice(String text) {
+        if (text == null || mLayout == null) return;
+        if (mStateNotice == null) {
+            mStateNotice = new TextView(this);
+            mStateNotice.setBackgroundResource(R.drawable.dl_panel);
+            mStateNotice.setPadding(dp(16), dp(8), dp(16), dp(8));
+            mStateNotice.setTextColor(getColor(R.color.dl_text));
+            mStateNotice.setTextSize(15);
+            mStateNotice.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL));
+            RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+            lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+            lp.addRule(RelativeLayout.CENTER_HORIZONTAL);
+            lp.topMargin = dp(104); // below the game's HUD and the top touch buttons
+            mLayout.addView(mStateNotice, lp);
+        }
+        mStateNotice.setText(text);
+        mStateNotice.animate().cancel();
+        mStateNotice.setAlpha(1f);
+        mStateNotice.removeCallbacks(mHideNotice);
+        mStateNotice.postDelayed(mHideNotice, 2500);
+    }
 
     @Override
     protected boolean onUnhandledMessage(int command, Object param) {
         if (command == COMMAND_OPEN_MENU) {
             openMenu();
+            return true;
+        }
+        if (command == COMMAND_SAVESTATE && param instanceof Integer) {
+            int v = (Integer) param;
+            showStateNotice(SaveStates.message(v >> 8, v & 0xFF));
             return true;
         }
         return super.onUnhandledMessage(command, param);

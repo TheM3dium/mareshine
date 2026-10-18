@@ -54,6 +54,11 @@
             android:text="RESUME" />
 
         <Button
+            android:id="@+id/btnSaveStates"
+            style="@style/DlMenuItem"
+            android:text="SAVE STATES" />
+
+        <Button
             android:id="@+id/btnTouch"
             style="@style/DlMenuItem"
             android:text="TOUCH CONTROLS" />

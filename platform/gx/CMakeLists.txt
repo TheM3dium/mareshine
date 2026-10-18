@@ -21,6 +21,7 @@ set(SMS_GX_SOURCES
     src/gx_platform.cpp
     src/gx_precompile.cpp
     src/gx_render.cpp
+    src/gx_savestate.cpp
     src/gx_shader.cpp
     src/gx_texture.cpp
     src/gx_trace.cpp

@@ -996,3 +996,6 @@ extern "C" BOOL DVDGetStreamPlayAddrAsync(DVDCommandBlock* block, DVDCBCallback 
 		port_irq_defer([block, cb]() { cb(0, block); });
 	return TRUE;
 }
+
+// For save states: a disc read still under way
+extern "C" int port_dvd_busy(void) { return !g_pending_reads.empty(); }
