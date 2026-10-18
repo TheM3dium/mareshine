@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- In-game menu over the paused game, in the launcher's (Dusklight) style. -->
+<!-- The quick menu over the game, as Dusklight has it: a bar at the top with
+     the entries side by side, the game still visible below. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -7,89 +8,81 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/dl_scrim_strong" />
+        android:background="#66000000" />
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="start|center_vertical"
-        android:layout_marginStart="56dp"
+        android:layout_gravity="top"
+        android:background="#E60A1B30"
         android:orientation="vertical">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <HorizontalScrollView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-condensed"
-            android:shadowColor="#CC000000"
-            android:shadowDy="4"
-            android:shadowRadius="10"
-            android:text="PAUSED"
-            android:textColor="#FFC93C"
-            android:textSize="54sp"
-            android:textStyle="bold" />
+            android:fillViewport="true"
+            android:scrollbars="none">
 
-        <TextView
-            android:id="@+id/tvNote"
-            android:layout_width="360dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="sans-serif-condensed"
-            android:shadowColor="#CC000000"
-            android:shadowRadius="6"
-            android:text="Unsaved progress is lost when you restart or quit. Save in the game first."
-            android:textColor="@color/dl_text"
-            android:textSize="15sp" />
-    </LinearLayout>
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
 
-    <LinearLayout
-        android:layout_width="420dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end|center_vertical"
-        android:layout_marginEnd="24dp"
-        android:orientation="vertical">
+                <Button
+                    android:id="@+id/btnResume"
+                    style="@style/DlBarItem"
+                    android:text="RESUME" />
 
-        <Button
-            android:id="@+id/btnResume"
-            style="@style/DlMenuItem"
-            android:text="RESUME" />
+                <Button
+                    android:id="@+id/btnSaveStates"
+                    style="@style/DlBarItem"
+                    android:text="SAVE STATES" />
 
-        <Button
-            android:id="@+id/btnSaveStates"
-            style="@style/DlMenuItem"
-            android:text="SAVE STATES" />
+                <Button
+                    android:id="@+id/btnAchievements"
+                    style="@style/DlBarItem"
+                    android:text="ACHIEVEMENTS" />
 
-        <Button
-            android:id="@+id/btnTouch"
-            style="@style/DlMenuItem"
-            android:text="TOUCH CONTROLS" />
+                <Button
+                    android:id="@+id/btnGraphics"
+                    style="@style/DlBarItem"
+                    android:text="SETTINGS" />
 
-        <Button
-            android:id="@+id/btnGraphics"
-            style="@style/DlMenuItem"
-            android:text="SETTINGS" />
+                <Button
+                    android:id="@+id/btnRestart"
+                    style="@style/DlBarItem"
+                    android:text="RESTART" />
 
-        <Button
-            android:id="@+id/btnRestart"
-            style="@style/DlMenuItem"
-            android:text="RESTART GAME" />
+                <Button
+                    android:id="@+id/btnQuit"
+                    style="@style/DlBarItem"
+                    android:text="MAIN MENU ✕" />
+            </LinearLayout>
+        </HorizontalScrollView>
 
-        <Button
-            android:id="@+id/btnQuit"
-            style="@style/DlMenuItem"
-            android:text="QUIT TO MAIN MENU" />
-
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#FF2FB8C9" />
     </LinearLayout>
 
     <TextView
-        android:id="@+id/tvTouchValue"
+        android:id="@+id/tvNote"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="40dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="32dp"
         android:layout_marginBottom="24dp"
+        android:background="@drawable/dl_panel"
         android:fontFamily="sans-serif-condensed"
-        android:shadowColor="#CC000000"
-        android:shadowRadius="4"
-        android:textColor="@color/dl_dim"
+        android:paddingStart="14dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="8dp"
+        android:text="Unsaved progress is lost when you restart or quit. Save in the game first."
+        android:textColor="@color/dl_text"
         android:textSize="14sp" />
 </FrameLayout>

@@ -59,11 +59,19 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         {"HOTKEY", "Hotkey  (hold it for the two below)"},
         {"SAVE_STATE", "Hotkey + this: quick save"},
         {"LOAD_STATE", "Hotkey + this: quick load"},
+        {"MENU", "Quick menu  (tap it; may be the hotkey)"},
     };
+    // the port's own buttons, in a section of their own: shown red until the
+    // player has bound them (SYSTEM_SET lists the ones they have)
+    private static final java.util.Set<String> SYSTEM = new java.util.HashSet<>(
+        java.util.Arrays.asList("HOTKEY", "SAVE_STATE", "LOAD_STATE", "MENU"));
+    private static final String SYSTEM_SET = "SMS_PAD_SYSTEM_SET";
+    private final java.util.Set<String> mSystemSet = new java.util.HashSet<>();
+
     private static final String DEFAULT_MAP =
         "A=b0 B=b1 X=b2 Y=b3 Z=b9 L=a4 R=a5 R_SOFT=b10 START=b6 "
         + "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2 "
-        + "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9";
+        + "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9 MENU=b4";
 
     private static final String[] TOUCH_OPTIONS = {
         "Auto (hide while a controller is connected)", "Always show", "Always hide"
@@ -115,6 +123,9 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
             } catch (IOException ignored) {}
         }
         parseMap(DEFAULT_MAP);
+        String set = mSettings.get(SYSTEM_SET);
+        if (set != null)
+            for (String k : set.split(",")) if (!k.trim().isEmpty()) mSystemSet.add(k.trim());
         String m = mSettings.get("SMS_PAD_MAP");
         if (m != null) {
             parseMap(m);
@@ -145,6 +156,7 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
 
     private void saveSettings() {
         mSettings.put("SMS_PAD_MAP", mapString());
+        mSettings.put(SYSTEM_SET, String.join(",", new java.util.TreeSet<>(mSystemSet)));
 
         DataDir.ensureLayout(this);
         File f = DataDir.settingsFile(this);
@@ -196,6 +208,7 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         stopCapture(null);
         if (input == null) return;
         mMap.put(input, code);
+        if (SYSTEM.contains(input)) mSystemSet.add(input);
         updateRows();
     }
 
@@ -354,26 +367,39 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         hint.setTextColor(0xFF8FB4D4);
         hint.setTextSize(12);
         col.addView(hint);
-        for (String[] in : INPUTS) {
-            final String key = in[0], label = in[1];
-            Button row = button("", 0xFF1E1E2C);
-            row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-            row.setOnClickListener(v -> startCapture(key, label));
-            row.setOnLongClickListener(v -> {
-                mMap.put(key, "none");
-                updateRows();
-                return true;
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.topMargin = dp(4);
-            col.addView(row, lp);
-            mRows.put(key, row);
+        for (int pass = 0; pass < 2; pass++) {
+            if (pass == 1) {
+                col.addView(heading("System buttons"));
+                TextView sys = new TextView(this);
+                sys.setText(t("Please set these up for your controller: the quick menu and the save states. "
+                    + "Red ones are still on their default and may not suit your controller."));
+                sys.setTextColor(0xFF8FB4D4);
+                sys.setTextSize(12);
+                col.addView(sys);
+            }
+            for (String[] in : INPUTS) {
+                final String key = in[0], label = in[1];
+                if (SYSTEM.contains(key) != (pass == 1)) continue;
+                Button row = button("", 0xFF1E1E2C);
+                row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+                row.setOnClickListener(v -> startCapture(key, label));
+                row.setOnLongClickListener(v -> {
+                    mMap.put(key, "none");
+                    if (SYSTEM.contains(key)) mSystemSet.add(key);
+                    updateRows();
+                    return true;
+                });
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                lp.topMargin = dp(4);
+                col.addView(row, lp);
+                mRows.put(key, row);
+            }
         }
         updateRows();
 
         TextView exitNote = new TextView(this);
-        exitNote.setText(t("Note: Select + Start together always quits the game."));
+        exitNote.setText(t("Select + Start together and the Home button open the quick menu too."));
         exitNote.setTextColor(0xFF8FB4D4);
         exitNote.setTextSize(12);
         exitNote.setPadding(0, dp(10), 0, 0);
@@ -393,6 +419,7 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         col.addView(buttons);
         reset.setOnClickListener(v -> {
             mMap.clear();
+            mSystemSet.clear();
             parseMap(DEFAULT_MAP);
             mMap.put("STICK", "a0");
             mMap.put("CSTICK", "a2");
@@ -423,7 +450,11 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     private void updateRows() {
         for (String[] in : INPUTS) {
             Button row = mRows.get(in[0]);
-            if (row != null) row.setText(t(in[1]) + "   →   " + mappingLabel(mMap.get(in[0])));
+            if (row == null) continue;
+            row.setText(t(in[1]) + "   →   " + mappingLabel(mMap.get(in[0])));
+            boolean unset = SYSTEM.contains(in[0]) && !mSystemSet.contains(in[0]);
+            row.setTextColor(unset ? 0xFFFFE0E0 : 0xFFF4F8FF);
+            row.setBackgroundTintList(unset ? android.content.res.ColorStateList.valueOf(0xFFB03A3A) : null);
         }
     }
 }

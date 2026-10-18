@@ -90,6 +90,7 @@ int port_disc_explicit = 0;
 // SMS_SKIP_MOVIES=1 reports every THP movie as finished at once (patch 0016).
 extern "C" int port_skip_movies;
 extern "C" void port_cheats_init(void);  // misc/port_cheats.cpp
+extern "C" void port_ach_init(void);     // achievements/achievements.cpp
 #ifdef __ANDROID__
 extern "C" void port_savestate_android_init(void); // savestate/savestate_android.cpp
 #endif
@@ -1027,6 +1028,7 @@ extern "C" void port_init(int argc, char** argv)
 	}
 	port_log("[port] frame rate: %d during gameplay\n", port_frame_rate);
 	port_cheats_init();
+	port_ach_init();
 #ifdef __ANDROID__
 	port_savestate_android_init();
 #endif

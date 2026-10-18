@@ -1,0 +1,2133 @@
+{
+ "format": "achievement-definitions",
+ "schema": 1,
+ "game": "sms",
+ "games": [
+  "GMSE01",
+  "GMSP01",
+  "GMSJ01"
+ ],
+ "categories": [
+  {
+   "id": "story",
+   "icon": "🌟",
+   "title": {
+    "en": "Story",
+    "de": "Story",
+    "es": "Historia",
+    "fr": "Histoire",
+    "it": "Storia"
+   }
+  },
+  {
+   "id": "boss",
+   "icon": "👑",
+   "title": {
+    "en": "Bosses",
+    "de": "Bosse",
+    "es": "Jefes",
+    "fr": "Boss",
+    "it": "Boss"
+   }
+  },
+  {
+   "id": "shines",
+   "icon": "☀️",
+   "title": {
+    "en": "Milestones",
+    "de": "Meilensteine",
+    "es": "Hitos",
+    "fr": "Étapes",
+    "it": "Traguardi"
+   }
+  },
+  {
+   "id": "worlds",
+   "icon": "🏝️",
+   "title": {
+    "en": "Worlds",
+    "de": "Welten",
+    "es": "Mundos",
+    "fr": "Mondes",
+    "it": "Mondi"
+   }
+  },
+  {
+   "id": "plaza",
+   "icon": "⛲",
+   "title": {
+    "en": "Delfino Plaza & extras",
+    "de": "Delfino Plaza & Extras",
+    "es": "Plaza Delfino y extras",
+    "fr": "Place Delfino et extras",
+    "it": "Piazza Delfino ed extra"
+   }
+  },
+  {
+   "id": "live",
+   "icon": "🎈",
+   "title": {
+    "en": "Little moments",
+    "de": "Kleine Momente",
+    "es": "Pequeños momentos",
+    "fr": "Petits moments",
+    "it": "Piccoli momenti"
+   }
+  },
+  {
+   "id": "fun",
+   "icon": "🤡",
+   "title": {
+    "en": "Fun",
+    "de": "Spaß",
+    "es": "Diversión",
+    "fr": "Pour rire",
+    "it": "Divertimento"
+   }
+  },
+  {
+   "id": "pro",
+   "icon": "⏱️",
+   "title": {
+    "en": "For pros",
+    "de": "Für Profis",
+    "es": "Para expertos",
+    "fr": "Pour les pros",
+    "it": "Per esperti"
+   }
+  },
+  {
+   "id": "glitch",
+   "icon": "👾",
+   "title": {
+    "en": "Glitches",
+    "de": "Glitches",
+    "es": "Glitches",
+    "fr": "Glitchs",
+    "it": "Glitch"
+   }
+  }
+ ],
+ "achievements": [
+  {
+   "id": "sms.story.first_shine",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Holiday Interrupted",
+    "de": "Urlaub mit Hindernissen",
+    "es": "Vacaciones interrumpidas",
+    "fr": "Vacances contrariées",
+    "it": "Vacanza interrotta"
+   },
+   "description": {
+    "en": "Get the first Shine Sprite at the Delfino Airstrip.",
+    "de": "Hol den ersten Shine am Flughafen von Delfino.",
+    "es": "Consigue el primer Sol en el aeródromo de Delfino.",
+    "fr": "Obtiens le premier Soleil sur l'aéroport de Delfino.",
+    "it": "Ottieni il primo Sole all'aeroporto di Delfino."
+   }
+  },
+  {
+   "id": "sms.story.gatekeeper",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Guardian of the Statue",
+    "de": "Wächter der Statue",
+    "es": "Guardián de la estatua",
+    "fr": "Gardien de la statue",
+    "it": "Guardiano della statua"
+   },
+   "description": {
+    "en": "Defeat the goop monster blocking the Pianta statue in Delfino Plaza.",
+    "de": "Besiege das Schleimmonster vor der Pianta-Statue in Delfino Plaza.",
+    "es": "Derrota al monstruo de pringue que bloquea la estatua Pianta en la Plaza Delfino.",
+    "fr": "Bats le monstre de boue qui bloque la statue Pianta sur la place Delfino.",
+    "it": "Sconfiggi il mostro di melma che blocca la statua Pianta in Piazza Delfino."
+   }
+  },
+  {
+   "id": "sms.story.yoshi",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Old Friend",
+    "de": "Alter Freund",
+    "es": "Viejo amigo",
+    "fr": "Vieil ami",
+    "it": "Vecchio amico"
+   },
+   "description": {
+    "en": "Free Yoshi in Delfino Plaza.",
+    "de": "Befreie Yoshi in Delfino Plaza.",
+    "es": "Libera a Yoshi en la Plaza Delfino.",
+    "fr": "Libère Yoshi sur la place Delfino.",
+    "it": "Libera Yoshi in Piazza Delfino."
+   }
+  },
+  {
+   "id": "sms.story.rocket_nozzle",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Lift-Off",
+    "de": "Abheben",
+    "es": "Despegue",
+    "fr": "Décollage",
+    "it": "Decollo"
+   },
+   "description": {
+    "en": "Unlock the Rocket Nozzle in Delfino Plaza.",
+    "de": "Schalte die Raketendüse in Delfino Plaza frei.",
+    "es": "Desbloquea la boquilla cohete en la Plaza Delfino.",
+    "fr": "Débloque la buse fusée sur la place Delfino.",
+    "it": "Sblocca l'ugello razzo in Piazza Delfino."
+   }
+  },
+  {
+   "id": "sms.story.turbo_nozzle",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Full Throttle",
+    "de": "Vollgas",
+    "es": "A toda máquina",
+    "fr": "Plein gaz",
+    "it": "A tutto gas"
+   },
+   "description": {
+    "en": "Unlock the Turbo Nozzle in Delfino Plaza.",
+    "de": "Schalte die Turbodüse in Delfino Plaza frei.",
+    "es": "Desbloquea la boquilla turbo en la Plaza Delfino.",
+    "fr": "Débloque la buse turbo sur la place Delfino.",
+    "it": "Sblocca l'ugello turbo in Piazza Delfino."
+   }
+  },
+  {
+   "id": "sms.story.shadow_mario_all",
+   "category": "story",
+   "target": 7,
+   "secret": false,
+   "title": {
+    "en": "Shadows Chased Away",
+    "de": "Schatten vertrieben",
+    "es": "Sombras ahuyentadas",
+    "fr": "Ombres chassées",
+    "it": "Ombre scacciate"
+   },
+   "description": {
+    "en": "Catch Shadow Mario in episode 7 of all seven worlds.",
+    "de": "Fang Shadow Mario in Episode 7 aller sieben Welten.",
+    "es": "Atrapa a Mario Oscuro en el episodio 7 de los siete mundos.",
+    "fr": "Attrape Mario Ombre dans l'épisode 7 des sept mondes.",
+    "it": "Cattura Mario Ombra nell'episodio 7 di tutti e sette i mondi."
+   }
+  },
+  {
+   "id": "sms.story.true_ending",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "A Real Holiday at Last",
+    "de": "Endlich Urlaub",
+    "es": "Por fin vacaciones",
+    "fr": "Enfin des vacances",
+    "it": "Finalmente in vacanza"
+   },
+   "description": {
+    "en": "Collect all 120 Shine Sprites and see the other ending.",
+    "de": "Sammle alle 120 Shines und sieh dir das andere Ende an.",
+    "es": "Reúne los 120 Soles y mira el otro final.",
+    "fr": "Récupère les 120 Soleils et regarde l'autre fin.",
+    "it": "Raccogli tutti i 120 Soli e guarda l'altro finale."
+   }
+  },
+  {
+   "id": "sms.boss.petey.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Weeded Out",
+    "de": "Unkraut gejätet",
+    "es": "Malas hierbas fuera",
+    "fr": "Mauvaise herbe arrachée",
+    "it": "Erbaccia estirpata"
+   },
+   "description": {
+    "en": "Defeat Petey Piranha.",
+    "de": "Besiege Petey Piranha.",
+    "es": "Derrota a Peta Piraña.",
+    "fr": "Bats Flora Piranha.",
+    "it": "Sconfiggi Pipino Piranha."
+   }
+  },
+  {
+   "id": "sms.boss.petey.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Master Gardener",
+    "de": "Gärtnermeister",
+    "es": "Maestro jardinero",
+    "fr": "Maître jardinier",
+    "it": "Maestro giardiniere"
+   },
+   "description": {
+    "en": "Defeat Petey Piranha without taking a hit in the fight.",
+    "de": "Besiege Petey Piranha, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Peta Piraña sin recibir daño en el combate.",
+    "fr": "Bats Flora Piranha sans être touché pendant le combat.",
+    "it": "Sconfiggi Pipino Piranha senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.boss.gooper.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Calamari Night",
+    "de": "Tintenfisch-Sushi",
+    "es": "Noche de calamares",
+    "fr": "Soirée calamars",
+    "it": "Serata di calamari"
+   },
+   "description": {
+    "en": "Defeat Gooper Blooper.",
+    "de": "Besiege Gooper Blooper.",
+    "es": "Derrota a Gooper Blooper.",
+    "fr": "Bats Gooper Blooper.",
+    "it": "Sconfiggi Gooper Blooper."
+   }
+  },
+  {
+   "id": "sms.boss.gooper.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Not a Drop of Ink",
+    "de": "Kein Kratzer, keine Tinte",
+    "es": "Ni una gota de tinta",
+    "fr": "Pas une goutte d'encre",
+    "it": "Neanche una goccia d'inchiostro"
+   },
+   "description": {
+    "en": "Defeat Gooper Blooper without taking a hit in the fight.",
+    "de": "Besiege Gooper Blooper, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Gooper Blooper sin recibir daño en el combate.",
+    "fr": "Bats Gooper Blooper sans être touché pendant le combat.",
+    "it": "Sconfiggi Gooper Blooper senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.boss.wiggler.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Bug Tamer",
+    "de": "Raupe gezähmt",
+    "es": "Domador de orugas",
+    "fr": "Dresseur de chenille",
+    "it": "Domatore di bruchi"
+   },
+   "description": {
+    "en": "Defeat Wiggler.",
+    "de": "Besiege Wiggler.",
+    "es": "Derrota a Floruga.",
+    "fr": "Bats Wiggler.",
+    "it": "Sconfiggi Torcibruco."
+   }
+  },
+  {
+   "id": "sms.boss.wiggler.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Barefoot on the Sand",
+    "de": "Barfuß über den Sand",
+    "es": "Descalzo en la arena",
+    "fr": "Pieds nus sur le sable",
+    "it": "A piedi nudi sulla sabbia"
+   },
+   "description": {
+    "en": "Defeat Wiggler without taking a hit in the fight.",
+    "de": "Besiege Wiggler, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Floruga sin recibir daño en el combate.",
+    "fr": "Bats Wiggler sans être touché pendant le combat.",
+    "it": "Sconfiggi Torcibruco senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.boss.mecha_bowser.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Roller Coaster Duel",
+    "de": "Achterbahn-Duell",
+    "es": "Duelo en la montaña rusa",
+    "fr": "Duel sur les montagnes russes",
+    "it": "Duello sulle montagne russe"
+   },
+   "description": {
+    "en": "Defeat Mecha-Bowser.",
+    "de": "Besiege Mecha-Bowser.",
+    "es": "Derrota a Mecha-Bowser.",
+    "fr": "Bats Mécha-Bowser.",
+    "it": "Sconfiggi Mecha-Bowser."
+   }
+  },
+  {
+   "id": "sms.boss.mecha_bowser.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Free Ride",
+    "de": "Freifahrt",
+    "es": "Viaje gratis",
+    "fr": "Tour gratuit",
+    "it": "Giro gratis"
+   },
+   "description": {
+    "en": "Defeat Mecha-Bowser without taking a hit in the fight.",
+    "de": "Besiege Mecha-Bowser, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Mecha-Bowser sin recibir daño en el combate.",
+    "fr": "Bats Mécha-Bowser sans être touché pendant le combat.",
+    "it": "Sconfiggi Mecha-Bowser senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.boss.phantamanta.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Divide and Conquer",
+    "de": "Mantas geteilt",
+    "es": "Divide y vencerás",
+    "fr": "Diviser pour régner",
+    "it": "Dividi e conquista"
+   },
+   "description": {
+    "en": "Defeat Phantamanta.",
+    "de": "Besiege Phantamanta.",
+    "es": "Derrota a Phantamanta.",
+    "fr": "Bats Phantamanta.",
+    "it": "Sconfiggi Phantamanta."
+   }
+  },
+  {
+   "id": "sms.boss.phantamanta.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Dry Feet",
+    "de": "Trockener Fuß",
+    "es": "Pies secos",
+    "fr": "Pieds au sec",
+    "it": "Piedi asciutti"
+   },
+   "description": {
+    "en": "Defeat Phantamanta without taking a hit in the fight.",
+    "de": "Besiege Phantamanta, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Phantamanta sin recibir daño en el combate.",
+    "fr": "Bats Phantamanta sans être touché pendant le combat.",
+    "it": "Sconfiggi Phantamanta senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.boss.king_boo.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Debts Settled",
+    "de": "Spielschulden beglichen",
+    "es": "Deudas saldadas",
+    "fr": "Dettes réglées",
+    "it": "Debiti saldati"
+   },
+   "description": {
+    "en": "Defeat King Boo.",
+    "de": "Besiege König Buu Huu.",
+    "es": "Derrota a el Rey Boo.",
+    "fr": "Bats le Roi Boo.",
+    "it": "Sconfiggi Re Boo."
+   }
+  },
+  {
+   "id": "sms.boss.king_boo.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Broke the Bank",
+    "de": "Bank gesprengt",
+    "es": "Banca rota",
+    "fr": "La banque a sauté",
+    "it": "Banco sbancato"
+   },
+   "description": {
+    "en": "Defeat King Boo without taking a hit in the fight.",
+    "de": "Besiege König Buu Huu, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a el Rey Boo sin recibir daño en el combate.",
+    "fr": "Bats le Roi Boo sans être touché pendant le combat.",
+    "it": "Sconfiggi Re Boo senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.boss.eely_mouth.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Dentist Appointment",
+    "de": "Zahnarzt-Termin",
+    "es": "Cita con el dentista",
+    "fr": "Rendez-vous chez le dentiste",
+    "it": "Appuntamento dal dentista"
+   },
+   "description": {
+    "en": "Defeat Eely-Mouth.",
+    "de": "Besiege Eely-Mouth.",
+    "es": "Derrota a Eely-Mouth.",
+    "fr": "Bats Eely-Mouth.",
+    "it": "Sconfiggi Eely-Mouth."
+   }
+  },
+  {
+   "id": "sms.boss.eely_mouth.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "No Anaesthetic Needed",
+    "de": "Ohne Betäubung",
+    "es": "Sin anestesia",
+    "fr": "Sans anesthésie",
+    "it": "Senza anestesia"
+   },
+   "description": {
+    "en": "Defeat Eely-Mouth without taking a hit in the fight.",
+    "de": "Besiege Eely-Mouth, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Eely-Mouth sin recibir daño en el combate.",
+    "fr": "Bats Eely-Mouth sans être touché pendant le combat.",
+    "it": "Sconfiggi Eely-Mouth senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.boss.bowser.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Family Reunion",
+    "de": "Familientreffen",
+    "es": "Reunión familiar",
+    "fr": "Réunion de famille",
+    "it": "Riunione di famiglia"
+   },
+   "description": {
+    "en": "Defeat Bowser and Bowser Jr. on Corona Mountain.",
+    "de": "Besiege Bowser und Bowser Jr. auf dem Corona-Berg.",
+    "es": "Derrota a Bowser y Bowser Jr. en el Monte Corona.",
+    "fr": "Bats Bowser et Bowser Jr. sur le mont Corona.",
+    "it": "Sconfiggi Bowser e Bowser Junior sul Monte Corona."
+   }
+  },
+  {
+   "id": "sms.boss.bowser.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Bathtub Champion",
+    "de": "Badewannen-Meister",
+    "es": "Campeón de la bañera",
+    "fr": "Champion de la baignoire",
+    "it": "Campione della vasca"
+   },
+   "description": {
+    "en": "Defeat Bowser and Bowser Jr. on Corona Mountain without taking a hit in the fight.",
+    "de": "Besiege Bowser und Bowser Jr. auf dem Corona-Berg, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Bowser y Bowser Jr. en el Monte Corona sin recibir daño en el combate.",
+    "fr": "Bats Bowser et Bowser Jr. sur le mont Corona sans être touché pendant le combat.",
+    "it": "Sconfiggi Bowser e Bowser Junior sul Monte Corona senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "sms.shines.3",
+   "category": "shines",
+   "target": 3,
+   "secret": false,
+   "title": {
+    "en": "First Sparks",
+    "de": "Erste Funken",
+    "es": "Primeras chispas",
+    "fr": "Premières étincelles",
+    "it": "Prime scintille"
+   },
+   "description": {
+    "en": "Collect 3 Shine Sprites.",
+    "de": "Sammle 3 Shines.",
+    "es": "Reúne 3 Soles.",
+    "fr": "Récupère 3 Soleils.",
+    "it": "Raccogli 3 Soli."
+   }
+  },
+  {
+   "id": "sms.shines.10",
+   "category": "shines",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Getting Brighter",
+    "de": "Es wird hell",
+    "es": "Cada vez más luz",
+    "fr": "Ça s'éclaircit",
+    "it": "Si fa luce"
+   },
+   "description": {
+    "en": "Collect 10 Shine Sprites.",
+    "de": "Sammle 10 Shines.",
+    "es": "Reúne 10 Soles.",
+    "fr": "Récupère 10 Soleils.",
+    "it": "Raccogli 10 Soli."
+   }
+  },
+  {
+   "id": "sms.shines.30",
+   "category": "shines",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Beaming",
+    "de": "Strahlemann",
+    "es": "Radiante",
+    "fr": "Rayonnant",
+    "it": "Raggiante"
+   },
+   "description": {
+    "en": "Collect 30 Shine Sprites.",
+    "de": "Sammle 30 Shines.",
+    "es": "Reúne 30 Soles.",
+    "fr": "Récupère 30 Soleils.",
+    "it": "Raccogli 30 Soli."
+   }
+  },
+  {
+   "id": "sms.shines.50",
+   "category": "shines",
+   "target": 50,
+   "secret": false,
+   "title": {
+    "en": "Halfway Sun",
+    "de": "Halbzeit-Sonne",
+    "es": "Sol a medias",
+    "fr": "Soleil à mi-chemin",
+    "it": "Sole a metà"
+   },
+   "description": {
+    "en": "Collect 50 Shine Sprites.",
+    "de": "Sammle 50 Shines.",
+    "es": "Reúne 50 Soles.",
+    "fr": "Récupère 50 Soleils.",
+    "it": "Raccogli 50 Soli."
+   }
+  },
+  {
+   "id": "sms.shines.70",
+   "category": "shines",
+   "target": 70,
+   "secret": false,
+   "title": {
+    "en": "Sun Worshipper",
+    "de": "Sonnenanbeter",
+    "es": "Adorador del sol",
+    "fr": "Adorateur du soleil",
+    "it": "Adoratore del sole"
+   },
+   "description": {
+    "en": "Collect 70 Shine Sprites.",
+    "de": "Sammle 70 Shines.",
+    "es": "Reúne 70 Soles.",
+    "fr": "Récupère 70 Soleils.",
+    "it": "Raccogli 70 Soli."
+   }
+  },
+  {
+   "id": "sms.shines.100",
+   "category": "shines",
+   "target": 100,
+   "secret": false,
+   "title": {
+    "en": "Almost There",
+    "de": "Fast geschafft",
+    "es": "Casi lo tienes",
+    "fr": "Presque fini",
+    "it": "Quasi fatto"
+   },
+   "description": {
+    "en": "Collect 100 Shine Sprites.",
+    "de": "Sammle 100 Shines.",
+    "es": "Reúne 100 Soles.",
+    "fr": "Récupère 100 Soleils.",
+    "it": "Raccogli 100 Soli."
+   }
+  },
+  {
+   "id": "sms.shines.120",
+   "category": "shines",
+   "target": 120,
+   "secret": false,
+   "title": {
+    "en": "Full Sun",
+    "de": "Volle Sonne",
+    "es": "Sol pleno",
+    "fr": "Plein soleil",
+    "it": "Pieno sole"
+   },
+   "description": {
+    "en": "Collect 120 Shine Sprites.",
+    "de": "Sammle 120 Shines.",
+    "es": "Reúne 120 Soles.",
+    "fr": "Récupère 120 Soleils.",
+    "it": "Raccogli 120 Soli."
+   }
+  },
+  {
+   "id": "sms.blue_coins.50",
+   "category": "shines",
+   "target": 50,
+   "secret": false,
+   "title": {
+    "en": "Feeling Blue",
+    "de": "Blaues Wunder",
+    "es": "Todo azul",
+    "fr": "Bleu de bleu",
+    "it": "Tutto blu"
+   },
+   "description": {
+    "en": "Collect 50 Blue Coins.",
+    "de": "Sammle 50 blaue Münzen.",
+    "es": "Reúne 50 monedas azules.",
+    "fr": "Récupère 50 pièces bleues.",
+    "it": "Raccogli 50 monete blu."
+   }
+  },
+  {
+   "id": "sms.blue_coins.100",
+   "category": "shines",
+   "target": 100,
+   "secret": false,
+   "title": {
+    "en": "Coin Collector",
+    "de": "Münzsammler",
+    "es": "Coleccionista",
+    "fr": "Collectionneur",
+    "it": "Collezionista"
+   },
+   "description": {
+    "en": "Collect 100 Blue Coins.",
+    "de": "Sammle 100 blaue Münzen.",
+    "es": "Reúne 100 monedas azules.",
+    "fr": "Récupère 100 pièces bleues.",
+    "it": "Raccogli 100 monete blu."
+   }
+  },
+  {
+   "id": "sms.blue_coins.240",
+   "category": "shines",
+   "target": 240,
+   "secret": false,
+   "title": {
+    "en": "Every Last Blue",
+    "de": "Alle Blauen",
+    "es": "Hasta la última azul",
+    "fr": "Jusqu'à la dernière bleue",
+    "it": "Fino all'ultima blu"
+   },
+   "description": {
+    "en": "Collect 240 Blue Coins.",
+    "de": "Sammle 240 blaue Münzen.",
+    "es": "Reúne 240 monedas azules.",
+    "fr": "Récupère 240 pièces bleues.",
+    "it": "Raccogli 240 monete blu."
+   }
+  },
+  {
+   "id": "sms.blue_coins.trade_all",
+   "category": "shines",
+   "target": 24,
+   "secret": false,
+   "title": {
+    "en": "The Big Trade",
+    "de": "Großer Tausch",
+    "es": "El gran trueque",
+    "fr": "Le grand échange",
+    "it": "Il grande scambio"
+   },
+   "description": {
+    "en": "Trade Blue Coins for all 24 Shine Sprites in the boathouse.",
+    "de": "Tausche im Bootshaus blaue Münzen gegen alle 24 Shines.",
+    "es": "Cambia monedas azules por los 24 Soles del cobertizo.",
+    "fr": "Échange des pièces bleues contre les 24 Soleils du hangar à bateaux.",
+    "it": "Scambia monete blu con tutti i 24 Soli nella rimessa delle barche."
+   }
+  },
+  {
+   "id": "sms.world.bianco.episodes",
+   "category": "worlds",
+   "target": 8,
+   "secret": false,
+   "title": {
+    "en": "Windmill Saviour",
+    "de": "Windmühlen-Retter",
+    "es": "Salvador del molino",
+    "fr": "Sauveur du moulin",
+    "it": "Salvatore del mulino"
+   },
+   "description": {
+    "en": "Complete all 8 episodes in Bianco Hills.",
+    "de": "Schließ alle 8 Episoden in Bianco Hills ab.",
+    "es": "Completa los 8 episodios de Bianco Hills.",
+    "fr": "Termine les 8 épisodes de Bianco Hills.",
+    "it": "Completa gli 8 episodi di Bianco Hills."
+   }
+  },
+  {
+   "id": "sms.world.bianco.secrets",
+   "category": "worlds",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Cave Explorer",
+    "de": "Höhlenforscher",
+    "es": "Espeleólogo",
+    "fr": "Spéléologue",
+    "it": "Speleologo"
+   },
+   "description": {
+    "en": "Collect both secret Shine Sprites in Bianco Hills.",
+    "de": "Sammle beide Geheim-Shines in Bianco Hills.",
+    "es": "Reúne los dos Soles secretos de Bianco Hills.",
+    "fr": "Récupère les deux Soleils secrets de Bianco Hills.",
+    "it": "Raccogli entrambi i Soli segreti di Bianco Hills."
+   }
+  },
+  {
+   "id": "sms.world.bianco.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Bianco Treasure",
+    "de": "Bianco-Schatz",
+    "es": "Tesoro de Bianco",
+    "fr": "Trésor de Bianco",
+    "it": "Tesoro di Bianco"
+   },
+   "description": {
+    "en": "Collect 100 coins in Bianco Hills and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Bianco Hills und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Bianco Hills y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Bianco Hills et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Bianco Hills e ottieni il Sole."
+   }
+  },
+  {
+   "id": "sms.world.bianco.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Hills Combed Through",
+    "de": "Hügel abgegrast",
+    "es": "Colinas peinadas",
+    "fr": "Collines passées au peigne fin",
+    "it": "Colli setacciati"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Bianco Hills.",
+    "de": "Sammle alle 30 blauen Münzen in Bianco Hills.",
+    "es": "Reúne las 30 monedas azules de Bianco Hills.",
+    "fr": "Récupère les 30 pièces bleues de Bianco Hills.",
+    "it": "Raccogli tutte le 30 monete blu di Bianco Hills."
+   }
+  },
+  {
+   "id": "sms.world.ricco.episodes",
+   "category": "worlds",
+   "target": 8,
+   "secret": false,
+   "title": {
+    "en": "Harbour Master",
+    "de": "Hafenmeister",
+    "es": "Capitán del puerto",
+    "fr": "Capitaine du port",
+    "it": "Capitano di porto"
+   },
+   "description": {
+    "en": "Complete all 8 episodes in Ricco Harbor.",
+    "de": "Schließ alle 8 Episoden in Ricco Harbor ab.",
+    "es": "Completa los 8 episodios de Ricco Harbor.",
+    "fr": "Termine les 8 épisodes de Ricco Harbor.",
+    "it": "Completa gli 8 episodi di Ricco Harbor."
+   }
+  },
+  {
+   "id": "sms.world.ricco.secrets",
+   "category": "worlds",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "High Diver",
+    "de": "Turmspringer",
+    "es": "Saltador de altura",
+    "fr": "Plongeur de haut vol",
+    "it": "Tuffatore"
+   },
+   "description": {
+    "en": "Collect both secret Shine Sprites in Ricco Harbor.",
+    "de": "Sammle beide Geheim-Shines in Ricco Harbor.",
+    "es": "Reúne los dos Soles secretos de Ricco Harbor.",
+    "fr": "Récupère les deux Soleils secrets de Ricco Harbor.",
+    "it": "Raccogli entrambi i Soli segreti di Ricco Harbor."
+   }
+  },
+  {
+   "id": "sms.world.ricco.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Harbour Till",
+    "de": "Hafenkasse",
+    "es": "Caja del puerto",
+    "fr": "Caisse du port",
+    "it": "Cassa del porto"
+   },
+   "description": {
+    "en": "Collect 100 coins in Ricco Harbor and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Ricco Harbor und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Ricco Harbor y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Ricco Harbor et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Ricco Harbor e ottieni il Sole."
+   }
+  },
+  {
+   "id": "sms.world.ricco.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Container",
+    "de": "Jeder Container",
+    "es": "Cada contenedor",
+    "fr": "Chaque conteneur",
+    "it": "Ogni container"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Ricco Harbor.",
+    "de": "Sammle alle 30 blauen Münzen in Ricco Harbor.",
+    "es": "Reúne las 30 monedas azules de Ricco Harbor.",
+    "fr": "Récupère les 30 pièces bleues de Ricco Harbor.",
+    "it": "Raccogli tutte le 30 monete blu di Ricco Harbor."
+   }
+  },
+  {
+   "id": "sms.world.gelato.episodes",
+   "category": "worlds",
+   "target": 8,
+   "secret": false,
+   "title": {
+    "en": "Beach Warden",
+    "de": "Strandwärter",
+    "es": "Vigilante de la playa",
+    "fr": "Gardien de la plage",
+    "it": "Guardiano della spiaggia"
+   },
+   "description": {
+    "en": "Complete all 8 episodes in Gelato Beach.",
+    "de": "Schließ alle 8 Episoden in Gelato Beach ab.",
+    "es": "Completa los 8 episodios de Gelato Beach.",
+    "fr": "Termine les 8 épisodes de Gelato Beach.",
+    "it": "Completa gli 8 episodi di Gelato Beach."
+   }
+  },
+  {
+   "id": "sms.world.gelato.secrets",
+   "category": "worlds",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Sand Artist",
+    "de": "Sandkünstler",
+    "es": "Artista de arena",
+    "fr": "Artiste du sable",
+    "it": "Artista della sabbia"
+   },
+   "description": {
+    "en": "Collect both secret Shine Sprites in Gelato Beach.",
+    "de": "Sammle beide Geheim-Shines in Gelato Beach.",
+    "es": "Reúne los dos Soles secretos de Gelato Beach.",
+    "fr": "Récupère les deux Soleils secrets de Gelato Beach.",
+    "it": "Raccogli entrambi i Soli segreti di Gelato Beach."
+   }
+  },
+  {
+   "id": "sms.world.gelato.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Shell Money",
+    "de": "Muschelgeld",
+    "es": "Dinero de conchas",
+    "fr": "Monnaie de coquillages",
+    "it": "Soldi di conchiglie"
+   },
+   "description": {
+    "en": "Collect 100 coins in Gelato Beach and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Gelato Beach und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Gelato Beach y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Gelato Beach et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Gelato Beach e ottieni il Sole."
+   }
+  },
+  {
+   "id": "sms.world.gelato.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Grain of Sand",
+    "de": "Jedes Sandkorn",
+    "es": "Cada grano de arena",
+    "fr": "Chaque grain de sable",
+    "it": "Ogni granello di sabbia"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Gelato Beach.",
+    "de": "Sammle alle 30 blauen Münzen in Gelato Beach.",
+    "es": "Reúne las 30 monedas azules de Gelato Beach.",
+    "fr": "Récupère les 30 pièces bleues de Gelato Beach.",
+    "it": "Raccogli tutte le 30 monete blu di Gelato Beach."
+   }
+  },
+  {
+   "id": "sms.world.pinna.episodes",
+   "category": "worlds",
+   "target": 8,
+   "secret": false,
+   "title": {
+    "en": "Park Director",
+    "de": "Parkdirektor",
+    "es": "Director del parque",
+    "fr": "Directeur du parc",
+    "it": "Direttore del parco"
+   },
+   "description": {
+    "en": "Complete all 8 episodes in Pinna Park.",
+    "de": "Schließ alle 8 Episoden in Pinna Park ab.",
+    "es": "Completa los 8 episodios de Pinna Park.",
+    "fr": "Termine les 8 épisodes de Pinna Park.",
+    "it": "Completa gli 8 episodi di Pinna Park."
+   }
+  },
+  {
+   "id": "sms.world.pinna.secrets",
+   "category": "worlds",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Behind the Scenes",
+    "de": "Hinter den Kulissen",
+    "es": "Entre bastidores",
+    "fr": "Dans les coulisses",
+    "it": "Dietro le quinte"
+   },
+   "description": {
+    "en": "Collect both secret Shine Sprites in Pinna Park.",
+    "de": "Sammle beide Geheim-Shines in Pinna Park.",
+    "es": "Reúne los dos Soles secretos de Pinna Park.",
+    "fr": "Récupère les deux Soleils secrets de Pinna Park.",
+    "it": "Raccogli entrambi i Soli segreti di Pinna Park."
+   }
+  },
+  {
+   "id": "sms.world.pinna.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Funfair Takings",
+    "de": "Kirmes-Kasse",
+    "es": "Caja de la feria",
+    "fr": "Recette de la fête foraine",
+    "it": "Incasso del luna park"
+   },
+   "description": {
+    "en": "Collect 100 coins in Pinna Park and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Pinna Park und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Pinna Park y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Pinna Park et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Pinna Park e ottieni il Sole."
+   }
+  },
+  {
+   "id": "sms.world.pinna.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Ride",
+    "de": "Jede Attraktion",
+    "es": "Cada atracción",
+    "fr": "Chaque attraction",
+    "it": "Ogni attrazione"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Pinna Park.",
+    "de": "Sammle alle 30 blauen Münzen in Pinna Park.",
+    "es": "Reúne las 30 monedas azules de Pinna Park.",
+    "fr": "Récupère les 30 pièces bleues de Pinna Park.",
+    "it": "Raccogli tutte le 30 monete blu di Pinna Park."
+   }
+  },
+  {
+   "id": "sms.world.sirena.episodes",
+   "category": "worlds",
+   "target": 8,
+   "secret": false,
+   "title": {
+    "en": "Guest of the Year",
+    "de": "Hotelgast des Jahres",
+    "es": "Huésped del año",
+    "fr": "Client de l'année",
+    "it": "Ospite dell'anno"
+   },
+   "description": {
+    "en": "Complete all 8 episodes in Sirena Beach.",
+    "de": "Schließ alle 8 Episoden in Sirena Beach ab.",
+    "es": "Completa los 8 episodios de Sirena Beach.",
+    "fr": "Termine les 8 épisodes de Sirena Beach.",
+    "it": "Completa gli 8 episodi di Sirena Beach."
+   }
+  },
+  {
+   "id": "sms.world.sirena.secrets",
+   "category": "worlds",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Room Service",
+    "de": "Zimmerservice",
+    "es": "Servicio de habitaciones",
+    "fr": "Service d'étage",
+    "it": "Servizio in camera"
+   },
+   "description": {
+    "en": "Collect both secret Shine Sprites in Sirena Beach.",
+    "de": "Sammle beide Geheim-Shines in Sirena Beach.",
+    "es": "Reúne los dos Soles secretos de Sirena Beach.",
+    "fr": "Récupère les deux Soleils secrets de Sirena Beach.",
+    "it": "Raccogli entrambi i Soli segreti di Sirena Beach."
+   }
+  },
+  {
+   "id": "sms.world.sirena.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Tip for the Staff",
+    "de": "Trinkgeld",
+    "es": "Propina",
+    "fr": "Pourboire",
+    "it": "Mancia"
+   },
+   "description": {
+    "en": "Collect 100 coins in Sirena Beach and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Sirena Beach und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Sirena Beach y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Sirena Beach et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Sirena Beach e ottieni il Sole."
+   }
+  },
+  {
+   "id": "sms.world.sirena.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Under Every Bed",
+    "de": "Unter jedem Bett",
+    "es": "Bajo cada cama",
+    "fr": "Sous chaque lit",
+    "it": "Sotto ogni letto"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Sirena Beach.",
+    "de": "Sammle alle 30 blauen Münzen in Sirena Beach.",
+    "es": "Reúne las 30 monedas azules de Sirena Beach.",
+    "fr": "Récupère les 30 pièces bleues de Sirena Beach.",
+    "it": "Raccogli tutte le 30 monete blu di Sirena Beach."
+   }
+  },
+  {
+   "id": "sms.world.noki.episodes",
+   "category": "worlds",
+   "target": 8,
+   "secret": false,
+   "title": {
+    "en": "Bay Diver",
+    "de": "Taucher der Bucht",
+    "es": "Buzo de la bahía",
+    "fr": "Plongeur de la baie",
+    "it": "Sub della baia"
+   },
+   "description": {
+    "en": "Complete all 8 episodes in Noki Bay.",
+    "de": "Schließ alle 8 Episoden in Noki Bay ab.",
+    "es": "Completa los 8 episodios de Noki Bay.",
+    "fr": "Termine les 8 épisodes de Noki Bay.",
+    "it": "Completa gli 8 episodi di Noki Bay."
+   }
+  },
+  {
+   "id": "sms.world.noki.secrets",
+   "category": "worlds",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Shell Whisperer",
+    "de": "Muschelflüsterer",
+    "es": "Susurrador de conchas",
+    "fr": "Murmureur de coquillages",
+    "it": "Sussurratore di conchiglie"
+   },
+   "description": {
+    "en": "Collect both secret Shine Sprites in Noki Bay.",
+    "de": "Sammle beide Geheim-Shines in Noki Bay.",
+    "es": "Reúne los dos Soles secretos de Noki Bay.",
+    "fr": "Récupère les deux Soleils secrets de Noki Bay.",
+    "it": "Raccogli entrambi i Soli segreti di Noki Bay."
+   }
+  },
+  {
+   "id": "sms.world.noki.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Deep-Sea Treasure",
+    "de": "Tiefsee-Schatz",
+    "es": "Tesoro de las profundidades",
+    "fr": "Trésor des abysses",
+    "it": "Tesoro degli abissi"
+   },
+   "description": {
+    "en": "Collect 100 coins in Noki Bay and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Noki Bay und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Noki Bay y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Noki Bay et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Noki Bay e ottieni il Sole."
+   }
+  },
+  {
+   "id": "sms.world.noki.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Waterfall",
+    "de": "Jeder Wasserfall",
+    "es": "Cada cascada",
+    "fr": "Chaque cascade",
+    "it": "Ogni cascata"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Noki Bay.",
+    "de": "Sammle alle 30 blauen Münzen in Noki Bay.",
+    "es": "Reúne las 30 monedas azules de Noki Bay.",
+    "fr": "Récupère les 30 pièces bleues de Noki Bay.",
+    "it": "Raccogli tutte le 30 monete blu di Noki Bay."
+   }
+  },
+  {
+   "id": "sms.world.pianta.episodes",
+   "category": "worlds",
+   "target": 8,
+   "secret": false,
+   "title": {
+    "en": "Honorary Citizen",
+    "de": "Ehrenbürger",
+    "es": "Ciudadano de honor",
+    "fr": "Citoyen d'honneur",
+    "it": "Cittadino onorario"
+   },
+   "description": {
+    "en": "Complete all 8 episodes in Pianta Village.",
+    "de": "Schließ alle 8 Episoden in Pianta Village ab.",
+    "es": "Completa los 8 episodios de Pianta Village.",
+    "fr": "Termine les 8 épisodes de Pianta Village.",
+    "it": "Completa gli 8 episodi di Pianta Village."
+   }
+  },
+  {
+   "id": "sms.world.pianta.secrets",
+   "category": "worlds",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Under the Village",
+    "de": "Unter dem Dorf",
+    "es": "Bajo el pueblo",
+    "fr": "Sous le village",
+    "it": "Sotto il villaggio"
+   },
+   "description": {
+    "en": "Collect both secret Shine Sprites in Pianta Village.",
+    "de": "Sammle beide Geheim-Shines in Pianta Village.",
+    "es": "Reúne los dos Soles secretos de Pianta Village.",
+    "fr": "Récupère les deux Soleils secrets de Pianta Village.",
+    "it": "Raccogli entrambi i Soli segreti di Pianta Village."
+   }
+  },
+  {
+   "id": "sms.world.pianta.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Mushroom Money",
+    "de": "Pilzgeld",
+    "es": "Dinero de setas",
+    "fr": "Argent des champignons",
+    "it": "Soldi dei funghi"
+   },
+   "description": {
+    "en": "Collect 100 coins in Pianta Village and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Pianta Village und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Pianta Village y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Pianta Village et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Pianta Village e ottieni il Sole."
+   }
+  },
+  {
+   "id": "sms.world.pianta.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Tree Trunk",
+    "de": "Jeder Baumstamm",
+    "es": "Cada tronco",
+    "fr": "Chaque tronc",
+    "it": "Ogni tronco"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Pianta Village.",
+    "de": "Sammle alle 30 blauen Münzen in Pianta Village.",
+    "es": "Reúne las 30 monedas azules de Pianta Village.",
+    "fr": "Récupère les 30 pièces bleues de Pianta Village.",
+    "it": "Raccogli tutte le 30 monete blu di Pianta Village."
+   }
+  },
+  {
+   "id": "sms.plaza.shines",
+   "category": "plaza",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Plaza Cleaner",
+    "de": "Plaza-Putzkraft",
+    "es": "Limpiador de la plaza",
+    "fr": "Agent d'entretien de la place",
+    "it": "Addetto alle pulizie della piazza"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Delfino Plaza.",
+    "de": "Sammle alle 10 Shines in Delfino Plaza.",
+    "es": "Reúne los 10 Soles de la Plaza Delfino.",
+    "fr": "Récupère les 10 Soleils de la place Delfino.",
+    "it": "Raccogli tutti i 10 Soli di Piazza Delfino."
+   }
+  },
+  {
+   "id": "sms.plaza.blue_coins",
+   "category": "plaza",
+   "target": 19,
+   "secret": false,
+   "title": {
+    "en": "Blue Cobblestones",
+    "de": "Pflasterblau",
+    "es": "Adoquines azules",
+    "fr": "Pavés bleus",
+    "it": "Ciottoli blu"
+   },
+   "description": {
+    "en": "Collect all 19 Blue Coins in Delfino Plaza.",
+    "de": "Sammle alle 19 blauen Münzen in Delfino Plaza.",
+    "es": "Reúne las 19 monedas azules de la Plaza Delfino.",
+    "fr": "Récupère les 19 pièces bleues de la place Delfino.",
+    "it": "Raccogli tutte le 19 monete blu di Piazza Delfino."
+   }
+  },
+  {
+   "id": "sms.corona.blue_coins",
+   "category": "plaza",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Summit Savings",
+    "de": "Gipfelgeld",
+    "es": "Ahorros de la cumbre",
+    "fr": "Économies du sommet",
+    "it": "Risparmi della vetta"
+   },
+   "description": {
+    "en": "Collect all 10 Blue Coins on Corona Mountain.",
+    "de": "Sammle alle 10 blauen Münzen auf dem Corona-Berg.",
+    "es": "Reúne las 10 monedas azules del Monte Corona.",
+    "fr": "Récupère les 10 pièces bleues du mont Corona.",
+    "it": "Raccogli tutte le 10 monete blu del Monte Corona."
+   }
+  },
+  {
+   "id": "sms.bonus.super_slide",
+   "category": "plaza",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Slip 'n' Slide",
+    "de": "Rutschpartie",
+    "es": "Tobogán",
+    "fr": "Glissade",
+    "it": "Scivolata"
+   },
+   "description": {
+    "en": "Get the Shine Sprite in the Super Slide.",
+    "de": "Hol den Shine in der Super-Rutsche.",
+    "es": "Consigue el Sol en el Supertobogán.",
+    "fr": "Obtiens le Soleil dans le Super toboggan.",
+    "it": "Ottieni il Sole in Super Scivolo."
+   }
+  },
+  {
+   "id": "sms.bonus.pachinko",
+   "category": "plaza",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Pinball Wizard",
+    "de": "Flipperkugel",
+    "es": "Bola de pinball",
+    "fr": "Bille de flipper",
+    "it": "Pallina da flipper"
+   },
+   "description": {
+    "en": "Get the Shine Sprite in the Pachinko game.",
+    "de": "Hol den Shine in Pachinko.",
+    "es": "Consigue el Sol en el Pachinko.",
+    "fr": "Obtiens le Soleil dans le Pachinko.",
+    "it": "Ottieni il Sole in Pachinko."
+   }
+  },
+  {
+   "id": "sms.bonus.lily_pad",
+   "category": "plaza",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Lily Pad Captain",
+    "de": "Seerosen-Kapitän",
+    "es": "Capitán del nenúfar",
+    "fr": "Capitaine du nénuphar",
+    "it": "Capitano della ninfea"
+   },
+   "description": {
+    "en": "Get the Shine Sprite in the Lily Pad Ride.",
+    "de": "Hol den Shine in der Seerosen-Fahrt.",
+    "es": "Consigue el Sol en el Paseo en nenúfar.",
+    "fr": "Obtiens le Soleil dans la Balade en nénuphar.",
+    "it": "Ottieni il Sole in Giro sulla ninfea."
+   }
+  },
+  {
+   "id": "sms.bonus.turbo_track",
+   "category": "plaza",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Turbo Track",
+    "de": "Turbo-Strecke",
+    "es": "Pista turbo",
+    "fr": "Piste turbo",
+    "it": "Pista turbo"
+   },
+   "description": {
+    "en": "Get the Shine Sprite in the Turbo Track.",
+    "de": "Hol den Shine in der Turbo-Strecke.",
+    "es": "Consigue el Sol en la Pista turbo.",
+    "fr": "Obtiens le Soleil dans la Piste turbo.",
+    "it": "Ottieni il Sole in Pista turbo."
+   }
+  },
+  {
+   "id": "sms.bonus.red_coin_field",
+   "category": "plaza",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Seeing Red",
+    "de": "Rot gesehen",
+    "es": "Todo rojo",
+    "fr": "Voir rouge",
+    "it": "Tutto rosso"
+   },
+   "description": {
+    "en": "Get the Shine Sprite in the Red Coin Field.",
+    "de": "Hol den Shine in dem Rote-Münzen-Feld.",
+    "es": "Consigue el Sol en el Campo de monedas rojas.",
+    "fr": "Obtiens le Soleil dans le Champ des pièces rouges.",
+    "it": "Ottieni il Sole in Campo delle monete rosse."
+   }
+  },
+  {
+   "id": "sms.airstrip.after_corona",
+   "category": "plaza",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Overtime",
+    "de": "Nachspielzeit",
+    "es": "Prórroga",
+    "fr": "Prolongations",
+    "it": "Tempi supplementari"
+   },
+   "description": {
+    "en": "After Corona Mountain, get the Shine Sprite and the Blue Coin at the Delfino Airstrip.",
+    "de": "Hol dir nach dem Corona-Berg den Shine und die blaue Münze am Flughafen.",
+    "es": "Tras el Monte Corona, consigue el Sol y la moneda azul del aeródromo.",
+    "fr": "Après le mont Corona, obtiens le Soleil et la pièce bleue de l'aéroport.",
+    "it": "Dopo il Monte Corona, ottieni il Sole e la moneta blu all'aeroporto."
+   }
+  },
+  {
+   "id": "sms.nozzle_boxes",
+   "category": "plaza",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Nozzle Box Hunter",
+    "de": "Düsenkisten-Jäger",
+    "es": "Cazador de cajas",
+    "fr": "Chasseur de caisses",
+    "it": "Cacciatore di casse"
+   },
+   "description": {
+    "en": "Open every nozzle box in the seven worlds.",
+    "de": "Öffne alle Düsenkisten in den sieben Welten.",
+    "es": "Abre todas las cajas de boquilla de los siete mundos.",
+    "fr": "Ouvre toutes les caisses de buse des sept mondes.",
+    "it": "Apri tutte le casse degli ugelli nei sette mondi."
+   }
+  },
+  {
+   "id": "sms.live.sunglasses",
+   "category": "live",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Cool Shades",
+    "de": "Coole Sonnenbrille",
+    "es": "Gafas guays",
+    "fr": "Lunettes stylées",
+    "it": "Occhiali fichi"
+   },
+   "description": {
+    "en": "Borrow a pair of sunglasses from a Pianta.",
+    "de": "Leih dir von einem Pianta eine Sonnenbrille.",
+    "es": "Pide prestadas unas gafas de sol a un Pianta.",
+    "fr": "Emprunte des lunettes de soleil à un Pianta.",
+    "it": "Fatti prestare gli occhiali da sole da un Pianta."
+   }
+  },
+  {
+   "id": "sms.live.shirt",
+   "category": "live",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Hawaiian Look",
+    "de": "Hawaii-Look",
+    "es": "Look hawaiano",
+    "fr": "Look hawaïen",
+    "it": "Look hawaiano"
+   },
+   "description": {
+    "en": "Borrow a tropical shirt from a Pianta.",
+    "de": "Leih dir von einem Pianta ein Hawaiihemd.",
+    "es": "Pide prestada una camisa hawaiana a un Pianta.",
+    "fr": "Emprunte une chemise hawaïenne à un Pianta.",
+    "it": "Fatti prestare una camicia hawaiana da un Pianta."
+   }
+  },
+  {
+   "id": "sms.live.flagpole",
+   "category": "live",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Just Like Old Times",
+    "de": "Wie in alten Zeiten",
+    "es": "Como en los viejos tiempos",
+    "fr": "Comme au bon vieux temps",
+    "it": "Come ai vecchi tempi"
+   },
+   "description": {
+    "en": "Climb to the very top of the flagpole at the Delfino Airstrip.",
+    "de": "Kletter ganz nach oben auf den Fahnenmast am Flughafen.",
+    "es": "Sube hasta lo alto del mástil del aeródromo.",
+    "fr": "Grimpe tout en haut du mât de l'aéroport.",
+    "it": "Arrampicati in cima all'asta della bandiera all'aeroporto."
+   }
+  },
+  {
+   "id": "sms.fun.stuck_in_goop",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Sticky Situation",
+    "de": "Klebefalle",
+    "es": "Situación pegajosa",
+    "fr": "Situation collante",
+    "it": "Situazione appiccicosa"
+   },
+   "description": {
+    "en": "Get stuck in the brown goop for the first time.",
+    "de": "Bleib das erste Mal im braunen Schleim kleben.",
+    "es": "Quédate pegado en el pringue marrón por primera vez.",
+    "fr": "Reste collé dans la boue marron pour la première fois.",
+    "it": "Resta incollato nella melma marrone per la prima volta."
+   }
+  },
+  {
+   "id": "sms.fun.on_fire",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Hot Pants",
+    "de": "Feuer unterm Hintern",
+    "es": "Culo en llamas",
+    "fr": "Le feu aux fesses",
+    "it": "Fuoco sotto il sedere"
+   },
+   "description": {
+    "en": "Get set on fire by fire goop.",
+    "de": "Lass dich vom Feuerschleim anzünden.",
+    "es": "Prende fuego con el pringue de fuego.",
+    "fr": "Prends feu à cause de la boue enflammée.",
+    "it": "Prendi fuoco per la melma infuocata."
+   }
+  },
+  {
+   "id": "sms.fun.electrocuted",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Live Wire",
+    "de": "Unter Strom",
+    "es": "Bajo tensión",
+    "fr": "Sous tension",
+    "it": "Sotto tensione"
+   },
+   "description": {
+    "en": "Get an electric shock.",
+    "de": "Kassier einen Stromschlag.",
+    "es": "Recibe una descarga eléctrica.",
+    "fr": "Prends une décharge électrique.",
+    "it": "Prendi una scossa elettrica."
+   }
+  },
+  {
+   "id": "sms.fun.thrown",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Pianta Projectile",
+    "de": "Pianta-Wurfgeschoss",
+    "es": "Proyectil Pianta",
+    "fr": "Projectile Pianta",
+    "it": "Proiettile Pianta"
+   },
+   "description": {
+    "en": "Get thrown by a Chuckster.",
+    "de": "Lass dich von einem Chuckster werfen.",
+    "es": "Haz que un Pianta lanzador te arroje.",
+    "fr": "Fais-toi lancer par un Pianta lanceur.",
+    "it": "Fatti lanciare da un Pianta lanciatore."
+   }
+  },
+  {
+   "id": "sms.fun.lives_99",
+   "category": "fun",
+   "target": 99,
+   "secret": false,
+   "title": {
+    "en": "Nine Lives Times Eleven",
+    "de": "Katzenleben",
+    "es": "Vidas de gato",
+    "fr": "Neuf vies fois onze",
+    "it": "Vite da gatto"
+   },
+   "description": {
+    "en": "Have 99 lives.",
+    "de": "Hab 99 Leben.",
+    "es": "Ten 99 vidas.",
+    "fr": "Aie 99 vies.",
+    "it": "Abbi 99 vite."
+   }
+  },
+  {
+   "id": "sms.fun.coins_300",
+   "category": "fun",
+   "target": 300,
+   "secret": false,
+   "title": {
+    "en": "Scrooge",
+    "de": "Dagobert",
+    "es": "Tío Gilito",
+    "fr": "Picsou",
+    "it": "Paperone"
+   },
+   "description": {
+    "en": "Collect 300 coins in one visit to a world.",
+    "de": "Sammle 300 Münzen in einem Besuch einer Welt.",
+    "es": "Reúne 300 monedas en una sola visita a un mundo.",
+    "fr": "Récupère 300 pièces en une seule visite d'un monde.",
+    "it": "Raccogli 300 monete in una sola visita a un mondo."
+   }
+  },
+  {
+   "id": "sms.fun.yoshi_colors",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Rainbow Yoshi",
+    "de": "Regenbogen-Yoshi",
+    "es": "Yoshi arcoíris",
+    "fr": "Yoshi arc-en-ciel",
+    "it": "Yoshi arcobaleno"
+   },
+   "description": {
+    "en": "Turn Yoshi every colour by feeding him each kind of fruit.",
+    "de": "Lass Yoshi jede Farbe annehmen, indem du ihn mit jeder Fruchtsorte fütterst.",
+    "es": "Haz que Yoshi tenga todos los colores dándole cada fruta.",
+    "fr": "Fais prendre à Yoshi toutes les couleurs en lui donnant chaque fruit.",
+    "it": "Fai cambiare a Yoshi tutti i colori dandogli ogni tipo di frutto."
+   }
+  },
+  {
+   "id": "sms.fun.all_movies",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Movie Night",
+    "de": "Kinoabend",
+    "es": "Noche de cine",
+    "fr": "Soirée cinéma",
+    "it": "Serata al cinema"
+   },
+   "description": {
+    "en": "Watch every movie in the game.",
+    "de": "Sieh dir alle Videos des Spiels an.",
+    "es": "Mira todos los vídeos del juego.",
+    "fr": "Regarde toutes les vidéos du jeu.",
+    "it": "Guarda tutti i filmati del gioco."
+   }
+  },
+  {
+   "id": "sms.fun.time_travel",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Time Traveller",
+    "de": "Zeitreisender",
+    "es": "Viajero del tiempo",
+    "fr": "Voyageur temporel",
+    "it": "Viaggiatore del tempo"
+   },
+   "description": {
+    "en": "Load a save state.",
+    "de": "Lade einen Save State.",
+    "es": "Carga un estado guardado.",
+    "fr": "Charge une sauvegarde instantanée.",
+    "it": "Carica uno stato salvato."
+   }
+  },
+  {
+   "id": "sms.fun.playtime_10h",
+   "category": "fun",
+   "target": 600,
+   "secret": false,
+   "title": {
+    "en": "In Need of a Holiday",
+    "de": "Urlaubsreif",
+    "es": "Necesito vacaciones",
+    "fr": "Besoin de vacances",
+    "it": "Serve una vacanza"
+   },
+   "description": {
+    "en": "Play for 10 hours in total.",
+    "de": "Spiel insgesamt 10 Stunden.",
+    "es": "Juega 10 horas en total.",
+    "fr": "Joue 10 heures au total.",
+    "it": "Gioca 10 ore in totale."
+   }
+  },
+  {
+   "id": "sms.fun.game_over",
+   "category": "fun",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Game Over",
+    "de": "Game Over",
+    "es": "Game Over",
+    "fr": "Game Over",
+    "it": "Game Over"
+   },
+   "description": {
+    "en": "Lose all your lives.",
+    "de": "Verlier alle Leben.",
+    "es": "Pierde todas tus vidas.",
+    "fr": "Perds toutes tes vies.",
+    "it": "Perdi tutte le vite."
+   }
+  },
+  {
+   "id": "sms.fun.impatient",
+   "category": "fun",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Impatient",
+    "de": "Ungeduldig",
+    "es": "Impaciente",
+    "fr": "Impatient",
+    "it": "Impaziente"
+   },
+   "description": {
+    "en": "Skip a movie you had not seen yet by pressing START twice.",
+    "de": "Überspring ein noch nicht gesehenes Video mit zweimal Start.",
+    "es": "Sáltate un vídeo que no habías visto pulsando START dos veces.",
+    "fr": "Passe une vidéo jamais vue en appuyant deux fois sur START.",
+    "it": "Salta un filmato mai visto premendo START due volte."
+   }
+  },
+  {
+   "id": "sms.fun.yoshi_juice",
+   "category": "fun",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Juicer",
+    "de": "Saftpresse",
+    "es": "Exprimidor",
+    "fr": "Presse-agrumes",
+    "it": "Spremiagrumi"
+   },
+   "description": {
+    "en": "Let Yoshi turn into juice in the water.",
+    "de": "Lass Yoshi im Wasser zu Saft werden.",
+    "es": "Deja que Yoshi se convierta en zumo en el agua.",
+    "fr": "Laisse Yoshi se transformer en jus dans l'eau.",
+    "it": "Lascia che Yoshi diventi succo nell'acqua."
+   }
+  },
+  {
+   "id": "sms.fun.fine_tuner",
+   "category": "fun",
+   "target": 120,
+   "secret": true,
+   "title": {
+    "en": "Fine-Tuner",
+    "de": "Feintuner",
+    "es": "Afinador",
+    "fr": "Peaufineur",
+    "it": "Perfezionista"
+   },
+   "description": {
+    "en": "Changed 120 settings in the menu, as many as there are Shine Sprites.",
+    "de": "120 Einstellungen im Menü geändert, so viele, wie es Shines gibt.",
+    "es": "Has cambiado 120 ajustes en el menú, tantos como Soles hay.",
+    "fr": "120 paramètres modifiés dans le menu, autant qu'il y a de Soleils.",
+    "it": "Hai cambiato 120 impostazioni nel menu, tante quanti sono i Soli."
+   }
+  },
+  {
+   "id": "sms.pro.veteran",
+   "category": "pro",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "The Veteran Is Back",
+    "de": "Veteran ist zurück",
+    "es": "El veterano ha vuelto",
+    "fr": "Le vétéran est de retour",
+    "it": "Il veterano è tornato"
+   },
+   "description": {
+    "en": "Defeat the first Piranha Plant at the airstrip within 90 seconds of starting a new game.",
+    "de": "Besiege die erste Piranha-Pflanze am Flughafen innerhalb von 90 Sekunden nach Spielbeginn.",
+    "es": "Derrota a la primera Planta Piraña del aeródromo en 90 segundos desde el inicio de la partida.",
+    "fr": "Bats la première Plante Piranha de l'aéroport en moins de 90 secondes après le début de la partie.",
+    "it": "Sconfiggi la prima Pianta Piranha all'aeroporto entro 90 secondi dall'inizio della partita."
+   }
+  },
+  {
+   "id": "sms.pro.slip_25",
+   "category": "pro",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Slipped Through",
+    "de": "Durchgerutscht",
+    "es": "Colado",
+    "fr": "Passé en douce",
+    "it": "Sgusciato via"
+   },
+   "description": {
+    "en": "Have 25 Shine Sprites within 1:30 hours of play on a save file.",
+    "de": "Hab 25 Shines innerhalb von 1:30 Stunden Spielzeit in einem Spielstand.",
+    "es": "Consigue 25 Soles en menos de 1:30 horas de juego en una partida.",
+    "fr": "Obtiens 25 Soleils en moins de 1 h 30 de jeu sur une sauvegarde.",
+    "it": "Ottieni 25 Soli entro 1:30 ore di gioco in un salvataggio."
+   }
+  },
+  {
+   "id": "sms.pro.speedrun",
+   "category": "pro",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Speedrunner",
+    "de": "Speedrunner",
+    "es": "Speedrunner",
+    "fr": "Speedrunner",
+    "it": "Speedrunner"
+   },
+   "description": {
+    "en": "Defeat Bowser within 2:30 hours of play on a save file.",
+    "de": "Besiege Bowser innerhalb von 2:30 Stunden Spielzeit in einem Spielstand.",
+    "es": "Derrota a Bowser en menos de 2:30 horas de juego en una partida.",
+    "fr": "Bats Bowser en moins de 2 h 30 de jeu sur une sauvegarde.",
+    "it": "Sconfiggi Bowser entro 2:30 ore di gioco in un salvataggio."
+   }
+  },
+  {
+   "id": "sms.pro.wr_attempt",
+   "category": "pro",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "WR Attempt?",
+    "de": "WR-Versuch?",
+    "es": "¿Intento de récord?",
+    "fr": "Tentative de record ?",
+    "it": "Tentativo di record?"
+   },
+   "description": {
+    "en": "Defeat Bowser within 1:25 hours of play on a save file.",
+    "de": "Besiege Bowser innerhalb von 1:25 Stunden Spielzeit in einem Spielstand.",
+    "es": "Derrota a Bowser en menos de 1:25 horas de juego en una partida.",
+    "fr": "Bats Bowser en moins de 1 h 25 de jeu sur une sauvegarde.",
+    "it": "Sconfiggi Bowser entro 1:25 ore di gioco in un salvataggio."
+   }
+  },
+  {
+   "id": "sms.pro.speedrun_120",
+   "category": "pro",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Speedrunner 120",
+    "de": "Speedrunner 120",
+    "es": "Speedrunner 120",
+    "fr": "Speedrunner 120",
+    "it": "Speedrunner 120"
+   },
+   "description": {
+    "en": "Have all 120 Shine Sprites within 6 hours of play on a save file.",
+    "de": "Hab alle 120 Shines innerhalb von 6 Stunden Spielzeit in einem Spielstand.",
+    "es": "Consigue los 120 Soles en menos de 6 horas de juego en una partida.",
+    "fr": "Obtiens les 120 Soleils en moins de 6 heures de jeu sur une sauvegarde.",
+    "it": "Ottieni tutti i 120 Soli entro 6 ore di gioco in un salvataggio."
+   }
+  },
+  {
+   "id": "sms.pro.wr_attempt_120",
+   "category": "pro",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "WR Attempt 120?",
+    "de": "WR-Versuch 120?",
+    "es": "¿Intento de récord 120?",
+    "fr": "Tentative de record 120 ?",
+    "it": "Tentativo di record 120?"
+   },
+   "description": {
+    "en": "Have all 120 Shine Sprites within 3:30 hours of play on a save file.",
+    "de": "Hab alle 120 Shines innerhalb von 3:30 Stunden Spielzeit in einem Spielstand.",
+    "es": "Consigue los 120 Soles en menos de 3:30 horas de juego en una partida.",
+    "fr": "Obtiens les 120 Soleils en moins de 3 h 30 de jeu sur une sauvegarde.",
+    "it": "Ottieni tutti i 120 Soli entro 3:30 ore di gioco in un salvataggio."
+   }
+  },
+  {
+   "id": "sms.pro.hacker",
+   "category": "pro",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Hacker",
+    "de": "Hacker",
+    "es": "Hacker",
+    "fr": "Hacker",
+    "it": "Hacker"
+   },
+   "description": {
+    "en": "Play with a cheat turned on.",
+    "de": "Spiel mit einem eingeschalteten Cheat.",
+    "es": "Juega con un truco activado.",
+    "fr": "Joue avec un code de triche activé.",
+    "it": "Gioca con un trucco attivo."
+   }
+  },
+  {
+   "id": "sms.glitch.out_of_bounds",
+   "category": "glitch",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Border Crosser",
+    "de": "Grenzgänger",
+    "es": "Cruzafronteras",
+    "fr": "Passe-muraille",
+    "it": "Oltreconfine"
+   },
+   "description": {
+    "en": "Be alive outside the level's bounds.",
+    "de": "Sei lebendig außerhalb der Levelgrenzen.",
+    "es": "Sigue vivo fuera de los límites del nivel.",
+    "fr": "Sois en vie hors des limites du niveau.",
+    "it": "Resta vivo fuori dai confini del livello."
+   }
+  },
+  {
+   "id": "sms.glitch.under_floor",
+   "category": "glitch",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Through the Floor",
+    "de": "Durch den Boden",
+    "es": "A través del suelo",
+    "fr": "À travers le sol",
+    "it": "Attraverso il pavimento"
+   },
+   "description": {
+    "en": "Get under the floor without dying straight away.",
+    "de": "Komm unter den Boden, ohne sofort zu sterben.",
+    "es": "Métete bajo el suelo sin morir al instante.",
+    "fr": "Passe sous le sol sans mourir aussitôt.",
+    "it": "Finisci sotto il pavimento senza morire subito."
+   }
+  },
+  {
+   "id": "sms.glitch.too_fast",
+   "category": "glitch",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Sound Barrier",
+    "de": "Schallmauer",
+    "es": "Barrera del sonido",
+    "fr": "Mur du son",
+    "it": "Muro del suono"
+   },
+   "description": {
+    "en": "Move faster than the game's physics normally allow.",
+    "de": "Sei schneller, als die Physik des Spiels es normalerweise erlaubt.",
+    "es": "Muévete más rápido de lo que permite la física del juego.",
+    "fr": "Va plus vite que la physique du jeu ne le permet normalement.",
+    "it": "Muoviti più veloce di quanto la fisica del gioco consenta."
+   }
+  },
+  {
+   "id": "sms.glitch.too_high",
+   "category": "glitch",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Sky Climber",
+    "de": "Himmelsstürmer",
+    "es": "Escalacielos",
+    "fr": "Grimpeur céleste",
+    "it": "Scalacieli"
+   },
+   "description": {
+    "en": "Get higher than any normal platform in the level.",
+    "de": "Komm höher als jede normale Plattform im Level.",
+    "es": "Llega más alto que cualquier plataforma normal del nivel.",
+    "fr": "Monte plus haut que toute plateforme normale du niveau.",
+    "it": "Arriva più in alto di qualsiasi piattaforma normale del livello."
+   }
+  },
+  {
+   "id": "sms.glitch.hunter",
+   "category": "glitch",
+   "target": 4,
+   "secret": true,
+   "title": {
+    "en": "Glitchhunter",
+    "de": "Glitchhunter",
+    "es": "Cazaglitches",
+    "fr": "Chasseur de glitchs",
+    "it": "Cacciatore di glitch"
+   },
+   "description": {
+    "en": "Get all four glitch achievements.",
+    "de": "Hol dir alle vier Glitch-Achievements.",
+    "es": "Consigue los cuatro logros de glitches.",
+    "fr": "Obtiens les quatre succès de glitchs.",
+    "it": "Ottieni tutti e quattro gli obiettivi dei glitch."
+   }
+  }
+ ]
+}

@@ -27,6 +27,7 @@
 #include "port_platform.h"
 #include "port_savestate.h"
 #include "state_file.h"
+#include "../achievements/achievements.h"
 #include <dolphin/dvd.h>
 #include <dolphin/os.h>
 #include <dolphin/os/OSThread.h>
@@ -365,6 +366,10 @@ void set_message(const char* text)
 		g_messageUntil = now_seconds() + 2.5;
 	}
 	port_log("[savestate] %s\n", text);
+	if (!strncmp(text, "State loaded", 12)) { // platform/achievements: "Time Traveller", no timed run
+		port_ach_note_state_loaded();
+		port_ach_unlock(PORT_ACH_FUN_TIME_TRAVEL);
+	}
 	if (port_savestate_android_message)
 		port_savestate_android_message(text, g_saveSlot);
 }

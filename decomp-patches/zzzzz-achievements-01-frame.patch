@@ -1,0 +1,23 @@
+Reason: port (Mareshine): the achievements' game side runs at the top of every frame
+--- a/src/System/Application.cpp
++++ b/src/System/Application.cpp
+@@ -1156,6 +1156,11 @@
+ }
+ #endif
+ 
++#ifdef TARGET_PC
++// Mareshine: the achievements look at the game once per frame (platform/achievements/ach_game.cpp)
++extern "C" void port_ach_game_frame(void);
++#endif
++
+ // TODO: frame 0x50 short (0x70 before the display's video was read through
+ // getVideo()): retail's low region runs to 0xac (the TRect temp) where ours
+ // ended at 0x38, i.e. inline temporaries from an expansion this body lacks;
+@@ -1166,6 +1171,7 @@
+ 	while (nextState <= APP_STATE_DEFAULT) {
+ #ifdef TARGET_PC
+ 		ApplicationSaveStateFrame(this);
++		port_ach_game_frame();
+ #endif
+ 		mDisplay->startRendering();
+ 

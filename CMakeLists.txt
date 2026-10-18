@@ -241,6 +241,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/platform/thp/thp.cmake)
 target_sources(sms_game PRIVATE ${SMS_DECOMP}/libs/dolphin/src/pad/Padclamp.c)
 # Online co-op, game side (it uses the decomp's classes): platform/netplay.
 target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/netplay/net_game.cpp)
+# Achievements, game side (it reads the game's flags and Mario): platform/achievements.
+target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_game.cpp)
 # port_include must stay ahead of the game headers: its dolphin/types.h
 # overrides the decomp's (LP64 integer widths, weak AT_ADDRESS globals).
 if(DEFINED SMS_CP932_ROOT)
@@ -320,6 +322,7 @@ list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/gx/")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/eclipse/")
 # net_game.cpp is built into the game library (above).
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/netplay/net_game\\.cpp$")
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/ach_game\\.cpp$")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/tests/")
 if(WIN32 OR APPLE)
   list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/trace/trace\\.cpp$")

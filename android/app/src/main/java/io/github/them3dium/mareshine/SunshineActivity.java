@@ -115,6 +115,7 @@ public class SunshineActivity extends SDLActivity {
     protected void onCreate(Bundle savedInstanceState) {
         CrashLog.install(this);
         super.onCreate(savedInstanceState);
+        mAchKnown = Achievements.unlockedIds(this); // what the banner does not announce again
 
         String[] args = getArguments();
         if (args.length == 0) {
@@ -232,6 +233,75 @@ public class SunshineActivity extends SDLActivity {
     // platform/savestate/savestate_android.cpp: a save state message (code << 8 | slot)
     private static final int COMMAND_SAVESTATE = 0x8002;
 
+    // the MovieDirector patch (zzzz-movieskip-01): 1 = START pressed once in a
+    // movie not seen yet, 0 = skipped
+    private static final int COMMAND_MOVIE_SKIP = 0x8003;
+
+    // platform/achievements: param = how many were just unlocked (the names
+    // are in unlocked.json, which the game has written by then)
+    private static final int COMMAND_ACHIEVEMENTS = 0x8004;
+
+    // "Achievement unlocked" with its name, one after another, at the bottom
+    private TextView mAchNotice;
+    private java.util.Set<String> mAchKnown;
+    // the banners to show: the title, and whether it is a secret one (its own sound)
+    private final java.util.ArrayDeque<String[]> mAchQueue = new java.util.ArrayDeque<>();
+    private final Runnable mAchNext = this::showNextAchievement;
+
+    private void achievementsUnlocked() {
+        java.util.Set<String> now = Achievements.unlockedIds(this);
+        if (mAchKnown == null) mAchKnown = new java.util.HashSet<>();
+        java.util.List<String> fresh = new java.util.ArrayList<>();
+        for (String id : now) if (!mAchKnown.contains(id)) fresh.add(id);
+        mAchKnown = now;
+        if (fresh.isEmpty()) return;
+        java.util.Map<String, Achievements.Def> defs = new java.util.HashMap<>();
+        for (Achievements.Category k : Achievements.load(this))
+            for (Achievements.Def d : k.items) defs.put(d.id, d);
+        if (fresh.size() > 3) { // a save file's progress at once: one line for all
+            boolean secret = false;
+            for (String id : fresh) secret |= defs.containsKey(id) && defs.get(id).secret;
+            mAchQueue.add(new String[] {t("%d achievements unlocked", fresh.size()), secret ? "1" : ""});
+        } else {
+            for (String id : fresh) {
+                Achievements.Def d = defs.get(id);
+                if (d != null) mAchQueue.add(new String[] {d.title, d.secret ? "1" : ""});
+            }
+        }
+        if (mAchNotice == null || mAchNotice.getAlpha() == 0f) showNextAchievement();
+    }
+
+    private void showNextAchievement() {
+        if (mLayout == null) return;
+        String[] next = mAchQueue.poll();
+        if (next == null) {
+            if (mAchNotice != null) mAchNotice.animate().alpha(0f).setDuration(300);
+            return;
+        }
+        if (mAchNotice == null) {
+            mAchNotice = noticeView();
+            mAchNotice.setGravity(android.view.Gravity.CENTER);
+            RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+            lp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+            lp.addRule(RelativeLayout.CENTER_HORIZONTAL);
+            lp.bottomMargin = getResources().getDisplayMetrics().heightPixels / 10;
+            mLayout.addView(mAchNotice, lp);
+        }
+        String title = next[0];
+        boolean secret = !next[1].isEmpty();
+        android.text.SpannableString text = new android.text.SpannableString((secret ? "✨  " : "🏆  ")
+            + t(secret ? "Secret achievement unlocked" : "Achievement unlocked") + "\n" + title);
+        int split = text.toString().indexOf('\n');
+        text.setSpan(new android.text.style.ForegroundColorSpan(0xFFFFC93C), 0, split, 0);
+        text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), split + 1, text.length(), 0);
+        mAchNotice.setText(text);
+        mAchNotice.animate().cancel();
+        mAchNotice.setAlpha(1f);
+        mAchNotice.removeCallbacks(mAchNext);
+        mAchNotice.postDelayed(mAchNext, secret ? 4500 : 3500); // the sound is the game's (ach_game.cpp)
+    }
+
     // The save state's message ("Saved to slot 1") for a moment at the top
     // of the game, in the shader notice's style.
     private TextView mStateNotice;
@@ -240,12 +310,7 @@ public class SunshineActivity extends SDLActivity {
     private void showStateNotice(String text) {
         if (text == null || mLayout == null) return;
         if (mStateNotice == null) {
-            mStateNotice = new TextView(this);
-            mStateNotice.setBackgroundResource(R.drawable.dl_panel);
-            mStateNotice.setPadding(dp(16), dp(8), dp(16), dp(8));
-            mStateNotice.setTextColor(getColor(R.color.dl_text));
-            mStateNotice.setTextSize(15);
-            mStateNotice.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL));
+            mStateNotice = noticeView();
             RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
             lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
@@ -260,6 +325,47 @@ public class SunshineActivity extends SDLActivity {
         mStateNotice.postDelayed(mHideNotice, 2500);
     }
 
+    // "Press START again to skip", small at the bottom middle of a movie, as long as the
+    // game takes the second press (3 seconds).
+    private TextView mSkipNotice;
+    private final Runnable mHideSkip = () -> { if (mSkipNotice != null) mSkipNotice.animate().alpha(0f).setDuration(200); };
+
+    private void showSkipNotice(boolean show) {
+        if (mLayout == null) return;
+        if (mSkipNotice == null) {
+            if (!show) return;
+            mSkipNotice = noticeView();
+            mSkipNotice.setTextSize(12);
+            mSkipNotice.setPadding(dp(10), dp(4), dp(10), dp(4));
+            RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+            lp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+            lp.addRule(RelativeLayout.CENTER_HORIZONTAL);
+            // above the subtitles, well below the middle of the picture
+            lp.bottomMargin = getResources().getDisplayMetrics().heightPixels / 5;
+            mLayout.addView(mSkipNotice, lp);
+        }
+        mSkipNotice.removeCallbacks(mHideSkip);
+        mSkipNotice.animate().cancel();
+        if (!show) {
+            mHideSkip.run();
+            return;
+        }
+        mSkipNotice.setText(t("Press START again to skip"));
+        mSkipNotice.setAlpha(1f);
+        mSkipNotice.postDelayed(mHideSkip, 3000);
+    }
+
+    private TextView noticeView() {
+        TextView v = new TextView(this);
+        v.setBackgroundResource(R.drawable.dl_panel);
+        v.setPadding(dp(16), dp(8), dp(16), dp(8));
+        v.setTextColor(getColor(R.color.dl_text));
+        v.setTextSize(15);
+        v.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL));
+        return v;
+    }
+
     @Override
     protected boolean onUnhandledMessage(int command, Object param) {
         if (command == COMMAND_OPEN_MENU) {
@@ -269,6 +375,14 @@ public class SunshineActivity extends SDLActivity {
         if (command == COMMAND_SAVESTATE && param instanceof Integer) {
             int v = (Integer) param;
             showStateNotice(SaveStates.message(v >> 8, v & 0xFF));
+            return true;
+        }
+        if (command == COMMAND_ACHIEVEMENTS) {
+            achievementsUnlocked();
+            return true;
+        }
+        if (command == COMMAND_MOVIE_SKIP && param instanceof Integer) {
+            showSkipNotice((Integer) param != 0);
             return true;
         }
         return super.onUnhandledMessage(command, param);
@@ -282,6 +396,76 @@ public class SunshineActivity extends SDLActivity {
     }
 
     private long mLastMenu;
+
+    // Back on a remote or a keyboard opens the quick menu (SDL would take it
+    // as a key for the game). Not from a game controller: some send Back for B.
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+        if (e.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK) {
+            int src = e.getSource();
+            boolean pad = (src & android.view.InputDevice.SOURCE_GAMEPAD) == android.view.InputDevice.SOURCE_GAMEPAD
+                || (src & android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK;
+            if (!pad) {
+                if (e.getAction() == android.view.KeyEvent.ACTION_UP) openMenu();
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
+    // Touch: three fingers swiped down open the quick menu (as in Dusklight).
+    private float mSwipeY = -1;
+    private boolean mSwipeDone;
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent e) {
+        int a = e.getActionMasked();
+        int n = e.getPointerCount();
+        if (n >= 3) {
+            float y = 0;
+            for (int i = 0; i < n; i++) y += e.getY(i);
+            y /= n;
+            if (a == android.view.MotionEvent.ACTION_POINTER_DOWN && n == 3) {
+                mSwipeY = y;
+                mSwipeDone = false;
+            } else if (a == android.view.MotionEvent.ACTION_MOVE && mSwipeY >= 0 && !mSwipeDone && y - mSwipeY > dp(90)) {
+                mSwipeDone = true;
+                openMenu();
+            }
+        }
+        if (a == android.view.MotionEvent.ACTION_UP || a == android.view.MotionEvent.ACTION_CANCEL) mSwipeY = -1;
+        return super.dispatchTouchEvent(e);
+    }
+
+    // How to open the quick menu, when the game starts and when the menu
+    // closes: with a controller connected its button, otherwise on a
+    // touchscreen the three-finger swipe (as Dusklight does).
+    private void showMenuHint() {
+        String text = null;
+        if (controllerConnected()) text = t("Quick menu: tap Select on the controller");
+        else if (getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN))
+            text = t("Quick menu: swipe down with three fingers");
+        final String hint = text;
+        if (hint != null && mLayout != null) mLayout.postDelayed(() -> showStateNotice(hint), 1500);
+    }
+
+    private static boolean controllerConnected() {
+        for (int id : android.view.InputDevice.getDeviceIds()) {
+            android.view.InputDevice d = android.view.InputDevice.getDevice(id);
+            if (d == null || d.isVirtual()) continue;
+            int src = d.getSources();
+            if ((src & android.view.InputDevice.SOURCE_GAMEPAD) == android.view.InputDevice.SOURCE_GAMEPAD
+                || (src & android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK)
+                return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        showMenuHint();
+    }
 
     private void openMenu() {
         long now = System.currentTimeMillis();

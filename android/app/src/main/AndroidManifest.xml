@@ -69,6 +69,16 @@
             android:label="Settings">
         </activity>
 
+        <!-- the achievements, from the main menu and over the paused game (AchievementsActivity);
+             it only reads files, so it runs in whichever process starts it -->
+        <activity
+            android:name="io.github.them3dium.mareshine.AchievementsActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false">
+        </activity>
+
         <!-- the save state slots, over the paused game (SaveStatesActivity) -->
         <activity
             android:name="io.github.them3dium.mareshine.SaveStatesActivity"

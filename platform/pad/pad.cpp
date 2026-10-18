@@ -181,11 +181,11 @@ bool g_inited;
 // half-pressed R (spray while moving).
 enum PadIn {
 	P_A, P_B, P_X, P_Y, P_Z, P_L, P_R, P_RSOFT, P_START,
-	P_DUP, P_DDOWN, P_DLEFT, P_DRIGHT, P_STICK, P_CSTICK, P_HOTKEY, P_SAVESTATE, P_LOADSTATE, P_COUNT
+	P_DUP, P_DDOWN, P_DLEFT, P_DRIGHT, P_STICK, P_CSTICK, P_HOTKEY, P_SAVESTATE, P_LOADSTATE, P_MENU, P_COUNT
 };
 const char* const kPadNames[P_COUNT] = {
 	"A", "B", "X", "Y", "Z", "L", "R", "R_SOFT", "START",
-	"DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "STICK", "CSTICK", "HOTKEY", "SAVE_STATE", "LOAD_STATE",
+	"DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "STICK", "CSTICK", "HOTKEY", "SAVE_STATE", "LOAD_STATE", "MENU",
 };
 struct PadSrc {
 	char kind; // 'b' button, 'a' axis, 0 unused
@@ -196,7 +196,8 @@ PadSrc g_pmap[P_COUNT][kMaxPadSrc];
 const char* const kDefaultPadMap =
     "A=b0 B=b1 X=b2 Y=b3 Z=b9 L=a4 R=a5 R_SOFT=b10 START=b6 "
     "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2 "
-    "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9"; // Select held: + R1 quick save, + L1 quick load
+    "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9 MENU=b4"; // Select held: + R1 quick save, + L1 quick load;
+                                                      // Select tapped: the quick menu
 
 void parse_pad_map(const char* text)
 {
@@ -241,7 +242,7 @@ bool g_masked[21];
 
 int pad_level(int c)
 {
-	const bool hotkeyPart = c == P_HOTKEY || c == P_SAVESTATE || c == P_LOADSTATE;
+	const bool hotkeyPart = c == P_HOTKEY || c == P_SAVESTATE || c == P_LOADSTATE || c == P_MENU;
 	int best = 0;
 	for (int i = 0; i < kMaxPadSrc; i++) {
 		const PadSrc& s = g_pmap[c][i];
@@ -704,9 +705,9 @@ extern "C" u32 PADRead(PADStatus* status)
 	{
 		memset(g_masked, 0, sizeof g_masked);
 		const bool hotkey = pad_held(P_HOTKEY);
-		for (int c : { P_HOTKEY, P_SAVESTATE, P_LOADSTATE })
+		for (int c : { P_HOTKEY, P_SAVESTATE, P_LOADSTATE, P_MENU })
 			for (int i = 0; i < kMaxPadSrc; i++)
-				if (g_pmap[c][i].kind == 'b' && (c == P_HOTKEY || hotkey))
+				if (g_pmap[c][i].kind == 'b' && (c == P_HOTKEY || c == P_MENU || hotkey))
 					g_masked[g_pmap[c][i].idx] = true;
 		static bool s_saveWas, s_loadWas;
 		const bool save = held(C_SAVESTATE) || (hotkey && pad_held(P_SAVESTATE));
@@ -717,6 +718,27 @@ extern "C" u32 PADRead(PADStatus* status)
 			port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_LOAD_NEWEST);
 		s_saveWas = save;
 		s_loadWas = load;
+
+#ifdef __ANDROID__
+		// The quick menu: the MENU button (Select by default, the hotkey's
+		// own) tapped and let go, unless it saved or loaded meanwhile or was
+		// held longer than a tap.
+		static bool s_menuWas, s_menuUsed;
+		static int s_menuFrames;
+		const bool menu = pad_held(P_MENU);
+		if (menu) {
+			if (!s_menuWas) {
+				s_menuUsed = false;
+				s_menuFrames = 0;
+			}
+			s_menuFrames++;
+			if (save || load)
+				s_menuUsed = true;
+		} else if (s_menuWas && !s_menuUsed && s_menuFrames < 20) {
+			port_open_menu();
+		}
+		s_menuWas = menu;
+#endif
 	}
 
 	// Touch controls: hidden while a game controller is in use (auto), or as set.

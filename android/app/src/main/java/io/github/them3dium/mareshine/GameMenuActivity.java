@@ -21,17 +21,12 @@ import java.io.IOException;
 
 import static io.github.them3dium.mareshine.L.t;
 
-// The in-game menu, opened over the game (Esc, Back, Select + Start, the
-// controller's Home button or the MENU touch button). It runs in the game's
+// The quick menu, opened over the game (Esc, Back, Select tapped, Select +
+// Start, the controller's Home button, three fingers swiped down or the MENU
+// touch button): a bar at the top, as in Dusklight. It runs in the game's
 // process (":game"); while it is shown SDLActivity is paused, and so is the
 // game. Graphics and controller changes apply when the game restarts.
 public class GameMenuActivity extends AppActivity {
-    private static final String[] TOUCH_LABELS = {"Auto (hide with controller)", "Always show", "Always hide"};
-    private static final String[] TOUCH_VALUES = {"auto", "on", "off"};
-    private static final String[] TOUCH_SHORT = {"AUTO", "ON", "OFF"};
-
-    private Button btnTouch;
-    private TextView tvTouchValue;
     private TextView tvNote;
     private boolean mSettingsChanged;
     private static final int REQUEST_STATES = 1;
@@ -48,7 +43,6 @@ public class GameMenuActivity extends AppActivity {
         super.onResume();
         L.init(this); // Settings (another process) may have changed the app language
         if (!L.current(this).equals(mLang)) buildUi();
-        updateTouchLabel(); // Settings may have changed it
         if (mSettingsChanged) {
             tvNote.setText(t("Changes apply after \"Restart game\"."));
         }
@@ -60,19 +54,17 @@ public class GameMenuActivity extends AppActivity {
         setContentView(R.layout.activity_game_menu);
         L.translate(findViewById(android.R.id.content));
         tvNote = findViewById(R.id.tvNote);
-        tvTouchValue = findViewById(R.id.tvTouchValue);
-        btnTouch = findViewById(R.id.btnTouch);
         findViewById(R.id.btnResume).setOnClickListener(v -> finish());
         findViewById(R.id.btnSaveStates).setOnClickListener(v ->
             startActivityForResult(new Intent(this, SaveStatesActivity.class), REQUEST_STATES));
-        btnTouch.setOnClickListener(v -> cycleTouch());
+        findViewById(R.id.btnAchievements).setOnClickListener(v ->
+            startActivity(new Intent(this, AchievementsActivity.class)));
         findViewById(R.id.btnGraphics).setOnClickListener(v -> {
             mSettingsChanged = true;
             startActivity(new Intent(this, SettingsActivity.class).putExtra(SettingsActivity.EXTRA_IN_GAME, true));
         });
         findViewById(R.id.btnRestart).setOnClickListener(v -> leaveGame(true));
         findViewById(R.id.btnQuit).setOnClickListener(v -> leaveGame(false));
-        updateTouchLabel();
         findViewById(R.id.btnResume).requestFocus();
     }
 
@@ -85,11 +77,6 @@ public class GameMenuActivity extends AppActivity {
     }
 
     // --- touch controls (live) -------------------------------------------
-
-    // settings.txt is the truth: Settings may have changed it meanwhile
-    private String currentTouch() {
-        return Settings.read(this).getOrDefault("SMS_TOUCH_CONTROLS", "auto");
-    }
 
     private static final String[] TOUCH_KEYS = {
         "SMS_TOUCH_CONTROLS", "SMS_TOUCH_OPACITY", "SMS_TOUCH_AUTOHIDE", "SMS_TOUCH_LAYOUT"};
@@ -114,25 +101,6 @@ public class GameMenuActivity extends AppActivity {
     protected void onPause() {
         pushTouchSettings();
         super.onPause();
-    }
-
-    // settings.txt turns on/off into 1/0 when the game reads it
-    private static int touchIndex(String v) {
-        return v.equals("on") || v.equals("1") ? 1 : v.equals("off") || v.equals("0") ? 2 : 0;
-    }
-
-    private void updateTouchLabel() {
-        int i = touchIndex(currentTouch());
-        btnTouch.setText(t("TOUCH: %s", t(TOUCH_SHORT[i])));
-        tvTouchValue.setText(t("Touch controls: %s", t(TOUCH_LABELS[i])));
-    }
-
-    private void cycleTouch() {
-        int i = touchIndex(currentTouch());
-        String next = TOUCH_VALUES[(i + 1) % 3];
-        Settings.put(this, "SMS_TOUCH_CONTROLS", next);
-        pushTouchSettings(); // the game re-reads SMS_TOUCH_CONTROLS while it runs (platform/pad)
-        updateTouchLabel();
     }
 
     // --- leaving the game -------------------------------------------------

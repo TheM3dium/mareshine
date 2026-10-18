@@ -209,8 +209,16 @@ public class SettingsActivity extends AppActivity {
     }
 
     private void saved() {
+        // the hidden "Fine-Tuner": 120 settings (as many as there are shines) changed in this menu
+        int changed = 0;
+        Map<String, String> before = Settings.read(this);
+        for (Map.Entry<String, String> e : mSettings.entrySet())
+            if (!e.getValue().equals(before.get(e.getKey()))) changed++;
         Settings.write(this, mSettings);
         refreshValues();
+        if (changed > 0 && Achievements.addProgress(this, "sms.fun.fine_tuner", changed, 120))
+            android.widget.Toast.makeText(this, "✨  " + t("Secret achievement unlocked") + ": "
+                + Achievements.title(this, "sms.fun.fine_tuner"), android.widget.Toast.LENGTH_LONG).show();
     }
 
     private Context ctx() { return this; }
@@ -244,6 +252,7 @@ public class SettingsActivity extends AppActivity {
         mTabs.add("VIDEO");
         mTabs.add("INPUT");
         mTabs.add("CHEATS");
+        mTabs.add("ACHIEVEMENTS");
         mTabs.add("OTHER");
         for (int i = 0; i < mTabs.size(); i++) {
             final int idx = i;
@@ -339,6 +348,7 @@ public class SettingsActivity extends AppActivity {
             case 1: buildVideo(); break;
             case 2: buildInput(); break;
             case 3: buildCheats(); break;
+            case 4: buildAchievements(); break;
             default: buildInterface(); break;
         }
     }
@@ -1400,6 +1410,23 @@ public class SettingsActivity extends AppActivity {
         add(new Choice("SMS_CHEAT_COIN_MULTIPLIER", "Coin multiplier",
             "Each yellow coin counts several times. Blue and red coins are not changed." + CHEAT_NOTE, "1",
             new String[] {"1", "2", "5", "10"}, new String[] {"Off", "2x", "5x", "10x"}));
+    }
+
+    private void buildAchievements() {
+        section("ACHIEVEMENTS");
+        add(new Toggle(Achievements.SETTING, "Achievements",
+            "If you have already done something in an older save, you get the matching achievements as soon as "
+                + "you load it.\n\nOff: nothing is tracked or unlocked; what you have unlocked stays.\n\n"
+                + "Applies the next time the game starts.",
+            true, false));
+        add(new Action("Show achievements",
+            "All achievements, what you have unlocked and how far you are. Secret ones show as ??? until unlocked. "
+                + "In the game they are in the quick menu too.",
+            () -> {
+                int[] n = Achievements.count(Achievements.load(ctx()));
+                return n[0] + " / " + n[1];
+            },
+            () -> startActivity(new Intent(ctx(), AchievementsActivity.class))));
     }
 
     private void buildInterface() {

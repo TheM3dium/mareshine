@@ -55,6 +55,13 @@ own copy of the European release (GMSP01) as an `.iso`.
 - **Save states**: five slots in the pause menu (save, load, delete, with a picture of the moment);
   quick save and quick load with the SAVE and LOAD touch buttons or, on a controller, the hotkey
   (Select + R1 saves, Select + L1 loads, all freely mappable)
+- **Skip movies with START twice**: a movie you have not seen yet (which the game does not let you
+  skip) is skipped by pressing START twice; the first press shows a small hint
+- **Achievements**: 101 of Mareshine's own, offline and without an account (story, bosses with and
+  without taking a hit, worlds, milestones, fun ones and a few secret ones), unlocked
+  retroactively for existing saves, with their own page in the main and pause menus and a switch
+  to turn them off; ideas partly inspired by the RetroAchievements set, kept in an open format
+  ([docs/ACHIEVEMENTS-FORMAT.md](docs/ACHIEVEMENTS-FORMAT.md)) that other programs can share
 - **Updates**: Mareshine checks GitHub for a new release once a day and offers it; it is downloaded
   and installed only after you confirm
 - **Game languages on the device**: French, German, Spanish and Italian, built on the device from
