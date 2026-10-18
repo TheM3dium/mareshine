@@ -740,6 +740,25 @@ public class SettingsActivity extends AppActivity {
         return a > 0 ? (w / a) + ":" + (h / a) : "16:9";
     }
 
+    // the screen's shape as players know it: the nearest of the usual ones
+    // (2142x960 is exactly 357:160, about 20:9)
+    private static String roughRatio(String exact) {
+        String[] known = {"4:3", "16:10", "16:9", "18:9", "19.5:9", "20:9", "21:9", "32:9"};
+        float r = ratio(exact);
+        String best = exact;
+        float diff = Float.MAX_VALUE;
+        for (String k : known) {
+            float d = Math.abs(ratio(k) - r);
+            if (d < diff) { diff = d; best = k; }
+        }
+        return best.equals(exact) ? exact : "≈ " + best;
+    }
+
+    private static float ratio(String s) {
+        String[] p = s.split(":");
+        try { return Float.parseFloat(p[0]) / Float.parseFloat(p[1]); } catch (Exception e) { return 0; }
+    }
+
     private void buildVideo() {
         section("PROFILE");
         add(new Row("Profile", "") {
@@ -766,13 +785,13 @@ public class SettingsActivity extends AppActivity {
             "30", new String[] {"30", "60", "120"}, new String[] {"30 FPS", "60 FPS", "120 FPS"}));
 
         section("PICTURE");
-        String auto = screenRatio();
-        List<String> wv = new ArrayList<>(java.util.Arrays.asList("16:9", "16:10", "21:9", "off"));
-        List<String> wl = new ArrayList<>(java.util.Arrays.asList("16:9", "16:10", "21:9", "Off (4:3)"));
-        if (!wv.contains(auto)) { wv.add(1, auto); wl.add(1, t("This screen (%s)", auto)); }
+        String auto = screenRatio(), rough = roughRatio(auto);
+        List<String> wv = new ArrayList<>(java.util.Arrays.asList("16:9", "16:10", "20:9", "21:9", "off"));
+        List<String> wl = new ArrayList<>(java.util.Arrays.asList("16:9", "16:10", "20:9", "21:9", "Off (4:3)"));
+        if (!wv.contains(auto)) { wv.add(1, auto); wl.add(1, t("This screen (%s)", rough)); }
         add(new Choice("widescreen", "Widescreen",
             t("The game camera shows a wider view; nothing is stretched. Choose your screen's shape "
-                + "(this screen is %s). Cutscene videos stay 4:3.", auto),
+                + "(this screen is %s). Cutscene videos stay 4:3.", rough),
             "16:9", wv.toArray(new String[0]), wl.toArray(new String[0])));
         add(new Choice("widescreen_hud", "HUD position",
             "Where coins, the water gauge and lives are shown in widescreen.",
