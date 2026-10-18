@@ -83,6 +83,11 @@ struct FrameClock {
 
 std::string s_renderer;
 
+// SMS_PERF_LOG: its own clock, so the overlay's does not double-count
+FrameClock s_perf;
+int s_perfOn = -1; // unknown until the first frame
+double s_perfLast = 0;
+
 void fillRect(std::vector<uint8_t>& px, int w, int h, int x0, int y0, int x1, int y1, const uint8_t c[4]) {
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
@@ -162,6 +167,29 @@ int GXPC_OverlayVisible(void) { return s_visible; }
 void GXPC_CycleSpeed(void) { s_speedIndex.store((s_speedIndex.load() + 1) % int(sizeof kSpeeds / sizeof kSpeeds[0])); }
 int GXPC_GetSpeed(void) { return kSpeeds[s_speedIndex.load()]; }
 
+void GXPC_PerfTick(void) {
+    if (s_perfOn < 0) {
+        // also with the overlay on (Settings → OTHER → Performance overlay), so the log has the numbers too
+        const char* e = getenv("SMS_PERF_LOG");
+        const char* o = getenv("SMS_OVERLAY");
+        s_perfOn = (e && *e && strcmp(e, "0") != 0) || (o && *o && strcmp(o, "0") != 0);
+        if (s_perfOn) GXPC_SetDetailedTimers(1);
+    }
+    if (!s_perfOn) return;
+    s_perf.tick();
+    if (s_perf.windowStart - s_perfLast < 5.0 || s_perf.fps <= 0) return;
+    s_perfLast = s_perf.windowStart;
+    GXPCStats st;
+    GXPC_GetLastFrameStats(&st);
+    gx::logmsg("[perf] %.1f fps, frame %.1f ms (worst %.1f): game %.1f, GX %.1f (vertices %.1f, batches %.1f, "
+               "textures %.1f, copies %.1f, peeks %.1f, GPU wait %.1f), present %.1f, swap %.1f, idle %.1f; "
+               "%u draws, %u vertices, %u EFB copies, %u texture uploads, %u shader compiles",
+               s_perf.fps, s_perf.avgMs, s_perf.maxMs, s_perf.gameMs, s_perf.per.gx, s_perf.per.vertices,
+               s_perf.per.draws, s_perf.per.textures, s_perf.per.copies, s_perf.per.peeks, s_perf.per.gpuWait,
+               s_perf.per.present, s_perf.per.swap, s_perf.per.idle, st.draws, st.vertices, st.efbCopies,
+               st.textureUploads, st.shaderCompiles);
+}
+
 void GXPC_OverlayDraw(int winW, int winH) {
     static bool s_envChecked = false;
     if (!s_envChecked) {  // SMS_OVERLAY=1: start with the overlay open
@@ -196,8 +224,9 @@ void GXPC_OverlayDraw(int winW, int winH) {
              "texture uploads %u   shader compiles %u\n"
              "frames %u   up %d:%02d\n"
              "window %dx%d\n"
-             "GL %s\n"
-             "\n"
+             "GL %s"
+#ifndef __ANDROID__
+             "\n\n"
              "KEYS (defaults, see bindings.txt)\n"
              "Stick: arrows or WASD (hold LCtrl for half)\n"
              "C-stick: I J K L\n"
@@ -206,7 +235,9 @@ void GXPC_OverlayDraw(int winW, int winH) {
              "L: Q     R: E     Start: Enter\n"
              "D-pad: 1 2 3 4\n"
              "`: this overlay     F7: speed x1/x2/x4/x10\n"
-             "Esc: quit",
+             "Esc: quit"
+#endif
+             ,
              s_clock.fps, s_clock.avgMs, s_clock.maxMs, GXPC_GetSpeed(), s_clock.gameMs, s_clock.per.gx,
              s_clock.per.present, s_clock.per.swap, s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
              s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait, st.draws, st.vertices, st.efbCopies,

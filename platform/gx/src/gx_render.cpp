@@ -1566,13 +1566,34 @@ void flushBatch() {
 // The framebuffer whose attachments hold the EFB's current pixels, and whose
 // colour and depth are s_efbColor/s_efbDepth: with MSAA, the multisampled EFB
 // is resolved into it first. Leaves the scissor test off.
-static GLuint efbReadFbo() {
+//
+// A resolve is a full-frame blit, colour and depth, which costs a lot of
+// memory bandwidth on phone GPUs, and a frame reads the EFB several times
+// (its copies, the peeks). So it is skipped when nothing has drawn into the
+// EFB since the last one (s_drawGen counts every draw and clear), and the
+// depth is resolved only for a read that uses it (depth copies, depth peeks).
+// SMS_GX_RESOLVE_ALWAYS=1 resolves on every read as before.
+static uint32_t s_resolvedGen = ~0u;
+static bool s_resolvedDepth = false;
+static int s_resolveAlways = -1;
+static GLuint efbReadFbo(bool depth = true) {
     if (!s_msaa) return s_efbFbo;
-    const int W = int(float(s_efbW) * s_scale + 0.5f), H = int(float(EFB_H) * s_scale + 0.5f);
+    if (s_resolveAlways < 0) {
+        const char* e = getenv("SMS_GX_RESOLVE_ALWAYS");
+        s_resolveAlways = e && atoi(e) > 0;
+    }
     glDisable(GL_SCISSOR_TEST);
+    if (!s_resolveAlways && s_resolvedGen == s_drawGen && (!depth || s_resolvedDepth)) return s_efbResolveFbo;
+    const int W = int(float(s_efbW) * s_scale + 0.5f), H = int(float(EFB_H) * s_scale + 0.5f);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, s_efbFbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_efbResolveFbo);
-    glBlitFramebuffer(0, 0, W, H, 0, 0, W, H, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    // a colour resolve right after a depth one (same draws) only adds the colour
+    const bool fresh = s_resolvedGen == s_drawGen;
+    GLbitfield mask = fresh ? 0 : GL_COLOR_BUFFER_BIT;
+    if (depth && !(fresh && s_resolvedDepth)) mask |= GL_DEPTH_BUFFER_BIT;
+    if (mask) glBlitFramebuffer(0, 0, W, H, 0, 0, W, H, mask, GL_NEAREST);
+    s_resolvedDepth = (fresh && s_resolvedDepth) || depth;
+    s_resolvedGen = s_drawGen;
     return s_efbResolveFbo;
 }
 
@@ -1792,7 +1813,7 @@ static void copyEfb(uint32_t ctrl) {
             xfb.w = scaledW;
             xfb.h = scaledH;
         }
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, efbReadFbo());
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, efbReadFbo(false));
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_tmpFbo);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, xfb.tex, 0);
         glBlitFramebuffer(scaledX, scaledY, scaledX2, scaledY2, 0, 0, scaledW, scaledH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
@@ -1819,7 +1840,7 @@ static void copyEfb(uint32_t ctrl) {
         }
         uint32_t mode = fmt | (intensity ? 16u : 0u) | (zcopy ? 32u : 0u);
         efbCopyRegister(dest, tex, ow, oh, mode);
-        efbReadFbo();  // s_efbColor/s_efbDepth, sampled below, hold the current EFB
+        efbReadFbo(zcopy);  // s_efbColor (s_efbDepth for a depth copy), sampled below, hold the current EFB
         glBindFramebuffer(GL_FRAMEBUFFER, s_tmpFbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
         glViewport(0, 0, ow, oh);
@@ -1927,7 +1948,7 @@ static uint32_t peekSync(int x, int y, bool depth) {
     s_syncReads++;
     uint32_t v = 0;
     uint8_t px[4] = {0, 0, 0, 0};
-    glBindFramebuffer(GL_FRAMEBUFFER, efbReadFbo());
+    glBindFramebuffer(GL_FRAMEBUFFER, efbReadFbo(depth));
     if (depth) {
         glPixelStorei(GL_PACK_ALIGNMENT, 4);
         glReadPixels(int(float(x) * s_scale + 0.5f), int(float(y) * s_scale + 0.5f), 1, 1, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, &v);
@@ -2269,7 +2290,7 @@ void GXPC_ReadEFB(uint8_t* rgba, int* w, int* h) {
     *w = int(float(s_efbW) * s_scale + 0.5f);
     *h = int(float(EFB_H) * s_scale + 0.5f);
     if (!rgba) return;
-    glBindFramebuffer(GL_FRAMEBUFFER, efbReadFbo());
+    glBindFramebuffer(GL_FRAMEBUFFER, efbReadFbo(false));
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadPixels(0, 0, *w, *h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 }

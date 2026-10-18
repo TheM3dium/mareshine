@@ -633,8 +633,8 @@ public class SettingsActivity extends AppActivity {
         disc.enabled = !mInGame;
         add(disc);
         Row verify = new Action("Verify disc",
-            t("Compares the disc image with the known good dump (SHA-1 from Redump). Takes a moment; "
-                + "the result is remembered until the file changes.") + (mInGame ? inGameNote : ""),
+            t("Checks that the disc image is a good, complete copy of the game. Takes a moment; the result is "
+                + "remembered.") + (mInGame ? inGameNote : ""),
             () -> {
                 File iso = LauncherActivity.findIsoFile(ctx());
                 if (iso == null) return "—";
@@ -647,11 +647,9 @@ public class SettingsActivity extends AppActivity {
 
         section("LANGUAGE");
         add(new Choice("language", "Language",
-            "The language the game's text, menus and title screen are in. English is the disc's own; the others "
-                + "come from language packs.\n\nTo extract them from your own EU .iso, copy it into iso/pal/ in your "
-                + "data folder (any file name), or pick it on the screen below, then build them there. They end up in languages/ in "
-                + "your data folder, one folder per language (de, es, fr, it), each holding a files/ folder; packs "
-                + "you got elsewhere go there the same way.\n\nApplies the next time the game starts.",
+            "The language of the game's text and menus. English is built in; French, German, Spanish and Italian "
+                + "can be made from your own European disc image (the entry below).\n\nApplies the next time the game "
+                + "starts.",
             "en", new String[] {"en"}, new String[] {"English"}) {
             @Override void reload() {
                 List<String> v = new ArrayList<>(), l = new ArrayList<>();
@@ -676,19 +674,19 @@ public class SettingsActivity extends AppActivity {
             }
         });
         Row langs = new Action("Extract languages from your own EU .iso file",
-            t("Builds French, German, Spanish and Italian from your own European disc image (Super Mario Sunshine "
-                + "PAL, GMSP01) and your North American one. Nothing is downloaded; the European image can be "
-                + "deleted afterwards.") + (mInGame ? inGameNote : ""),
+            t("Makes French, German, Spanish and Italian from your own European disc image. Nothing is "
+                + "downloaded, and the European image can be deleted afterwards.") + (mInGame ? inGameNote : ""),
             null, () -> startActivity(new Intent(this, LanguagePackActivity.class)));
         langs.enabled = !mInGame;
         add(langs);
         add(new Toggle("SMS_SUBTITLES", "Subtitles in cutscenes",
-            "Shows the subtitles in the cutscenes, in the game's language, even when they are turned off in the game's own options (they are off on a new save). Off leaves it to the game's options.\n\nApplies the next time the game starts.", true, false));
+            "Shows subtitles in the cutscenes, in the game's language, even when they are off in the game's own "
+                + "options.\n\nApplies the next time the game starts.", true, false));
 
         section("DATA");
         Row data = new Action("Data folder",
-            t("Where settings, save games (saves/), texture packs (textures/), the disc image (iso/) and logs "
-                + "(logs/) are kept. Existing settings and saves are copied when you change it.") + (mInGame ? inGameNote : ""),
+            t("Where your settings, saves, disc image, texture packs and logs are kept. They are copied over "
+                + "when you change it.") + (mInGame ? inGameNote : ""),
             () -> {
                 File d = DataDir.get(ctx());
                 return DataDir.isCustom(ctx()) ? d.getName() : "App folder";
@@ -756,16 +754,15 @@ public class SettingsActivity extends AppActivity {
 
         section("RESOLUTION");
         add(new Choice("render_scale", "Internal resolution",
-            "How sharp the game is drawn, as the picture height: 2.0x is 1056 lines, about Full HD 1080p. "
-                + "Higher values look sharper and need a faster GPU.",
+            "How sharp the game is drawn. 2× is about Full HD (1080p). Higher looks sharper but needs a faster "
+                + "device.",
             Settings.def("render_scale", "2.0"),
             new String[] {"0.5", "0.75", "1.0", "1.5", "2.0", "3.0", "4.0"},
             new String[] {"0.5× (264p)", "0.75× (396p)", "1× (528p, GameCube)", "1.5× (792p, ~720p)",
                 "2× (1056p, ~1080p)", "3× (1584p)", "4× (2112p, ~4K)"}));
         add(new Choice("frame_rate", "Frame rate",
-            "30 FPS is the game's own speed. 60 FPS is smoother in levels but needs a fast CPU and GPU. "
-                + "120 FPS needs a 120 Hz screen to look smoother, and a very fast device. The game runs at the "
-                + "same speed at every rate; menus and videos stay at 30.",
+            "30 FPS is the game's own. 60 FPS is smoother in levels but needs a fast device; 120 FPS also needs "
+                + "a 120 Hz screen. The game runs at the same speed either way; menus and videos stay at 30.",
             "30", new String[] {"30", "60", "120"}, new String[] {"30 FPS", "60 FPS", "120 FPS"}));
 
         section("PICTURE");
@@ -790,7 +787,7 @@ public class SettingsActivity extends AppActivity {
             "Smooths jagged edges. 4x is a good balance.",
             "4", new String[] {"0", "2", "4", "8"}, new String[] {"Off", "2×", "4×", "8×"}));
         add(new Choice("anisotropic", "Texture filtering",
-            "Keeps the ground and walls sharp at a slant (anisotropic filtering).",
+            "Keeps the ground and walls sharp at an angle.",
             "4", new String[] {"0", "2", "4", "8", "16"}, new String[] {"Off", "2×", "4×", "8×", "16×"}));
         add(new Toggle("fxaa", "FXAA",
             "A soft extra edge filter. Usually not needed with MSAA.", false, false));
@@ -825,11 +822,11 @@ public class SettingsActivity extends AppActivity {
 
     private static final String TEXTURE_INTRO = "Sharper textures from a texture pack. Restart the game after changing packs.";
     private static final String TEXTURE_MORE =
-        "Download the default pack, in HD (1080p) or Ultra HD (4K): the Super Mario Sunshine UHD Texture "
-            + "Pack by qashto and razius, the same one the PC port uses. Or use your own pack: copy it into textures/ in your "
-            + "data folder (a Dolphin-format pack for GMSE01).\n\n"
-            + "The HD extras also work alongside your own pack, but replace some of its textures. (Recommended "
-            + "if you play the game in another language, as the extras include HD text and UI elements for it.)";
+        "Download the Super Mario Sunshine UHD Texture Pack by qashto and razius, in HD (1080p) or Ultra HD "
+            + "(4K). Or use your own pack: copy it into textures/ in your data folder (a Dolphin pack for the North "
+            + "American version).\n\n"
+            + "The HD extras add HD text and menus for the other languages. They also work with your own pack, "
+            + "but replace some of its textures.";
 
     private boolean texturesOn() { return !"0".equals(mSettings.getOrDefault("SMS_HD_TEXTURES", "1")); }
 
@@ -949,21 +946,15 @@ public class SettingsActivity extends AppActivity {
     // --- HD cutscenes (CutsceneActivity does the work) -------------------------
 
     private static final String CUTSCENE_INTRO =
-        "The movies of the game in HD, from the PC port's HD cutscene pack. Restart the game after changing this.";
+        "The game's movies in HD. Restart the game after changing this.";
     private static final String CUTSCENE_MORE =
-        "The pack holds the game's own 21 movies, upscaled three times with AI (Real-ESRGAN) by chasem-dev for the "
-            + "PC port, mostly 1920×960. It is not shipped as videos: the app downloads patches (5.7 GB) and builds "
-            + "the movies from your own North American disc image (GAME → Disc image). It takes about 5.8 GB in "
-            + "cutscenes/ in your data folder. Subtitles, rumble and skipping work as with the original movies.\n\n"
-            + "If the HD movies stutter on this device, Convert to MP4 makes H.264 videos of them (about 1 GB, "
-            + "10–20 minutes) that the device's hardware video decoder plays; the HD pack's THPs can be deleted "
-            + "after that.\n\n"
-            + "Frame around cutscenes fills the black bars beside the movies with an image: cutscenes/overlay.png in "
-            + "your data folder, which you can replace with your own PNG (best 1920×1080; the middle is covered by "
-            + "the movie). One movie can have its own: overlay_<movie>.png (for example overlay_Entrance.png), laid "
-            + "over the movie and transparent where the movie shows.\n\n"
-            + "Wide movies across the screen shows the wide (2:1) movies evenly larger, as wide as the screen in "
-            + "widescreen, instead of in the 4:3 middle with black bars.";
+        "The game's 21 movies, upscaled with AI by chasem-dev. The app downloads 5.7 GB and builds the movies "
+            + "from your own disc image; they take about 5.8 GB in your data folder.\n\n"
+            + "If the HD movies stutter on this device, Convert to MP4 makes lighter videos of them (about 1 GB, "
+            + "10–20 minutes); the large original files can be deleted after that.\n\n"
+            + "Frame around cutscenes fills the black bars beside the movies with an image. You can replace it with "
+            + "your own (cutscenes/overlay.png in your data folder, best 1920×1080).\n\n"
+            + "Wide movies across the screen shows the wide movies larger, across the whole widescreen.";
 
     private boolean cutscenesOn() {
         String v = mSettings.getOrDefault(CutscenePack.SETTING, "0");
@@ -1451,11 +1442,10 @@ public class SettingsActivity extends AppActivity {
 
         section("UPDATES");
         add(new Toggle(Updates.SETTING, "Check for updates automatically",
-            "Each time the app starts, Mareshine asks GitHub whether there is a newer version "
-                + "and offers it. Nothing is installed without your OK.", true, false));
+            "Each time the app starts, Mareshine looks for a newer version and offers it. Nothing is installed "
+                + "without your OK.", true, false));
         add(new Action("Check for updates now",
-            "Asks GitHub for the latest Mareshine release now. A newer version is downloaded and installed only "
-                + "after you confirm it.",
+            "Looks for a newer version now. It is downloaded and installed only after you confirm it.",
             () -> Updates.found(ctx()) != null
                 ? t("New Update!") + "  (" + Updates.version(Updates.found(ctx())) + ")"
                 : CrashLog.BuildConfigInfo.version(ctx()),
@@ -1464,6 +1454,12 @@ public class SettingsActivity extends AppActivity {
                 if (r != null) Updates.ask(this, r, this::refreshValues);
                 else Updates.manualCheck(this);
             }));
+
+        section("PERFORMANCE");
+        add(new Toggle("SMS_OVERLAY", "Performance overlay",
+            "Shows the frame rate at the top left of the game, and how long a frame takes and what for. The numbers "
+                + "are written to the log too, which helps when the game runs slowly on a device.\n\nApplies the next "
+                + "time the game starts.", false, false));
 
         section("LOGS");
         add(new Row("Logs and crash reports",

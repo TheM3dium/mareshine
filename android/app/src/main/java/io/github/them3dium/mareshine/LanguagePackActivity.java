@@ -92,13 +92,11 @@ public class LanguagePackActivity extends AppActivity {
         tvInfo.setTextSize(16);
         tvInfo.setLineSpacing(0, 1.15f);
         tvInfo.setPadding(0, dp(10), 0, dp(10));
-        tvInfo.setText(t("The North American game is English only. The European release of Super Mario Sunshine "
-            + "(GMSP01) also has French, German, Spanish and Italian. This app builds language packs from your own "
-            + "European disc image, together with your North American one; nothing is downloaded.\n\n"
-            + "Pick the European image with the button below, or copy it into iso/pal/ in your data folder "
-            + "yourself (any file name). It must be a plain .iso or .gcm. When the packs are built you can delete it.\n\n"
-            + "The packs end up in languages/ in your data folder, one folder per language (de, es, fr, it), each "
-            + "holding a files/ folder. Packs you get elsewhere go there the same way."));
+        tvInfo.setText(t("The North American game is English only. The European release also has French, German, "
+            + "Spanish and Italian: pick your own European disc image with the button below, and the app makes the "
+            + "languages from it. Nothing is downloaded.\n\n"
+            + "It must be a plain .iso or .gcm file. You can also copy it into iso/pal/ in your data folder. When "
+            + "the languages are made, you can delete it."));
         panel.addView(tvInfo);
 
         tvStatus = new TextView(this);

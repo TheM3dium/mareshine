@@ -272,7 +272,7 @@ public class CutsceneActivity extends AppActivity {
             }
             Settings.put(this, MP4_SETTING, out.getAbsolutePath());
             Settings.put(this, CutscenePack.SETTING, "0");
-            done(true, t("The HD cutscenes are converted to MP4 (%s) and play with the hardware video decoder now.",
+            done(true, t("The HD cutscenes are converted to MP4 (%s) and play from them now.",
                 gb(CutscenePack.size(out))));
         } catch (Exception e) {
             done(false, mCancel ? t("Cancelled. The conversion continues next time from where it stopped.")

@@ -15,6 +15,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <vector>
+#ifdef __ANDROID__
+#include <dlfcn.h>
+#endif
 
 #ifdef SMS_GX_HAVE_SDL2
 #include <SDL.h>
@@ -460,7 +463,77 @@ int GXPC_InitAuto(int efbScale) {
     return 0;
 }
 
+#ifdef __ANDROID__
+// Android's performance hints (ADPF, Android 13 and later): each frame tells
+// the system how long the game thread worked and how long a frame may take, so
+// the CPU clocks follow the game's load (fewer stutters, less heat) instead of
+// a generic guess. Looked up at run time, so older Android simply skips it.
+// SMS_PERF_HINTS=0 turns it off.
+struct APerformanceHintManager;
+struct APerformanceHintSession;
+extern "C" __attribute__((weak)) int port_active_frame_rate;
+
+static void perfHintTick() {
+    typedef APerformanceHintManager* (*GetManager)();
+    typedef APerformanceHintSession* (*CreateSession)(APerformanceHintManager*, const int32_t*, size_t, int64_t);
+    typedef int (*UpdateTarget)(APerformanceHintSession*, int64_t);
+    typedef int (*ReportActual)(APerformanceHintSession*, int64_t);
+    static int s_state = 0; // 0 not tried, 1 on, -1 off
+    static APerformanceHintSession* s_session;
+    static UpdateTarget s_update;
+    static ReportActual s_report;
+    static double s_last, s_lastIdle, s_lastSwap;
+    static int64_t s_target;
+    if (s_state < 0) return;
+    if (s_state == 0) {
+        s_state = -1;
+        const char* e = getenv("SMS_PERF_HINTS");
+        if (e && !strcmp(e, "0")) return;
+        void* lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+        if (!lib) return;
+        GetManager getManager = (GetManager)dlsym(lib, "APerformanceHint_getManager");
+        CreateSession create = (CreateSession)dlsym(lib, "APerformanceHint_createSession");
+        s_update = (UpdateTarget)dlsym(lib, "APerformanceHint_updateTargetWorkDuration");
+        s_report = (ReportActual)dlsym(lib, "APerformanceHint_reportActualWorkDuration");
+        if (!getManager || !create || !s_update || !s_report) return; // before Android 13
+        APerformanceHintManager* m = getManager();
+        int32_t tid = (int32_t)gettid();
+        s_target = 1000000000LL / 30;
+        s_session = m ? create(m, &tid, 1, s_target) : nullptr;
+        if (!s_session) return;
+        s_state = 1;
+        GXPCTimes t;
+        GXPC_GetTimes(&t);
+        s_last = nowSeconds();
+        s_lastIdle = t.idle;
+        s_lastSwap = t.swap;
+        logmsg("performance hints: on");
+        return;
+    }
+    int fps = &port_active_frame_rate && port_active_frame_rate > 0 ? port_active_frame_rate : 30;
+    int64_t target = 1000000000LL / fps;
+    if (target != s_target) {
+        s_target = target;
+        s_update(s_session, target);
+    }
+    // the frame's time without the waits: for the next field (the game's idle)
+    // and for the display (the swap)
+    GXPCTimes t;
+    GXPC_GetTimes(&t);
+    double now = nowSeconds();
+    double work = (now - s_last) - (t.idle - s_lastIdle) - (t.swap - s_lastSwap);
+    s_last = now;
+    s_lastIdle = t.idle;
+    s_lastSwap = t.swap;
+    if (work > 0 && work < 1.0) s_report(s_session, (int64_t)(work * 1e9));
+}
+#endif
+
 void GXPC_Present(const void* xfb) {
+    GXPC_PerfTick();
+#ifdef __ANDROID__
+    perfHintTick();
+#endif
 #ifdef SMS_GX_HAVE_SDL2
     if (s_mode == MODE_WINDOW && s_window) {
         int w = 0, h = 0;
