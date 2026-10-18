@@ -51,7 +51,9 @@ import static io.github.them3dium.mareshine.L.t;
 // earliest unlock wins), so they never conflict. Whatever a sync replaces or
 // removes on this device is copied to sync-backups/ first (the newest five
 // are kept). A sync runs in the main menu: when the app starts (before the
-// game), when the game is left, and with "Sync now"; never while the game runs.
+// game), when the game is left, and with "Sync now". From the quick menu (the
+// game paused) it only sends: what changed elsewhere is not put into the
+// running game's data, it comes at the next sync in the main menu.
 final class Sync {
     private static final String PREFS = "sync";
     static final String SETTING_STATES = "SMS_SYNC_STATES"; // settings.txt: 0 leaves the save states out
@@ -62,7 +64,8 @@ final class Sync {
     private Sync() {}
 
     private static SharedPreferences prefs(Context c) {
-        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        // the game's process syncs too (the quick menu): read the file again each time
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS);
     }
 
     static Uri uri(Context c) {
@@ -178,17 +181,22 @@ final class Sync {
 
     // In the background; `done` on the main thread (also when nothing is set
     // up or it failed: then message is null or the error).
-    static void run(Context c, Done done) {
+    static void run(Context c, Done done) { run(c, false, done); }
+
+    // inGame: from the quick menu, only sending (see the top)
+    static void run(Context c, boolean inGame, Done done) {
         final Context app = c.getApplicationContext();
         if (!configured(app)) {
             if (done != null) done.done(null, false);
             return;
         }
-        run(app, new PickedFile(app, uri(app)), done);
+        run(app, new PickedFile(app, uri(app)), inGame, done);
     }
 
     // with any other side (the Wi-Fi sync's)
-    static void run(Context c, Remote remoteSide, Done done) {
+    static void run(Context c, Remote remoteSide, Done done) { run(c, remoteSide, false, done); }
+
+    private static void run(Context c, Remote remoteSide, boolean inGame, Done done) {
         final Context app = c.getApplicationContext();
         if (sRunning) {
             if (done != null) done.done(null, false);
@@ -199,7 +207,7 @@ final class Sync {
             String msg;
             boolean changed = false;
             try {
-                Result r = syncNow(app, remoteSide);
+                Result r = syncNow(app, remoteSide, inGame);
                 msg = r.summary(app);
                 changed = r.changed();
             } catch (Exception e) {
@@ -217,16 +225,19 @@ final class Sync {
     }
 
     static final class Result {
-        int up, down, conflicts;
+        int up, down, conflicts, later;
         boolean achievements;
         boolean changed() { return up + down + conflicts > 0 || achievements; }
         String summary(Context c) {
-            if (!changed()) return t("Sync: everything was up to date.");
+            if (!changed()) return later > 0
+                ? t("Sync: %d newer from the sync file, they come when you quit to the main menu.", later)
+                : t("Sync: everything was up to date.");
             List<String> p = new ArrayList<>();
             if (down > 0) p.add(t("%d from the sync file", down));
             if (up > 0) p.add(t("%d to the sync file", up));
             if (conflicts > 0) p.add(t("%d changed on both sides (the newer one kept, the other in sync-backups)", conflicts));
             if (achievements) p.add(t("achievements merged"));
+            if (later > 0) p.add(t("%d newer from the sync file when you quit to the main menu", later));
             return t("Synced: %s.", String.join(", ", p));
         }
     }
@@ -242,7 +253,10 @@ final class Sync {
     }
 
     // the same, on the calling thread (WifiSync's sharing side)
-    static synchronized Result syncNow(Context c, Remote side) throws Exception {
+    static Result syncNow(Context c, Remote side) throws Exception { return syncNow(c, side, false); }
+
+    // inGame: nothing on this device is replaced (the running game has it open)
+    static synchronized Result syncNow(Context c, Remote side, boolean inGame) throws Exception {
         Result res = new Result();
         File data = DataDir.get(c);
         File inDir = new File(c.getCacheDir(), "sync-in");
@@ -314,6 +328,19 @@ final class Sync {
             if (n.equals(CARD) && take.equals("local") && L == null) take = "remote";
             if (n.equals(CARD) && take.equals("remote") && R == null) take = "local";
 
+            if (inGame && take.equals("remote") && !eq(L, R)) {
+                // stays in the file as it is, and this device's hash stays: the
+                // next sync in the main menu takes it
+                if (R != null) {
+                    outParts.put(n, rp);
+                    Map<String, File> keep = new TreeMap<>();
+                    for (Map.Entry<String, File> f : remoteFiles.entrySet())
+                        if (belongsTo(n, f.getKey())) keep.put(f.getKey(), f.getValue());
+                    outFiles.put(n, keep);
+                }
+                res.later++;
+                continue;
+            }
             if (take.equals("remote")) {
                 if (backup == null) backup = newBackupDir(data);
                 if (lp != null) for (Map.Entry<String, File> f : lp.files.entrySet()) copy(f.getValue(), new File(backup, f.getKey()));
@@ -368,7 +395,7 @@ final class Sync {
         JSONObject merged = mergeAchievements(a, b);
         String mergedText = merged.toString(2) + "\n";
         if (merged.optJSONObject("unlocked") != null || merged.optJSONObject("progress") != null) {
-            if (!same(a, merged)) {
+            if (!same(a, merged) && !inGame) { // in the game: at the next sync in the main menu
                 achLocal.getParentFile().mkdirs();
                 writeText(achLocal, mergedText);
                 res.achievements = true;
@@ -391,7 +418,9 @@ final class Sync {
                 put(z, MANIFEST, man.toString(2).getBytes("UTF-8"));
                 for (Map<String, File> files : outFiles.values())
                     for (Map.Entry<String, File> f : files.entrySet()) put(z, f.getKey(), f.getValue());
-                if (achLocal.isFile()) put(z, ACH, achLocal);
+                if (inGame && (merged.optJSONObject("unlocked") != null || merged.optJSONObject("progress") != null))
+                    put(z, ACH, mergedText.getBytes("UTF-8"));
+                else if (achLocal.isFile()) put(z, ACH, achLocal);
             }
             side.write(tmp);
             tmp.delete();

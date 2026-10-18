@@ -44,6 +44,11 @@
                 android:text="ACHIEVEMENTS" />
 
             <Button
+                android:id="@+id/btnSync"
+                style="@style/DlBarItem"
+                android:text="SYNC" />
+
+            <Button
                 android:id="@+id/btnGraphics"
                 style="@style/DlBarItem"
                 android:text="SETTINGS" />

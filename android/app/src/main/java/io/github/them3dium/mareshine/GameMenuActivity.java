@@ -60,6 +60,15 @@ public class GameMenuActivity extends AppActivity {
             startActivityForResult(new Intent(this, SaveStatesActivity.class), REQUEST_STATES));
         findViewById(R.id.btnAchievements).setOnClickListener(v ->
             startActivity(new Intent(this, AchievementsActivity.class)));
+        // only with a sync file (the Wi-Fi sync needs the main menu on both devices)
+        View sync = findViewById(R.id.btnSync);
+        sync.setVisibility(Sync.configured(this) ? View.VISIBLE : View.GONE);
+        sync.setOnClickListener(v -> {
+            android.widget.Toast.makeText(this, t("Syncing…"), android.widget.Toast.LENGTH_SHORT).show();
+            Sync.run(this, true, (msg, changed) -> {
+                if (msg != null) android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show();
+            });
+        });
         findViewById(R.id.btnGraphics).setOnClickListener(v -> {
             mSettingsChanged = true;
             startActivity(new Intent(this, SettingsActivity.class).putExtra(SettingsActivity.EXTRA_IN_GAME, true));

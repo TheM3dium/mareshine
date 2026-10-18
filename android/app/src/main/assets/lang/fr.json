@@ -554,5 +554,7 @@
  "Next": "Suivant",
  "That is not an address like 192.168.1.20:41234.": "Ce n'est pas une adresse comme 192.168.1.20:41234.",
  "wrong code": "code incorrect",
- "the other device did not answer": "l'autre appareil n'a pas répondu"
+ "the other device did not answer": "l'autre appareil n'a pas répondu",
+ "Sync: %d newer from the sync file, they come when you quit to the main menu.": "Synchro : %d plus récents dans le fichier de synchro, ils arrivent au retour au menu principal.",
+ "%d newer from the sync file when you quit to the main menu": "%d plus récents du fichier au retour au menu principal"
 }
