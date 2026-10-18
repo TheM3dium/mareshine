@@ -2205,21 +2205,37 @@ void main() { vec4 c = texture(u_tex, v_uv); o_color = vec4(c.rgb, c.a * u_alpha
         s_backdropUFlip = glGetUniformLocation(s_backdropProg, "u_flip");
         s_backdropUAlpha = glGetUniformLocation(s_backdropProg, "u_alpha");
     }
-    // cover the window, keeping the image's shape
-    const float k = std::max(float(winW) / float(img->w), float(winH) / float(img->h));
+    // cover the window, keeping the image's shape; a movie's own overlay is
+    // made with the movie at its full height, so it goes at the window's
+    // height (on a phone wider than the overlay, cover would cut its top and
+    // bottom off and move its frame away from the movie's edges); the
+    // sides are filled with a plain blue (a wider overlay, 20:9, fills them itself)
+    const float k = own ? float(winH) / float(img->h)
+                        : std::max(float(winW) / float(img->w), float(winH) / float(img->h));
     const int dw = int(float(img->w) * k + 0.5f), dh = int(float(img->h) * k + 0.5f);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glBindSampler(0, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(s_copyVao);
-    glViewport((winW - dw) / 2, (winH - dh) / 2, dw, dh);
     glUseProgram(s_backdropProg);
     glUniform1i(s_backdropUFlip, 1);  // the image's row 0 is its top
     glUniform1f(s_backdropUAlpha, alpha);
-    glBindTexture(GL_TEXTURE_2D, img->tex);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+    const int ownX = (winW - dw) / 2;
+    if (own && ownX > 0) {  // the strips beside the movie's own overlay
+        glEnable(GL_SCISSOR_TEST);
+        glClearColor(0.12f * alpha, 0.53f * alpha, 0.84f * alpha, 1.0f);
+        glScissor(0, 0, ownX, winH);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glScissor(ownX + dw, 0, std::max(0, winW - ownX - dw), winH);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDisable(GL_SCISSOR_TEST);
+        glClearColor(0, 0, 0, 1);
+    }
+    glViewport(ownX, (winH - dh) / 2, dw, dh);
+    glBindTexture(GL_TEXTURE_2D, img->tex);
     if (own) {  // over everything, with its transparency
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     } else {    // the bars beside the picture
