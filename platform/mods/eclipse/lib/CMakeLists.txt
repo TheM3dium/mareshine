@@ -38,7 +38,12 @@ set(_defs NTSCU KURIBO_NO_TYPES "BETTER_SMS_VERSION=\"v2.0\"" BETTER_SMS_CUSTOM_
 if(NOT SMS_ARCH)
   set(SMS_ARCH 32)
 endif()
-set(_arch -m${SMS_ARCH})
+if(ANDROID)
+  # The toolchain file sets the target (aarch64), which takes no -m64.
+  set(_arch)
+else()
+  set(_arch -m${SMS_ARCH})
+endif()
 if(SMS_ARCH STREQUAL "32")
   # SSE float math, as the game is built (x87 would round differently)
   list(APPEND _arch -malign-double -msse2 -mfpmath=sse)
@@ -92,6 +97,9 @@ target_compile_options(eclipse_objs PRIVATE ${_opts})
 # The partial links below run the compiler driver as a linker, for this target.
 if(APPLE AND CMAKE_OSX_ARCHITECTURES)
   set(_ld_arch -arch ${CMAKE_OSX_ARCHITECTURES})
+elseif(ANDROID)
+  # The driver alone links for the host: name the device's target.
+  set(_ld_arch --target=${CMAKE_CXX_COMPILER_TARGET})
 else()
   set(_ld_arch -m${SMS_ARCH})
 endif()

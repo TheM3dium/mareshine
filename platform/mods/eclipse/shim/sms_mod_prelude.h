@@ -7,6 +7,14 @@
 #include <JSystem/memory.hxx>
 #endif
 
+// The game's plain char, which the mods (built -funsigned-char, as for the
+// PowerPC) declare as the game does: signed on x86, unsigned on ARM.
+#if defined(__aarch64__) || defined(__arm__)
+typedef unsigned char sms_game_char;
+#else
+typedef signed char sms_game_char;
+#endif
+
 // The port's function for a retail address a mod calls through a cast
 // (fixup_sources.py rewrites the address into a call of this).
 #ifdef __cplusplus

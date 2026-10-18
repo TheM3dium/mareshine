@@ -43,6 +43,13 @@ Without it, the build is the plain port: every hook below is in the source but f
 It needs clang besides the usual tools: on Linux `clang`, on macOS Homebrew's LLVM (as for the plain build), on Windows `mingw-w64-x86_64-clang` in MINGW64.
 The [Eclipse build workflow](../.github/workflows/eclipse.yml) builds it 64-bit on Linux, macOS and Windows and checks that the game finds the mods' constructors (`SMS_CODE_MODS=0` reports `code mods linked in but switched off`).
 
+On Android ([sms-android](https://github.com/chasem-dev/sms-android)'s SMS Eclipse app) the NDK builds the mods too, with the same toolchain file, for ARM64.
+Clang builds the game there as well, which takes four things GCC on ELF does not need:
+`port_shims.cpp` is built unoptimized with its shims as plain functions, so that clang emits each inline function they run under its own name (an asm-labelled shim would be taken for the function it runs and call itself), and it calls the destructors the mods need, which clang otherwise emits only where the game calls them; `structor_aliases.py` adds the other variant of a constructor or destructor, as on macOS and Windows;
+lld is told to keep `sms_mod_ctors` despite `--gc-sections` (`-z nostart-stop-gc`), or it would collect the mods' constructors and every mod with them;
+and `abi_check.py --by-unit` tells the mods' declarations from the game's by the mods' library's compile units, not by compiler.
+`char` is unsigned on ARM, so the mods declare `PSMTXRotRad`'s axis as the game's `char` (`sms_game_char`).
+
 ### Per platform
 
 The mods are built with clang and partially linked into one object ([lib/CMakeLists.txt](../platform/mods/eclipse/lib/CMakeLists.txt)); what that takes differs by object format:
