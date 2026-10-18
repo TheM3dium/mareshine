@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher's "new update" box: a panel like the shader notice,
+     gold when focused (D-pad, remote) or pressed. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="10dp" />
+            <solid android:color="#FFFFD45A" />
+            <stroke android:width="2dp" android:color="#FFFFD45A" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="10dp" />
+            <gradient android:angle="0" android:startColor="#CCFFB020" android:endColor="#F2FFD45A" />
+            <stroke android:width="2dp" android:color="#FFFFD45A" />
+        </shape>
+    </item>
+    <item android:drawable="@drawable/dl_panel" />
+</selector>

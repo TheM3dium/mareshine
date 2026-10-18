@@ -670,6 +670,8 @@ public class SettingsActivity extends AppActivity {
             null, () -> startActivity(new Intent(this, LanguagePackActivity.class)));
         langs.enabled = !mInGame;
         add(langs);
+        add(new Toggle("SMS_SUBTITLES", "Subtitles in cutscenes",
+            "Shows the subtitles in the cutscenes, in the game's language, even when they are turned off in the game's own options (they are off on a new save). Off leaves it to the game's options.\n\nApplies the next time the game starts.", true, false));
 
         section("DATA");
         Row data = new Action("Data folder",
@@ -1417,6 +1419,22 @@ public class SettingsActivity extends AppActivity {
         section("NOTICES");
         add(new Toggle(SunshineActivity.SHADER_POPUP_SETTING, "Shader compiling in game",
             "While the app compiles shaders in the background, a small box at the bottom left of the game shows how far it is. Until it is done, places you visit for the first time can stutter briefly.", true, false));
+
+        section("UPDATES");
+        add(new Toggle(Updates.SETTING, "Check for updates automatically",
+            "Once a day, when the main menu opens, Mareshine asks GitHub whether there is a newer version "
+                + "and offers it. Nothing is installed without your OK.", true, false));
+        add(new Action("Check for updates now",
+            "Asks GitHub for the latest Mareshine release now. A newer version is downloaded and installed only "
+                + "after you confirm it.",
+            () -> Updates.found(ctx()) != null
+                ? t("New Update!") + "  (" + Updates.version(Updates.found(ctx())) + ")"
+                : CrashLog.BuildConfigInfo.version(ctx()),
+            () -> {
+                Updates.Release r = Updates.found(this);
+                if (r != null) Updates.ask(this, r, this::refreshValues);
+                else Updates.manualCheck(this);
+            }));
 
         section("LOGS");
         add(new Row("Logs and crash reports",

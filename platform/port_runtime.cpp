@@ -90,6 +90,10 @@ int port_disc_explicit = 0;
 // SMS_SKIP_MOVIES=1 reports every THP movie as finished at once (patch 0016).
 extern "C" int port_skip_movies;
 extern "C" void port_cheats_init(void);  // misc/port_cheats.cpp
+// Cutscene subtitles whatever the game's own option says (settings.txt
+// SMS_SUBTITLES, on unless 0; decomp-patches/zzz-subtitles-01-always).
+extern "C" int port_subtitles_always;
+int port_subtitles_always = 1;
 int port_skip_movies = 0;
 // SMS_WIDESCREEN: the displayed width over the GameCube's 4:3 (1 when off);
 // the game camera (widescreen-01 patch) and sms_gx widen by it.
@@ -1020,6 +1024,9 @@ extern "C" void port_init(int argc, char** argv)
 	}
 	port_log("[port] frame rate: %d during gameplay\n", port_frame_rate);
 	port_cheats_init();
+	if (const char* sub = getenv("SMS_SUBTITLES"))
+		port_subtitles_always = strcmp(sub, "0") != 0;
+	port_log("[port] cutscene subtitles: %s\n", port_subtitles_always ? "always" : "game option");
 	if (const char* s = getenv("SMS_RENDER_SCALE"))
 		port_log("[port] render scale: %s\n", s);
 	if (const char* d = getenv("SMS_DRAW_DISTANCE"))

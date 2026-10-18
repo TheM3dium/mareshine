@@ -147,6 +147,38 @@ public class LauncherActivity extends AppActivity {
         }
     };
 
+    // The "new update" box, once per start of the app: its bar runs down for
+    // 10 s, then it fades out; focusing or touching it keeps it.
+    private static boolean sBadgeShown;
+    private android.animation.ObjectAnimator mBadgeTimer;
+
+    private void showUpdateBadge(Updates.Release r) {
+        if (sBadgeShown) return;
+        sBadgeShown = true;
+        View badge = findViewById(R.id.updateBadge);
+        ((TextView) findViewById(R.id.updateBadgeText)).setText("⬆  " + t("New update: version %s", Updates.version(r)));
+        ProgressBar bar = findViewById(R.id.updateBadgeBar);
+        badge.setAlpha(1f);
+        badge.setVisibility(View.VISIBLE);
+        Runnable keep = () -> { if (mBadgeTimer != null) mBadgeTimer.cancel(); bar.setVisibility(View.GONE); };
+        badge.setOnFocusChangeListener((v, has) -> { if (has) keep.run(); });
+        badge.setOnClickListener(v -> {
+            keep.run();
+            Updates.ask(this, r, () -> badge.setVisibility(View.GONE));
+        });
+        mBadgeTimer = android.animation.ObjectAnimator.ofInt(bar, "progress", 1000, 0);
+        mBadgeTimer.setDuration(10000);
+        mBadgeTimer.setInterpolator(new android.view.animation.LinearInterpolator());
+        mBadgeTimer.addListener(new android.animation.AnimatorListenerAdapter() {
+            boolean cancelled;
+            @Override public void onAnimationCancel(android.animation.Animator a) { cancelled = true; }
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                if (!cancelled) badge.animate().alpha(0f).setDuration(400).withEndAction(() -> badge.setVisibility(View.GONE));
+            }
+        });
+        mBadgeTimer.start();
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
@@ -162,6 +194,7 @@ public class LauncherActivity extends AppActivity {
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(mShaderProgress, progress, Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(mShaderProgress, progress);
         ShaderService.start(this);
+        Updates.autoCheck(this, this::showUpdateBadge);
         checkIsoAndRefreshUi();
         View first = btnPlay.getVisibility() == View.VISIBLE && btnPlay.isEnabled() ? btnPlay : btnSettings;
         if (getCurrentFocus() == null || getCurrentFocus().getVisibility() != View.VISIBLE) first.requestFocus();

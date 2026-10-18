@@ -50,6 +50,10 @@ own copy of the European release (GMSP01) as an `.iso`.
   (compatible with Dolphin texture packs for the North American version)
 - **HD cutscenes in the app**: download the PC port's HD cutscene pack, rebuilt from your own disc
   and checked
+- **Subtitles in cutscenes**: the movies' subtitles in the game's language, shown even when they
+  are off in the game's own options (on by default, can be turned off)
+- **Updates**: Mareshine checks GitHub for a new release once a day and offers it; it is downloaded
+  and installed only after you confirm
 - **Game languages on the device**: French, German, Spanish and Italian, built on the device from
   your own European disc; nothing is downloaded
 - **Safety and help**: a disc check before the game starts, saves written safely, logs and crash

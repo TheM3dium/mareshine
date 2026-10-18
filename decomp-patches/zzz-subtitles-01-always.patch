@@ -1,0 +1,27 @@
+Reason: port: settings.txt SMS_SUBTITLES (Settings -> GAME -> Subtitles in cutscenes, on by default) shows the movie subtitles even when the game's own subtitle option (flag 0x90001) is off; it defaults to off on a new memory card
+--- a/src/GC2D/MovieSubtitle.cpp
++++ b/src/GC2D/MovieSubtitle.cpp
+@@ -158,13 +158,23 @@
+ 	unk14->hide();
+ }
+ 
++#ifdef TARGET_PC
++// Port: settings.txt SMS_SUBTITLES (on unless 0) shows the cutscene subtitles
++// whatever the game's own option says (platform/port_runtime.cpp).
++extern "C" int port_subtitles_always;
++#endif
++
+ const JMSMesgEntry* TMovieSubTitle::getCurEntry() const
+ {
+ #if defined(VERSION_GMSP01) || defined(VERSION_GMSE01)
+ 	// 0x90001 is the subtitle option flag (TOptionControl::writeValue writes
+ 	// the subtitle unit's value there), so subtitles off means no entry.
+ 	if (unk20->getMessageNum() <= unk24
++#ifdef TARGET_PC
++	    || (!port_subtitles_always && !TFlagManager::getInstance()->getFlag(0x90001)))
++#else
+ 	    || !TFlagManager::getInstance()->getFlag(0x90001))
++#endif
+ 		return nullptr;
+ #else
+ 	if (unk20->getMessageNum() <= unk24)
