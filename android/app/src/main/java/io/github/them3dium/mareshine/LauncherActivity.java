@@ -101,6 +101,7 @@ public class LauncherActivity extends AppActivity {
         // "Start game automatically" (Settings → GAME): straight into the game
         // when a working disc is set, except when coming back from it.
         boolean fromGame = getIntent() != null && getIntent().getBooleanExtra(EXTRA_FROM_GAME, false);
+        if (fromGame) syncAfterGame();
         if (savedInstanceState == null && !fromGame && mFoundIsoFile != null
                 && getSharedPreferences("sunshine", MODE_PRIVATE).getBoolean(SettingsActivity.PREF_AUTOSTART, true)
                 && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting) {
@@ -112,6 +113,7 @@ public class LauncherActivity extends AppActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (intent != null && intent.getBooleanExtra(EXTRA_FROM_GAME, false)) syncAfterGame();
         handleAutostart(intent);
     }
 
@@ -753,7 +755,33 @@ public class LauncherActivity extends AppActivity {
         requestAllFilesAccess();
     }
 
+    // with a sync file set (Settings → OTHER → SYNC): synced first, so the
+    // game starts with the newest saves of all devices
+    private boolean mSyncBeforeStart;
+
     private void launchSunshine() {
+        if (Sync.configured(this) && !mSyncBeforeStart) {
+            mSyncBeforeStart = true;
+            Toast.makeText(this, t("Syncing…"), Toast.LENGTH_SHORT).show();
+            Sync.run(this, (msg, changed) -> {
+                if (changed && msg != null) Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                launchSunshine();
+                mSyncBeforeStart = false;
+            });
+            return;
+        }
+        startSunshineNow();
+    }
+
+    // back from the game: what it saved goes to the sync file
+    private void syncAfterGame() {
+        if (!Sync.configured(this)) return;
+        tvStatus.postDelayed(() -> Sync.run(this, (msg, changed) -> {
+            if (changed && msg != null) Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+        }), 1500); // the game's process needs a moment to go away
+    }
+
+    private void startSunshineNow() {
         if (mFoundIsoFile != null && mFoundIsoFile.exists()) {
             DataDir.ensureLayout(this);
             CrashLog.markGameStarted(this);

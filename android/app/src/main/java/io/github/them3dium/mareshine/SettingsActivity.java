@@ -1405,6 +1405,60 @@ public class SettingsActivity extends AppActivity {
             new String[] {"1", "2", "5", "10"}, new String[] {"Off", "2x", "5x", "10x"}));
     }
 
+    private static final int REQUEST_SYNC_CREATE = 41, REQUEST_SYNC_OPEN = 42;
+
+    private void chooseSyncFile() {
+        List<String> items = new ArrayList<>();
+        List<Runnable> acts = new ArrayList<>();
+        items.add(t("Create a new sync file"));
+        acts.add(() -> {
+            Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("application/zip");
+            i.putExtra(Intent.EXTRA_TITLE, "mareshine-sync.zip");
+            startSyncPicker(i, REQUEST_SYNC_CREATE);
+        });
+        items.add(t("Use an existing sync file"));
+        acts.add(() -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            startSyncPicker(i, REQUEST_SYNC_OPEN);
+        });
+        if (Sync.configured(this)) {
+            items.add(t("Stop syncing"));
+            acts.add(() -> { Sync.forget(this); refreshValues(); });
+        }
+        dialog().setTitle(t("Sync file"))
+            .setItems(items.toArray(new String[0]), (d, w) -> acts.get(w).run())
+            .setNegativeButton(t("Cancel"), null).show();
+    }
+
+    private void startSyncPicker(Intent i, int request) {
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(i, request);
+        } catch (android.content.ActivityNotFoundException e) {
+            android.widget.Toast.makeText(this, t("This device has no file picker."), android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if ((request == REQUEST_SYNC_CREATE || request == REQUEST_SYNC_OPEN) && result == RESULT_OK
+                && data != null && data.getData() != null) {
+            Sync.setUri(this, data.getData());
+            refreshValues();
+            android.widget.Toast.makeText(this, t("Syncing…"), android.widget.Toast.LENGTH_SHORT).show();
+            Sync.run(this, (msg, changed) -> {
+                if (msg != null) android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show();
+                refreshValues();
+            });
+        }
+    }
+
     private void buildAchievements() {
         section("ACHIEVEMENTS");
         add(new Toggle(Achievements.SETTING, "Achievements",
@@ -1439,6 +1493,42 @@ public class SettingsActivity extends AppActivity {
         section("NOTICES");
         add(new Toggle(SunshineActivity.SHADER_POPUP_SETTING, "Shader compiling in game",
             "While the app compiles shaders in the background, a small box at the bottom left of the game shows how far it is. Until it is done, places you visit for the first time can stutter briefly.", true, false));
+
+        section("SYNC");
+        String syncNote = "\n\n" + t("Quit to the main menu to sync.");
+        Row syncFile = new Action("Sync file",
+            t("Keeps your game saves, save states and achievements the same on several devices, through one file "
+                + "in Google Drive, Dropbox or any other storage your device offers. Create it on the first device, "
+                + "then choose the same file on the others.\n\nMareshine syncs when it starts and when you leave "
+                + "the game. Anything it replaces is kept in sync-backups/ in your data folder.")
+                + (mInGame ? syncNote : ""),
+            () -> {
+                String n = Sync.fileName(ctx());
+                return n == null ? t("Off") : n;
+            },
+            this::chooseSyncFile);
+        syncFile.enabled = !mInGame;
+        add(syncFile);
+        add(new Toggle(Sync.SETTING_STATES, "Sync save states",
+            "Save states can be large, which makes each sync take longer. On another device a save state loads "
+                + "the place it was saved at.", true, false));
+        Row syncNow = new Action("Sync now",
+            t("Syncs at once and says what changed.") + (mInGame ? syncNote : ""),
+            () -> {
+                long l = Sync.lastSync(ctx());
+                return l == 0 ? "" : java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,
+                    java.text.DateFormat.SHORT).format(new java.util.Date(l));
+            },
+            () -> {
+                if (!Sync.configured(ctx())) { chooseSyncFile(); return; }
+                android.widget.Toast.makeText(this, t("Syncing…"), android.widget.Toast.LENGTH_SHORT).show();
+                Sync.run(this, (msg, changed) -> {
+                    if (msg != null) android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show();
+                    refreshValues();
+                });
+            });
+        syncNow.enabled = !mInGame;
+        add(syncNow);
 
         section("UPDATES");
         add(new Toggle(Updates.SETTING, "Check for updates automatically",
