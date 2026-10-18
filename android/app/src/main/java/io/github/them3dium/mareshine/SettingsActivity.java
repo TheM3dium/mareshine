@@ -1451,7 +1451,7 @@ public class SettingsActivity extends AppActivity {
 
         section("UPDATES");
         add(new Toggle(Updates.SETTING, "Check for updates automatically",
-            "Once a day, when the main menu opens, Mareshine asks GitHub whether there is a newer version "
+            "Each time the app starts, Mareshine asks GitHub whether there is a newer version "
                 + "and offers it. Nothing is installed without your OK.", true, false));
         add(new Action("Check for updates now",
             "Asks GitHub for the latest Mareshine release now. A newer version is downloaded and installed only "

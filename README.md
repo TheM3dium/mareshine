@@ -62,7 +62,7 @@ own copy of the European release (GMSP01) as an `.iso`.
   retroactively for existing saves, with their own page in the main and pause menus and a switch
   to turn them off; ideas partly inspired by the RetroAchievements set, kept in an open format
   ([docs/ACHIEVEMENTS-FORMAT.md](docs/ACHIEVEMENTS-FORMAT.md)) that other programs can share
-- **Updates**: Mareshine checks GitHub for a new release once a day and offers it; it is downloaded
+- **Updates**: Mareshine checks GitHub for a new release each time it starts and offers it; it is downloaded
   and installed only after you confirm
 - **Game languages on the device**: French, German, Spanish and Italian, built on the device from
   your own European disc; nothing is downloaded

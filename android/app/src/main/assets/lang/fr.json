@@ -454,7 +454,7 @@
  "The update could not be installed: %s": "La mise à jour n'a pas pu être installée : %s",
  "UPDATES": "MISES À JOUR",
  "Check for updates automatically": "Rechercher les mises à jour automatiquement",
- "Once a day, when the main menu opens, Mareshine asks GitHub whether there is a newer version and offers it. Nothing is installed without your OK.": "Une fois par jour, à l'ouverture du menu principal, Mareshine demande à GitHub s'il existe une version plus récente et te la propose. Rien n'est installé sans ton accord.",
+ "Each time the app starts, Mareshine asks GitHub whether there is a newer version and offers it. Nothing is installed without your OK.": "À chaque lancement de l'app, Mareshine demande à GitHub s'il existe une version plus récente et la propose. Rien n'est installé sans ton accord.",
  "Check for updates now": "Rechercher les mises à jour maintenant",
  "Asks GitHub for the latest Mareshine release now. A newer version is downloaded and installed only after you confirm it.": "Demande maintenant à GitHub la dernière version de Mareshine. Une version plus récente n'est téléchargée et installée qu'après ta confirmation.",
  "Update to version %s?": "Mettre à jour vers la version %s ?",

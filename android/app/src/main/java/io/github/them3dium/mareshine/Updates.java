@@ -39,13 +39,12 @@ import static io.github.them3dium.mareshine.L.t;
 // is downloaded, checked (size, same signing key) and handed to Android's
 // package installer, which asks the player to confirm.
 //
-// The automatic check runs at most once a day from the launcher and can be
+// The automatic check runs once each time the app starts and can be
 // turned off (Settings -> OTHER -> UPDATES, settings.txt SMS_UPDATE_CHECK).
 final class Updates {
     static final String REPO = "TheM3dium/mareshine";
     static final String SETTING = "SMS_UPDATE_CHECK";
     private static final String PREFS = "updates";
-    private static final long DAY_MS = 24L * 60 * 60 * 1000;
 
     private Updates() {}
 
@@ -60,19 +59,21 @@ final class Updates {
         return !"0".equals(Settings.read(c).getOrDefault(SETTING, "1"));
     }
 
-    // From the launcher: once a day, unless turned off; a newer release that
+    // From the launcher: each time the app starts (once per start, not each
+    // time the launcher shows again), unless turned off; a newer release that
     // was not ignored goes to `found` (the launcher's "new update" box). The
     // last one found is kept, so the box is back when the launcher returns.
+    private static boolean sChecked;
+
     static void autoCheck(Activity a, java.util.function.Consumer<Release> found) {
         if (!autoEnabled(a)) return;
         SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         Release known = found(a);
         if (known != null) found.accept(known);
-        long now = System.currentTimeMillis();
-        if (now - p.getLong("last", 0) < DAY_MS) return;
+        if (sChecked) return;
+        sChecked = true;
         check(a, (r, err) -> {
-            if (err != null) return; // offline: try again the next time
-            p.edit().putLong("last", now).apply();
+            if (err != null) { sChecked = false; return; } // offline: try again the next time
             remember(a, r);
             if (r == null || r.tag.equals(p.getString("skip", ""))) return;
             if (!a.isFinishing() && !a.isDestroyed()) found.accept(r);
