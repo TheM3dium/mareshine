@@ -5,7 +5,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- a tap here, off the bar, closes the menu -->
     <View
+        android:id="@+id/dim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#66000000" />
@@ -15,6 +17,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top"
         android:background="#E60A1B30"
+        android:clickable="true"
         android:orientation="vertical">
 
         <!-- GameMenuActivity keeps it clear of the camera cutout and shrinks the

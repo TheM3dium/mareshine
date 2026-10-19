@@ -490,6 +490,7 @@
  "Quick menu: tap Select on the controller": "Menu rapide : appuie sur Select sur la manette",
  "Quick menu  (tap it; may be the hotkey)": "Menu rapide  (appuie dessus ; peut être la touche raccourci)",
  "Quick menu: swipe down with three fingers": "Menu rapide : glisse vers le bas avec trois doigts",
+ "Quick menu: swipe down from the top with three fingers": "Menu rapide : glisse du haut vers le bas avec trois doigts",
  "System buttons": "Boutons système",
  "Please set these up for your controller: the quick menu and the save states. Red ones are still on their default and may not suit your controller.": "Configure-les pour ta manette : le menu rapide et les sauvegardes instantanées. Ceux en rouge sont encore sur leur valeur par défaut et peuvent ne pas convenir à ta manette.",
  "Select + Start together and the Home button open the quick menu too.": "Select + Start ensemble et le bouton Home ouvrent aussi le menu rapide.",

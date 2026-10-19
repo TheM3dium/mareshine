@@ -56,6 +56,7 @@ public class GameMenuActivity extends AppActivity {
         L.translate(findViewById(android.R.id.content));
         tvNote = findViewById(R.id.tvNote);
         findViewById(R.id.btnResume).setOnClickListener(v -> finish());
+        findViewById(R.id.dim).setOnClickListener(v -> finish());
         findViewById(R.id.btnSaveStates).setOnClickListener(v ->
             startActivityForResult(new Intent(this, SaveStatesActivity.class), REQUEST_STATES));
         findViewById(R.id.btnAchievements).setOnClickListener(v ->

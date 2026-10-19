@@ -413,7 +413,8 @@ public class SunshineActivity extends SDLActivity {
         return super.dispatchKeyEvent(e);
     }
 
-    // Touch: three fingers swiped down open the quick menu (as in Dusklight).
+    // Touch: three fingers swiped down from the top of the screen open the
+    // quick menu (as in Dusklight); elsewhere three fingers are left to the game.
     private float mSwipeY = -1;
     private boolean mSwipeDone;
 
@@ -426,7 +427,7 @@ public class SunshineActivity extends SDLActivity {
             for (int i = 0; i < n; i++) y += e.getY(i);
             y /= n;
             if (a == android.view.MotionEvent.ACTION_POINTER_DOWN && n == 3) {
-                mSwipeY = y;
+                mSwipeY = y < getWindow().getDecorView().getHeight() / 4f ? y : -1;
                 mSwipeDone = false;
             } else if (a == android.view.MotionEvent.ACTION_MOVE && mSwipeY >= 0 && !mSwipeDone && y - mSwipeY > dp(90)) {
                 mSwipeDone = true;
@@ -440,11 +441,19 @@ public class SunshineActivity extends SDLActivity {
     // How to open the quick menu, when the game starts and when the menu
     // closes: with a controller connected its button, otherwise on a
     // touchscreen the three-finger swipe (as Dusklight does).
+    // Not again within 8 seconds of the last time it was due: opening and
+    // closing the menu again and again keeps it away.
+    private static long sMenuHintAt = -1;
+
     private void showMenuHint() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        boolean recent = sMenuHintAt >= 0 && now - sMenuHintAt < 8000;
+        sMenuHintAt = now;
+        if (recent) return;
         String text = null;
         if (controllerConnected()) text = t("Quick menu: tap Select on the controller");
         else if (getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN))
-            text = t("Quick menu: swipe down with three fingers");
+            text = t("Quick menu: swipe down from the top with three fingers");
         final String hint = text;
         if (hint != null && mLayout != null) mLayout.postDelayed(() -> showStateNotice(hint), 1500);
     }
