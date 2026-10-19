@@ -5,6 +5,7 @@
 #include <android/dlext.h>
 #include <android/log.h>
 #include <dlfcn.h>
+#include <elf.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -13,6 +14,60 @@
 #include <cstring>
 #include <string>
 #include <vector>
+
+// The address space the library's segments span, from its program headers:
+// all the linker needs reserved. 0 if the file cannot be read as ELF64.
+static size_t load_span(const std::string& path) {
+    int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    size_t span = 0;
+    Elf64_Ehdr eh;
+    if (pread(fd, &eh, sizeof eh, 0) == (ssize_t)sizeof eh && !memcmp(eh.e_ident, ELFMAG, SELFMAG)
+        && eh.e_ident[EI_CLASS] == ELFCLASS64 && eh.e_phentsize == sizeof(Elf64_Phdr)) {
+        for (int i = 0; i < eh.e_phnum; i++) {
+            Elf64_Phdr ph;
+            if (pread(fd, &ph, sizeof ph, eh.e_phoff + (off_t)i * sizeof ph) != (ssize_t)sizeof ph) { span = 0; break; }
+            if (ph.p_type == PT_LOAD && ph.p_vaddr + ph.p_memsz > span) span = ph.p_vaddr + ph.p_memsz;
+        }
+    }
+    close(fd);
+    return span;
+}
+
+// Reserves `bytes` (a multiple of 1 MiB) where every address fits 32 bits:
+// first below the stacks' range (0x40000000), as before, then anywhere else
+// in the low 4 GiB but MEM1's preferred 0x80000000. Android's own mappings
+// (the Java heap, which a large heap makes larger, starts near 0x12c00000)
+// can fill any one stretch.
+static void* reserve_low(size_t bytes) {
+    static const uint64_t ranges[][2] = {
+        {0x10000000u, 0x40000000u}, {0x40000000u, 0x80000000u}, {0x84000000u, 0xf0000000u}};
+    for (const auto& r : ranges)
+        for (uint64_t at = r[0]; at + bytes <= r[1]; at += 1u << 20) {
+            void* want = reinterpret_cast<void*>(static_cast<uintptr_t>(at));
+#ifdef MAP_FIXED_NOREPLACE
+            void* p = mmap(want, bytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+#else
+            void* p = mmap(want, bytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
+            if (p == want) return p;
+            if (p != MAP_FAILED) munmap(p, bytes);
+        }
+    return MAP_FAILED;
+}
+
+// What occupies the low 4 GiB, for the log when nothing fits.
+static void log_low_mappings() {
+    FILE* maps = fopen("/proc/self/maps", "r");
+    if (!maps) return;
+    char line[512];
+    while (fgets(line, sizeof line, maps)) {
+        unsigned long long from = 0, to = 0;
+        if (sscanf(line, "%llx-%llx", &from, &to) == 2 && from < 0x100000000ull && to - from >= (1ull << 20))
+            fprintf(stderr, "[android]   %s", line);
+    }
+    fclose(maps);
+}
 
 extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** argv) {
     std::string data, libs, disc;
@@ -42,16 +97,15 @@ extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** 
     setenv("XDG_CACHE_HOME", (data + "/cache").c_str(), 1);
     setenv("SMS_GX_GL_THREAD", "0", 0); // Android SDL owns the surface's thread.
     setenv("SMS_MSAA", "0", 0);
-    const size_t bytes = size_t(128) << 20;
-    void* region = MAP_FAILED;
-    for (uintptr_t at = 0x10000000; at < 0x40000000; at += bytes) {
-        void* want = reinterpret_cast<void*>(at);
-        void* p = mmap(want, bytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        if (p == want) { region = p; break; }
-        if (p != MAP_FAILED) munmap(p, bytes);
-    }
+    const std::string library = libs + (selftest ? "/libgx_selftest.so" : "/libsms.so");
+    // The library's own span, rounded up to whole MiB; 128 MiB if unreadable.
+    size_t bytes = load_span(library);
+    bytes = bytes ? (bytes + (1u << 20) - 1) & ~size_t((1u << 20) - 1) : size_t(128) << 20;
+    void* region = reserve_low(bytes);
     if (region == MAP_FAILED) {
-        fprintf(stderr, "[android] could not reserve the game's compatibility address range\n");
+        fprintf(stderr, "[android] could not reserve the game's compatibility address range (%zu MiB); mappings below 4 GiB:\n",
+                bytes >> 20);
+        log_low_mappings();
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "SMS Launcher", "The game runtime could not reserve its address range.", nullptr);
         return 1;
     }
@@ -59,7 +113,7 @@ extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** 
     info.flags = ANDROID_DLEXT_RESERVED_ADDRESS;
     info.reserved_addr = region;
     info.reserved_size = bytes;
-    void* game = android_dlopen_ext((libs + (selftest ? "/libgx_selftest.so" : "/libsms.so")).c_str(), RTLD_NOW | RTLD_LOCAL, &info);
+    void* game = android_dlopen_ext(library.c_str(), RTLD_NOW | RTLD_LOCAL, &info);
     if (!game) {
         const char* error = dlerror();
         fprintf(stderr, "[android] loading libsms.so: %s\n", error ? error : "unknown error");
@@ -69,7 +123,8 @@ extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** 
     }
     auto entry = reinterpret_cast<int (*)(int, char**)>(dlsym(game, "SDL_main"));
     if (!entry) { fprintf(stderr, "[android] SDL_main missing: %s\n", dlerror()); return 1; }
-    fprintf(stderr, "[android] 64-bit game loaded at %p, page size %ld\n", region, sysconf(_SC_PAGESIZE));
+    fprintf(stderr, "[android] 64-bit game loaded at %p (%zu MiB reserved), page size %ld\n", region, bytes >> 20,
+            sysconf(_SC_PAGESIZE));
     if (selftest) {
         std::string output = data + "/gx-selftest.ppm";
         char* testArgs[] = {const_cast<char*>("gx_selftest"), const_cast<char*>("--window"), const_cast<char*>(output.c_str()), nullptr};
