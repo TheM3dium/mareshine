@@ -208,17 +208,35 @@ public class SettingsActivity extends AppActivity {
         refreshValues();
     }
 
+    // the slider changed last: dragging it or stepping it on counts once
+    private String mLastSlider;
+
     private void saved() {
-        // the hidden "Fine-Tuner": 120 settings (as many as there are shines) changed in this menu
+        // the hidden "Fine-Tuner": 120 settings (as many as there are shines) changed in this menu;
+        // a slider counts once until something else is changed
         int changed = 0;
         Map<String, String> before = Settings.read(this);
-        for (Map.Entry<String, String> e : mSettings.entrySet())
-            if (!e.getValue().equals(before.get(e.getKey()))) changed++;
+        for (Map.Entry<String, String> e : mSettings.entrySet()) {
+            if (e.getValue().equals(before.get(e.getKey()))) continue;
+            if (!isSlider(e.getKey())) {
+                changed++;
+                mLastSlider = null;
+            } else if (!e.getKey().equals(mLastSlider)) {
+                changed++;
+                mLastSlider = e.getKey();
+            }
+        }
         Settings.write(this, mSettings);
         refreshValues();
         if (changed > 0 && Achievements.addProgress(this, "sms.fun.fine_tuner", changed, 120))
             android.widget.Toast.makeText(this, "✨  " + t("Secret achievement unlocked") + ": "
                 + Achievements.title(this, "sms.fun.fine_tuner"), android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    private boolean isSlider(String key) {
+        for (Row r : mRows)
+            if (r instanceof Slider && ((Slider) r).key.equals(key)) return true;
+        return false;
     }
 
     private Context ctx() { return this; }
@@ -1329,6 +1347,22 @@ public class SettingsActivity extends AppActivity {
                 + "pinch or use Size −/+ to resize.",
             () -> mSettings.containsKey("SMS_TOUCH_LAYOUT") ? "Custom" : "Default",
             () -> startActivity(new Intent(this, TouchLayoutActivity.class))));
+
+        // both follow the game's own rumble option (platform/pad/rumble_game.cpp)
+        section("VIBRATION");
+        add(new Vibration("SMS_VIBRATION_CONTROLLER", "Controller",
+            "How strongly the controller vibrates. 0% turns it off."));
+        android.os.Vibrator vib = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (vib != null && vib.hasVibrator())
+            add(new Vibration("SMS_VIBRATION_PHONE", "Smartphone",
+                "How strongly the smartphone vibrates, also with a controller. 0% turns it off."));
+    }
+
+    // A vibration's strength in percent (platform/pad); 0 is off.
+    private class Vibration extends Slider {
+        Vibration(String key, String label, String desc) { super(key, label, desc, 80, 0, 100, 10); }
+
+        @Override String value() { return get() == 0 ? t("Off") : super.value(); }
     }
 
     // --- OTHER --------------------------------------------------------------

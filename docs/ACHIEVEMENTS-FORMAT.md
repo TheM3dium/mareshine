@@ -42,7 +42,8 @@ written by `tools/achievements_defs.py`). Read only.
 ```
 
 - `target`: for achievements with a progress bar, the value that unlocks it; `0` for none.
-- `secret`: shown as "???" until unlocked.
+- `unit` (optional): `"minutes"` for progress counted in minutes and shown in hours.
+- `secret`: `true` shows it as "???" until unlocked; `"description"` shows its title and hides only its description.
 - Texts are per language code, `en` always present; a missing language falls back to `en`.
 
 ## What was unlocked: `<data folder>/achievements/unlocked.json`

@@ -477,7 +477,6 @@
  "ACHIEVEMENTS": "OBIETTIVI",
  "Achievements": "Obiettivi",
  "Off: nothing is tracked or unlocked. Applies the next time the game starts.": "Disattivati: non viene registrato né sbloccato nulla. Vale dal prossimo avvio del gioco.",
- "Secret achievement": "Obiettivo segreto",
  "Achievement unlocked": "Obiettivo sbloccato",
  "%d achievements unlocked": "%d obiettivi sbloccati",
  "Secret achievement unlocked": "Obiettivo segreto sbloccato",
@@ -558,5 +557,12 @@
  "wrong code": "codice errato",
  "the other device did not answer": "l'altro dispositivo non ha risposto",
  "Sync: %d newer from the sync file, they come when you quit to the main menu.": "Sync: %d più recenti nel file di sincronizzazione, arrivano quando torni al menu principale.",
- "%d newer from the sync file when you quit to the main menu": "%d più recenti dal file quando torni al menu principale"
+ "%d newer from the sync file when you quit to the main menu": "%d più recenti dal file quando torni al menu principale",
+ "VIBRATION": "VIBRAZIONE",
+ "Smartphone": "Smartphone",
+ "How strongly the controller vibrates. 0% turns it off.": "Quanto forte vibra il controller. 0% la disattiva.",
+ "How strongly the smartphone vibrates, also with a controller. 0% turns it off.": "Quanto forte vibra lo smartphone, anche con il controller. 0% la disattiva.",
+ "ALL": "TUTTI",
+ "UNLOCKED": "SBLOCCATI",
+ "No achievements yet": "Ancora nessun obiettivo"
 }

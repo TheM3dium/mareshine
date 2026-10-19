@@ -25,8 +25,11 @@ def T(en, de, es, fr, it):
     return {"en": en, "de": de, "es": es, "fr": fr, "it": it}
 
 A = []
-def a(id, cat, title, desc, secret=False):
-    A.append({"id": id, "category": cat, "secret": secret, "title": title, "description": desc})
+# secret: True shows "???" until unlocked; "description" shows the title, not
+# the description
+# unit: "minutes" for progress counted in minutes and shown in hours
+def a(id, cat, title, desc, secret=False, unit=None):
+    A.append({"id": id, "category": cat, "secret": secret, "title": title, "description": desc, "unit": unit})
 
 # --- story
 a("sms.story.first_shine", "story", T("Holiday Interrupted", "Urlaub mit Hindernissen", "Vacaciones interrumpidas", "Vacances contrariées", "Vacanza interrotta"),
@@ -40,7 +43,7 @@ a("sms.story.rocket_nozzle", "story", T("Lift-Off", "Abheben", "Despegue", "Déc
 a("sms.story.turbo_nozzle", "story", T("Full Throttle", "Vollgas", "A toda máquina", "Plein gaz", "A tutto gas"),
   T("Unlock the Turbo Nozzle in Delfino Plaza.", "Schalte die Turbodüse in Delfino Plaza frei.", "Desbloquea la boquilla turbo en la Plaza Delfino.", "Débloque la buse turbo sur la place Delfino.", "Sblocca l'ugello turbo in Piazza Delfino."))
 a("sms.story.shadow_mario_all", "story", T("Shadows Chased Away", "Schatten vertrieben", "Sombras ahuyentadas", "Ombres chassées", "Ombre scacciate"),
-  T("Catch Shadow Mario in episode 7 of all seven worlds.", "Fang Shadow Mario in Episode 7 aller sieben Welten.", "Atrapa a Mario Oscuro en el episodio 7 de los siete mundos.", "Attrape Mario Ombre dans l'épisode 7 des sept mondes.", "Cattura Mario Ombra nell'episodio 7 di tutti e sette i mondi."))
+  T("Catch Shadow Mario in episode 7 of all seven worlds.", "Fang Shadow Mario in allen sieben Welten in Episode 7.", "Atrapa a Mario Oscuro en el episodio 7 de los siete mundos.", "Attrape Mario Ombre dans l'épisode 7 des sept mondes.", "Cattura Mario Ombra nell'episodio 7 di tutti e sette i mondi."))
 a("sms.story.true_ending", "story", T("A Real Holiday at Last", "Endlich Urlaub", "Por fin vacaciones", "Enfin des vacances", "Finalmente in vacanza"),
   T("Collect all 120 Shine Sprites and see the other ending.", "Sammle alle 120 Shines und sieh dir das andere Ende an.", "Reúne los 120 Soles y mira el otro final.", "Récupère les 120 Soleils et regarde l'autre fin.", "Raccogli tutti i 120 Soli e guarda l'altro finale."))
 
@@ -207,7 +210,7 @@ a("sms.fun.all_movies", "fun", T("Movie Night", "Kinoabend", "Noche de cine", "S
 a("sms.fun.time_travel", "fun", T("Time Traveller", "Zeitreisender", "Viajero del tiempo", "Voyageur temporel", "Viaggiatore del tempo"),
   T("Load a save state.", "Lade einen Save State.", "Carga un estado guardado.", "Charge une sauvegarde instantanée.", "Carica uno stato salvato."))
 a("sms.fun.playtime_10h", "fun", T("In Need of a Holiday", "Urlaubsreif", "Necesito vacaciones", "Besoin de vacances", "Serve una vacanza"),
-  T("Play for 10 hours in total.", "Spiel insgesamt 10 Stunden.", "Juega 10 horas en total.", "Joue 10 heures au total.", "Gioca 10 ore in totale."))
+  T("Play for 10 hours in total.", "Spiel insgesamt 10 Stunden.", "Juega 10 horas en total.", "Joue 10 heures au total.", "Gioca 10 ore in totale."), unit="minutes")
 a("sms.fun.game_over", "fun", T("Game Over", "Game Over", "Game Over", "Game Over", "Game Over"),
   T("Lose all your lives.", "Verlier alle Leben.", "Pierde todas tus vidas.", "Perds toutes tes vies.", "Perdi tutte le vite."), secret=True)
 a("sms.fun.impatient", "fun", T("Impatient", "Ungeduldig", "Impaciente", "Impatient", "Impaziente"),
@@ -223,39 +226,40 @@ a("sms.fun.fine_tuner", "fun", T("Fine-Tuner", "Feintuner", "Afinador", "Peaufin
     "Hai cambiato 120 impostazioni nel menu, tante quanti sono i Soli."), secret=True)
 
 # --- for pros
-a("sms.pro.veteran", "pro", T("The Veteran Is Back", "Veteran ist zurück", "El veterano ha vuelto", "Le vétéran est de retour", "Il veterano è tornato"),
+a("sms.pro.veteran", "pro", T("Here We Go Again", "Here We Go Again", "Here We Go Again", "Here We Go Again", "Here We Go Again"),
   T("Defeat the first Piranha Plant at the airstrip within 90 seconds of starting a new game.", "Besiege die erste Piranha-Pflanze am Flughafen innerhalb von 90 Sekunden nach Spielbeginn.",
     "Derrota a la primera Planta Piraña del aeródromo en 90 segundos desde el inicio de la partida.", "Bats la première Plante Piranha de l'aéroport en moins de 90 secondes après le début de la partie.",
-    "Sconfiggi la prima Pianta Piranha all'aeroporto entro 90 secondi dall'inizio della partita."), secret=True)
+    "Sconfiggi la prima Pianta Piranha all'aeroporto entro 90 secondi dall'inizio della partita."), secret="description")
 a("sms.pro.slip_25", "pro", T("Slipped Through", "Durchgerutscht", "Colado", "Passé en douce", "Sgusciato via"),
   T("Have 25 Shine Sprites within 1:30 hours of play on a save file.", "Hab 25 Shines innerhalb von 1:30 Stunden Spielzeit in einem Spielstand.", "Consigue 25 Soles en menos de 1:30 horas de juego en una partida.",
-    "Obtiens 25 Soleils en moins de 1 h 30 de jeu sur une sauvegarde.", "Ottieni 25 Soli entro 1:30 ore di gioco in un salvataggio."), secret=True)
+    "Obtiens 25 Soleils en moins de 1 h 30 de jeu sur une sauvegarde.", "Ottieni 25 Soli entro 1:30 ore di gioco in un salvataggio."))
 a("sms.pro.speedrun", "pro", T("Speedrunner", "Speedrunner", "Speedrunner", "Speedrunner", "Speedrunner"),
   T("Defeat Bowser within 2:30 hours of play on a save file.", "Besiege Bowser innerhalb von 2:30 Stunden Spielzeit in einem Spielstand.", "Derrota a Bowser en menos de 2:30 horas de juego en una partida.",
-    "Bats Bowser en moins de 2 h 30 de jeu sur une sauvegarde.", "Sconfiggi Bowser entro 2:30 ore di gioco in un salvataggio."), secret=True)
-a("sms.pro.wr_attempt", "pro", T("WR Attempt?", "WR-Versuch?", "¿Intento de récord?", "Tentative de record ?", "Tentativo di record?"),
+    "Bats Bowser en moins de 2 h 30 de jeu sur une sauvegarde.", "Sconfiggi Bowser entro 2:30 ore di gioco in un salvataggio."))
+a("sms.pro.wr_attempt", "pro", T("WR Attempt?", "WR Attempt?", "WR Attempt?", "WR Attempt?", "WR Attempt?"),
   T("Defeat Bowser within 1:25 hours of play on a save file.", "Besiege Bowser innerhalb von 1:25 Stunden Spielzeit in einem Spielstand.", "Derrota a Bowser en menos de 1:25 horas de juego en una partida.",
-    "Bats Bowser en moins de 1 h 25 de jeu sur une sauvegarde.", "Sconfiggi Bowser entro 1:25 ore di gioco in un salvataggio."), secret=True)
-a("sms.pro.speedrun_120", "pro", T("Speedrunner 120", "Speedrunner 120", "Speedrunner 120", "Speedrunner 120", "Speedrunner 120"),
+    "Bats Bowser en moins de 1 h 25 de jeu sur une sauvegarde.", "Sconfiggi Bowser entro 1:25 ore di gioco in un salvataggio."))
+a("sms.pro.speedrun_120", "pro", T("Not His First Rodeo", "Alter Hase", "Perro viejo", "Vieux briscard", "Vecchia volpe"),
   T("Have all 120 Shine Sprites within 6 hours of play on a save file.", "Hab alle 120 Shines innerhalb von 6 Stunden Spielzeit in einem Spielstand.", "Consigue los 120 Soles en menos de 6 horas de juego en una partida.",
-    "Obtiens les 120 Soleils en moins de 6 heures de jeu sur une sauvegarde.", "Ottieni tutti i 120 Soli entro 6 ore di gioco in un salvataggio."), secret=True)
-a("sms.pro.wr_attempt_120", "pro", T("WR Attempt 120?", "WR-Versuch 120?", "¿Intento de récord 120?", "Tentative de record 120 ?", "Tentativo di record 120?"),
+    "Obtiens les 120 Soleils en moins de 6 heures de jeu sur une sauvegarde.", "Ottieni tutti i 120 Soli entro 6 ore di gioco in un salvataggio."))
+a("sms.pro.wr_attempt_120", "pro", T("Sub 3:30! OMG!", "Sub 3:30! OMG!", "Sub 3:30! OMG!", "Sub 3:30! OMG!", "Sub 3:30! OMG!"),
   T("Have all 120 Shine Sprites within 3:30 hours of play on a save file.", "Hab alle 120 Shines innerhalb von 3:30 Stunden Spielzeit in einem Spielstand.", "Consigue los 120 Soles en menos de 3:30 horas de juego en una partida.",
-    "Obtiens les 120 Soleils en moins de 3 h 30 de jeu sur une sauvegarde.", "Ottieni tutti i 120 Soli entro 3:30 ore di gioco in un salvataggio."), secret=True)
-a("sms.pro.hacker", "pro", T("Hacker", "Hacker", "Hacker", "Hacker", "Hacker"),
+    "Obtiens les 120 Soleils en moins de 3 h 30 de jeu sur une sauvegarde.", "Ottieni tutti i 120 Soli entro 3:30 ore di gioco in un salvataggio."))
+a("sms.pro.hacker", "fun", # a joke rather than a goal; the id stays
+  T("Hacker", "Hacker", "Hacker", "Hacker", "Hacker"),
   T("Play with a cheat turned on.", "Spiel mit einem eingeschalteten Cheat.", "Juega con un truco activado.", "Joue avec un code de triche activé.", "Gioca con un trucco attivo."), secret=True)
 
 # --- glitches
 a("sms.glitch.out_of_bounds", "glitch", T("Border Crosser", "Grenzgänger", "Cruzafronteras", "Passe-muraille", "Oltreconfine"),
-  T("Be alive outside the level's bounds.", "Sei lebendig außerhalb der Levelgrenzen.", "Sigue vivo fuera de los límites del nivel.", "Sois en vie hors des limites du niveau.", "Resta vivo fuori dai confini del livello."), secret=True)
+  T("Be alive outside the level's bounds.", "Sei lebendig außerhalb der Levelgrenzen.", "Sigue vivo fuera de los límites del nivel.", "Sois en vie hors des limites du niveau.", "Resta vivo fuori dai confini del livello."), secret="description")
 a("sms.glitch.under_floor", "glitch", T("Through the Floor", "Durch den Boden", "A través del suelo", "À travers le sol", "Attraverso il pavimento"),
-  T("Get under the floor without dying straight away.", "Komm unter den Boden, ohne sofort zu sterben.", "Métete bajo el suelo sin morir al instante.", "Passe sous le sol sans mourir aussitôt.", "Finisci sotto il pavimento senza morire subito."), secret=True)
+  T("Get under the floor without dying straight away.", "Komm unter den Boden, ohne sofort zu sterben.", "Métete bajo el suelo sin morir al instante.", "Passe sous le sol sans mourir aussitôt.", "Finisci sotto il pavimento senza morire subito."), secret="description")
 a("sms.glitch.too_fast", "glitch", T("Sound Barrier", "Schallmauer", "Barrera del sonido", "Mur du son", "Muro del suono"),
-  T("Move faster than the game's physics normally allow.", "Sei schneller, als die Physik des Spiels es normalerweise erlaubt.", "Muévete más rápido de lo que permite la física del juego.", "Va plus vite que la physique du jeu ne le permet normalement.", "Muoviti più veloce di quanto la fisica del gioco consenta."), secret=True)
+  T("Move faster than the game's physics normally allow.", "Sei schneller, als die Physik des Spiels es normalerweise erlaubt.", "Muévete más rápido de lo que permite la física del juego.", "Va plus vite que la physique du jeu ne le permet normalement.", "Muoviti più veloce di quanto la fisica del gioco consenta."), secret="description")
 a("sms.glitch.too_high", "glitch", T("Sky Climber", "Himmelsstürmer", "Escalacielos", "Grimpeur céleste", "Scalacieli"),
-  T("Get higher than any normal platform in the level.", "Komm höher als jede normale Plattform im Level.", "Llega más alto que cualquier plataforma normal del nivel.", "Monte plus haut que toute plateforme normale du niveau.", "Arriva più in alto di qualsiasi piattaforma normale del livello."), secret=True)
+  T("Get higher than any normal platform in the level.", "Komm höher als jede normale Plattform im Level.", "Llega más alto que cualquier plataforma normal del nivel.", "Monte plus haut que toute plateforme normale du niveau.", "Arriva più in alto di qualsiasi piattaforma normale del livello."), secret="description")
 a("sms.glitch.hunter", "glitch", T("Glitchhunter", "Glitchhunter", "Cazaglitches", "Chasseur de glitchs", "Cacciatore di glitch"),
-  T("Get all four glitch achievements.", "Hol dir alle vier Glitch-Achievements.", "Consigue los cuatro logros de glitches.", "Obtiens les quatre succès de glitchs.", "Ottieni tutti e quattro gli obiettivi dei glitch."), secret=True)
+  T("Get all four glitch achievements.", "Hol dir alle vier Glitch-Achievements.", "Consigue los cuatro logros de glitches.", "Obtiens les quatre succès de glitchs.", "Ottieni tutti e quattro gli obiettivi dei glitch."))
 
 # --- checks against achievements_list.h and output
 ids = re.findall(r'^ACH\(\s*\w+,\s*"([^"]+)",\s*(\d+)\)', open(LIST_H).read(), re.M)
@@ -266,7 +270,8 @@ out = {
     "format": "achievement-definitions", "schema": 1, "game": "sms",
     "games": ["GMSE01", "GMSP01", "GMSJ01"],
     "categories": [{"id": k, "icon": ic, "title": t} for k, ic, t in CATS],
-    "achievements": [{k: x[k] for k in ("id", "category", "target", "secret", "title", "description")} for x in A],
+    "achievements": [{k: x[k] for k in ("id", "category", "target", "unit", "secret", "title", "description") if x[k] is not None}
+                     for x in A],
 }
 json.dump(out, open(OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 print(len(A), "achievements written")

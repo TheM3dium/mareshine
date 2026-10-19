@@ -223,7 +223,7 @@
    },
    "description": {
     "en": "Catch Shadow Mario in episode 7 of all seven worlds.",
-    "de": "Fang Shadow Mario in Episode 7 aller sieben Welten.",
+    "de": "Fang Shadow Mario in allen sieben Welten in Episode 7.",
     "es": "Atrapa a Mario Oscuro en el episodio 7 de los siete mundos.",
     "fr": "Attrape Mario Ombre dans l'épisode 7 des sept mondes.",
     "it": "Cattura Mario Ombra nell'episodio 7 di tutti e sette i mondi."
@@ -1793,6 +1793,7 @@
    "id": "sms.fun.playtime_10h",
    "category": "fun",
    "target": 600,
+   "unit": "minutes",
    "secret": false,
    "title": {
     "en": "In Need of a Holiday",
@@ -1893,13 +1894,13 @@
    "id": "sms.pro.veteran",
    "category": "pro",
    "target": 0,
-   "secret": true,
+   "secret": "description",
    "title": {
-    "en": "The Veteran Is Back",
-    "de": "Veteran ist zurück",
-    "es": "El veterano ha vuelto",
-    "fr": "Le vétéran est de retour",
-    "it": "Il veterano è tornato"
+    "en": "Here We Go Again",
+    "de": "Here We Go Again",
+    "es": "Here We Go Again",
+    "fr": "Here We Go Again",
+    "it": "Here We Go Again"
    },
    "description": {
     "en": "Defeat the first Piranha Plant at the airstrip within 90 seconds of starting a new game.",
@@ -1913,7 +1914,7 @@
    "id": "sms.pro.slip_25",
    "category": "pro",
    "target": 0,
-   "secret": true,
+   "secret": false,
    "title": {
     "en": "Slipped Through",
     "de": "Durchgerutscht",
@@ -1933,7 +1934,7 @@
    "id": "sms.pro.speedrun",
    "category": "pro",
    "target": 0,
-   "secret": true,
+   "secret": false,
    "title": {
     "en": "Speedrunner",
     "de": "Speedrunner",
@@ -1953,13 +1954,13 @@
    "id": "sms.pro.wr_attempt",
    "category": "pro",
    "target": 0,
-   "secret": true,
+   "secret": false,
    "title": {
     "en": "WR Attempt?",
-    "de": "WR-Versuch?",
-    "es": "¿Intento de récord?",
-    "fr": "Tentative de record ?",
-    "it": "Tentativo di record?"
+    "de": "WR Attempt?",
+    "es": "WR Attempt?",
+    "fr": "WR Attempt?",
+    "it": "WR Attempt?"
    },
    "description": {
     "en": "Defeat Bowser within 1:25 hours of play on a save file.",
@@ -1973,13 +1974,13 @@
    "id": "sms.pro.speedrun_120",
    "category": "pro",
    "target": 0,
-   "secret": true,
+   "secret": false,
    "title": {
-    "en": "Speedrunner 120",
-    "de": "Speedrunner 120",
-    "es": "Speedrunner 120",
-    "fr": "Speedrunner 120",
-    "it": "Speedrunner 120"
+    "en": "Not His First Rodeo",
+    "de": "Alter Hase",
+    "es": "Perro viejo",
+    "fr": "Vieux briscard",
+    "it": "Vecchia volpe"
    },
    "description": {
     "en": "Have all 120 Shine Sprites within 6 hours of play on a save file.",
@@ -1993,13 +1994,13 @@
    "id": "sms.pro.wr_attempt_120",
    "category": "pro",
    "target": 0,
-   "secret": true,
+   "secret": false,
    "title": {
-    "en": "WR Attempt 120?",
-    "de": "WR-Versuch 120?",
-    "es": "¿Intento de récord 120?",
-    "fr": "Tentative de record 120 ?",
-    "it": "Tentativo di record 120?"
+    "en": "Sub 3:30! OMG!",
+    "de": "Sub 3:30! OMG!",
+    "es": "Sub 3:30! OMG!",
+    "fr": "Sub 3:30! OMG!",
+    "it": "Sub 3:30! OMG!"
    },
    "description": {
     "en": "Have all 120 Shine Sprites within 3:30 hours of play on a save file.",
@@ -2011,7 +2012,7 @@
   },
   {
    "id": "sms.pro.hacker",
-   "category": "pro",
+   "category": "fun",
    "target": 0,
    "secret": true,
    "title": {
@@ -2033,7 +2034,7 @@
    "id": "sms.glitch.out_of_bounds",
    "category": "glitch",
    "target": 0,
-   "secret": true,
+   "secret": "description",
    "title": {
     "en": "Border Crosser",
     "de": "Grenzgänger",
@@ -2053,7 +2054,7 @@
    "id": "sms.glitch.under_floor",
    "category": "glitch",
    "target": 0,
-   "secret": true,
+   "secret": "description",
    "title": {
     "en": "Through the Floor",
     "de": "Durch den Boden",
@@ -2073,7 +2074,7 @@
    "id": "sms.glitch.too_fast",
    "category": "glitch",
    "target": 0,
-   "secret": true,
+   "secret": "description",
    "title": {
     "en": "Sound Barrier",
     "de": "Schallmauer",
@@ -2093,7 +2094,7 @@
    "id": "sms.glitch.too_high",
    "category": "glitch",
    "target": 0,
-   "secret": true,
+   "secret": "description",
    "title": {
     "en": "Sky Climber",
     "de": "Himmelsstürmer",
@@ -2113,7 +2114,7 @@
    "id": "sms.glitch.hunter",
    "category": "glitch",
    "target": 4,
-   "secret": true,
+   "secret": false,
    "title": {
     "en": "Glitchhunter",
     "de": "Glitchhunter",

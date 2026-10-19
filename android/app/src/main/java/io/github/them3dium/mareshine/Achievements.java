@@ -32,7 +32,9 @@ final class Achievements {
     static final class Def {
         String id, category, title, description;
         int target;
+        boolean minutes; // progress in minutes, shown in hours
         boolean secret;
+        boolean titleShown; // a secret one that shows its title (not its description)
         // from unlocked.json
         boolean unlocked;
         long at;
@@ -85,7 +87,10 @@ final class Achievements {
                 d.id = o.getString("id");
                 d.category = o.optString("category", "");
                 d.target = o.optInt("target", 0);
-                d.secret = o.optBoolean("secret", false);
+                d.minutes = "minutes".equals(o.optString("unit"));
+                Object secret = o.opt("secret"); // true, or "description" (only that is hidden)
+                d.titleShown = "description".equals(secret);
+                d.secret = Boolean.TRUE.equals(secret) || d.titleShown;
                 d.title = text(o.optJSONObject("title"), lang);
                 d.description = text(o.optJSONObject("description"), lang);
                 Category k = byId.get(d.category);

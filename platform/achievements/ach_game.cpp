@@ -10,6 +10,7 @@
 #include <System/MarDirector.hpp>
 #include <GC2D/ShineTable.hpp>
 #include <Map/Map.hpp>
+#include <Map/PollutionLayer.hpp>
 #include <Map/MapCollisionData.hpp>
 #include <Player/Mario.hpp>
 #include <Player/MarioCap.hpp>
@@ -242,7 +243,10 @@ void checkMario(TMario* m)
 		port_ach_unlock(PORT_ACH_FUN_FIRE);
 	if (st == 0x20338 || st == 0x21313)
 		port_ach_unlock(PORT_ACH_FUN_SHOCK);
-	if ((m->mFlag & 0x40) && m->mPollutionTypeStandingOn == 0 && m->mSinkTimer > 0.0f) // dirty, sinking in goop
+	// covered in goop that holds Mario back (the Airstrip's slows him without
+	// sinking him): MARIO_FLAG_DIRTY, not in burning or electric goop
+	if ((m->mFlag & 0x40) && m->mPollutionTypeStandingOn != POLLUTION_TYPE_FIRE
+	    && m->mPollutionTypeStandingOn != POLLUTION_TYPE_ELECTRIC)
 		port_ach_unlock(PORT_ACH_FUN_GOOP);
 	if (st == 0x208B8) // thrown by a Chuckster
 		port_ach_unlock(PORT_ACH_FUN_CHUCKSTER);
@@ -407,8 +411,11 @@ void playUnlockSound()
 
 } // namespace
 
+extern "C" void port_rumble_game_frame(void); // platform/pad/rumble_game.cpp
+
 extern "C" void port_ach_game_frame(void)
 {
+	port_rumble_game_frame();
 	if (!port_ach_enabled() || !TFlagManager::getInstance())
 		return;
 	static unsigned last = SDL_GetTicks();

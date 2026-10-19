@@ -477,7 +477,6 @@
  "ACHIEVEMENTS": "ACHIEVEMENTS",
  "Achievements": "Achievements",
  "Off: nothing is tracked or unlocked. Applies the next time the game starts.": "Aus: Es wird nichts verfolgt oder freigeschaltet. Gilt ab dem nächsten Spielstart.",
- "Secret achievement": "Geheimes Achievement",
  "Achievement unlocked": "Achievement freigeschaltet",
  "%d achievements unlocked": "%d Achievements freigeschaltet",
  "Secret achievement unlocked": "Geheimes Achievement freigeschaltet",
@@ -558,5 +557,12 @@
  "wrong code": "falscher Code",
  "the other device did not answer": "das andere Gerät hat nicht geantwortet",
  "Sync: %d newer from the sync file, they come when you quit to the main menu.": "Sync: %d neuer in der Sync-Datei, sie kommen, wenn du ins Hauptmenü gehst.",
- "%d newer from the sync file when you quit to the main menu": "%d neuer aus der Sync-Datei, wenn du ins Hauptmenü gehst"
+ "%d newer from the sync file when you quit to the main menu": "%d neuer aus der Sync-Datei, wenn du ins Hauptmenü gehst",
+ "VIBRATION": "VIBRATION",
+ "Smartphone": "Smartphone",
+ "How strongly the controller vibrates. 0% turns it off.": "Wie stark der Controller vibriert. 0 % schaltet es aus.",
+ "How strongly the smartphone vibrates, also with a controller. 0% turns it off.": "Wie stark das Smartphone vibriert, auch mit Controller. 0 % schaltet es aus.",
+ "ALL": "ALLE",
+ "UNLOCKED": "FREIGESCHALTET",
+ "No achievements yet": "Noch keine Achievements"
 }

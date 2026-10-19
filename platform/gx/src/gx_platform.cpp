@@ -571,6 +571,26 @@ extern "C" int sms_gx_pad_count(void) {
 #endif
 }
 
+// The game's rumble motor (platform/pad's PADControlMotor) on every
+// controller in use, strength 1..65535; 0 stops it. The number of
+// controllers that took it.
+extern "C" int sms_gx_rumble(int strength) {
+#ifdef SMS_GX_HAVE_SDL2
+    const Uint16 s = Uint16(strength < 0 ? 0 : strength > 0xFFFF ? 0xFFFF : strength);
+    int n = 0;
+    for (SDL_GameController* c : s_pads)
+        if (SDL_GameControllerHasAxis(c, SDL_CONTROLLER_AXIS_LEFTX)) {
+            // platform/pad renews it while it lasts and stops it itself
+            SDL_GameControllerRumble(c, s, s, s ? 5000 : 0);
+            n++;
+        }
+    return n;
+#else
+    (void)strength;
+    return 0;
+#endif
+}
+
 void sms_gx_set_event_callback(void (*cb)(const union SDL_Event*)) {
 #ifdef SMS_GX_HAVE_SDL2
     s_eventCb = cb;

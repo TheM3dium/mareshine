@@ -476,7 +476,6 @@
  "ACHIEVEMENTS": "SUCCÈS",
  "Achievements": "Succès",
  "Off: nothing is tracked or unlocked. Applies the next time the game starts.": "Désactivés : rien n'est suivi ni débloqué. S'applique au prochain lancement du jeu.",
- "Secret achievement": "Succès secret",
  "Achievement unlocked": "Succès débloqué",
  "%d achievements unlocked": "%d succès débloqués",
  "Secret achievement unlocked": "Succès secret débloqué",
@@ -557,5 +556,12 @@
  "wrong code": "code incorrect",
  "the other device did not answer": "l'autre appareil n'a pas répondu",
  "Sync: %d newer from the sync file, they come when you quit to the main menu.": "Synchro : %d plus récents dans le fichier de synchro, ils arrivent au retour au menu principal.",
- "%d newer from the sync file when you quit to the main menu": "%d plus récents du fichier au retour au menu principal"
+ "%d newer from the sync file when you quit to the main menu": "%d plus récents du fichier au retour au menu principal",
+ "VIBRATION": "VIBRATION",
+ "Smartphone": "Smartphone",
+ "How strongly the controller vibrates. 0% turns it off.": "La force de vibration de la manette. 0 % la désactive.",
+ "How strongly the smartphone vibrates, also with a controller. 0% turns it off.": "La force de vibration du smartphone, aussi avec une manette. 0 % la désactive.",
+ "ALL": "TOUS",
+ "UNLOCKED": "DÉBLOQUÉS",
+ "No achievements yet": "Pas encore de succès"
 }

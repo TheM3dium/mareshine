@@ -241,6 +241,15 @@ public class SunshineActivity extends SDLActivity {
     // are in unlocked.json, which the game has written by then)
     private static final int COMMAND_ACHIEVEMENTS = 0x8004;
 
+    // platform/pad's PADControlMotor: the phone's vibration, param its
+    // strength 1..255, 0 stops it
+    private static final int COMMAND_RUMBLE = 0x8005;
+
+    // platform/pad/rumble_game.cpp: rumble turned on or off in the game's own
+    // options; the app's settings follow (param: the controller's percent,
+    // and the phone's << 8)
+    private static final int COMMAND_RUMBLE_OPTION = 0x8006;
+
     // "Achievement unlocked" with its name, one after another, at the bottom
     private TextView mAchNotice;
     private java.util.Set<String> mAchKnown;
@@ -381,6 +390,18 @@ public class SunshineActivity extends SDLActivity {
             achievementsUnlocked();
             return true;
         }
+        if (command == COMMAND_RUMBLE && param instanceof Integer) {
+            rumble((Integer) param);
+            return true;
+        }
+        if (command == COMMAND_RUMBLE_OPTION && param instanceof Integer) {
+            int v = (Integer) param;
+            java.util.Map<String, String> m = Settings.read(this);
+            m.put("SMS_VIBRATION_CONTROLLER", Integer.toString(v & 0xFF));
+            m.put("SMS_VIBRATION_PHONE", Integer.toString((v >> 8) & 0xFF));
+            Settings.write(this, m);
+            return true;
+        }
         if (command == COMMAND_MOVIE_SKIP && param instanceof Integer) {
             showSkipNotice((Integer) param != 0);
             return true;
@@ -411,6 +432,27 @@ public class SunshineActivity extends SDLActivity {
             }
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    private void rumble(int strength) {
+        android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        if (v == null || !v.hasVibrator()) return;
+        if (strength <= 0) {
+            v.cancel();
+            return;
+        }
+        // platform/pad renews it while it lasts and stops it itself
+        if (Build.VERSION.SDK_INT >= 26)
+            v.vibrate(android.os.VibrationEffect.createOneShot(5000,
+                v.hasAmplitudeControl() ? Math.max(1, Math.min(255, strength)) : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+        else
+            v.vibrate(5000);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        rumble(0);
     }
 
     // Touch: three fingers swiped down from the top of the screen open the

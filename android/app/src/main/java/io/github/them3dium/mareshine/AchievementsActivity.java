@@ -17,11 +17,17 @@ import static io.github.them3dium.mareshine.L.t;
 
 // The achievements (Achievements.java): every category with its achievements,
 // unlocked ones bright with their date, the others dim with their progress; a
-// secret one shows as ??? until it is unlocked. From Settings → ACHIEVEMENTS
-// (which also turns them on or off) and from the quick menu in the game.
+// secret one shows as ??? until it is unlocked (or only its title). Two tabs:
+// ALL, and UNLOCKED with only the ones unlocked, in the same order. From
+// Settings → ACHIEVEMENTS (which also turns them on or off) and from the quick
+// menu in the game.
 public class AchievementsActivity extends AppActivity {
     private LinearLayout mList;
-    private TextView mCount, mSwitch;
+    private TextView mSwitch;
+    private ScrollView mScroll;
+    private final TextView[] mTabs = new TextView[2];
+    private final View[] mTabBars = new View[2];
+    private static int sTab; // kept while the app runs
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 
@@ -50,11 +56,36 @@ public class AchievementsActivity extends AppActivity {
         title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
         title.setTextSize(24);
         head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        mCount = new TextView(this);
-        mCount.setTextColor(getColor(R.color.dl_text));
-        mCount.setTextSize(16);
-        head.addView(mCount);
         panel.addView(head);
+
+        // the tabs, as in Settings (L1 / R1 switch them too)
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < 2; i++) {
+            final int idx = i;
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.VERTICAL);
+            TextView tv = new TextView(this);
+            tv.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+            tv.setTextSize(18);
+            tv.setPadding(dp(14), dp(8), dp(14), dp(6));
+            tv.setFocusable(true);
+            tv.setBackgroundResource(R.drawable.dl_tab);
+            tv.setOnClickListener(v -> showTab(idx));
+            tv.setOnFocusChangeListener((v, has) -> { if (has && sTab != idx) showTab(idx); });
+            cell.addView(tv, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            View bar = new View(this);
+            cell.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)));
+            tabs.addView(cell);
+            mTabs[i] = tv;
+            mTabBars[i] = bar;
+        }
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.topMargin = dp(6);
+        tlp.bottomMargin = dp(4);
+        panel.addView(tabs, tlp);
 
         // turned off in Settings: say so (the switch is only there)
         mSwitch = new TextView(this);
@@ -65,26 +96,61 @@ public class AchievementsActivity extends AppActivity {
         mSwitch.setVisibility(Achievements.enabled(this) ? View.GONE : View.VISIBLE);
         panel.addView(mSwitch);
 
-        ScrollView scroll = new ScrollView(this);
+        mScroll = new ScrollView(this);
         mList = new LinearLayout(this);
         mList.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(mList);
-        panel.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        mScroll.addView(mList);
+        panel.addView(mScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         setContentView(root);
+        showTab(sTab);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent ev) {
+        if (ev.getAction() == android.view.KeyEvent.ACTION_DOWN
+            && (ev.getKeyCode() == android.view.KeyEvent.KEYCODE_BUTTON_L1
+                || ev.getKeyCode() == android.view.KeyEvent.KEYCODE_BUTTON_R1)) {
+            showTab(1 - sTab);
+            mTabs[sTab].requestFocus();
+            return true;
+        }
+        return super.dispatchKeyEvent(ev);
+    }
+
+    private void showTab(int idx) {
+        sTab = idx;
+        for (int i = 0; i < 2; i++) {
+            mTabs[i].setTextColor(i == idx ? 0xFFFFFFFF : 0xFF8FB4D4);
+            mTabBars[i].setBackgroundColor(i == idx ? 0xFFFFC531 : 0x00000000);
+        }
         fill();
+        mScroll.scrollTo(0, 0);
     }
 
     private void fill() {
         mList.removeAllViews();
         List<Achievements.Category> cats = Achievements.load(this);
         int[] n = Achievements.count(cats);
-        mCount.setText(n[0] + " / " + n[1]);
+        mTabs[0].setText(t("ALL") + "  " + n[1]);
+        mTabs[1].setText(t("UNLOCKED") + "  " + n[0] + " / " + n[1]);
+        final boolean onlyUnlocked = sTab == 1;
+        if (onlyUnlocked && n[0] == 0) {
+            TextView none = new TextView(this);
+            none.setText(t("No achievements yet"));
+            none.setTextColor(getColor(R.color.dl_dim));
+            none.setTextSize(16);
+            none.setGravity(Gravity.CENTER);
+            none.setPadding(0, dp(40), 0, dp(40));
+            mList.addView(none);
+            return;
+        }
         java.text.DateFormat df = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM);
         for (Achievements.Category k : cats) {
             if (k.items.isEmpty()) continue;
             int got = 0;
             for (Achievements.Def d : k.items) if (d.unlocked) got++;
+            if (onlyUnlocked && got == 0) continue;
             TextView h = new TextView(this);
             h.setText(k.icon + "  " + k.title + "   " + got + "/" + k.items.size());
             h.setTextColor(0xFFFFC93C);
@@ -92,7 +158,8 @@ public class AchievementsActivity extends AppActivity {
             h.setTextSize(17);
             h.setPadding(0, dp(10), 0, dp(4));
             mList.addView(h);
-            for (Achievements.Def d : k.items) mList.addView(row(k, d, df));
+            for (Achievements.Def d : k.items)
+                if (d.unlocked || !onlyUnlocked) mList.addView(row(k, d, df));
         }
     }
 
@@ -120,13 +187,13 @@ public class AchievementsActivity extends AppActivity {
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.setPadding(dp(8), 0, 0, 0);
         TextView name = new TextView(this);
-        name.setText(hidden ? "???" : d.title);
+        name.setText(hidden && !d.titleShown ? "???" : d.title);
         name.setTextColor(0xFFFFFFFF);
         name.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
         name.setTextSize(16);
         texts.addView(name);
         TextView desc = new TextView(this);
-        desc.setText(hidden ? t("Secret achievement") : d.description);
+        desc.setText(hidden ? "???" : d.description);
         desc.setTextColor(getColor(R.color.dl_text));
         desc.setTextSize(13);
         texts.addView(desc);
@@ -140,7 +207,8 @@ public class AchievementsActivity extends AppActivity {
             bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFFC93C));
             pr.addView(bar, new LinearLayout.LayoutParams(0, dp(6), 1f));
             TextView num = new TextView(this);
-            num.setText("  " + Math.min(d.progress, d.target) + " / " + d.target);
+            int done = Math.min(d.progress, d.target);
+            num.setText(d.minutes ? "  " + done / 60 + " / " + d.target / 60 + " h" : "  " + done + " / " + d.target);
             num.setTextColor(getColor(R.color.dl_dim));
             num.setTextSize(12);
             pr.addView(num);

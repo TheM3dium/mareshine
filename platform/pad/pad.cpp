@@ -62,6 +62,7 @@ extern "C" {
 __attribute__((weak)) void sms_gx_set_event_callback(void (*cb)(const union SDL_Event* ev));
 __attribute__((weak)) void sms_gx_pump_events(void);
 __attribute__((weak)) int sms_gx_pad_count(void);
+__attribute__((weak)) int sms_gx_rumble(int strength);
 __attribute__((weak)) int GXPC_IsHeadless(void);
 __attribute__((weak)) int GXPC_MouseCaptured(void);
 }
@@ -641,8 +642,58 @@ extern "C" BOOL PADSync(void) { return TRUE; }
 extern "C" void PADSetSpec(u32) {}
 extern "C" void PADSetAnalogMode(u32) {}
 extern "C" void PADSetSamplingRate(unsigned long) {}
-extern "C" void PADControlMotor(s32, u32) {}
-extern "C" void PADControlAllMotors(const u32*) {}
+// The rumble motor: on the controllers in use (SMS_VIBRATION_CONTROLLER) and
+// on the phone itself (SMS_VIBRATION_PHONE, Android), each in percent of full
+// strength (80 by default, 0 off); the in-game menu can change both while the
+// game runs.
+// The game calls this once a frame and rumbles weakly by switching the motor
+// on in only some frames (RumbleMgr); here that becomes one steady rumble,
+// as strong as the share of frames it is on, until it stays off a few frames.
+extern "C" int port_vibration_percent(const char* name)
+{
+	const char* e = getenv(name);
+	int p         = e && *e ? atoi(e) : 80;
+	return p < 0 ? 0 : p > 100 ? 100 : p;
+}
+
+extern "C" void PADControlMotor(s32 chan, u32 command)
+{
+	if (chan != 0)
+		return;
+	static float s_duty;
+	static int s_offFrames = 99, s_level, s_refresh;
+	static bool s_pads, s_phone; // where it rumbles now
+	s_duty      = s_duty * 0.85f + (command == PAD_MOTOR_RUMBLE ? 0.15f : 0.0f);
+	s_offFrames = command == PAD_MOTOR_RUMBLE ? 0 : s_offFrames + 1;
+	// strength in quarters (0 = off), at least a quarter while it rumbles
+	int level = s_offFrames > 4 ? 0 : 1 + (int)(s_duty * 3.0f + 0.5f);
+	if (level > 4)
+		level = 4;
+	if (level == s_level && (level == 0 || ++s_refresh < 120))
+		return;
+	s_refresh = 0;
+	s_level   = level;
+	const int padPct   = level ? port_vibration_percent("SMS_VIBRATION_CONTROLLER") : 0;
+	const int phonePct = level ? port_vibration_percent("SMS_VIBRATION_PHONE") : 0;
+	// the game's strength times the setting; a weak rumble stays one that is felt
+	auto strength = [level](int pct) {
+		float f = level / 4.0f * pct / 100.0f;
+		return f < 0.12f ? 0.12f : f;
+	};
+	if ((padPct || s_pads) && sms_gx_rumble)
+		sms_gx_rumble(padPct ? (int)(strength(padPct) * 65535.0f) : 0);
+#ifdef __ANDROID__
+	if ((phonePct || s_phone) && SDL_AndroidSendMessage) // SunshineActivity.COMMAND_RUMBLE
+		SDL_AndroidSendMessage(0x8005, phonePct ? (int)(strength(phonePct) * 255.0f) : 0);
+#endif
+	s_pads  = padPct > 0;
+	s_phone = phonePct > 0;
+}
+extern "C" void PADControlAllMotors(const u32* commands)
+{
+	if (commands)
+		PADControlMotor(0, commands[0]);
+}
 
 extern "C" __attribute__((weak)) int port_trace_pad_read(struct PADStatus* status);
 

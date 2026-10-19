@@ -157,6 +157,8 @@ public class GameMenuActivity extends AppActivity {
                 if (k.equals("SMS_TOUCH_CONTROLS") && v.isEmpty()) v = "auto";
                 SDLActivity.nativeSetenv(k, v);
             }
+            for (String k : new String[] {"SMS_VIBRATION_CONTROLLER", "SMS_VIBRATION_PHONE"})
+                SDLActivity.nativeSetenv(k, m.getOrDefault(k, "80"));
             SDLActivity.nativeSetenv("SMS_TOUCH_REV", Integer.toString(++sTouchRev) + "-" + System.nanoTime());
         } catch (Throwable ignored) {}
     }

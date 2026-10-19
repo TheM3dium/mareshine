@@ -243,6 +243,8 @@ target_sources(sms_game PRIVATE ${SMS_DECOMP}/libs/dolphin/src/pad/Padclamp.c)
 target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/netplay/net_game.cpp)
 # Achievements, game side (it reads the game's flags and Mario): platform/achievements.
 target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_game.cpp)
+# The game's rumble option kept equal to the app's: platform/pad/rumble_game.cpp.
+target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/pad/rumble_game.cpp)
 # port_include must stay ahead of the game headers: its dolphin/types.h
 # overrides the decomp's (LP64 integer widths, weak AT_ADDRESS globals).
 if(DEFINED SMS_CP932_ROOT)
@@ -323,6 +325,7 @@ list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/eclipse/")
 # net_game.cpp is built into the game library (above).
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/netplay/net_game\\.cpp$")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/ach_game\\.cpp$")
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/pad/rumble_game\\.cpp$")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/tests/")
 if(WIN32 OR APPLE)
   list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/trace/trace\\.cpp$")
