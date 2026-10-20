@@ -43,6 +43,19 @@ RAWDATA_FIX = ("src/**/*.cpp", r"(\(\s*(?:const\s+)?[A-Za-z_][\w:<> ]*?\s*\*+\s*
 RAWDATA_REGION_FIX = ("src/**/*.cpp", r"SMS_PORT_REGION\(\s*(?i:(" + RAWDATA + r"))\s*,[^()]*\)",
                       lambda m: "sms_mod_rawdata(%s)" % m.group(1), "retail data addresses go to the port's objects")
 
+# The OS globals at the bottom of MEM1 (0x80000000..0x800030FF): the disc ID
+# and its music streaming flag, Junior's Toolbox's request words. Android may
+# put MEM1 elsewhere, and the literal address then reads or writes whatever
+# the system mapped there (BSE saw streaming off and panicked at the first
+# stage's music), so they go to the port's MEM1 wherever it is.
+LOWMEM = r"0x8000(?:[0-2][0-9A-Fa-f]{3}|30[0-9A-Fa-f]{2})"
+LOWMEM_FIXES = [
+    ("src/**/*.cpp", r"(\(\s*(?:const\s+)?[A-Za-z_][\w:<> ]*?\s*\*+\s*\))\s*(" + LOWMEM + r")\b",
+     r"\1sms_mod_lowmem(\2)", "the OS globals are in the port's MEM1"),
+    ("src/**/*.cpp", r"(reinterpret_cast<[^<>;]*\*\s*>\(\s*)(" + LOWMEM + r")\b",
+     r"\1sms_mod_lowmem(\2)", "the OS globals are in the port's MEM1"),
+]
+
 # Textures built into the code as byte arrays are converted to host byte
 # order in place when the game first stores them (JUTTexture::storeTIMG), so
 # they cannot be read-only; static keeps the internal linkage const gave them.
@@ -341,7 +354,7 @@ ECLIPSE_FIXES = optional(TEXTURE_FIXES) + CARD_IMAGE_FIXES + PARTICLE_FIXES + DE
     ("src/main.cpp", r"BetterSMS::registerModule\(sModuleInfo\);", r"BetterSMS::registerModule(moduleInfo());",
      "Eclipse's settings group knows its module"),
 ]
-BSE_FIXES = TEXTURE_FIXES + CARD_IMAGE_FIXES + optional([RAWADDR_FIX]) + [RAWDATA_FIX, RAWDATA_REGION_FIX] + BSE_BE_FIXES + PATCH_TYPE_FIXES + [
+BSE_FIXES = TEXTURE_FIXES + CARD_IMAGE_FIXES + optional([RAWADDR_FIX]) + [RAWDATA_FIX, RAWDATA_REGION_FIX] + LOWMEM_FIXES + BSE_BE_FIXES + PATCH_TYPE_FIXES + [
     # J2DTextBox owns and deletes its string. The setting label and shadow
     # cannot share a heap buffer; keep independent 100-byte allocations and
     # mirror edits into the shadow so it still displays the current value.

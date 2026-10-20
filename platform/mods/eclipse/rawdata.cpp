@@ -85,3 +85,13 @@ extern "C" void* sms_mod_rawdata(unsigned int addr)
 	fprintf(stderr, "[mod] retail data address %08x has no port object (platform/mods/eclipse/rawdata.cpp)\n", addr);
 	abort();
 }
+
+// The OS globals at the bottom of MEM1, which modhooks.cpp fills in (the disc
+// ID, the clocks): at the port's MEM1, not at 0x80000000, which Android can
+// leave to the system.
+extern "C" u8* port_mem1_base;
+
+extern "C" void* sms_mod_lowmem(unsigned int addr)
+{
+	return port_mem1_base + (addr - 0x80000000u);
+}
