@@ -2174,7 +2174,8 @@ extern "C" {
 // widened frame too, so the bars are part of the picture). A movie may have
 // its own, overlay_<movie>.png beside it: that one is laid over everything
 // with its transparency, so it can also cover bars inside the movie itself
-// (Entrance has them at the top and bottom).
+// (Entrance has them at the top and bottom). Either may have a _20x9 version
+// for screens wider than 2:1 (backdropImageFor).
 struct BackdropImage {
     GLuint tex = 0;
     int w = 0, h = 0;
@@ -2247,6 +2248,18 @@ static const BackdropImage* backdropImage(const std::string& path) {
     return &b;
 }
 
+// On a screen wider than about 2:1 an image's _20x9 version (overlay_20x9.png
+// beside overlay.png), when there is one; otherwise the image itself.
+static const BackdropImage* backdropImageFor(const std::string& path, int winW, int winH) {
+    if (winW * 1 > winH * 2) {
+        const size_t dot = path.rfind('.');
+        const std::string wide = dot == std::string::npos ? path + "_20x9"
+                                                          : path.substr(0, dot) + "_20x9" + path.substr(dot);
+        if (const BackdropImage* b = backdropImage(wide)) return b;
+    }
+    return backdropImage(path);
+}
+
 static void drawBackdrop(int winW, int winH, int keepX, int keepW) {
     if (!s_backdropOn && !s_fadingOut) return;
     const float alpha = backdropAlpha();
@@ -2265,10 +2278,10 @@ static void drawBackdrop(int winW, int winH, int keepX, int keepW) {
     if (!frame || !*frame || !strcmp(frame, "0")) return;
     const BackdropImage* img = nullptr;
     bool own = false;
-    if (!s_backdropMovie.empty() && (img = backdropImage(s_backdropMovie)))
+    if (!s_backdropMovie.empty() && (img = backdropImageFor(s_backdropMovie, winW, winH)))
         own = true;
     else
-        img = backdropImage(frame);
+        img = backdropImageFor(frame, winW, winH);
     if (!img) return;
     if (!own && keepX <= 0 && keepX + keepW >= winW) return; // no bars beside the picture
     if (!s_backdropProg) {
