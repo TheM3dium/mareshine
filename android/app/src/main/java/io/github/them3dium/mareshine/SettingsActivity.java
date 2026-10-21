@@ -181,6 +181,8 @@ public class SettingsActivity extends AppActivity {
     private LinearLayout mOptList;
     private Row mOpen; // the row whose choices (or slider) are shown on the right
     private final List<Row> mRows = new ArrayList<>();
+    private View mExactField;     // the open slider's exact-value field, and its controller picker
+    private Runnable mExactPick;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -281,9 +283,10 @@ public class SettingsActivity extends AppActivity {
             t.setTypeface(condensed(true));
             t.setTextSize(20);
             t.setPadding(dp(20), dp(14), dp(20), dp(10));
-            t.setFocusable(true);
+            // tapped, or L/R and the D-pad's left/right (onPadTab); not a focus
+            // stop, so up from the first entry cannot land on (and open) a tab
+            t.setFocusable(false);
             t.setOnClickListener(v -> showTab(idx));
-            t.setOnFocusChangeListener((v, has) -> { if (has && mTab != idx) showTab(idx); });
             t.setBackgroundResource(R.drawable.dl_tab);
             cell.addView(t, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -301,7 +304,7 @@ public class SettingsActivity extends AppActivity {
         close.setTextColor(TEXT);
         close.setTextSize(24);
         close.setPadding(dp(18), dp(8), dp(18), dp(8));
-        close.setFocusable(true);
+        close.setFocusable(false);  // B closes with a controller
         close.setBackgroundResource(R.drawable.dl_tab);
         close.setOnClickListener(v -> finish());
         tabs.addView(close, new LinearLayout.LayoutParams(
@@ -591,11 +594,98 @@ public class SettingsActivity extends AppActivity {
             return false;
         };
         bar.setOnKeyListener(back);
+        mExactField = field;
+        mExactPick = () -> pickExact(sl, show, bar, field);
         mOptList.setVisibility(View.VISIBLE);
         bar.requestFocus();
     }
 
+    // The exact value with a controller (its keyboard cannot be worked with
+    // one): the number, left/right by 1, up/down by 10, A takes it, B not.
+    private void pickExact(Slider sl, Runnable show, View back, android.widget.EditText field) {
+        final float d = getResources().getDisplayMetrics().density;
+        final int[] v = {sl.get()};
+        final android.app.Dialog dlg = new android.app.Dialog(this);
+        dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackgroundResource(R.drawable.dl_panel);
+        panel.setGravity(Gravity.CENTER_HORIZONTAL);
+        panel.setPadding(dp(24), dp(14), dp(24), dp(16));
+        TextView title = new TextView(this);
+        title.setText(t("Exact value"));
+        title.setTextColor(GOLD);
+        title.setTypeface(condensed(true));
+        title.setTextSize(22);
+        title.setSingleLine(true);
+        panel.addView(title);
+        TextView num = new TextView(this);
+        num.setTextColor(0xFFFFFFFF);
+        num.setTypeface(condensed(true));
+        num.setTextSize(48);
+        num.setGravity(Gravity.CENTER);
+        num.setBackgroundResource(R.drawable.dl_row);
+        num.setPadding(dp(32), dp(6), dp(32), dp(6));
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nlp.topMargin = nlp.bottomMargin = dp(10);
+        panel.addView(num, nlp);
+        TextView hint = new TextView(this);
+        hint.setText(t("◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel"));
+        hint.setTextColor(DIM);
+        hint.setTextSize(15);
+        panel.addView(hint);
+        // three digits, so the number keeps its width (and the panel its size)
+        Runnable draw = () -> num.setText(String.format(java.util.Locale.ROOT, "%03d %%", v[0]));
+        draw.run();
+        dlg.setContentView(panel);
+        dlg.setOnKeyListener((x, code, ev) -> {
+            if (ev.getAction() != KeyEvent.ACTION_DOWN) return code != KeyEvent.KEYCODE_BACK;
+            int step = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1
+                : code == KeyEvent.KEYCODE_DPAD_DOWN ? -10 : code == KeyEvent.KEYCODE_DPAD_UP ? 10 : 0;
+            if (step != 0) {
+                v[0] = Math.max(sl.min, Math.min(sl.max, v[0] + step));
+                draw.run();
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_BUTTON_A || code == KeyEvent.KEYCODE_DPAD_CENTER
+                    || code == KeyEvent.KEYCODE_ENTER) {
+                sl.set(v[0]);
+                // the field too: it keeps its text while focused, and would
+                // set its old value again when the focus leaves it
+                field.setText(Integer.toString(sl.get()));
+                show.run();
+                dlg.dismiss();
+                back.requestFocus();
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_BUTTON_B || code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE) {
+                dlg.dismiss();
+                back.requestFocus();
+                return true;
+            }
+            return false;
+        });
+        android.view.Window w = dlg.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+            w.setLayout(dp(380), ViewGroup.LayoutParams.WRAP_CONTENT);  // one size, whatever the number
+        }
+        dlg.show();
+    }
+
+    @Override
+    protected boolean onPadA(View focused) {
+        if (focused != null && focused == mExactField && mExactPick != null) {
+            mExactPick.run();
+            return true;
+        }
+        return false;
+    }
+
     private void closeOptions(boolean refocusRow) {
+        mExactField = null;
+        mExactPick = null;
         Row c = mOpen;
         mOpen = null;
         mOptList.removeAllViews();
@@ -620,14 +710,26 @@ public class SettingsActivity extends AppActivity {
         if (mOpen != null && mPanel != null && mOpen == mPanel.row) updatePanel();
     }
 
+    // controller: AppActivity's scheme, tabs like Dusklight
+    @Override protected boolean usesPadNav() { return true; }
+
     @Override
-    public boolean dispatchKeyEvent(KeyEvent ev) {
-        // shoulder buttons switch tabs, like Dusklight
-        if (ev.getAction() == KeyEvent.ACTION_DOWN) {
-            if (ev.getKeyCode() == KeyEvent.KEYCODE_BUTTON_L1) { showTab((mTab + mTabs.size() - 1) % mTabs.size()); mTabViews.get(mTab).requestFocus(); return true; }
-            if (ev.getKeyCode() == KeyEvent.KEYCODE_BUTTON_R1) { showTab((mTab + 1) % mTabs.size()); mTabViews.get(mTab).requestFocus(); return true; }
+    protected boolean onPadTab(int dir, boolean shoulder) {
+        if (mOpen != null) {
+            if (!shoulder) return false;  // the open choices or slider take left/right
+            closeOptions(false);
         }
-        return super.dispatchKeyEvent(ev);
+        showTab((mTab + dir + mTabs.size()) % mTabs.size());
+        padFocusFirst();
+        return true;
+    }
+
+    @Override
+    protected List<View> padItems() {
+        if (mOpen != null) return null;  // the choices on the right: Android's own order
+        List<View> v = new ArrayList<>();
+        for (Row r : mRows) v.add(r.view);
+        return v;
     }
 
     // --- GAME ---------------------------------------------------------------
@@ -700,6 +802,13 @@ public class SettingsActivity extends AppActivity {
         add(new Toggle("SMS_SUBTITLES", "Subtitles in cutscenes",
             "Shows subtitles in the cutscenes, in the game's language, even when they are off in the game's own "
                 + "options.\n\nApplies the next time the game starts.", true, false));
+
+        // the mixer's music and sound effect gains (platform/audio, decomp-patches/audio-05)
+        section("SOUND");
+        add(new Volume("SMS_MUSIC_VOLUME", "Music",
+            "How loud the music is. 0% turns it off."));
+        add(new Volume("SMS_SFX_VOLUME", "Sound effects",
+            "How loud sound effects and voices are. 0% turns them off."));
 
         section("DATA");
         Row data = new Action("Data folder",
@@ -1165,8 +1274,8 @@ public class SettingsActivity extends AppActivity {
             .setNegativeButton(t("Cancel"), null).show();
     }
 
-    private android.app.AlertDialog.Builder dialog() {
-        return new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert);
+    private DlDialog dialog() {
+        return new DlDialog(this);
     }
 
     private void startPackJob(String job) {
@@ -1358,6 +1467,13 @@ public class SettingsActivity extends AppActivity {
                 "How strongly the smartphone vibrates, also with a controller. 0% turns it off."));
     }
 
+    // A volume in percent (platform/audio/dsp_mixer.cpp); 0 is off.
+    private class Volume extends Slider {
+        Volume(String key, String label, String desc) { super(key, label, desc, 100, 0, 100, 10); }
+
+        @Override String value() { return get() == 0 ? t("Off") : super.value(); }
+    }
+
     // A vibration's strength in percent (platform/pad); 0 is off.
     private class Vibration extends Slider {
         Vibration(String key, String label, String desc) { super(key, label, desc, 80, 0, 100, 10); }
@@ -1393,7 +1509,7 @@ public class SettingsActivity extends AppActivity {
         t.setPadding(dp(24), dp(16), dp(24), dp(8));
         ScrollView sv = new ScrollView(this);
         sv.addView(t);
-        new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+        new DlDialog(this)
             .setTitle(t("Disclaimer"))
             .setView(sv)
             .setPositiveButton(t("OK"), null)
@@ -1416,7 +1532,7 @@ public class SettingsActivity extends AppActivity {
     }
 
     private void confirmResetAll() {
-        new android.app.AlertDialog.Builder(this)
+        new DlDialog(this)
             .setTitle(t("Reset all settings?"))
             .setMessage(t("Every setting goes back to its default. Your disc image, data folder and save games are kept."))
             .setPositiveButton(t("Reset"), (d, w) -> {

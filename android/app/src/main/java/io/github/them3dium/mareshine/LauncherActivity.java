@@ -1,7 +1,6 @@
 package io.github.them3dium.mareshine;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -202,7 +201,7 @@ public class LauncherActivity extends AppActivity {
         if (getCurrentFocus() == null || getCurrentFocus().getVisibility() != View.VISIBLE) first.requestFocus();
         String problem = CrashLog.isEnabled(this) ? CrashLog.takeLastSessionProblem(this) : null;
         if (problem != null) {
-            new AlertDialog.Builder(this)
+            new DlDialog(this)
                 .setTitle(t("⚠️ The game closed unexpectedly"))
                 .setMessage(problem)
                 .setPositiveButton(t("OK"), null)
@@ -310,7 +309,7 @@ public class LauncherActivity extends AppActivity {
     }
 
     private void showDataDirDialog() {
-        new AlertDialog.Builder(this)
+        new DlDialog(this)
             .setTitle(t("📁 Data folder"))
             .setMessage(t("Current:\n%s\n\nCreated automatically in the chosen folder:\n"
                 + "• saves/  (save games)\n"
@@ -321,7 +320,7 @@ public class LauncherActivity extends AppActivity {
                 + "Existing settings and saves are copied over; nothing is overwritten.", DataDir.get(this).getAbsolutePath()))
             .setPositiveButton(t("Choose folder"), (d, w) -> {
                 if (!hasAllFilesAccess()) {
-                    new AlertDialog.Builder(this)
+                    new DlDialog(this)
                         .setTitle(t("All files access"))
                         .setMessage(t("The game needs \"All files access\" to read and write textures and saves in the chosen folder. "
                             + "Please enable it on the next screen and come back."))
@@ -359,7 +358,7 @@ public class LauncherActivity extends AppActivity {
         DataDir.set(this, dir);
         if (!DataDir.ensureLayout(this)) {
             DataDir.set(this, old);
-            new AlertDialog.Builder(this)
+            new DlDialog(this)
                 .setTitle(t("Error"))
                 .setMessage(t("Cannot write to this folder:\n%s\n\nCheck \"All files access\" or choose another folder.",
                     dir.getAbsolutePath()))
@@ -499,13 +498,13 @@ public class LauncherActivity extends AppActivity {
                 if (result == null) {
                     Toast.makeText(this, t("Could not open the selected file."), Toast.LENGTH_LONG).show();
                 } else if (!result.ok) {
-                    new AlertDialog.Builder(this)
+                    new DlDialog(this)
                         .setTitle(t("❌ This file will not work"))
                         .setMessage(result.summary + "\n\n" + t("Nothing was copied."))
                         .setPositiveButton(t("OK"), null)
                         .show();
                 } else if (fileSize > 0 && free < fileSize + 64L * 1024 * 1024) {
-                    new AlertDialog.Builder(this)
+                    new DlDialog(this)
                         .setTitle(t("❌ Not enough storage"))
                         .setMessage(t("Copying the ISO needs %.2f GB, but only %.2f GB are free in\n%s\n\n"
                             + "Free up space or choose a data folder on another drive. Nothing was copied.",
@@ -612,7 +611,7 @@ public class LauncherActivity extends AppActivity {
                     mCopying = false;
                     btnSettings.setEnabled(true);
                     checkIsoAndRefreshUi();
-                    new AlertDialog.Builder(this)
+                    new DlDialog(this)
                         .setTitle(t("Error copying the ISO"))
                         .setMessage(t("An error occurred while copying the file: %s", e.getMessage()))
                         .setPositiveButton(t("OK"), null)
@@ -631,7 +630,7 @@ public class LauncherActivity extends AppActivity {
         }
         DiscCheck.Result check = DiscCheck.checkHeader(mFoundIsoFile);
         if (!check.ok) {
-            new AlertDialog.Builder(this)
+            new DlDialog(this)
                 .setTitle(t("❌ This ISO will not work"))
                 .setMessage(check.summary)
                 .setPositiveButton(t("OK"), null)
@@ -649,7 +648,7 @@ public class LauncherActivity extends AppActivity {
     }
 
     private void confirmMismatch(String sha1) {
-        new AlertDialog.Builder(this)
+        new DlDialog(this)
             .setTitle(t("⚠️ ISO hash does not match"))
             .setMessage(t("The header says GMSE01 revision 0, but the file differs from the known good dump.\n\n"
                 + "Yours:    %s\nExpected: %s"
@@ -704,7 +703,7 @@ public class LauncherActivity extends AppActivity {
                 btnSettings.setEnabled(true);
                 if (err != null) {
                     checkIsoAndRefreshUi();
-                    new AlertDialog.Builder(this).setTitle(t("Error reading the ISO")).setMessage(err)
+                    new DlDialog(this).setTitle(t("Error reading the ISO")).setMessage(err)
                         .setPositiveButton(t("OK"), null).show();
                     return;
                 }
@@ -731,7 +730,7 @@ public class LauncherActivity extends AppActivity {
             // revoked in the Android settings since): without it saves would
             // silently fail.
             if (DataDir.isCustom(this) && (!hasAllFilesAccess() || !DataDir.ensureLayout(this))) {
-                new AlertDialog.Builder(this)
+                new DlDialog(this)
                     .setTitle(t("⚠️ Data folder not writable"))
                     .setMessage(t("The game cannot write to your data folder:\n%s"
                         + "\n\nSave games would be lost. Allow \"All files access\" again, or choose another data folder.",

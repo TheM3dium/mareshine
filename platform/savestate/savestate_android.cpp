@@ -40,6 +40,9 @@ const Message kMessages[] = {
 	{ "This slot is empty", 8 },
 	{ "That save state is from another game", 9 },
 	{ "That save state could not be read", 10 },
+	{ "Hold SAVE to save", 11 },
+	{ "Hold LOAD to load", 12 },
+	{ "Still loading a state", 13 },
 };
 
 } // namespace
@@ -91,6 +94,9 @@ extern "C" JNIEXPORT jint JNICALL JNI_FN(nativeDelete)(JNIEnv*, jclass, jint slo
 extern "C" JNIEXPORT void JNICALL JNI_FN(nativeSetQuickSlot)(JNIEnv*, jclass, jint slot) { port_savestate_set_quick_slot(slot); }
 extern "C" JNIEXPORT jint JNICALL JNI_FN(nativeQuickSlot)(JNIEnv*, jclass) { return port_savestate_quick_slot(); }
 extern "C" JNIEXPORT jint JNICALL JNI_FN(nativeReady)(JNIEnv*, jclass) { return port_savestate_ready(); }
+// the state menu's "Save/Load delay" switch (touch_controller.cpp)
+extern "C" void touch_controller_set_state_delay(int on);
+extern "C" JNIEXPORT void JNICALL JNI_FN(nativeSetDelay)(JNIEnv*, jclass, jboolean on) { touch_controller_set_state_delay(on ? 1 : 0); }
 
 // At start: the quick slot the player chose (settings.txt SMS_SAVESTATE_SLOT).
 extern "C" void port_savestate_android_init(void)

@@ -71,6 +71,10 @@ void GXPC_SetWidescreen(float widthOver43);
 /* With widescreen, draw the following 2D stretched across the whole frame
  * (the game's faders call it around their drawing); 0 goes back. */
 void GXPC_SetStretch2D(int on);
+/* With widescreen, draw the following 2D at the 4:3 frame's scale, centred,
+ * and past its edges: the game laid it out across the whole frame (the map
+ * screen calls it around its drawing); 0 goes back. */
+void GXPC_SetWide2D(int on);
 /* SMS_WIDESCREEN_HUD=edges: mark the gameplay HUD's drawing, and bracket
  * each J2D pane's drawing with its horizontal extent (game x), so HUD pieces
  * move to the screen edge on their side. */

@@ -768,6 +768,8 @@ static const struct {
 	{ "sharpen", "SMS_SHARPEN" },                 // 0..100
 	{ "brightness", "SMS_GAMMA" },                // 1.0 = unchanged
 	{ "volume", "SMS_VOLUME" },                   // 0..100
+	{ "music_volume", "SMS_MUSIC_VOLUME" },       // music (BGM sequences, streams, movies), 0..100
+	{ "sfx_volume", "SMS_SFX_VOLUME" },           // sound effects and everything else, 0..100
 	{ "camera_invert_x", "SMS_CAMERA_INVERT_X" },
 	{ "camera_invert_y", "SMS_CAMERA_INVERT_Y" },
 	{ "camera_speed", "SMS_CAMERA_SPEED" },       // percent, 100 = retail

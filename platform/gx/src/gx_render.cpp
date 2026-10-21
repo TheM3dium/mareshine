@@ -64,6 +64,7 @@ struct GxTimer {
 enum { EFB_W = 640, EFB_H = 528 };
 
 static float s_scale = 1.0f;
+float efbScale() { return s_scale; }
 
 // Widescreen (GXPC_SetWidescreen): the EFB is s_efbW = 640 * s_wide wide
 // while the game keeps working in 640-wide coordinates, which each draw,
@@ -83,6 +84,7 @@ struct XMap {
 };
 static XMap s_xmap;
 static bool s_stretch2D = false;  // GXPC_SetStretch2D: the game's faders
+static bool s_wide2D = false;     // GXPC_SetWide2D: 2D the game laid out past the 4:3 edges (the map)
 // SMS_WIDESCREEN_HUD=edges: while the game draws its gameplay HUD
 // (GXPC_SetHud), a piece in the left third of the 4:3 frame goes to the left
 // edge of the wide one and one in the right third to the right edge; the
@@ -1184,6 +1186,11 @@ static void uploadUniforms(const ShaderProgram* sp, float texW[8], float texH[8]
         tsz[2 * m + 1] = texH[m] > 0 ? texH[m] : 1.0f;
     }
     UNI(uTexSize, texsize, tsz, glUniform2fv(sp->uTexSize, 8, tsz));
+    float lb[8];
+    for (int m = 0; m < 8; m++) lb[m] = textureLodBias(m);
+    UNI(uLodBias, lodbias, lb, glUniform1fv(sp->uLodBias, 8, lb));
+    float lw[1] = {float(g.bp[BP_LPSIZE] & 0xFF) / 6.0f};  // line programs: GXSetLineWidth's sixths of a pixel
+    UNI(uLineWidth, linewidth, lw, glUniform1fv(sp->uLineWidth, 1, lw));
     uint32_t ac = g.bp[BP_ALPHACOMPARE];
     GLint ar[2] = {GLint(ac & 0xFF), GLint((ac >> 8) & 0xFF)};
     UNI(uAlphaRef, alpharef, ar, glUniform2iv(sp->uAlphaRef, 1, ar));
@@ -1330,6 +1337,9 @@ static bool asyncReads() {
 }
 
 static bool fastPeekEnabled();
+#ifdef SMS_GLES
+static void pointsFrameShown();
+#endif
 
 // Pixel metrics (GXClearPixMetric/GXReadPixMetric). Delfino's pollution
 // counters draw each goop layer with an alpha test and read how many pixels
@@ -1598,6 +1608,10 @@ static XMap drawXMap() {
         m.a = s_wide;
         return m;
     }
+    if (s_wide2D && (g.xfReg[XFR_PROJ + 6] & 1)) {  // laid out wide: the 4:3 scale, centred
+        m.b = float(s_ox);
+        return m;
+    }
     float sx = xff(XFR_VIEWPORT), cx = xff(XFR_VIEWPORT + 3) - 342.0f;
     bool fullWidth = fabsf(fabsf(sx) * 2.0f - float(EFB_W)) < 2.0f && fabsf(cx - float(EFB_W) / 2) < 2.0f;
     if (!fullWidth) {
@@ -1664,7 +1678,7 @@ void flushBatch() {
     GxTimer tf(&g_flushSeconds);
     double probeClock = g_gxStats ? nowSeconds() : 0.0;
     s_xmap = drawXMap();
-    const ShaderProgram* sp = shaderForCurrentState();
+    const ShaderProgram* sp = shaderForCurrentState(s_bclass == PRIM_LINES);
     glcUseProgram(sp->prog);
     applyGlState();
     probeStep(0, probeClock);
@@ -2078,6 +2092,9 @@ static void copyEfb(uint32_t ctrl) {
         resolveWriteBacks(false);
         hiresEndFrame();
         s_frameNo++;
+#ifdef SMS_GLES
+        pointsFrameShown();
+#endif
         traceFrameAdvance();
         statsFrame();
         s_lastFrameStats = s_stats;
@@ -2202,12 +2219,233 @@ static GLuint peekSource() {
     return s_peekFbo;
 }
 
+#ifdef SMS_GLES
+// GLES answers peeks without reading the EFB back. Reading it back where the
+// game peeks made Adreno's driver flush the half-drawn frame: Mario's
+// occlusion test and the sun's 17 lens-flare probes took 3 to 7 ms of a
+// 16.7 ms frame, which is why SMS_FAST_PEEK (constant answers) is the ARM
+// default. Instead a peek draws just its pixel, on the GPU, into a slot of a
+// storage buffer of its frame, read once a fence after the frame has passed.
+// A peek is answered from the latest frame read: that frame's value for the
+// same pixel, or else for the peek in the same place in its order (as the
+// snapshots answer from the frame before). Only a peek with neither waits.
+// SMS_GX_PEEK_POINTS=0 keeps the snapshots. Adapted from chasem-dev/sms-pc-port
+// 0e832d4 (MIT, third_party/chasem-pc-port).
+enum { kPointSlots = 64, kPointFrames = 3 };
+struct PointFrame {
+    uint32_t frame = ~0u;
+    int used = 0;
+    int16_t x[kPointSlots], y[kPointSlots];
+    bool depth[kPointSlots];
+    GLuint buffer = 0;  // kPointSlots values, then one for peeks past them
+    GLsync fence = 0;   // after the frame's peeks
+    bool read = false;  // value holds the buffer's
+    uint32_t value[kPointSlots];
+};
+static PointFrame s_points[kPointFrames];
+static GLuint s_pointProg, s_pointTex, s_pointFbo;
+static GLint s_pointUSrc, s_pointUSlot, s_pointUDepth;
+static int s_pointState = 0;  // 1 ready, -1 unavailable (the snapshots answer), 0 not tried
+static uint32_t s_pointAnswerFrame = ~0u;
+static const PointFrame* s_pointAnswers = nullptr;
+static const GLbitfield kBufferUpdateBarrier = 0x00000200;  // GL_BUFFER_UPDATE_BARRIER_BIT
+
+// The value is the texel as peekSync reads it: R, G, B, A bytes, or the
+// depth as a 32-bit unsigned integer.
+static const char* kPointFs = R"(#version 310 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+layout(std430, binding = 1) buffer SmsPeeks { uint u_values[]; };
+uniform sampler2D u_color;
+uniform sampler2D u_depth;
+uniform ivec2 u_src;
+uniform int u_slot;
+uniform int u_isDepth;
+layout(location = 0) out vec4 o_color;
+void main() {
+  uint v;
+  if (u_isDepth != 0) {
+    v = uint(clamp(texelFetch(u_depth, u_src, 0).r, 0.0, 1.0) * 16777215.0) << 8;
+  } else {
+    uvec4 c = uvec4(round(clamp(texelFetch(u_color, u_src, 0), 0.0, 1.0) * 255.0));
+    v = c.r | (c.g << 8) | (c.b << 16) | (c.a << 24);
+  }
+  u_values[u_slot] = v;
+  o_color = vec4(0.0);
+}
+)";
+
+static bool pointsReady() {
+    if (s_pointState) return s_pointState > 0;
+    s_pointState = -1;
+    if (const char* e = getenv("SMS_GX_PEEK_POINTS"))
+        if (!atoi(e)) return false;
+    if (!s_metricStorage || !s_metricBarrier) {
+        logmsg("peeks: no fragment storage buffers, reading the EFB back");
+        return false;
+    }
+    std::string vs = kCopyVs;
+    vs.replace(0, vs.find('\n'), "#version 310 es");  // one GLSL ES version per program
+    s_pointProg = compileProgram(vs.c_str(), kPointFs);
+    GLint linked = 0;
+    glGetProgramiv(s_pointProg, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        logmsg("peeks: the point shader did not link, reading the EFB back");
+        return false;
+    }
+    glUseProgram(s_pointProg);
+    glUniform1i(glGetUniformLocation(s_pointProg, "u_color"), 0);
+    glUniform1i(glGetUniformLocation(s_pointProg, "u_depth"), 1);
+    s_pointUSrc = glGetUniformLocation(s_pointProg, "u_src");
+    s_pointUSlot = glGetUniformLocation(s_pointProg, "u_slot");
+    s_pointUDepth = glGetUniformLocation(s_pointProg, "u_isDepth");
+    glGenTextures(1, &s_pointTex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, s_pointTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glGenFramebuffers(1, &s_pointFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, s_pointFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_pointTex, 0);
+    const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glBindFramebuffer(GL_FRAMEBUFFER, s_efbFbo);
+    if (!complete) {
+        logmsg("peeks: the point framebuffer is incomplete, reading the EFB back");
+        return false;
+    }
+    for (PointFrame& p : s_points) {
+        glGenBuffers(1, &p.buffer);
+        glBindBuffer(kMetricStorage, p.buffer);
+        glBufferData(kMetricStorage, (kPointSlots + 1) * 4, nullptr, GL_DYNAMIC_READ);
+    }
+    glBindBuffer(kMetricStorage, 0);
+    s_pointState = 1;
+    logmsg("peeks: drawn into a storage buffer, answered a frame later");
+    return true;
+}
+
+static void drawPoint(const PointFrame& p, int slot, int x, int y, bool depth) {
+    efbReadFbo(depth);  // with MSAA: s_efbColor/s_efbDepth hold the current EFB
+    const GLint src[2] = {std::min(int(float(x) * s_scale + 0.5f), int(float(s_efbW) * s_scale + 0.5f) - 1),
+                          std::min(int(float(y) * s_scale + 0.5f), int(float(EFB_H) * s_scale + 0.5f) - 1)};
+    glBindFramebuffer(GL_FRAMEBUFFER, s_pointFbo);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glViewport(0, 0, 1, 1);
+    glUseProgram(s_pointProg);
+    glActiveTexture(GL_TEXTURE0);
+    glBindSampler(0, 0);
+    glBindTexture(GL_TEXTURE_2D, s_efbColor);
+    glActiveTexture(GL_TEXTURE1);
+    glBindSampler(1, 0);
+    glBindTexture(GL_TEXTURE_2D, s_efbDepth);
+    glUniform2iv(s_pointUSrc, 1, src);
+    glUniform1i(s_pointUSlot, slot);
+    glUniform1i(s_pointUDepth, depth ? 1 : 0);
+    glBindBufferBase(kMetricStorage, 1, p.buffer);
+    glBindVertexArray(s_copyVao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(s_vao);
+    glBindFramebuffer(GL_FRAMEBUFFER, s_efbFbo);
+}
+
+// Copies a frame's values out of its buffer once its fence has passed (or,
+// with `wait`, once it does).
+static bool readPoints(PointFrame& p, bool wait) {
+    if (p.read) return true;
+    if (!p.fence) return false;
+    const GLenum r = glClientWaitSync(p.fence, wait ? GL_SYNC_FLUSH_COMMANDS_BIT : 0, wait ? 1000000000ull : 0);
+    if (r != GL_ALREADY_SIGNALED && r != GL_CONDITION_SATISFIED) return false;
+    glDeleteSync(p.fence);
+    p.fence = 0;
+    glBindBuffer(kMetricStorage, p.buffer);
+    const void* m = glMapBufferRange(kMetricStorage, 0, GLsizeiptr(p.used) * 4, GL_MAP_READ_BIT);
+    if (m) {
+        memcpy(p.value, m, size_t(p.used) * 4);
+        glUnmapBuffer(kMetricStorage);
+    }
+    glBindBuffer(kMetricStorage, 0);
+    p.read = m != nullptr;
+    return p.read;
+}
+
+// The frame this frame's peeks are answered from: the last one whose values
+// are in without waiting, else the oldest kept, waited for.
+static const PointFrame* pointAnswers() {
+    if (s_pointAnswerFrame == s_frameNo) return s_pointAnswers;
+    s_pointAnswerFrame = s_frameNo;
+    s_pointAnswers = nullptr;
+    for (uint32_t back = 1; back < kPointFrames; back++) {
+        PointFrame& p = s_points[(s_frameNo - back) % kPointFrames];
+        if (p.frame == s_frameNo - back && readPoints(p, false)) return s_pointAnswers = &p;
+    }
+    for (uint32_t back = kPointFrames - 1; back >= 1; back--) {
+        PointFrame& p = s_points[(s_frameNo - back) % kPointFrames];
+        if (p.frame == s_frameNo - back && readPoints(p, true)) return s_pointAnswers = &p;
+    }
+    return nullptr;
+}
+
+static uint32_t pointPeek(int x, int y, bool depth) {
+    PointFrame& cur = s_points[s_frameNo % kPointFrames];
+    if (cur.frame != s_frameNo) {
+        if (cur.fence) glDeleteSync(cur.fence);
+        cur.fence = 0;
+        cur.frame = s_frameNo;
+        cur.used = 0;
+        cur.read = false;
+    }
+    const int index = cur.used;
+    if (index < kPointSlots) {
+        cur.x[index] = int16_t(x);
+        cur.y[index] = int16_t(y);
+        cur.depth[index] = depth;
+        cur.used++;
+    }
+    const int slot = std::min(index, int(kPointSlots));
+    drawPoint(cur, slot, x, y, depth);
+    if (asyncReads())
+        if (const PointFrame* p = pointAnswers()) {
+            for (int i = 0; i < p->used; i++)
+                if (p->depth[i] == depth && p->x[i] == x && p->y[i] == y) return p->value[i];
+            if (index < p->used && p->depth[index] == depth) return p->value[index];
+        }
+    // nothing earlier to answer from: this peek's own value
+    GxTimer tw(&s_waitSeconds);
+    s_syncReads++;
+    s_metricBarrier(kBufferUpdateBarrier);
+    glBindBuffer(kMetricStorage, cur.buffer);
+    uint32_t v = 0;
+    if (const void* m = glMapBufferRange(kMetricStorage, GLintptr(slot) * 4, 4, GL_MAP_READ_BIT)) {
+        memcpy(&v, m, 4);
+        glUnmapBuffer(kMetricStorage);
+    }
+    glBindBuffer(kMetricStorage, 0);
+    return v;
+}
+
+// The display copy: a fence after the peeks of the frame just shown.
+static void pointsFrameShown() {
+    if (s_pointState <= 0) return;
+    PointFrame& p = s_points[(s_frameNo - 1) % kPointFrames];
+    if (p.frame != s_frameNo - 1 || !p.used || p.fence || p.read) return;
+    s_metricBarrier(kBufferUpdateBarrier);
+    p.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+}
+#endif
+
 // Returns the raw texel: RGBA bytes packed little-endian, or the 32-bit depth.
 static uint32_t peekRaw(int x, int y, bool depth) {
     if (s_efbW != EFB_W && x >= 0) x = int((float(x) + 0.5f) * s_wide);  // the game camera's coordinates: stretched
     flushBatch();
     glcInvalidate();
     GxTimer tp(&s_peekSeconds);
+#ifdef SMS_GLES
+    if (x >= 0 && y >= 0 && x < s_efbW && y < EFB_H && pointsReady()) return pointPeek(x, y, depth);
+#endif
     if (!asyncReads() || x < 0 || y < 0 || x >= s_efbW || y >= EFB_H) return peekSync(x, y, depth);
     if (s_peekDrawGen != s_drawGen || s_peekFrame != s_frameNo) {
         if (s_peekFrame != s_frameNo) s_peekGroup = -1;
@@ -2599,6 +2837,12 @@ void GXPC_SetStretch2D(int on) {
     if (s_efbW == EFB_W || s_stretch2D == (on != 0)) return;
     flushBatch();  // what was queued keeps its own mapping
     s_stretch2D = on != 0;
+}
+
+void GXPC_SetWide2D(int on) {
+    if (s_efbW == EFB_W || s_wide2D == (on != 0)) return;
+    flushBatch();
+    s_wide2D = on != 0;
 }
 
 void GXPC_SetWidescreen(float widthOver43) {

@@ -113,6 +113,7 @@ std::mutex g_lock;
 int g_pending = PORT_SAVESTATE_NONE;
 std::string g_pendingPath;
 std::atomic<int> g_ready(0);
+std::atomic<int> g_loading(0); // a state load still under way (port_savestate_set_loading)
 std::atomic<bool> g_writing(false);
 std::string g_message;
 double g_messageUntil;
@@ -422,13 +423,26 @@ bool same_game(const Info& a, const Info& b)
 }
 
 // The same game threads, waiting the same way, as when the state was saved.
-bool threads_match(const std::vector<Chunk>& chunks)
+bool threads_match(const std::vector<Chunk>& chunks, bool why = false)
 {
 	const std::vector<ThreadSig> threads = thread_sigs();
 	const Chunk* thrd = savestate::find_chunk(chunks, "THRD");
 	std::vector<ThreadSig> then(thrd ? thrd->rawSize / sizeof(ThreadSig) : 0);
-	return thrd && thrd->rawSize % sizeof(ThreadSig) == 0
-	       && savestate::chunk_data(*thrd, (uint8_t*)then.data(), then.size() * sizeof(ThreadSig)) && then == threads;
+	if (!thrd || thrd->rawSize % sizeof(ThreadSig) != 0
+	    || !savestate::chunk_data(*thrd, (uint8_t*)then.data(), then.size() * sizeof(ThreadSig)))
+		return false;
+	if (then == threads || !why)
+		return then == threads;
+	// which thread differs, for the next look at why exact loads fall back
+	if (then.size() != threads.size())
+		port_log("[savestate] %zu game threads now, %zu when saved\n", threads.size(), then.size());
+	for (size_t i = 0; i < then.size() && i < threads.size(); i++)
+		if (!(then[i] == threads[i]))
+			port_log("[savestate] thread %zu (priority %u): state %u/%u, queue %s, mutex %s, suspend %u/%u\n", i,
+			         threads[i].priority, then[i].state, threads[i].state, then[i].queue == threads[i].queue ? "same" : "other",
+			         then[i].mutex == threads[i].mutex && then[i].heldMutex == threads[i].heldMutex ? "same" : "other",
+			         then[i].suspend, threads[i].suspend);
+	return false;
 }
 
 // Whether this build can take a state saved as `saved` back exactly.
@@ -507,6 +521,12 @@ void port_savestate_hotkey(int action)
 		port_savestate_request_load_slot(g_quickSlot);
 }
 
+void port_savestate_notice(const char* text)
+{
+	g_saveSlot = g_quickSlot.load();
+	set_message(text);
+}
+
 void port_savestate_set_quick_slot(int slot)
 {
 	if (slot >= 1 && slot <= PORT_SAVESTATE_SLOTS)
@@ -520,7 +540,7 @@ void port_savestate_request_save_slot(int slot)
 		return;
 	g_saveSlot = slot;
 	if (!g_ready) {
-		set_message("Save states work in a level, once it has loaded");
+		set_message(g_loading ? "Still loading a state" : "Save states work in a level, once it has loaded");
 		return;
 	}
 	std::lock_guard<std::mutex> l(g_lock);
@@ -537,7 +557,7 @@ int port_savestate_request_load_slot(int slot)
 		return 0;
 	}
 	if (!g_ready) {
-		set_message("Load states in a level, once it has loaded");
+		set_message(g_loading ? "Still loading a state" : "Load states in a level, once it has loaded");
 		return 0;
 	}
 	port_savestate_request_load(slot_path(slot).c_str());
@@ -600,6 +620,7 @@ int port_savestate_take(char* path, int pathLen)
 }
 
 void port_savestate_set_ready(int ready) { g_ready = ready != 0; }
+void port_savestate_set_loading(int loading) { g_loading = loading != 0; }
 int port_savestate_ready(void) { return g_ready; }
 
 void port_savestate_notify(const char* text) { set_message(text); }
@@ -672,6 +693,18 @@ int port_savestate_can_load_exact(const char* path)
 	       && threads_match(chunks);
 }
 
+int port_savestate_exact_waits(const char* path)
+{
+	static const char* const kWanted[] = { "INFO", "THRD" };
+	std::vector<Chunk> chunks;
+	Info saved;
+	const Info now = current_info();
+	const char* why = nullptr;
+	return savestate::read_file(path, &chunks, kWanted, 2) && read_info(chunks, &saved) && same_game(saved, now)
+	       && exact_compatible(saved, now, &why)
+	       && (port_dvd_busy() || port_os_irq_work_pending() || !threads_match(chunks));
+}
+
 int port_savestate_load_exact(const char* path, PortSaveStatePortable* portable, int* hasPortable)
 {
 	if (hasPortable)
@@ -704,7 +737,7 @@ int port_savestate_load_exact(const char* path, PortSaveStatePortable* portable,
 		port_log("[savestate] %s: the game is busy; loading the position only\n", path);
 		return 0;
 	}
-	if (!threads_match(chunks)) {
+	if (!threads_match(chunks, true)) {
 		port_log("[savestate] %s: the game's threads are not as they were; loading the position only\n", path);
 		return 0;
 	}

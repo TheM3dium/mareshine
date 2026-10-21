@@ -62,7 +62,7 @@ Fields the DSP writes back are marked ←.
 | 0x060, 0x068 | position fraction ←, position ← | for streams: `currentPosition >> 16` is read by `Get_DirectPCM_Counter` |
 | 0x06C | `samplesBeforeLoop` ← | streams: samples to the ring's end, 16.16 (`Get_DirectPCM_LoopRemain`) |
 | 0x074 | `remainingLength` ↔ | streams: samples still to play (0xFFFFFFFF = endless); `Get_DirectPCM_Remain` |
-| 0x100 | `samplesSourceType` | 9 = ADPCM4, 5 = ADPCM2, 8 = PCM8, 16 = PCM16 (from `setWaveInfo`'s `COMP_BLOCKBYTES`), 0x21 = direct PCM (streams), < 4 = oscillator (`setOscInfo`) |
+| 0x100 | `samplesSourceType` | 9 = ADPCM4, 5 = ADPCM2, 8 = PCM8, 16 = PCM16 (from `setWaveInfo`'s `COMP_BLOCKBYTES`), 0x21 = direct PCM (streams); other values are oscillators (`setOscInfo`, below) |
 | 0x102 | `isLooping` | |
 | 0x104/0x106 | `loopYN1`/`loopYN2` | ADPCM history for the loop |
 | 0x108 | `filterMode` | bit 5: IIR on, low 5 bits: FIR8 length (**filters not applied yet**) |
@@ -159,6 +159,27 @@ An oracle run that selects surround in the options menu would settle it.
 
 `tests/audio_test` checks the decoders against the disc: decoding every looped wave from its start reproduces the stored loop history exactly for all 449 ADPCM4 and 3 ADPCM2 loops (which confirms the nibble order, the scale and 2-bit rules and the predictor table).
 
+## Oscillators
+
+`TChannel::playLogicalChannel` calls `setOscInfo(n)` for a note whose program is 0xF0 + *n* (`JASBankMgr`'s `noteOnOsc`): base address 0 and source type *n*.
+There is no wave; the DSP synthesises the voice until the CPU stops it.
+The Gelato Beach Dune Buds (`TSandBomb`) use types 4 and 7 for their four filling sounds (`MSD_SE_OBJ_SANDBOMB_WATER_1`..`_4`) and their deflating sound.
+
+`noteOnOsc` sets the pitch as `16736.016 / dacRate × C5BASE_PITCHTABLE[key]`, so a ratio of 0x1000 must be one period every 16736.016 / 523 = 32 output samples.
+The voice output is not resampled.
+
+| Type | Output |
+| --- | --- |
+| 0 | square, 50 % duty, ±0x4000 (first half positive) |
+| 1 | saw: the period's 16-bit phase read as s16 |
+| 3 | square, 25 % duty, ±0x4000 |
+| 7, 4, 11, 12 | patterns 0–3: 64 s16 samples each, the second 0x200 bytes of the setup table (`DSPRES_FILTER` halfwords 0x100–0x1FF) |
+| 10 | pattern 0 with a step modulated by another buffer; played as plain pattern 0 (**assumed**: unused by SMS as far as traced) |
+
+The game's patterns 0 and 1 are a sine and a triangle; 2 and 3 are silent except for a two-sample click at the end.
+The source numbering, the pattern location and the duty cycles follow [Dolphin's Zelda DSP HLE](https://github.com/dolphin-emu/dolphin/blob/master/Source/Core/Core/HW/DSPHLE/UCodes/Zelda.cpp), which treats SMS's microcode as one of that family; the 32-sample period agrees with JAudio's constant.
+`tests/mixer_regression.cc` checks the period, the pattern lookup and phase across subframes, the duty cycles, and that the fields left by a previous wave do not end the voice.
+
 ## Resampling
 
 `DSPRES_FILTER`'s first 256 halfwords are 64 phases × 4 taps (Q15, each phase sums to 0x8000), applied to x[n−1], x[n], x[n+1], x[n+2] with phase = fraction >> 10.
@@ -167,7 +188,7 @@ Without the game's table (the WAV test) a Catmull-Rom table is built instead.
 
 ## Not implemented
 
-- Oscillator voices (`samplesSourceType` < 4, `noteOnOsc`): skipped (logged once), still finished on stop requests.
+- Oscillator type 10's modulated step (played as plain pattern 0).
 - Per-voice FIR8/IIR/low-pass filters and the surround delay bytes.
 - Buses 5–11 other than as FX inputs (Dolby surround output mode).
 - DVD audio streaming (DTK `AISetStreamPlayState`, `JASHardStream`): SMS's streams go through DirectPCM voices instead (the retail dump's DTK track was silent throughout).

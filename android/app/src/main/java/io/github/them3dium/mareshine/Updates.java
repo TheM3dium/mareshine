@@ -1,7 +1,6 @@
 package io.github.them3dium.mareshine;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -224,7 +223,7 @@ final class Updates {
     static void ask(Activity a, Release r, Runnable ignored) {
         String notes = plainNotes(r.notes);
         if (notes.length() > 1200) notes = notes.substring(0, 1200) + "…";
-        new AlertDialog.Builder(a)
+        new DlDialog(a)
             .setTitle(t("Update to version %s?", version(r)))
             .setMessage(t("You have version %s.", CrashLog.BuildConfigInfo.version(a)) + (notes.isEmpty() ? "" : "\n\n" + notes))
             .setPositiveButton(t("Yes"), (d, w) -> download(a, r))
@@ -237,7 +236,7 @@ final class Updates {
 
     private static void download(Activity a, Release r) {
         if (Build.VERSION.SDK_INT >= 26 && !a.getPackageManager().canRequestPackageInstalls()) {
-            new AlertDialog.Builder(a)
+            new DlDialog(a)
                 .setTitle(t("Allow installing updates"))
                 .setMessage(t("Android needs your permission for Mareshine to install its updates. Allow it on the "
                     + "next screen, then come back and choose Yes again."))
@@ -259,7 +258,7 @@ final class Updates {
         box.addView(label);
         box.addView(bar);
         final boolean[] cancelled = {false};
-        AlertDialog dialog = new AlertDialog.Builder(a)
+        android.app.Dialog dialog = new DlDialog(a)
             .setTitle(t("Update"))
             .setView(box)
             .setNegativeButton(t("Cancel"), (d, w) -> cancelled[0] = true)
@@ -302,7 +301,7 @@ final class Updates {
                 if (cancelled[0]) { apk.delete(); return; }
                 if (err != null) {
                     apk.delete();
-                    new AlertDialog.Builder(a)
+                    new DlDialog(a)
                         .setTitle(t("Update failed"))
                         .setMessage(t("The update could not be installed: %s\n\nYou can also download it from %s",
                             err, r.page))

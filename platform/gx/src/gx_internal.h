@@ -168,6 +168,10 @@ uint32_t pixMetricRead();
 // ---------------------------------------------------------------- textures (gx_texture.cpp)
 struct TexKey;
 unsigned bindTextureMap(int map, float* outW, float* outH);  // returns GL name
+// The LOD bias of the sampler bindTextureMap last bound to `map`. GLES has no
+// sampler LOD bias, so its fragment shaders add it (u_lodbias).
+float textureLodBias(int map);
+float efbScale();  // the internal resolution over the GameCube's
 void textureInvalidateAll();
 void textureInvalidateRange(const void* p, uint32_t size);
 void textureShutdown();
@@ -200,17 +204,20 @@ struct UniformCache {
     bool init;
     int tevreg[16], konst[16], alpharef[2];
     float texscale[16], texsize[16], fog[4], fogcolor[4], indmtx[24], efb[2], proj[8], vp[8], ambmat[16];
+    float lodbias[8], linewidth[1];
 };
 struct ShaderProgram {
     unsigned prog;
     int id;  // creation order; SMS_GX_DUMP_SHADERS=dir writes dir/prog<id>.vs/.fs
     int uTevReg, uKonst, uTexScale, uAlphaRef, uFog, uFogColor, uIndMtx, uTexSize, uEfb,
-        uProj, uViewport, uAmbMat, uDstAlpha;
+        uProj, uViewport, uAmbMat, uDstAlpha, uLodBias, uLineWidth;
     mutable UniformCache uc;
 };
 bool pixelMetricShader();
 bool pixelMetricCoverage();
-const ShaderProgram* shaderForCurrentState();
+// `lines`: the program for a line batch, which draws each line as a quad
+// GXSetLineWidth wide (a geometry shader, where there is one)
+const ShaderProgram* shaderForCurrentState(bool lines = false);
 void shaderInit();
 void shaderPrepareStage(int stage);  // while a stage loads: its programs (the warm-up)
 void shaderShutdown();

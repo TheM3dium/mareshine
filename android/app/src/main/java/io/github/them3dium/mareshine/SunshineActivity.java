@@ -1,7 +1,6 @@
 package io.github.them3dium.mareshine;
 
 import android.app.ActionBar;
-import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -120,7 +119,7 @@ public class SunshineActivity extends SDLActivity {
         String[] args = getArguments();
         if (args.length == 0) {
             mBrokenLibraries = true;
-            AlertDialog.Builder dlgAlert = new AlertDialog.Builder(this);
+            DlDialog dlgAlert = new DlDialog(this);
             dlgAlert.setMessage(t("Game disc image not found (GMSE01.iso).\n\nPlease copy the game ISO to your data folder (iso/) or to the Downloads folder of your device:\n/sdcard/Download/GMSE01.iso"));
             dlgAlert.setTitle(t("Game not found"));
             dlgAlert.setPositiveButton(t("Exit"), new DialogInterface.OnClickListener() {
@@ -515,6 +514,7 @@ public class SunshineActivity extends SDLActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        hideSystemUI();
         showMenuHint();
     }
 
@@ -539,8 +539,17 @@ public class SunshineActivity extends SDLActivity {
         }
     }
 
+    // As AppActivity.hideSystemBars: the window keeps the whole screen even
+    // while the bars show for a moment (returning from the in-game menu),
+    // so the game's surface never shrinks below the status bar.
     private void hideSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
             WindowInsetsController controller = getWindow().getInsetsController();
             if (controller != null) {
                 controller.hide(WindowInsets.Type.systemBars());

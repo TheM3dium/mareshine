@@ -69,13 +69,23 @@ TouchButton s_buttons[TBTN_COUNT] = {
     { TBTN_OPACITY,"HIDE", 0.40f, 0.08f, 0.045f, 0,                  127, 140, 141, false, -1 }, // hides the others (SHOW brings them back); "HUD" in SMS_TOUCH_LAYOUT
     { TBTN_MENU,   "MENU", 0.60f, 0.08f, 0.050f, 0,                  69,  90,  100, false, -1 }, // in-game menu (port_open_menu)
     // save states (platform/savestate): small, at the top right beside Z, out
-    // of the way of the play buttons; LOAD only once held (kLoadHoldSeconds)
-    { TBTN_SAVE,   "SAVE", 0.74f, 0.08f, 0.042f, 0,                  22,  160, 133, false, -1 }, // quick save
+    // of the way of the play buttons; both act once held (kStateHoldSeconds)
+    { TBTN_SAVE,   "SAVE", 0.74f, 0.08f, 0.042f, 0,                  22,  160, 133, false, -1 }, // quick save (hold)
     { TBTN_LOAD,   "LOAD", 0.83f, 0.08f, 0.042f, 0,                  211, 84,  0,   false, -1 }  // quick load (hold)
 };
-const double kLoadHoldSeconds = 0.5;
-double s_loadSince = -1;
-bool s_loadFired = false;
+// SAVE and LOAD act once held this long, so a brush of the finger neither
+// overwrites the quick slot nor throws the player's progress away; with the
+// delay off (SMS_SAVESTATE_DELAY=0) they act when pressed. [0] SAVE, [1] LOAD.
+const double kStateHoldSeconds = 0.5;
+bool s_stateDelay = true;
+double s_stateSince[2] = {-1, -1};
+bool s_stateFired[2] = {false, false};
+
+void stateFire(int which)
+{
+    s_stateFired[which] = true;
+    port_savestate_hotkey(which ? PORT_SAVESTATE_HOTKEY_LOAD_NEWEST : PORT_SAVESTATE_HOTKEY_SAVE);
+}
 
 // Virtual Analog Stick State
 struct VirtualStick {
@@ -167,6 +177,7 @@ void loadLayout()
         s_hudOpacity = v < 0.05f ? 0.05f : v > 1.0f ? 1.0f : v;
     }
     if (const char* e = getenv("SMS_TOUCH_AUTOHIDE"); e && *e) s_autoHide = (float)atof(e);
+    if (const char* e = getenv("SMS_SAVESTATE_DELAY"); e && *e) s_stateDelay = atoi(e) != 0;
     const char* e = getenv("SMS_TOUCH_LAYOUT");
     if (!e || !*e) return;
     std::string all = e;
@@ -682,12 +693,11 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
             if (s_buttons[i].id == TBTN_MENU) {
                 if (port_open_menu) port_open_menu();
             }
-            if (s_buttons[i].id == TBTN_SAVE) {
-                port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_SAVE);
-            }
-            if (s_buttons[i].id == TBTN_LOAD) {
-                s_loadSince = nowSec();
-                s_loadFired = false;
+            if (s_buttons[i].id == TBTN_SAVE || s_buttons[i].id == TBTN_LOAD) {
+                int which = s_buttons[i].id == TBTN_LOAD;
+                s_stateSince[which] = nowSec();
+                s_stateFired[which] = false;
+                if (!s_stateDelay) stateFire(which);
             }
             return;
         }
@@ -873,6 +883,12 @@ void touch_controller_on_finger_up(int64_t fingerId, float /*normX*/, float /*no
     // Release buttons
     for (int i = 0; i < TBTN_COUNT; ++i) {
         if (s_buttons[i].fingerId == fingerId) {
+            if ((s_buttons[i].id == TBTN_SAVE || s_buttons[i].id == TBTN_LOAD) && s_buttons[i].pressed) {
+                int which = s_buttons[i].id == TBTN_LOAD;
+                if (!s_stateFired[which] && s_stateSince[which] >= 0)  // let go too soon: say why nothing happened
+                    port_savestate_notice(which ? "Hold LOAD to load" : "Hold SAVE to save");
+                s_stateSince[which] = -1;
+            }
             s_buttons[i].pressed = false;
             s_buttons[i].fingerId = -1;
         }
@@ -883,13 +899,11 @@ void touch_controller_update_pad(PADStatus* status)
 {
     if (!status || !s_visible) return;
 
-    // LOAD loads the quick slot once held long enough (a brush of the
-    // finger does not throw the player's progress away)
-    if (s_buttons[TBTN_LOAD].pressed && !s_loadFired && s_loadSince >= 0
-        && nowSec() - s_loadSince >= kLoadHoldSeconds) {
-        s_loadFired = true;
-        port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_LOAD_NEWEST);
-    }
+    // SAVE and LOAD act once held long enough (kStateHoldSeconds)
+    for (int which = 0; which < 2; which++)
+        if (s_buttons[which ? TBTN_LOAD : TBTN_SAVE].pressed && !s_stateFired[which] && s_stateSince[which] >= 0
+            && nowSec() - s_stateSince[which] >= kStateHoldSeconds)
+            stateFire(which);
 
     // Merge digital buttons
     for (int i = 0; i < TBTN_COUNT; ++i) {
@@ -1065,3 +1079,5 @@ bool touch_controller_is_visible(void)
 }
 
 } // extern "C"
+
+void touch_controller_set_state_delay(int on) { s_stateDelay = on != 0; }

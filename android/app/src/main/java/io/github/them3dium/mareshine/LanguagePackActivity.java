@@ -1,7 +1,6 @@
 package io.github.them3dium.mareshine;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Typeface;
@@ -329,7 +328,7 @@ public class LanguagePackActivity extends AppActivity {
     }
 
     private void askDelete(File pal) {
-        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+        new DlDialog(this)
             .setTitle(t("Language packs ready"))
             .setMessage(t("Français, Deutsch, Español and Italiano are installed. Choose one in Settings → GAME → "
                 + "Language.\n\nThe packs do not need the European disc any more. Delete %s (%.2f GB) now?",
@@ -343,7 +342,7 @@ public class LanguagePackActivity extends AppActivity {
     }
 
     private void message(String title, String text) {
-        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+        new DlDialog(this)
             .setTitle(title).setMessage(text).setPositiveButton(t("OK"), null).show();
     }
 }

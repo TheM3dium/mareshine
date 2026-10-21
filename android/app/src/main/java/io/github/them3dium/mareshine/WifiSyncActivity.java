@@ -1,6 +1,5 @@
 package io.github.them3dium.mareshine;
 
-import android.app.AlertDialog;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.InputType;
@@ -180,7 +179,7 @@ public class WifiSyncActivity extends AppActivity {
         EditText code = new EditText(this);
         code.setInputType(InputType.TYPE_CLASS_NUMBER);
         code.setHint("123456");
-        new AlertDialog.Builder(this)
+        new DlDialog(this)
             .setTitle(t("Sync with %s", name))
             .setMessage(t("Enter the code %s shows.", name))
             .setView(code)
@@ -193,7 +192,7 @@ public class WifiSyncActivity extends AppActivity {
         EditText addr = new EditText(this);
         addr.setHint("192.168.1.20:41234");
         addr.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        new AlertDialog.Builder(this)
+        new DlDialog(this)
             .setTitle(t("Enter an address instead"))
             .setMessage(t("The address the other device shows under This device."))
             .setView(addr)

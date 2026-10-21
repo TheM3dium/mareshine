@@ -26,6 +26,10 @@ void touch_controller_update_pad(PADStatus* status);
 // Render the on-screen touch overlay
 void touch_controller_draw(int winW, int winH);
 
+// SAVE and LOAD act only once held (kStateHoldSeconds); 0 makes them act at
+// once (SMS_SAVESTATE_DELAY, the state menu's switch)
+void touch_controller_set_state_delay(int on);
+
 // Opacity controls
 void touch_controller_set_opacity(float opacity);
 float touch_controller_get_opacity(void);

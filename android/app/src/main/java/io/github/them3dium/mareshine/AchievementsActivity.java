@@ -56,7 +56,9 @@ public class AchievementsActivity extends AppActivity {
         title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
         title.setTextSize(24);
         head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        head.addView(closeButton());
         panel.addView(head);
+        closeOnOutsideTap(this, root, panel);
 
         // the tabs, as in Settings (L1 / R1 switch them too)
         LinearLayout tabs = new LinearLayout(this);
@@ -69,10 +71,9 @@ public class AchievementsActivity extends AppActivity {
             tv.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
             tv.setTextSize(18);
             tv.setPadding(dp(14), dp(8), dp(14), dp(6));
-            tv.setFocusable(true);
+            tv.setFocusable(false);  // L/R and the D-pad's left/right switch tabs (onPadTab)
             tv.setBackgroundResource(R.drawable.dl_tab);
             tv.setOnClickListener(v -> showTab(idx));
-            tv.setOnFocusChangeListener((v, has) -> { if (has && sTab != idx) showTab(idx); });
             cell.addView(tv, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             View bar = new View(this);
@@ -106,16 +107,21 @@ public class AchievementsActivity extends AppActivity {
         showTab(sTab);
     }
 
+    // controller: AppActivity's scheme (two tabs: either way switches)
+    @Override protected boolean usesPadNav() { return true; }
+
     @Override
-    public boolean dispatchKeyEvent(android.view.KeyEvent ev) {
-        if (ev.getAction() == android.view.KeyEvent.ACTION_DOWN
-            && (ev.getKeyCode() == android.view.KeyEvent.KEYCODE_BUTTON_L1
-                || ev.getKeyCode() == android.view.KeyEvent.KEYCODE_BUTTON_R1)) {
-            showTab(1 - sTab);
-            mTabs[sTab].requestFocus();
-            return true;
-        }
-        return super.dispatchKeyEvent(ev);
+    protected boolean onPadTab(int dir, boolean shoulder) {
+        showTab(1 - sTab);
+        padFocusFirst();
+        return true;
+    }
+
+    @Override
+    protected java.util.List<View> padItems() {
+        java.util.List<View> v = new java.util.ArrayList<>();
+        for (int i = 0; i < mList.getChildCount(); i++) v.add(mList.getChildAt(i));
+        return v;
     }
 
     private void showTab(int idx) {

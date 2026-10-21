@@ -7,10 +7,12 @@ import android.graphics.Rect;
 import android.os.Build;
 import android.util.DisplayMetrics;
 import android.view.DisplayCutout;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.widget.TextView;
 
 // The app's screens (not the game's): the same layout on every display.
 //
@@ -163,5 +165,237 @@ public class AppActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         }
+    }
+
+    // The ✕ of a panel over the game (as in Settings): closes it. A tap on the
+    // dimmed game around the panel closes it too (closeOnOutsideTap).
+    TextView closeButton() {
+        TextView close = new TextView(this);
+        close.setText("✕");
+        close.setTextColor(0xFFFFFFFF);
+        close.setTextSize(24);
+        int pad = Math.round(8 * getResources().getDisplayMetrics().density);
+        close.setPadding(pad * 2, pad, pad * 2, pad);
+        close.setFocusable(false);  // B closes with a controller; the entries keep the focus
+        close.setBackgroundResource(R.drawable.dl_tab);
+        close.setContentDescription(L.t("Close"));
+        close.setOnClickListener(v -> finish());
+        return close;
+    }
+
+    // A choice in the app's look (dl_panel, gold title, entries that light up
+    // when focused), instead of the system dialog: a title, an optional
+    // message and the entries; Cancel, Back or a tap beside it closes it.
+    android.app.Dialog choice(String title, String message, String[] labels, Runnable[] actions) {
+        return choice(title, message, labels, actions, null);
+    }
+
+    // `dimmed[i]`: the entry shows greyed out (its action says why it cannot be done now)
+    android.app.Dialog choice(String title, String message, String[] labels, Runnable[] actions, boolean[] dimmed) {
+        final float d = getResources().getDisplayMetrics().density;
+        final android.app.Dialog dlg = new android.app.Dialog(this);
+        dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        android.widget.LinearLayout panel = new android.widget.LinearLayout(this);
+        panel.setOrientation(android.widget.LinearLayout.VERTICAL);
+        panel.setBackgroundResource(R.drawable.dl_panel);
+        int pad = Math.round(20 * d);
+        panel.setPadding(pad, Math.round(14 * d), pad, Math.round(14 * d));
+        TextView head = new TextView(this);
+        head.setText(title);
+        head.setTextColor(0xFFFFC93C);
+        head.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD));
+        head.setTextSize(22);
+        panel.addView(head);
+        if (message != null) {
+            TextView msg = new TextView(this);
+            msg.setText(message);
+            msg.setTextColor(getColor(R.color.dl_dim));
+            msg.setTextSize(14);
+            msg.setPadding(0, Math.round(4 * d), 0, Math.round(6 * d));
+            panel.addView(msg);
+        }
+        String[] all = java.util.Arrays.copyOf(labels, labels.length + 1);
+        all[labels.length] = L.t("Cancel");
+        View first = null;
+        for (int i = 0; i < all.length; i++) {
+            final Runnable action = i < actions.length ? actions[i] : null;
+            TextView item = new TextView(this);
+            item.setText(all[i]);
+            boolean dim = i >= labels.length || (dimmed != null && i < dimmed.length && dimmed[i]);
+            item.setTextColor(dim ? getColor(R.color.dl_dim) : 0xFFFFFFFF);
+            if (dimmed != null && i < dimmed.length && dimmed[i]) item.setAlpha(0.5f);
+            item.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD));
+            item.setTextSize(18);
+            item.setPadding(Math.round(14 * d), Math.round(10 * d), Math.round(14 * d), Math.round(10 * d));
+            item.setFocusable(true);
+            item.setBackgroundResource(R.drawable.dl_menu_item);
+            item.setOnClickListener(v -> {
+                dlg.dismiss();
+                if (action != null) action.run();
+            });
+            panel.addView(item, new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (first == null) first = item;
+        }
+        dlg.setContentView(panel);
+        dlg.setCanceledOnTouchOutside(true);
+        android.view.Window w = dlg.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+            w.setLayout(Math.round(420 * d), android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+            // over the immersive game: keep the bars hidden while it shows
+            w.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+        }
+        dlg.show();
+        if (w != null) {
+            w.getDecorView().setSystemUiVisibility(getWindow().getDecorView().getSystemUiVisibility());
+            w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+        }
+        if (first != null) first.requestFocus();
+        return dlg;
+    }
+
+    static void closeOnOutsideTap(Activity a, View root, View panel) {
+        panel.setClickable(true);  // taps on the panel stay there
+        root.setOnClickListener(v -> a.finish());
+    }
+
+    // --- controller navigation ---------------------------------------------
+    // One scheme for the app's menus (SettingsActivity, AchievementsActivity,
+    // GameMenuActivity, SaveStatesActivity): L1/R1, L2/R2 and the D-pad's
+    // left/right switch tabs with one press; the D-pad's and the left stick's
+    // up/down move through the entries, straight down the list; the stick's
+    // left/right does nothing, so a slip of the thumb cannot switch tabs; A
+    // presses the entry, B goes back. The D-pad of many controllers (8BitDo)
+    // is a hat axis, which Android would turn into D-pad keys together with
+    // the stick, so the axes are read here and not passed on.
+
+    // Whether this screen uses the scheme (StickCalibration needs the raw stick).
+    protected boolean usesPadNav() { return false; }
+
+    // A tab to the left (-1) or right (+1); `shoulder` for L/R, else the D-pad.
+    // false lets the key go on (a panel that takes left/right itself).
+    protected boolean onPadTab(int dir, boolean shoulder) { return false; }
+
+    // The entries up/down moves through, top to bottom, or null to let
+    // Android search for the next one.
+    protected java.util.List<View> padItems() { return null; }
+
+    // A on `focused` before it is clicked: true when the screen handled it
+    // (a text field, whose keyboard a controller cannot work)
+    protected boolean onPadA(View focused) { return false; }
+
+    // Moves the focus one entry up (-1) or down (+1); with nothing focused,
+    // to the first entry.
+    protected boolean onPadMove(int dir) {
+        java.util.List<View> items = padItems();
+        View cur = getCurrentFocus();
+        if (items == null) {
+            if (cur == null) return false;
+            View next = cur.focusSearch(dir < 0 ? View.FOCUS_UP : View.FOCUS_DOWN);
+            if (next != null) next.requestFocusFromTouch();
+            return true;
+        }
+        java.util.List<View> live = new java.util.ArrayList<>();
+        for (View v : items) if (v != null && v.isShown() && v.isFocusable()) live.add(v);
+        if (live.isEmpty()) return true;
+        int at = -1;
+        for (int i = 0; i < live.size() && cur != null; i++) {
+            View v = live.get(i);
+            if (v == cur || (v instanceof android.view.ViewGroup && isDescendant((android.view.ViewGroup) v, cur))) at = i;
+        }
+        int next = at < 0 ? 0 : Math.max(0, Math.min(live.size() - 1, at + dir));
+        live.get(next).requestFocusFromTouch();
+        return true;
+    }
+
+    private static boolean isDescendant(android.view.ViewGroup g, View v) {
+        for (android.view.ViewParent p = v.getParent(); p != null; p = p.getParent()) if (p == g) return true;
+        return false;
+    }
+
+    // focus for a screen that just appeared: its first entry
+    protected void padFocusFirst() {
+        java.util.List<View> items = padItems();
+        if (items == null) return;
+        for (View v : items) if (v != null && v.isShown() && v.isFocusable()) { v.requestFocusFromTouch(); return; }
+    }
+
+    private int mPadHatX, mPadVert;  // the axes' last directions (-1, 0, 1)
+    private final android.os.Handler mPadRepeat = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable mPadRepeatStep = new Runnable() {
+        @Override public void run() {
+            if (mPadVert == 0) return;
+            onPadMove(mPadVert);
+            mPadRepeat.postDelayed(this, 120);
+        }
+    };
+
+    @Override
+    public boolean dispatchGenericMotionEvent(android.view.MotionEvent ev) {
+        if (usesPadNav() && ev.isFromSource(android.view.InputDevice.SOURCE_JOYSTICK)
+                && ev.getAction() == android.view.MotionEvent.ACTION_MOVE) {
+            int hx = Math.round(ev.getAxisValue(android.view.MotionEvent.AXIS_HAT_X));
+            int hy = Math.round(ev.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y));
+            float sy = ev.getAxisValue(android.view.MotionEvent.AXIS_Y);
+            int vert = hy != 0 ? hy : sy < -0.6f ? -1 : sy > 0.6f ? 1 : 0;
+            if (hx != mPadHatX) {
+                mPadHatX = hx;
+                if (hx != 0 && !onPadTab(hx, false)) {  // a panel's own left/right
+                    View f = getCurrentFocus();
+                    if (f != null) {
+                        int code = hx < 0 ? KeyEvent.KEYCODE_DPAD_LEFT : KeyEvent.KEYCODE_DPAD_RIGHT;
+                        f.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
+                        f.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
+                    }
+                }
+            }
+            if (vert != mPadVert) {
+                mPadVert = vert;
+                mPadRepeat.removeCallbacks(mPadRepeatStep);
+                if (vert != 0) {
+                    onPadMove(vert);
+                    mPadRepeat.postDelayed(mPadRepeatStep, 400);
+                }
+            }
+            return true;  // not turned into D-pad keys (the stick's left/right among them)
+        }
+        return super.dispatchGenericMotionEvent(ev);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (!usesPadNav()) return super.dispatchKeyEvent(ev);
+        int code = ev.getKeyCode();
+        boolean down = ev.getAction() == KeyEvent.ACTION_DOWN, first = down && ev.getRepeatCount() == 0;
+        boolean shoulder = code == KeyEvent.KEYCODE_BUTTON_L1 || code == KeyEvent.KEYCODE_BUTTON_R1
+            || code == KeyEvent.KEYCODE_BUTTON_L2 || code == KeyEvent.KEYCODE_BUTTON_R2;
+        if (shoulder) {
+            int dir = code == KeyEvent.KEYCODE_BUTTON_L1 || code == KeyEvent.KEYCODE_BUTTON_L2 ? -1 : 1;
+            if (first) onPadTab(dir, true);
+            return true;
+        }
+        if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            int dir = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1;
+            if (!down) return super.dispatchKeyEvent(ev);
+            if (onPadTab(dir, false)) return true;
+            return super.dispatchKeyEvent(ev);
+        }
+        if (code == KeyEvent.KEYCODE_BUTTON_A) {  // presses the entry
+            View f = getCurrentFocus();
+            if (first && f != null && onPadA(f)) return true;
+            if (first && f != null && f.isClickable()) f.performClick();
+            else if (first) onPadMove(1);  // nothing chosen yet: the first entry
+            return true;
+        }
+        if (code == KeyEvent.KEYCODE_BUTTON_B) {
+            if (first) onBackPressed();
+            return true;
+        }
+        if (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (down && onPadMove(code == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1)) return true;
+            if (!down) return true;
+        }
+        return super.dispatchKeyEvent(ev);
     }
 }

@@ -30,6 +30,9 @@ enum {
 	PORT_SAVESTATE_HOTKEY_LOAD_NEWEST, // LOAD_STATE pressed
 };
 void port_savestate_hotkey(int action);
+// A notice in the state message line (on Android a toast), as the state
+// messages themselves: the touch buttons' "hold to save/load" hints.
+void port_savestate_notice(const char* text);
 
 // Where Mario and the game were; all that a state from another build can use.
 // Little-endian on disk, field for field (savestate.cpp). Flag banks as
@@ -100,11 +103,18 @@ int port_savestate_take(char* path, int pathLen);
 // Whether a state can be saved or loaded right now (the game has to be in a
 // stage with nothing loading); the menu and the controls say so when not.
 void port_savestate_set_ready(int ready);
+// While a state load is still under way (fading, warping to its area): new
+// requests then say so instead of "not in a level".
+void port_savestate_set_loading(int loading);
 // Saves the game as it is now; the portable part from the caller. 1 if written.
 int port_savestate_save(const PortSaveStatePortable* portable);
 // Whether `path` would load exactly now (reads only its small chunks): the
 // game fades out first when it will.
 int port_savestate_can_load_exact(const char* path);
+// Whether `path` could load exactly but for things that pass in a moment: a
+// disc read, interrupt work, or the game's threads not standing as they did
+// when it was saved. The load then waits a few frames (zzzz-savestate-03).
+int port_savestate_exact_waits(const char* path);
 // Loads `path` exactly, if this build can: returns 1 and the game is then as
 // it was when the state was saved. Otherwise 0, and *portable (if not null)
 // holds the state's portable part for the game to warp with (when it has one).

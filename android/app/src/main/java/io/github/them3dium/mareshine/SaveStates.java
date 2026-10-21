@@ -17,7 +17,10 @@ final class SaveStates {
     // The game's messages, as savestate_android.cpp codes them.
     static final int MSG_SAVED = 1, MSG_SAVE_FAILED = 2, MSG_LOADED = 3, MSG_LOADED_POSITION = 4,
         MSG_LOAD_FAILED = 5, MSG_NOT_IN_LEVEL = 6, MSG_BUSY = 7, MSG_EMPTY = 8, MSG_OTHER_GAME = 9,
-        MSG_UNREADABLE = 10;
+        MSG_UNREADABLE = 10, MSG_HOLD_SAVE = 11, MSG_HOLD_LOAD = 12, MSG_STILL_LOADING = 13;
+
+    // SAVE and LOAD (touch) act only once held; "0" makes them act at once
+    static final String DELAY_SETTING = "SMS_SAVESTATE_DELAY";
 
     private SaveStates() {}
 
@@ -67,6 +70,13 @@ final class SaveStates {
         }
     }
 
+    static boolean delay(Context c) { return !"0".equals(Settings.read(c).getOrDefault(DELAY_SETTING, "1")); }
+
+    static void setDelay(Context c, boolean on) {
+        Settings.put(c, DELAY_SETTING, on ? "1" : "0");
+        try { nativeSetDelay(on); } catch (Throwable ignored) {}
+    }
+
     static void setQuickSlot(Context c, int n) {
         Settings.put(c, QUICK_SLOT_SETTING, Integer.toString(n));
         try { nativeSetQuickSlot(n); } catch (Throwable ignored) {}
@@ -80,11 +90,14 @@ final class SaveStates {
             case MSG_LOADED: return t("Slot %d loaded", slot);
             case MSG_LOADED_POSITION: return t("Slot %d loaded (position only)", slot);
             case MSG_LOAD_FAILED: return t("Could not load the state");
-            case MSG_NOT_IN_LEVEL: return t("Save states work in a level, once it has loaded");
+            case MSG_NOT_IN_LEVEL: return t("Save states work once you are in a level. Load your game first.");
             case MSG_BUSY: return t("The game is busy, try again in a moment");
             case MSG_EMPTY: return t("Slot %d is empty", slot);
             case MSG_OTHER_GAME: return t("That save state is from another game");
             case MSG_UNREADABLE: return t("That save state could not be read");
+            case MSG_HOLD_SAVE: return t("Hold SAVE to save");
+            case MSG_HOLD_LOAD: return t("Hold LOAD to load");
+            case MSG_STILL_LOADING: return t("Save states are getting ready, please wait");
             default: return null;
         }
     }
@@ -95,6 +108,7 @@ final class SaveStates {
     static native int nativeLoad(int slot);
     static native int nativeDelete(int slot);
     static native void nativeSetQuickSlot(int slot);
+    static native void nativeSetDelay(boolean on);
     static native int nativeQuickSlot();
     static native int nativeReady();
 }

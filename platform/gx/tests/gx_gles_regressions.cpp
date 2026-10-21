@@ -550,6 +550,68 @@ int main(int argc, char** argv) {
     GXEnd();
     expectPixel("CPU rewrite supersedes cached GPU R8 copy",20,20,0,0,0);
 
+    // Effect mipmaps (the sea's sparkle map): level 1 is a picture of its own,
+    // not a reduction of level 0, so the level shown at a given size is part of
+    // the effect. A 64x64 texture on a 32x32 quad samples level 1 on the
+    // GameCube. At 1.5x the quad covers 48 pixels, which picks level 0.4 unless
+    // the LOD bias makes up for the internal resolution (GLES: u_lodbias).
+    {
+        static std::vector<u8> effect, plain;
+        auto mipTexture = [](std::vector<u8>& out, u8 v0, u8 v1) {
+            std::vector<u8> l0(64 * 64 * 4), l1(32 * 32 * 4);
+            for (size_t i = 0; i < l0.size(); i++) l0[i] = (i & 3) == 3 ? 255 : v0;
+            for (size_t i = 0; i < l1.size(); i++) l1[i] = (i & 3) == 3 ? 255 : v1;
+            out = encodeRGBA8(l0.data(), 64, 64);
+            std::vector<u8> e1 = encodeRGBA8(l1.data(), 32, 32);
+            out.insert(out.end(), e1.begin(), e1.end());
+        };
+        mipTexture(effect, 0, 255);
+        mipTexture(plain, 128, 128);
+        colorSetup();
+        texSetup();
+        GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+        GXSetTevOp(GX_TEVSTAGE0, GX_REPLACE);
+        GXTexObj eo, po;
+        GXInitTexObj(&eo, effect.data(), 64, 64, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_TRUE);
+        GXInitTexObjLOD(&eo, GX_LIN_MIP_LIN, GX_LINEAR, 0, 1, 0, GX_FALSE, GX_FALSE, GX_ANISO_1);
+        GXLoadTexObj(&eo, GX_TEXMAP0);
+        texQuad(100, 100, 132, 132, 255, 255, 255, 255);
+        expectPixel("effect mips sample the GameCube's level", 116, 116, 255, 255, 255, 8);
+        GXInitTexObj(&po, plain.data(), 64, 64, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_TRUE);
+        GXInitTexObjLOD(&po, GX_LIN_MIP_LIN, GX_LINEAR, 0, 1, 0, GX_FALSE, GX_FALSE, GX_ANISO_1);
+        GXLoadTexObj(&po, GX_TEXMAP0);
+        texQuad(140, 100, 172, 132, 255, 255, 255, 255);
+        expectPixel("reduction mips are unchanged", 156, 116, 128, 128, 128, 2);
+    }
+
+    // Wide lines: the iris wipes fill their black field with one GX line per
+    // EFB row at GXSetLineWidth(6), one EFB pixel. At 1.5x, 1-pixel GL lines
+    // leave rows of the scaled EFB uncovered.
+    {
+        colorSetup();
+        GXSetLineWidth(6, GX_TO_ZERO);
+        GXBegin(GX_LINES, GX_VTXFMT0, 2 * 20);
+        for (int y = 300; y < 320; y++) {
+            GXPosition3f32(100, float(y) + 0.5f, -1); GXColor4u8(255, 255, 0, 255);
+            GXPosition3f32(200, float(y) + 0.5f, -1); GXColor4u8(255, 255, 0, 255);
+        }
+        GXEnd();
+        int w = 0, h = 0;
+        GXPC_ReadEFB(nullptr, &w, &h);
+        std::vector<u8> px(size_t(w) * h * 4);
+        GXPC_ReadEFB(px.data(), &w, &h);
+        const float sx = float(w) / 640.0f, sy = float(h) / 528.0f;
+        int covered = 0, total = 0;
+        for (int y = int(ceilf(301 * sy)); y < int(319 * sy); y++)
+            for (int x = int(ceilf(110 * sx)); x < int(190 * sx); x++) {
+                const u8* p = &px[(size_t(y) * w + x) * 4];
+                total++;
+                covered += p[0] > 200 && p[1] > 200 && p[2] < 50;
+            }
+        printf("wide lines: %d of %d pixels covered\n", covered, total);
+        expect("GX lines one EFB pixel wide leave no gaps at 1.5x", total > 0 && covered == total);
+    }
+
     GXPCStats st;
     GXPC_GetStats(&st);
     printf("stats: %u draws, %u vertices, %u shaders compiled, %u texture uploads, %u EFB copies\n", st.draws, st.vertices,

@@ -1,0 +1,15 @@
+Reason: port: the extra NPC distance cull (SMS_NPC_DRAW_DISTANCE, a performance shortcut of the base Android port, not retail) skips NPCs far from the camera. Cutscene and talk cameras start far from the actors they show, so Peach in the Shadow Mario kidnapping and other NPCs appeared late. The cull now applies only in ordinary play, the same test Map.cpp uses for talks and demos.
+--- a/src/NPC/NpcBase.cpp
++++ b/src/NPC/NpcBase.cpp
+@@ -777,7 +777,10 @@
+ 
+ void TBaseNPC::perform(u32 cue, JDrama::TGraphics* graphics)
+ {
+-	if (gpCamera != nullptr && getHolder() == nullptr) {
++	// not while someone talks or a cutscene plays: its camera starts far from
++	// the actors it shows (Shadow Mario taking Peach), which then appeared late
++	if (gpCamera != nullptr && getHolder() == nullptr && gpMarDirector != nullptr
++	    && gpMarDirector->unk124 == 0 && !gpCamera->isDemoCamera()) {
+ 		f32 maxDistSq = SMS_GetNpcDrawDistSq();
+ 		if (maxDistSq > 0.0f) {
+ 			f32 dSq = MsSquaredDist(mPosition, gpCamera->unk124);

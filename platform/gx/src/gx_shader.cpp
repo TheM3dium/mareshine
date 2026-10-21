@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -307,7 +308,9 @@ uniform ivec2 u_alpharef;
 uniform vec4 u_fog;
 uniform vec4 u_fogcolor;
 uniform vec4 u_indmtx[6];
+uniform float u_lodbias[8];
 layout(location = 0) out vec4 o_color;
+#define TEXB(m, uv) texture(u_tex[m], uv, u_lodbias[m])
 ivec4 texi(vec4 c) { return ivec4(round(clamp(c, 0.0, 1.0) * 255.0)); }
 vec2 proj(vec3 t) { return t.xy / (t.z == 0.0 ? 1.0 : t.z); }
 ivec3 lerp3(ivec3 a, ivec3 b, ivec3 c) { ivec3 c2 = c + (c >> 7); return (a * (256 - c2) + b * c2 + 128) >> 8; }
@@ -329,6 +332,7 @@ uniform vec4 u_fog;
 uniform vec4 u_fogcolor;
 uniform vec4 u_indmtx[6];
 out vec4 o_color;
+#define TEXB(m, uv) texture(u_tex[m], uv)
 ivec4 texi(vec4 c) { return ivec4(round(clamp(c, 0.0, 1.0) * 255.0)); }
 vec2 proj(vec3 t) { return t.xy / (t.z == 0.0 ? 1.0 : t.z); }
 ivec3 lerp3(ivec3 a, ivec3 b, ivec3 c) { ivec3 c2 = c + (c >> 7); return (a * (256 - c2) + b * c2 + 128) >> 8; }
@@ -395,7 +399,7 @@ static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
         uint32_t map = (k.iref >> (6 * i)) & 7, coord = (k.iref >> (6 * i + 3)) & 7;
         uint32_t ss = (indScale[i < 2 ? 0 : 1] >> ((i & 1) * 8)) & 0xFF;
         snprintf(buf, sizeof buf,
-                 "  ivec3 ind%u = texi(texture(u_tex[%u], proj(v_tc%u) / vec2(%d.0, %d.0))).abg;\n", i, map, coord,
+                 "  ivec3 ind%u = texi(TEXB(%u, proj(v_tc%u) / vec2(%d.0, %d.0))).abg;\n", i, map, coord,
                  1 << (ss & 15), 1 << ((ss >> 4) & 15));
         s += buf;
     }
@@ -451,9 +455,9 @@ static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
                 else if (tw) { snprintf(buf, sizeof buf, "    tcx.y = mod(tcx.y, %d.0);\n", wrapSize[tw]); s += buf; }
                 snprintf(buf, sizeof buf, "    tcx += off%s; prevTc = tcx;\n", fb ? " + prevTc" : "");
                 s += buf;
-                snprintf(buf, sizeof buf, "    tex = texi(texture(u_tex[%u], tcx / u_texsize[%u])).%s;\n", map, map, swizzle(texSwap).c_str());
+                snprintf(buf, sizeof buf, "    tex = texi(TEXB(%u, tcx / u_texsize[%u])).%s;\n", map, map, swizzle(texSwap).c_str());
             } else {
-                snprintf(buf, sizeof buf, "    tex = texi(texture(u_tex[%u], proj(v_tc%u) * u_texscale[%u])).%s;\n", map, coord,
+                snprintf(buf, sizeof buf, "    tex = texi(TEXB(%u, proj(v_tc%u) * u_texscale[%u])).%s;\n", map, coord,
                          coord, swizzle(texSwap).c_str());
             }
             s += buf;
@@ -630,7 +634,8 @@ struct ShaderCacheEntryHeader {
 // made by the warm-up under version 1 could have another one baked in).
 // 4: indirect coordinates and final unclamped TEV outputs wrap like GX.
 // 5: fog uses fragment window depth.
-static const uint32_t kShaderCacheVersion = 5;
+// 6: GLES fragment shaders take the sampler LOD bias as a uniform.
+static const uint32_t kShaderCacheVersion = 6;
 
 // The cache file is shared with the launcher's background compile
 // (GXPC_PrecompileShaders, another process): readers take a shared lock,
@@ -677,6 +682,8 @@ static void setupProgramUniforms(GLuint p, ShaderProgram& sp) {
     sp.uProj = glGetUniformLocation(p, "u_proj");
     sp.uViewport = glGetUniformLocation(p, "u_vp");
     sp.uAmbMat = glGetUniformLocation(p, "u_chan");
+    sp.uLodBias = glGetUniformLocation(p, "u_lodbias");
+    sp.uLineWidth = glGetUniformLocation(p, "u_linewidth");
     sp.uDstAlpha = -1;
 }
 
@@ -785,12 +792,155 @@ static ShaderProgram compileProgramFromSource(const ProgramKey& key) {
     return finishProgram(j);
 }
 
-const ShaderProgram* shaderForCurrentState() {
+// ------------------------------------------------------------------ lines
+// GX draws a line as a quad GXSetLineWidth sixths of an EFB pixel wide,
+// widened along the minor axis. GL lines are one pixel of the scaled EFB
+// (wider ones are optional on GLES and missing from core contexts), so above
+// 1x the iris wipes' black field, one line per EFB row, left rows uncovered
+// and came out as translucent grey stripes. Line batches draw through the
+// same program with a geometry shader that makes the quads. Only a few 2D
+// draws use lines, so these programs stay out of s_programs, the program
+// cache and the warm-up keys, and are compiled when first drawn. Without
+// geometry shaders (GLES before 3.2 and no extension) lines stay 1 pixel.
+// Adapted from chasem-dev/sms-pc-port 1de2238 (MIT, third_party/chasem-pc-port).
+#ifndef GL_GEOMETRY_SHADER
+#define GL_GEOMETRY_SHADER 0x8DD9
+#endif
+
+static const char* const kLineVaryings[][2] = {
+    {"vec4", "c0"},  {"vec4", "c1"},  {"vec3", "tc0"}, {"vec3", "tc1"}, {"vec3", "tc2"},  {"vec3", "tc3"},
+    {"vec3", "tc4"}, {"vec3", "tc5"}, {"vec3", "tc6"}, {"vec3", "tc7"}, {"float", "depth"},
+};
+
+// The version line all three stages of a line program share (GLSL ES links
+// only one version), and what the geometry shader adds after it; false when
+// the context has no geometry shaders.
+static bool lineVersion(std::string& version, std::string& gsExtra) {
+    static int s_state = -1;
+    static std::string s_version, s_extra;
+    if (s_state < 0) {
+        s_state = 0;
+#ifdef SMS_GLES
+        int major = 0, minor = 0;
+        const char* v = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+        if (v && sscanf(v, "OpenGL ES %d.%d", &major, &minor) == 2 && (major > 3 || (major == 3 && minor >= 2))) {
+            s_version = "#version 320 es";
+            s_extra = "precision highp float;\n";
+            s_state = 1;
+        } else {
+            GLint n = 0;
+            glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+            for (GLint i = 0; i < n && !s_state; i++) {
+                const char* x = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, GLuint(i)));
+                if (x && (!strcmp(x, "GL_EXT_geometry_shader") || !strcmp(x, "GL_OES_geometry_shader"))) {
+                    s_version = "#version 310 es";
+                    s_extra = std::string("#extension ") + x + " : require\nprecision highp float;\n";
+                    s_state = 1;
+                }
+            }
+        }
+#else
+        s_version = "#version 330 core";
+        s_state = 1;
+#endif
+        if (getenv("SMS_GX_WIDE_LINES") && !atoi(getenv("SMS_GX_WIDE_LINES"))) s_state = 0;
+        logmsg("wide GX lines: %s", s_state ? s_version.c_str() : "unavailable, lines stay 1 pixel");
+    }
+    version = s_version;
+    gsExtra = s_extra;
+    return s_state == 1;
+}
+
+static void setVersion(std::string& src, const std::string& version) { src.replace(0, src.find('\n'), version); }
+
+static std::string genLineGS(const std::string& version, const std::string& extra) {
+    std::string s = version + "\n" + extra +
+                    "layout(lines) in;\n"
+                    "layout(triangle_strip, max_vertices = 4) out;\n"
+                    "uniform vec2 u_efb;\n"
+                    "uniform float u_linewidth;  // EFB pixels\n";
+    for (const auto& v : kLineVaryings)
+        s += std::string("in ") + v[0] + " vl_" + v[1] + "[]; out " + v[0] + " v_" + v[1] + ";\n";
+    s += "void main() {\n"
+         "  vec4 a = gl_in[0].gl_Position, b = gl_in[1].gl_Position;\n"
+         "  vec2 d = (b.xy / max(abs(b.w), 1e-6) - a.xy / max(abs(a.w), 1e-6)) * u_efb;\n"
+         "  vec2 off = abs(d.y) > abs(d.x) ? vec2(u_linewidth / u_efb.x, 0.0) : vec2(0.0, u_linewidth / u_efb.y);\n";
+    for (int i = 0; i < 4; i++) {  // each end, then each side of it
+        char buf[256];
+        const int e = i >> 1;
+        snprintf(buf, sizeof buf, "  gl_Position = gl_in[%d].gl_Position + vec4(%soff * gl_in[%d].gl_Position.w, 0.0, 0.0);\n",
+                 e, i & 1 ? "" : "-", e);
+        s += buf;
+#ifndef SMS_GLES
+        snprintf(buf, sizeof buf,
+                 "  gl_ClipDistance[0] = gl_in[%d].gl_ClipDistance[0];\n  gl_ClipDistance[1] = gl_in[%d].gl_ClipDistance[1];\n",
+                 e, e);
+        s += buf;
+#endif
+        for (const auto& v : kLineVaryings) s += std::string("  v_") + v[1] + " = vl_" + v[1] + "[" + char('0' + e) + "];\n";
+        s += "  EmitVertex();\n";
+    }
+    return s + "  EndPrimitive();\n}\n";
+}
+
+static std::unordered_map<ProgramKey, ShaderProgram, ProgramKeyHash> s_linePrograms;
+
+// The line program for `key`, or nullptr (no geometry shaders, or it failed:
+// the batch then draws 1-pixel lines through the ordinary program).
+static const ShaderProgram* lineProgram(const ProgramKey& key) {
+    auto it = s_linePrograms.find(key);
+    if (it != s_linePrograms.end()) return it->second.prog ? &it->second : nullptr;
+    ShaderProgram& sp = s_linePrograms[key];
+    sp.prog = 0;
+    std::string version, extra;
+    if (!lineVersion(version, extra)) return nullptr;
+    g_statShaderCompiles++;
+    std::string vs = genVS(key.k), fs = genFS(key.k, key.indScale), gs = genLineGS(version, extra), defs;
+    setVersion(vs, version);
+    setVersion(fs, version);
+    for (const auto& v : kLineVaryings) defs += std::string("#define v_") + v[1] + " vl_" + v[1] + "\n";
+    vs.insert(vs.find('\n') + 1, defs);
+    GLuint v = startCompile(GL_VERTEX_SHADER, vs), gm = startCompile(GL_GEOMETRY_SHADER, gs),
+           f = startCompile(GL_FRAGMENT_SHADER, fs);
+    GLuint p = glCreateProgram();
+    glAttachShader(p, v);
+    glAttachShader(p, gm);
+    glAttachShader(p, f);
+    static const char* attrs[] = {"a_pos", "a_nrm", "a_bin", "a_tan", "a_clr0", "a_clr1", "a_tex0", "a_tex1", "a_tex2",
+                                  "a_tex3", "a_tex4", "a_tex5", "a_tex6", "a_tex7", "a_mtx"};
+    for (GLuint i = 0; i < 15; i++) glBindAttribLocation(p, i, attrs[i]);
+    glBindFragDataLocation(p, 0, "o_color");
+    glLinkProgram(p);
+    GLint ok = 0;
+    glGetProgramiv(p, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        logCompileFailure(v, vs);
+        logCompileFailure(gm, gs);
+        logCompileFailure(f, fs);
+        char log[4096];
+        glGetProgramInfoLog(p, sizeof log, nullptr, log);
+        logmsg("line program link failed, lines stay 1 pixel: %s", log);
+    }
+    glDeleteShader(v);
+    glDeleteShader(gm);
+    glDeleteShader(f);
+    if (!ok) {
+        glDeleteProgram(p);
+        return nullptr;
+    }
+    setupProgramUniforms(p, sp);
+    sp.id = int(g_statShaderCompiles);
+    return &sp;
+}
+
+const ShaderProgram* shaderForCurrentState(bool lines) {
     ProgramKey key;
     ShaderKey& k = key.k;
     buildKey(k);
     key.indScale[0] = k.numInd ? g.bp[BP_RAS1_SS0] : 0;
     key.indScale[1] = k.numInd ? g.bp[BP_RAS1_SS0 + 1] : 0;
+    if (lines)
+        if (const ShaderProgram* lp = lineProgram(key)) return lp;
     // consecutive batches mostly share a program
     if (s_lastProgram && key == s_lastKey) return s_lastProgram;
     auto it = s_programs.find(key);
@@ -848,6 +998,25 @@ static void prewarmCommonShaders() {
 // stage load (shaderPrepareStage) takes what came since.
 static long s_cacheEnd = 0;
 
+// Whether a key read back from the cache file is one buildKey can make. A
+// record cut short (the game killed mid-write) leaves the next ones out of
+// step, and they read as garbage.
+static bool programKeyValid(const ProgramKey& key) {
+    const ShaderKey& k = key.k;
+    return k.numTexGens <= 8 && k.numChans <= 3 && k.numStages >= 1 && k.numStages <= 16 && k.numInd <= 4;
+}
+
+// Cuts a damaged cache file back to its last whole record (s_cacheEnd), so
+// the records appended after it can be read again.
+static void truncateTornCache() {
+    FILE* f = fopen(getShaderCachePath().c_str(), "rb+");
+    if (!f) return;
+    lockCache(f, LOCK_EX);
+    if (s_cacheEnd >= long(sizeof(ShaderCacheFileHeader)) && ftruncate(fileno(f), s_cacheEnd) == 0)
+        logmsg("shader: cache damaged after byte %ld, cut back", s_cacheEnd);
+    fclose(f);
+}
+
 // The cache file's programs from s_cacheEnd on (all of it the first time);
 // returns how many were new.
 static size_t loadCachedPrograms() {
@@ -855,18 +1024,28 @@ static size_t loadCachedPrograms() {
     if (!f) return 0;
     lockCache(f, LOCK_SH);
     size_t loaded = 0;
+    bool torn = false;
     ShaderCacheFileHeader hdr;
     if (fread(&hdr, sizeof hdr, 1, f) == 1 && hdr.magic == 0x534D5343 && hdr.version == kShaderCacheVersion) {
-        if (s_cacheEnd > long(sizeof hdr) && fseek(f, s_cacheEnd, SEEK_SET) != 0) s_cacheEnd = 0;
+        if (s_cacheEnd < long(sizeof hdr) || fseek(f, s_cacheEnd, SEEK_SET) != 0) s_cacheEnd = long(sizeof hdr);
+        struct stat st;
+        const long size = fstat(fileno(f), &st) == 0 ? long(st.st_size) : 0;
         ShaderCacheEntryHeader eh;
         std::vector<uint8_t> bin;
-        while (fread(&eh, sizeof eh, 1, f) == 1) {
-            if (eh.binaryLength == 0 || eh.binaryLength > (16u << 20)) break;
+        for (;;) {
+            int c = fgetc(f);
+            if (c == EOF) break;  // the end, between records
+            ungetc(c, f);
+            if (fread(&eh, sizeof eh, 1, f) != 1 || eh.binaryLength == 0 || eh.binaryLength > (16u << 20) ||
+                !programKeyValid(eh.key) || ftell(f) + long(eh.binaryLength) > size) {
+                torn = true;
+                break;
+            }
             if (s_programs.count(eh.key)) {  // made here (or read) already
-                if (fseek(f, long(eh.binaryLength), SEEK_CUR) != 0) break;
+                if (fseek(f, long(eh.binaryLength), SEEK_CUR) != 0) { torn = true; break; }
             } else {
                 bin.resize(eh.binaryLength);
-                if (fread(bin.data(), 1, eh.binaryLength, f) != eh.binaryLength) break;
+                if (fread(bin.data(), 1, eh.binaryLength, f) != eh.binaryLength) { torn = true; break; }
                 GLuint p = glCreateProgram();
                 glProgramBinary(p, eh.binaryFormat, bin.data(), eh.binaryLength);
                 GLint ok = 0;
@@ -885,6 +1064,7 @@ static size_t loadCachedPrograms() {
         }
     }
     fclose(f);
+    if (torn) truncateTornCache();
     return loaded;
 }
 
@@ -1138,6 +1318,9 @@ namespace gx {
 void shaderShutdown() {
     for (auto& kv : s_programs) glDeleteProgram(kv.second.prog);
     s_programs.clear();
+    for (auto& kv : s_linePrograms)
+        if (kv.second.prog) glDeleteProgram(kv.second.prog);
+    s_linePrograms.clear();
     s_lastProgram = nullptr;
     s_cacheEnd = 0;
 }

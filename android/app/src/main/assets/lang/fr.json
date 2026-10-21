@@ -571,5 +571,16 @@
   "Shows the frame rate and rendering counters. Detailed timing is optional. Applies the next time the game starts.": "Affiche la fréquence d’images et les compteurs de rendu. La mesure détaillée est facultative. S’applique au prochain démarrage du jeu.",
   "Detailed performance timings": "Mesures détaillées des performances",
   "Measures rendering phases for diagnostics. Can reduce FPS. Restart the game after changing this.": "Mesure les phases de rendu pour le diagnostic. Peut réduire les FPS. Redémarre le jeu après une modification.",
-  "Smooths jagged edges. Higher values need more GPU power.": "Lisse les contours crénelés. Les valeurs élevées demandent plus de puissance GPU."
+  "Smooths jagged edges. Higher values need more GPU power.": "Lisse les contours crénelés. Les valeurs élevées demandent plus de puissance GPU.",
+ "SOUND": "SON",
+ "Music": "Musique",
+ "Sound effects": "Effets sonores",
+ "How loud the music is. 0% turns it off.": "Le volume de la musique. 0 % la coupe.",
+ "How loud sound effects and voices are. 0% turns them off.": "Le volume des effets sonores et des voix. 0 % les coupe.",
+ "Save/Load delay": "Délai sauvegarde/chargement",
+ "Hold SAVE to save": "Maintiens SAVE pour sauvegarder",
+ "Hold LOAD to load": "Maintiens LOAD pour charger",
+ "Save states work once you are in a level. Load your game first.": "Les sauvegardes d’état fonctionnent dans un niveau. Charge d’abord ta partie.",
+ "Save states are getting ready, please wait": "Les sauvegardes d’état se préparent, patiente",
+ "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Annuler"
 }

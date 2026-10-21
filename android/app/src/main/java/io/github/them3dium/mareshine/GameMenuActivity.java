@@ -44,6 +44,7 @@ public class GameMenuActivity extends AppActivity {
         super.onResume();
         L.init(this); // Settings (another process) may have changed the app language
         if (!L.current(this).equals(mLang)) buildUi();
+        GameAudio.applyAll(this); // and the volumes, which apply at once
         if (mSettingsChanged) {
             tvNote.setText(t("Changes apply after \"Restart game\"."));
         }
@@ -70,6 +71,7 @@ public class GameMenuActivity extends AppActivity {
                 if (msg != null) android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show();
             });
         });
+        findViewById(R.id.btnSound).setOnClickListener(v -> showSound());
         findViewById(R.id.btnGraphics).setOnClickListener(v -> {
             mSettingsChanged = true;
             startActivity(new Intent(this, SettingsActivity.class).putExtra(SettingsActivity.EXTRA_IN_GAME, true));
@@ -78,6 +80,79 @@ public class GameMenuActivity extends AppActivity {
         findViewById(R.id.btnQuit).setOnClickListener(v -> leaveGame(false));
         findViewById(R.id.btnResume).requestFocus();
         fitBar();
+    }
+
+    // Music and sound effect volumes, applied while the panel is open (the
+    // mixer ramps to a new value, so dragging does not click) and kept.
+    private void showSound() {
+        final float d = getResources().getDisplayMetrics().density;
+        final android.app.Dialog dlg = new android.app.Dialog(this);
+        dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackgroundResource(R.drawable.dl_panel);
+        int pad = Math.round(20 * d);
+        panel.setPadding(pad, Math.round(14 * d), pad, Math.round(18 * d));
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = new TextView(this);
+        title.setText(t("SOUND"));
+        title.setTextColor(0xFFFFC93C);
+        title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        title.setTextSize(22);
+        head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView close = closeButton();
+        close.setOnClickListener(v -> dlg.dismiss());
+        head.addView(close);
+        panel.addView(head);
+        String[][] rows = {{GameAudio.MUSIC, "Music"}, {GameAudio.SFX, "Sound effects"}};
+        final java.util.List<android.widget.SeekBar> bars = new java.util.ArrayList<>();
+        for (String[] r : rows) {
+            final String key = r[0];
+            final TextView label = new TextView(this);
+            label.setTextColor(getColor(R.color.dl_text));
+            label.setTextSize(16);
+            label.setPadding(0, Math.round(10 * d), 0, Math.round(2 * d));
+            final Runnable show = () -> {
+                int v = GameAudio.volume(this, key);
+                label.setText(t(r[1]) + ":  " + (v == 0 ? t("Off") : v + "%"));
+            };
+            show.run();
+            panel.addView(label);
+            android.widget.SeekBar bar = new android.widget.SeekBar(this);
+            bar.setMax(10);  // steps of 10 %
+            bar.setProgress(GameAudio.volume(this, key) / 10);
+            bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFFC93C));
+            bar.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFFC93C));
+            bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2A5A85));
+            // a gold frame while chosen, as Settings' sliders (dl_row), so a
+            // controller shows which one it moves
+            bar.setBackgroundResource(R.drawable.dl_row);
+            bar.setPadding(Math.round(16 * d), Math.round(14 * d), Math.round(16 * d), Math.round(14 * d));
+            bar.setFocusable(true);
+            bars.add(bar);
+            bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
+                    if (!user) return;
+                    GameAudio.setVolume(GameMenuActivity.this, key, p * 10);
+                    show.run();
+                }
+                @Override public void onStartTrackingTouch(android.widget.SeekBar s) {}
+                @Override public void onStopTrackingTouch(android.widget.SeekBar s) {}
+            });
+            panel.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+        dlg.setContentView(panel);
+        dlg.setCanceledOnTouchOutside(true);
+        android.view.Window w = dlg.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+            w.setLayout(Math.round(460 * d), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        dlg.show();
+        // with a controller (the menu was reached by it), the first slider is chosen
+        if (getCurrentFocus() != null && !bars.isEmpty()) bars.get(0).requestFocus();
     }
 
     // The bar and the dimming cover the whole screen, up to the edges; only
@@ -188,6 +263,29 @@ public class GameMenuActivity extends AppActivity {
         finishAffinity();
         Process.killProcess(Process.myPid());
     }
+
+    // controller: AppActivity's scheme; the bar's entries are the tabs here
+    @Override protected boolean usesPadNav() { return true; }
+
+    private static final int[] BAR = {R.id.btnResume, R.id.btnSaveStates, R.id.btnAchievements, R.id.btnSync,
+        R.id.btnSound, R.id.btnGraphics, R.id.btnRestart, R.id.btnQuit};
+
+    @Override
+    protected boolean onPadTab(int dir, boolean shoulder) {
+        java.util.List<View> bar = new java.util.ArrayList<>();
+        for (int id : BAR) {
+            View v = findViewById(id);
+            if (v != null && v.getVisibility() == View.VISIBLE) bar.add(v);
+        }
+        if (bar.isEmpty()) return true;
+        int at = bar.indexOf(getCurrentFocus());
+        int next = at < 0 ? 0 : Math.max(0, Math.min(bar.size() - 1, at + dir));
+        bar.get(next).requestFocusFromTouch();
+        return true;
+    }
+
+    // up and down have nothing to move through in the bar
+    @Override protected java.util.List<View> padItems() { return new java.util.ArrayList<>(); }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
