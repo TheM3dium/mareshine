@@ -1500,6 +1500,7 @@ void GXReadPixMetric(u32* topIn, u32* topOut, u32* botIn, u32* botOut, u32* clrI
     *topOut = *botOut = *copyClks = 0;
 }
 void GXClearPixMetric(void) { pixMetricClear(); }
+void GXPC_FinishPixMetric(void) { pixMetricFinish(); }
 void GXSetVCacheMetric(GXVCachePerf) {}
 void GXReadVCacheMetric(u32* a, u32* b, u32* c) { *a = *b = *c = 0; }
 void GXClearVCacheMetric(void) {}

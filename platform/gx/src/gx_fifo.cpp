@@ -1,5 +1,6 @@
 // Register file, command-stream parser and vertex loader.
 #include "gx_internal.h"
+#include "gl_funcs.h"
 #include <time.h>
 
 #include <string.h>
@@ -8,6 +9,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <map>
+#include <algorithm>
 #include <unordered_map>
 
 namespace gx {
@@ -477,12 +479,21 @@ void unpackVertex(uint32_t fmt, const uint8_t* src, const uint8_t defMtx[9], Hos
 // whether the data is big-endian (inline data always is).
 struct DecOp;
 typedef void (*DecFn)(const DecOp& o, const uint8_t*& p, uint8_t* out);
+typedef void (*DecBatchFn)(const DecOp& o, const uint8_t* p, uint8_t* out,
+                           uint32_t count, uint32_t inputStride, uint32_t outputStride);
+struct DecReader {
+    DecFn fn;
+    DecBatchFn batch;
+    uint16_t bytes;
+};
 struct DecOp {
     DecFn fn;
+    DecBatchFn batch;
     const uint8_t* base;  // array base (indexed modes)
     uint32_t stride;      // array stride
     float scale;          // 1 / 2^frac for integer components
     uint16_t dst;         // byte offset in the packed vertex
+    uint16_t inputOffset; // byte offset in one source vertex
     float def[9];         // written when an indexed element has no array
 };
 
@@ -581,15 +592,35 @@ template <int MODE, int TYPE, bool BE> static void readClr(const DecOp& o, const
     }
 }
 
+template <int MODE, typename T, int N, int NOUT, bool BE>
+static void readVecBatch(const DecOp& o, const uint8_t* p, uint8_t* out,
+                         uint32_t count, uint32_t inputStride, uint32_t outputStride) {
+    const DecOp stable = o;
+    for (uint32_t v = 0; v < count; ++v) {
+        const uint8_t* src = p + size_t(v) * inputStride;
+        readVec<MODE, T, N, NOUT, BE>(stable, src, out + size_t(v) * outputStride);
+    }
+}
+
+template <int MODE, int TYPE, bool BE>
+static void readClrBatch(const DecOp& o, const uint8_t* p, uint8_t* out,
+                         uint32_t count, uint32_t inputStride, uint32_t outputStride) {
+    const DecOp stable = o;
+    for (uint32_t v = 0; v < count; ++v) {
+        const uint8_t* src = p + size_t(v) * inputStride;
+        readClr<MODE, TYPE, BE>(stable, src, out + size_t(v) * outputStride);
+    }
+}
+
 // Picks readVec<MODE, T, N, NOUT, BE> for the runtime values.
-template <int N, int NOUT> static DecFn pickVecN(uint8_t mode, uint8_t type, bool be) {
+template <int N, int NOUT> static DecReader pickVecN(uint8_t mode, uint8_t type, bool be) {
 #define SMS_GX_VEC_T(M, B)                                                                         \
     switch (type) {                                                                                \
-    case 0: return &readVec<M, uint8_t, N, NOUT, B>;                                               \
-    case 1: return &readVec<M, int8_t, N, NOUT, B>;                                                \
-    case 2: return &readVec<M, uint16_t, N, NOUT, B>;                                              \
-    case 3: return &readVec<M, int16_t, N, NOUT, B>;                                               \
-    default: return &readVec<M, float, N, NOUT, B>;                                                \
+    case 0: return {&readVec<M, uint8_t, N, NOUT, B>, &readVecBatch<M, uint8_t, N, NOUT, B>, uint16_t(M == 1 ? sizeof(uint8_t) * N : M == 2 ? 1 : 2)};                                               \
+    case 1: return {&readVec<M, int8_t, N, NOUT, B>, &readVecBatch<M, int8_t, N, NOUT, B>, uint16_t(M == 1 ? sizeof(int8_t) * N : M == 2 ? 1 : 2)};                                                \
+    case 2: return {&readVec<M, uint16_t, N, NOUT, B>, &readVecBatch<M, uint16_t, N, NOUT, B>, uint16_t(M == 1 ? sizeof(uint16_t) * N : M == 2 ? 1 : 2)};                                              \
+    case 3: return {&readVec<M, int16_t, N, NOUT, B>, &readVecBatch<M, int16_t, N, NOUT, B>, uint16_t(M == 1 ? sizeof(int16_t) * N : M == 2 ? 1 : 2)};                                               \
+    default: return {&readVec<M, float, N, NOUT, B>, &readVecBatch<M, float, N, NOUT, B>, uint16_t(M == 1 ? sizeof(float) * N : M == 2 ? 1 : 2)};                                                \
     }
     if (mode == 1) { SMS_GX_VEC_T(1, true) }
     if (mode == 2) {
@@ -601,15 +632,15 @@ template <int N, int NOUT> static DecFn pickVecN(uint8_t mode, uint8_t type, boo
 #undef SMS_GX_VEC_T
 }
 
-static DecFn pickClr(uint8_t mode, uint8_t type, bool be) {
+static DecReader pickClr(uint8_t mode, uint8_t type, bool be) {
 #define SMS_GX_CLR_T(M, B)                                                                         \
     switch (type) {                                                                                \
-    case 0: return &readClr<M, 0, B>;                                                              \
-    case 1: return &readClr<M, 1, B>;                                                              \
-    case 2: return &readClr<M, 2, B>;                                                              \
-    case 3: return &readClr<M, 3, B>;                                                              \
-    case 4: return &readClr<M, 4, B>;                                                              \
-    default: return &readClr<M, 5, B>;                                                             \
+    case 0: return {&readClr<M, 0, B>, &readClrBatch<M, 0, B>, uint16_t(M == 1 ? 2 : M == 2 ? 1 : 2)};                                                              \
+    case 1: return {&readClr<M, 1, B>, &readClrBatch<M, 1, B>, uint16_t(M == 1 ? 3 : M == 2 ? 1 : 2)};                                                              \
+    case 2: return {&readClr<M, 2, B>, &readClrBatch<M, 2, B>, uint16_t(M == 1 ? 4 : M == 2 ? 1 : 2)};                                                              \
+    case 3: return {&readClr<M, 3, B>, &readClrBatch<M, 3, B>, uint16_t(M == 1 ? 2 : M == 2 ? 1 : 2)};                                                              \
+    case 4: return {&readClr<M, 4, B>, &readClrBatch<M, 4, B>, uint16_t(M == 1 ? 3 : M == 2 ? 1 : 2)};                                                              \
+    default: return {&readClr<M, 5, B>, &readClrBatch<M, 5, B>, uint16_t(M == 1 ? 4 : M == 2 ? 1 : 2)};                                                             \
     }
     if (mode == 1) { SMS_GX_CLR_T(1, true) }
     if (mode == 2) {
@@ -632,6 +663,22 @@ static void readMtx(const DecOp& o, const uint8_t*& p, uint8_t* out) {
         if (s_mtxPresent & (1u << k)) m[k] = *p++ & 63;
 }
 
+static void readMtxBatch(const DecOp& o, const uint8_t* p, uint8_t* out,
+                          uint32_t count, uint32_t inputStride, uint32_t outputStride) {
+    const DecOp stable = o;
+    for (uint32_t v = 0; v < count; ++v) {
+        const uint8_t* src = p + size_t(v) * inputStride;
+        readMtx(stable, src, out + size_t(v) * outputStride);
+    }
+}
+
+static void setReader(DecOp& op, const DecReader& reader, uint16_t& inputOffset) {
+    op.fn = reader.fn;
+    op.batch = reader.batch;
+    op.inputOffset = inputOffset;
+    inputOffset += reader.bytes;
+}
+
 static void attrOp(DecOp& op, int slot, uint8_t mode, float scale, uint16_t dst) {
     op.base = mode >= 2 ? g.arrayBase[slot] : nullptr;
     op.stride = g.arrayStride[slot];
@@ -649,6 +696,7 @@ struct DecSetup {
     uint16_t mtxPresent;
     uint8_t mtxDefault[12];
     int nops;
+    bool batchSafe;
     DecOp ops[16];
 };
 
@@ -682,8 +730,11 @@ static void buildSetup(DecSetup& S, const VtxLayout& L) {
     // ops in stream order: matrix indices, position, normal/NBT, colours, texcoords
     DecOp* ops = S.ops;
     int nops = 0;
+    uint16_t inputOffset = 0;
     if (fmt & VF_MTX) {
-        ops[nops].fn = &readMtx;
+        uint16_t bytes = 0;
+        for (int k = 0; k < 9; ++k) bytes += (S.mtxPresent >> k) & 1;
+        setReader(ops[nops], {&readMtx, &readMtxBatch, bytes}, inputOffset);
         ops[nops].dst = lay.mtx;
         nops++;
     }
@@ -691,7 +742,7 @@ static void buildSetup(DecSetup& S, const VtxLayout& L) {
         DecOp& op = ops[nops++];
         attrOp(op, ARR_POS, L.pos.mode, 1.0f / float(1u << L.pos.frac), 0);
         bool be = L.pos.mode == 1 || g.arrayBigEndian[ARR_POS];
-        op.fn = L.pos.cnt ? pickVecN<3, 3>(L.pos.mode, L.pos.type, be) : pickVecN<2, 3>(L.pos.mode, L.pos.type, be);
+        setReader(op, L.pos.cnt ? pickVecN<3, 3>(L.pos.mode, L.pos.type, be) : pickVecN<2, 3>(L.pos.mode, L.pos.type, be), inputOffset);
     }
     if (L.nrm.mode) {
         uint8_t t = L.nrm.type;
@@ -702,20 +753,20 @@ static void buildSetup(DecSetup& S, const VtxLayout& L) {
                 DecOp& op = ops[nops++];
                 attrOp(op, ARR_NRM, L.nrm.mode, sc, uint16_t(lay.nrm + 12 * k));
                 if (k == 0) op.def[2] = 1.0f;
-                op.fn = pickVecN<3, 3>(L.nrm.mode, t, be);
+                setReader(op, pickVecN<3, 3>(L.nrm.mode, t, be), inputOffset);
             }
         } else {
             DecOp& op = ops[nops++];
             attrOp(op, ARR_NRM, L.nrm.mode, sc, lay.nrm);
             op.def[2] = 1.0f;
-            op.fn = L.nbt ? pickVecN<9, 9>(L.nrm.mode, t, be) : pickVecN<3, 3>(L.nrm.mode, t, be);
+            setReader(op, L.nbt ? pickVecN<9, 9>(L.nrm.mode, t, be) : pickVecN<3, 3>(L.nrm.mode, t, be), inputOffset);
         }
     }
     for (int c = 0; c < 2; c++)
         if (L.clr[c].mode) {
             DecOp& op = ops[nops++];
             attrOp(op, ARR_CLR0 + c, L.clr[c].mode, 1.0f, lay.clr[c]);
-            op.fn = pickClr(L.clr[c].mode, L.clr[c].type, L.clr[c].mode == 1 || g.arrayBigEndian[ARR_CLR0 + c]);
+            setReader(op, pickClr(L.clr[c].mode, L.clr[c].type, L.clr[c].mode == 1 || g.arrayBigEndian[ARR_CLR0 + c]), inputOffset);
         }
     for (int t = 0; t < 8; t++)
         if (L.tex[t].mode) {
@@ -723,9 +774,10 @@ static void buildSetup(DecSetup& S, const VtxLayout& L) {
             DecOp& op = ops[nops++];
             attrOp(op, ARR_TEX0 + t, a.mode, 1.0f / float(1u << a.frac), lay.tex[t]);
             bool be = a.mode == 1 || g.arrayBigEndian[ARR_TEX0 + t];
-            op.fn = a.cnt ? pickVecN<2, 2>(a.mode, a.type, be) : pickVecN<1, 2>(a.mode, a.type, be);
+            setReader(op, a.cnt ? pickVecN<2, 2>(a.mode, a.type, be) : pickVecN<1, 2>(a.mode, a.type, be), inputOffset);
         }
     S.nops = nops;
+    S.batchSafe = inputOffset == L.size;
 }
 
 static const uint8_t* decodeVertices(uint8_t opcode, const uint8_t* p, uint32_t count, const VtxLayout& L, int vat) {
@@ -745,8 +797,35 @@ static const uint8_t* decodeVertices(uint8_t opcode, const uint8_t* p, uint32_t 
     const DecOp* ops = S.ops;
     uint8_t* out = primitiveBegin(opcode, count, S.fmt, stride);
     if (!L.pos.mode) memset(out, 0, size_t(count) * stride);  // no position: keep the slot defined
-    for (uint32_t v = 0; v < count; v++, out += stride)
-        for (int k = 0; k < nops; k++) ops[k].fn(ops[k], p, out);
+    static const bool batchDecode = [] {
+        const char* e = getenv("SMS_GX_VERTEX_BATCH");
+        const bool automatic = !e || !strcmp(e, "auto");
+        bool on = !automatic && !strcmp(e, "1");
+#ifdef __ANDROID__
+        // Keep automatic selection within the currently tested driver family.
+        if (automatic && glGetString) {
+            const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+            on = renderer && strstr(renderer, "Adreno");
+        }
+#endif
+        logmsg("vertex decoder: %s%s", on ? "chunked" : "scalar", automatic ? " [auto]" : "");
+        return on;
+    }();
+    if (batchDecode && S.batchSafe && count > 2) {
+        const uint8_t* input = p;
+        // A small chunk keeps the interleaved output hot in cache while each
+        // attribute's concrete reader runs without per-vertex indirect calls.
+        for (uint32_t first = 0; first < count; first += 32) {
+            const uint32_t n = std::min(32u, count - first);
+            for (int k = 0; k < nops; ++k)
+                ops[k].batch(ops[k], input + size_t(first) * L.size + ops[k].inputOffset,
+                             out + size_t(first) * stride, n, L.size, stride);
+        }
+        p = input + size_t(count) * L.size;
+    } else {
+        for (uint32_t v = 0; v < count; v++, out += stride)
+            for (int k = 0; k < nops; k++) ops[k].fn(ops[k], p, out);
+    }
     primitiveEnd(opcode, count);
     return p;
 }

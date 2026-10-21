@@ -159,7 +159,8 @@ void decodeTexture(const uint8_t* src, uint32_t fmt, uint32_t w, uint32_t h, con
                     } else {
                         for (int k = 0; k < 3; k++) {
                             pal[2][k] = uint8_t((pal[0][k] + pal[1][k]) / 2);
-                            pal[3][k] = 0;
+                            // GX retains RGB under transparent CMPR texels.
+                            pal[3][k] = pal[2][k];
                         }
                         pal[2][3] = 255;
                         pal[3][3] = 0;

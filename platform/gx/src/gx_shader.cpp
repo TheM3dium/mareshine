@@ -66,6 +66,10 @@ static void buildKey(ShaderKey& k) {
         k.swap[t] = (g.bp[BP_TEV_KSEL + 2 * t] & 15) | (g.bp[BP_TEV_KSEL + 2 * t + 1] & 15) << 4;
     k.iref = k.numInd ? g.bp[BP_RAS1_IREF] & 0xFFFFFF : 0;
     k.alphaFunc = (g.bp[BP_ALPHACOMPARE] >> 16) & 0xFF;
+    if (pixelMetricShader()) {
+        k.alphaFunc |= 0x80000000u;
+        if (pixelMetricCoverage()) k.alphaFunc |= 0x40000000u;
+    }
     k.fogType = (g.bp[BP_FOG3] >> 21) & 7;
 }
 
@@ -165,6 +169,9 @@ static void emitLight(std::string& s, uint32_t ctrl, const char* comp, const cha
 
 static std::string genVS(const ShaderKey& k) {
     std::string s = kVsHeader;
+#ifdef SMS_GLES
+    if (k.alphaFunc & 0x80000000u) s.replace(0, 15, "#version 310 es");
+#endif
     char buf[1024];
     s += "void main() {\n"
          "  int pm = int(a_mtx.x & 255u);\n"
@@ -369,6 +376,14 @@ static std::string swizzle(uint32_t swap) {
 // state holds other values.
 static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
     std::string s = kFsHeader;
+#ifdef SMS_GLES
+    if (k.alphaFunc & 0x80000000u) {
+        s.replace(0, 15, "#version 310 es");
+        if (k.alphaFunc & 0x40000000u)
+            s.insert(s.find('\n') + 1, "#extension GL_OES_sample_variables : require\n");
+        s += "layout(std430, binding=0) buffer PixelSamples { uint pixelBins[256]; };\n";
+    }
+#endif
     char buf[2048];
     s += "void main() {\n"
          "  ivec4 cprev = u_tevreg[0], creg0 = u_tevreg[1], creg1 = u_tevreg[2], creg2 = u_tevreg[3];\n"
@@ -410,9 +425,18 @@ static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
                 snprintf(buf, sizeof buf, "    iv += ivec3(%d, %d, %d);\n", (bias & 1) ? bv : 0, (bias & 2) ? bv : 0, (bias & 4) ? bv : 0);
                 s += buf;
                 if (mid >= 1 && mid <= 3) {
+                    // Adapted from chasem-dev/sms-pc-port (MIT); notice in
+                    // platform/gx/third_party/chasem-pc-port/LICENSE.
+                    // The hardware's integer offset: s.10 matrix entries, the product >> 3 in 1/128 texels,
+                    // shifted by the matrix's exponent and kept to the coordinate's 24 bits. Shifted 24 or
+                    // more, nothing is left (Sunshine's goop bubbles, ms_raku_indawa, use an exponent of 29).
                     uint32_t m = mid - 1;
                     snprintf(buf, sizeof buf,
-                             "    vec2 off = vec2(dot(u_indmtx[%u].xyz, vec3(iv)), dot(u_indmtx[%u].xyz, vec3(iv))) * u_indmtx[%u].w;\n",
+                             "    ivec3 m0 = ivec3(u_indmtx[%u].xyz * 1024.0), m1 = ivec3(u_indmtx[%u].xyz * 1024.0);\n"
+                             "    ivec2 it = ivec2(m0.x * iv.x + m0.y * iv.y + m0.z * iv.z, m1.x * iv.x + m1.y * iv.y + m1.z * iv.z) >> 3;\n"
+                             "    int sc = int(u_indmtx[%u].w);\n"
+                             "    it = sc >= 32 ? ivec2(0) : sc >= 0 ? it << sc : it >> -sc;\n"
+                             "    vec2 off = vec2((it << 8) >> 8) / 128.0;\n",
                              m * 2, m * 2 + 1, m * 2);
                 } else {
                     snprintf(buf, sizeof buf, "    vec2 off = vec2(0.0);\n");
@@ -520,7 +544,9 @@ static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
         s += "  }\n";
     }
     (void)lastAlphaDest;
-    snprintf(buf, sizeof buf, "  ivec4 outc = clamp(ivec4(%s.rgb, %s.a), 0, 255);\n", kRegName[lastDest], kRegName[lastA]);
+    // Adapted from the same MIT upstream: unclamped TEV results retain
+    // their low eight bits. Bianco's water alpha relies on this wrap.
+    snprintf(buf, sizeof buf, "  ivec4 outc = ivec4(%s.rgb, %s.a) & 255;\n", kRegName[lastDest], kRegName[lastA]);
     s += buf;
 
     // alpha compare
@@ -544,8 +570,10 @@ static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
     }
     s += "  vec4 color = vec4(outc) / 255.0;\n";
     if (k.fogType) {
+        // Fog needs screen-linear pixel depth, not perspective interpolation of z/w.
+        // See the pinned MIT reference in third_party/chasem-pc-port.
         // u_fog: x = A, y = B, z = C, w = 1 for orthographic
-        s += "  float ze = u_fog.w != 0.0 ? u_fog.x * v_depth : u_fog.x / (u_fog.y - v_depth);\n"
+        s += "  float ze = u_fog.w != 0.0 ? u_fog.x * gl_FragCoord.z : u_fog.x / (u_fog.y - gl_FragCoord.z);\n"
              "  float f = clamp(ze - u_fog.z, 0.0, 1.0);\n";
         switch (k.fogType) {
         case 4: s += "  f = 1.0 - exp2(-8.0 * f);\n"; break;
@@ -556,6 +584,17 @@ static std::string genFS(const ShaderKey& k, const uint32_t indScale[2]) {
         }
         s += "  color.rgb = mix(color.rgb, u_fogcolor.rgb, f);\n";
     }
+#ifdef SMS_GLES
+    if (k.alphaFunc & 0x80000000u) {
+        // Count coverage, not shader invocations: MSAA may invoke both
+        // triangles at a shared edge for disjoint sets of samples.
+        const char* weight = (k.alphaFunc & 0x40000000u)
+            ? "uint(bitCount(gl_SampleMaskIn[0])) * 256u / uint(max(gl_NumSamples, 1))" : "1u";
+        s += "  atomicAdd(pixelBins[(uint(gl_FragCoord.x) + uint(gl_FragCoord.y) * 17u) & 255u], ";
+        s += weight;
+        s += ");\n";
+    }
+#endif
     s += "  o_color = color;\n}\n";
     return s;
 }
@@ -589,7 +628,9 @@ struct ShaderCacheEntryHeader {
 
 // 2: fragment shaders take the indirect scale from the program key (programs
 // made by the warm-up under version 1 could have another one baked in).
-static const uint32_t kShaderCacheVersion = 2;
+// 4: indirect coordinates and final unclamped TEV outputs wrap like GX.
+// 5: fog uses fragment window depth.
+static const uint32_t kShaderCacheVersion = 5;
 
 // The cache file is shared with the launcher's background compile
 // (GXPC_PrecompileShaders, another process): readers take a shared lock,

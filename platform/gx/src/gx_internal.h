@@ -162,6 +162,7 @@ void markXfMemDirty();
 uint32_t peekColor(int x, int y);  // A<<24|R<<16|G<<8|B
 uint32_t peekZ(int x, int y);      // 24-bit
 void pixMetricClear();
+void pixMetricFinish();
 uint32_t pixMetricRead();
 
 // ---------------------------------------------------------------- textures (gx_texture.cpp)
@@ -207,6 +208,8 @@ struct ShaderProgram {
         uProj, uViewport, uAmbMat, uDstAlpha;
     mutable UniformCache uc;
 };
+bool pixelMetricShader();
+bool pixelMetricCoverage();
 const ShaderProgram* shaderForCurrentState();
 void shaderInit();
 void shaderPrepareStage(int stage);  // while a stage loads: its programs (the warm-up)

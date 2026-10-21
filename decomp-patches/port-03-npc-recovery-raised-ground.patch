@@ -1,0 +1,50 @@
+Reason: Recover onto terrain raised during a pollution event only when the old pollution height is no longer valid and the new legal floor is supported within the existing sink depth.
+--- a/src/NPC/NpcAnm.cpp
++++ b/src/NPC/NpcAnm.cpp
+@@ -1,4 +1,9 @@
+ #include <NPC/NpcBase.hpp>
++#ifdef TARGET_PC
++#include <Map/Map.hpp>
++#include <Map/MapData.hpp>
++#include <Map/PollutionManager.hpp>
++#endif
+ #include <MSound/MSound.hpp>
+ #include <MarioUtil/RandomUtil.hpp>
+ #include <MarioUtil/MathUtil.hpp>
+@@ -478,6 +483,36 @@
+ 	}
+ 
+ 	if (getMActor()->isCurAnmAlreadyEnd(ANM_TYPE_BCK)) {
++#ifdef TARGET_PC
++		// A pollution event can raise the terrain while this NPC is buried.
++		// Its old standing height then lies below the new floor. Recheck
++		// only the recovery's vertical span, not arbitrary floors overhead.
++		const f32 recoveryTop = unk1C4 + mIndividualParams->mSinkHeight.get();
++		const TBGCheckData* recoveredGround = nullptr;
++		const f32 recoveredY = gpMap->checkGroundIgnoreWaterSurface(
++		    mPosition.x, recoveryTop, mPosition.z, &recoveredGround);
++		bool oldHeightMatches = false, recoveredHeightMatches = false;
++		if (gpPollution && recoveredGround && recoveredGround->isLegal()
++		    && recoveredY > unk1C4 && recoveredY <= recoveryTop) {
++			// A valid old pollution surface must keep its own floor, even
++			// when another walkable storey is within the recovery span.
++			for (int i = 0; i < gpPollution->getJointModelNum(); ++i) {
++				const TPollutionLayer* layer = gpPollution->getLayer(i);
++				if (!layer || layer->getPlaneType() != 0
++				    || !layer->isInArea(mPosition.x, unk1C4, mPosition.z))
++					continue;
++				const int u = layer->getTexPosS(mPosition.x);
++				const int v = layer->getTexPosT(mPosition.z);
++				oldHeightMatches |= layer->mPos.isSame(u, v, unk1C4);
++				recoveredHeightMatches |= layer->mPos.isSame(u, v, recoveredY);
++			}
++		}
++		if (!oldHeightMatches && recoveredHeightMatches) {
++			unk1C4 = recoveredY;
++			mGroundHeight = recoveredY;
++			mGroundPlane = recoveredGround;
++		}
++#endif
+ 		result = true;
+ 		offLiveFlag(LIVE_FLAG_AIRBORNE);
+ 		mVelocity.set(0.0f, 0.0f, 0.0f);

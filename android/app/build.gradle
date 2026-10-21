@@ -11,8 +11,8 @@ android {
         applicationId 'io.github.them3dium.mareshine'
         minSdk 26
         targetSdk 35
-        versionCode 10
-        versionName '1.4.2'
+        versionCode 11
+        versionName '1.4.3'
 
         externalNativeBuild {
             cmake {
@@ -20,11 +20,11 @@ android {
                           '-DANDROID_PLATFORM=android-26',
                           '-DCMAKE_BUILD_TYPE=RelWithDebInfo',
                           '-DSMS_GLES=ON'
-                // the builder's home folder is not written into the libraries
-                // (source paths in asserts and logs): ~ stands in for it
+                // Keep asserts/logs relative to the repository; anonymize external paths.
                 def home = System.getProperty('user.home')
-                cFlags "-ffile-prefix-map=${home}=~"
-                cppFlags "-ffile-prefix-map=${home}=~"
+                def sourceRoot = rootProject.projectDir.parentFile.absolutePath
+                cFlags "-ffile-prefix-map=${home}=~", "-ffile-prefix-map=${sourceRoot}=."
+                cppFlags "-ffile-prefix-map=${home}=~", "-ffile-prefix-map=${sourceRoot}=."
                 targets 'sms', 'SDL2'
             }
         }

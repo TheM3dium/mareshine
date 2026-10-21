@@ -135,7 +135,7 @@ The following are accepted, and their state is stored, but they have no or only 
 
 ## Tests
 
-`build/gx_selftest` (CTest `gx_selftest`, run offscreen) passes 25/25 checks on both this machine's NVIDIA EGL device and Mesa llvmpipe:
+`build/gx_selftest` (CTest `gx_selftest`, run offscreen) passes 28/28 checks on both this machine's NVIDIA EGL device and Mesa llvmpipe:
 
 - copy-clear, and a vertex-colour quad through `PASSCLR`
 - a textured RGBA8 quad through a **2-stage TEV** (texture × rasterized colour, then × konst colour): exact 8-bit results
@@ -159,17 +159,16 @@ Without them it still compiles, but only a host-supplied context (`GXPC_Init(get
 
 ## Known gaps
 
-- **Not verified against the game yet.**
-  Nothing here has drawn a J2D screen from the real game, and the 3D paths (J3D display lists, skinning, indirect effects) are untested beyond the self-test.
-- **Indirect texturing is approximate.**
-  Offsets are computed in texel units with the static matrices.
-  Dynamic S/T matrices (bump mapping) and the exact hardware fixed-point rounding are missing.
-  Emboss texgen passes the source coordinate through.
+- **Hardware coverage is scene-specific.**
+  Android tests cover the Airstrip pollution fight and NPC recovery, Plaza gameplay, and selected scenes. This is not a complete audit of every material and stage.
+- **Indirect texturing still has gaps.**
+  Static indirect coordinates now preserve signed 24-bit wrapping, including large matrix exponents. Dynamic S/T matrices (bump mapping) and exact hardware rounding remain incomplete. Emboss texgen passes the source coordinate through.
 - **Early-Z.**
   With `GXSetZCompLoc(GX_TRUE)` and alpha test, the hardware writes depth for pixels that fail the alpha test; GL does not.
-- **EFB copies are also written back to RAM.**
-  Every texture copy is read back and stored in its GX tile layout (the GL copy stays as the sampling fast path), because the game reads some on the CPU: Delfino's goop map (`TPollutionLayer::isPolluted`) is updated only by EFB copies. A `DCFlushRange`/`DCStoreRange` over a copy drops the GL copy so RAM wins again. `SMS_GX_COPY_WRITEBACK=0` turns write-back off; `SMS_GX_COPY_LOG=n` logs the first n write-backs.
-- **Pixel metrics** (`GXClearPixMetric`/`GXReadPixMetric`) count samples that pass (a GL occlusion query) plus 4 per triangle, which the pollution counters subtract again; copy passes are not counted.
+- **EFB copies and CPU coherence.**
+  Texture copies retain a GPU sampling fast path. R8 pollution copies always update CPU-visible tiled memory, including with `SMS_GX_COPY_WRITEBACK=0`, because game logic reads the pollution map. The setting still controls other copy write-backs. `SMS_GX_COPY_LOG=n` logs the first n write-backs.
+- **Pixel metrics.**
+  GLES 3.1 uses numeric fragment counters for depth-disabled pollution passes, with sample-mask coverage when supported. Pollution callbacks explicitly finish the count so unrelated scene draws do not enter it. GLES 3.0, missing sample-mask support, and depth-enabled metrics retain limited fallback behavior; they are not equivalent to full hardware counters.
 - **GPU reads arrive one frame late.**
   A synchronous read makes the CPU wait until the GPU has drawn everything queued, so the two stop overlapping (the plaza made 30–85 such reads a frame).
   As in Dolphin, the reads the game repeats every frame are answered from the same read one frame earlier: copy write-backs are stored a frame later (a pixel buffer and a fence), a pixel-metric pair is answered from the previous frame's query when it drew the same number of triangles, and each group of `GXPeekARGB`/`GXPeekZ` calls with no drawing in between is answered from the previous frame's 1× snapshot of the EFB.
@@ -181,3 +180,22 @@ Without them it still compiles, but only a host-supplied context (`GXPC_Init(get
 - **Pixel formats.**
   `RGB565_Z16` (AA) is treated like RGB8; RGBA6 is not quantized to 6 bits.
 - **Other hardware features** are not emulated: TMEM preloading, the vertex cache, bounding boxes, performance counters, the scissor box offset, and the texture LOD differences between GX and GL.
+
+## Vertex reader selection
+
+`SMS_GX_VERTEX_BATCH=auto` (also the absent-setting default) enables the chunked vertex reader on Android Adreno. `0` keeps the original scalar reader; `1` explicitly selects the chunked reader on other hosts for comparison. Other renderer families remain scalar in automatic mode.
+
+The VAT setup caches each attribute's input offset and pairs its scalar and chunked conversion functions in one table. Chunks of up to 32 vertices avoid per-vertex indirect calls while keeping the packed output unchanged. One- and two-vertex primitives, or a layout whose cached byte count does not match its source stride, use the scalar path. This changes CPU decoding work, not drawing distance, textures or game logic.
+
+## Renderer regression checks
+
+The GLES suite uses synthetic textures and geometry, without disc data. It checks indirect 24-bit wrap, final TEV 8-bit wrap, fog depth, CMPR transparent RGB, pollution metrics and R8 CPU coherence. Separate feedback tests preserve every mask byte over 150 copy cycles at fractional scales, MSAA and 20:9.
+
+```sh
+cmake -S platform/gx -B build/gx-gles -DSMS_GLES=ON -DSMS_GX_BUILD_TESTS=ON
+cmake --build build/gx-gles -j4
+ctest --test-dir build/gx-gles --output-on-failure -R 'gx_gles_regressions|gx_copy_feedback'
+python3 tools/tests/npc_recovery_test.py
+```
+
+The GPU regressions need an EGL OpenGL ES 3.1 implementation with sample-mask support. Missing contexts return skip code 77. The NPC check extracts the actual original and patched recovery functions and collision query, then uses synthetic floors under ASan/UBSan. It covers raised ground, valid lower storeys, missing/illegal floors and absent pollution-height evidence.

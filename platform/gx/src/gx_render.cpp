@@ -122,7 +122,7 @@ static GLuint s_tmpFbo;
 static GLuint s_overlayTex;
 static float s_overlayAlpha = 1.0f;  // GXPC_SetOverlayAlpha
 static GLuint s_overlayProg;
-static GLint s_overlayRect, s_overlayWindow;
+static GLint s_overlayRect, s_overlayWindow, s_overlayColor, s_overlayUAlpha;
 static GXPCStats s_lastFrameStats;
 static bool s_ready = false;
 static bool s_xfDirty = true;
@@ -778,7 +778,9 @@ void rendererInit(int efbScale) {
     if (const char* e = getenv("SMS_WIDESCREEN_HUD")) s_hudEdges = s_efbW != EFB_W && !strcmp(e, "edges");
     s_ox = (s_efbW - EFB_W) / 2;
     if (s_efbW != EFB_W) logmsg("widescreen: EFB %dx%d", s_efbW, EFB_H);
-    int W = int(float(s_efbW) * s_scale + 0.5f) & ~1, H = int(float(EFB_H) * s_scale + 0.5f) & ~1;
+    // Storage, viewport and normalized EFB-copy coordinates must agree.
+    // Rounding storage down to even pixels makes repeated copies drift.
+    int W = int(float(s_efbW) * s_scale + 0.5f), H = int(float(EFB_H) * s_scale + 0.5f);
     logmsg("GX: internal EFB resolution %dx%d (scale %.2f)", W, H, s_scale);
     glGenTextures(1, &s_efbColor);
     glBindTexture(GL_TEXTURE_2D, s_efbColor);
@@ -1216,12 +1218,13 @@ static void uploadUniforms(const ShaderProgram* sp, float texW[8], float texH[8]
         row1[1] = sext11((r1 >> 11) & 0x7FF) / 1024.0f;
         row0[2] = sext11(r2 & 0x7FF) / 1024.0f;
         row1[2] = sext11((r2 >> 11) & 0x7FF) / 1024.0f;
-        row0[3] = ldexpf(1.0f, sc);
+        row0[3] = float(sc);  // exponent for the shader's integer shift
         row1[3] = 0.0f;
     }
     UNI(uIndMtx, indmtx, im, glUniform4fv(sp->uIndMtx, 6, im));
 
-    float efb[2] = {float(s_efbW), float(EFB_H)};
+    float efb[2] = {float(int(float(s_efbW) * s_scale + 0.5f)) / s_scale,
+                    float(int(float(EFB_H) * s_scale + 0.5f)) / s_scale};
     UNI(uEfb, efb, efb, glUniform2fv(sp->uEfb, 1, efb));
     float proj[8] = {xff(XFR_PROJ), xff(XFR_PROJ + 1), xff(XFR_PROJ + 2), xff(XFR_PROJ + 3),
                      xff(XFR_PROJ + 4), xff(XFR_PROJ + 5), float(g.xfReg[XFR_PROJ + 6] & 1), 0.0f};
@@ -1231,6 +1234,17 @@ static void uploadUniforms(const ShaderProgram* sp, float texW[8], float texH[8]
     if (s_efbW != EFB_W) {  // the draw's widescreen mapping (centre and half-width, clip x scale)
         vp[4] = (vp[4] - 342.0f) * s_xmap.a + s_xmap.b + 342.0f;
         vp[0] *= s_xmap.a * s_xmap.clip;
+    }
+    // EFB-backed textures are copied on physical pixel edges. Match that
+    // raster footprint for sub-viewports such as pollution and shadow maps.
+    if (fabsf(fabsf(xff(XFR_VIEWPORT)) * 2.0f - float(EFB_W)) >= 2.0f) {
+        for (int axis = 0; axis < 2; ++axis) {
+            const float center = vp[4 + axis] - 342.0f, extent = fabsf(vp[axis]);
+            const float lo = floorf((center - extent) * s_scale + 0.5f);
+            const float hi = floorf((center + extent) * s_scale + 0.5f);
+            vp[4 + axis] = (lo + hi) / (2.0f * s_scale) + 342.0f;
+            vp[axis] = copysignf((hi - lo) / (2.0f * s_scale), vp[axis]);
+        }
     }
     UNI(uViewport, vp, vp, glUniform4fv(sp->uViewport, 2, vp));
     float ch[16];
@@ -1339,10 +1353,84 @@ static bool s_pixCurPooled = false;
 static std::vector<GLuint> s_queryPool;
 static std::vector<std::pair<GLuint, bool>> s_pixPending;  // ended queries of this count, pooled?
 
+// ES boolean queries cannot supply GX's numeric pollution counters. The
+// game's metric draws disable depth testing; count their surviving fragments.
+static bool s_metricStorage = false;
+static bool s_metricSampleVariables = false;
+static void (*s_metricBarrier)(GLbitfield) = nullptr;
+static const GLenum kMetricStorage = 0x90D2; // GL_SHADER_STORAGE_BUFFER
+static void initPixelMetrics(GXPCGetProcFn getProc) {
+    s_metricStorage = false;
+    s_metricSampleVariables = false;
+    s_metricBarrier = nullptr;
+#ifdef SMS_GLES
+    GLint major = 0, minor = 0, blocks = 0;
+    glGetIntegerv(GL_MAJOR_VERSION, &major);
+    glGetIntegerv(GL_MINOR_VERSION, &minor);
+    if (major > 3 || (major == 3 && minor >= 1)) {
+        glGetIntegerv(0x90DA, &blocks); // GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS
+        s_metricBarrier = reinterpret_cast<void (*)(GLbitfield)>(getProc("glMemoryBarrier"));
+        s_metricStorage = blocks > 0 && s_metricBarrier;
+    }
+    GLint extensions = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &extensions);
+    for (GLint i = 0; i < extensions; ++i) {
+        const char* name = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, GLuint(i)));
+        if (name && !strcmp(name, "GL_OES_sample_variables")) s_metricSampleVariables = true;
+    }
+    if (const char* e = getenv("SMS_GX_PIXEL_STORAGE"))
+        if (!strcmp(e, "0")) s_metricStorage = false;
+    logmsg("pixel metrics: %s, sample-mask coverage %s",
+           s_metricStorage ? "fragment counter" : "boolean query (approximate)",
+           s_metricSampleVariables ? "available" : "unavailable");
+#endif
+}
+bool pixelMetricCoverage() { return s_metricSampleVariables; }
+bool pixelMetricShader() {
+    return s_metricStorage && s_pixActive && !(g.bp[BP_ZMODE] & 1);
+}
+static void newMetric(GLuint* q) {
+    if (s_metricStorage) glGenBuffers(1, q);
+    else glGenQueries(1, q);
+}
+static void beginMetric(GLuint q) {
+    if (s_metricStorage) {
+        static const uint32_t zero[256] = {};
+        glBindBuffer(kMetricStorage, q);
+        glBufferData(kMetricStorage, sizeof zero, zero, GL_DYNAMIC_READ);
+        glBindBufferBase(kMetricStorage, 0, q);
+    } else glBeginQuery(GL_SAMPLES_PASSED, q);
+}
+static void endMetric() {
+    if (s_metricStorage) s_metricBarrier(0x200); // GL_BUFFER_UPDATE_BARRIER_BIT
+    else glEndQuery(GL_SAMPLES_PASSED);
+}
+
+static void shutdownPixelMetrics() {
+    if (s_pixActive) endMetric();
+    std::vector<GLuint> names;
+    for (int bank = 0; bank < 2; ++bank)
+        for (int slot = 0; slot < kMetricSlots; ++slot)
+            if (s_mq[bank][slot]) names.push_back(s_mq[bank][slot]);
+    for (GLuint q : s_queryPool) names.push_back(q);
+    for (const auto& q : s_pixPending) names.push_back(q.first);
+    if (s_pixCur) names.push_back(s_pixCur);
+    std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    if (!names.empty()) {
+        if (s_metricStorage) glDeleteBuffers(GLsizei(names.size()), names.data());
+        else glDeleteQueries(GLsizei(names.size()), names.data());
+    }
+    memset(s_mq, 0, sizeof s_mq);
+    memset(s_mqUsed, 0, sizeof s_mqUsed);
+    s_queryPool.clear(); s_pixPending.clear();
+    s_pixActive = false; s_pixCur = 0; s_mqSlotFrame = ~0u;
+}
+
 static GLuint poolQuery() {
     if (s_queryPool.empty()) {
         GLuint q;
-        glGenQueries(1, &q);
+        newMetric(&q);
         return q;
     }
     GLuint q = s_queryPool.back();
@@ -1355,6 +1443,16 @@ static void pixReleasePending() {
     s_pixPending.clear();
 }
 static uint64_t queryResult(GLuint q) {
+    if (s_metricStorage) {
+        GxTimer tw(&s_waitSeconds);
+        glBindBuffer(kMetricStorage, q);
+        const uint32_t* counts = static_cast<const uint32_t*>(glMapBufferRange(kMetricStorage, 0, 1024, GL_MAP_READ_BIT));
+        if (!counts) { logmsg("pixel counter read failed"); return 1048576; }
+        uint64_t total = 0;
+        for (int i = 0; i < 256; ++i) total += counts[i];
+        glUnmapBuffer(kMetricStorage);
+        return s_metricSampleVariables ? total / 256u : total;
+    }
     if (fastPeekEnabled()) {
         GLuint avail = 0;
         glGetQueryObjectuiv(q, GL_QUERY_RESULT_AVAILABLE, &avail);
@@ -1365,6 +1463,9 @@ static uint64_t queryResult(GLuint q) {
     GxTimer tw(&s_waitSeconds);
     GLuint n = 0;
     glGetQueryObjectuiv(q, GL_QUERY_RESULT, &n);
+#ifdef SMS_GLES
+    if (n) return uint64_t(s_pixTris) * 50u * std::max(1.0f, s_scale * s_scale);
+#endif
     return n;
 }
 
@@ -1372,7 +1473,7 @@ void pixMetricClear() {
     flushBatch();
     if (!s_ready) return;
     if (s_pixActive) {
-        glEndQuery(GL_SAMPLES_PASSED);
+        endMetric();
         if (s_pixCurPooled) s_queryPool.push_back(s_pixCur);
     }
     pixReleasePending();
@@ -1383,7 +1484,7 @@ void pixMetricClear() {
     s_mqSlot++;
     int cur = s_frameNo & 1;
     if (s_mqSlot < kMetricSlots) {
-        if (!s_mq[cur][s_mqSlot]) glGenQueries(1, &s_mq[cur][s_mqSlot]);
+        if (!s_mq[cur][s_mqSlot]) newMetric(&s_mq[cur][s_mqSlot]);
         s_pixCur = s_mq[cur][s_mqSlot];
         s_pixCurPooled = false;
     } else {
@@ -1393,14 +1494,14 @@ void pixMetricClear() {
     s_pixSamples = 0;
     s_pixTris = 0;
     s_pixTaint = !asyncReads() || s_mqSlot >= kMetricSlots;
-    glBeginQuery(GL_SAMPLES_PASSED, s_pixCur);
+    beginMetric(s_pixCur);
     s_pixActive = true;
 }
 
 uint32_t pixMetricRead() {
     flushBatch();
     if (!s_ready || !s_pixActive) return 0;
-    glEndQuery(GL_SAMPLES_PASSED);
+    endMetric();
     uint64_t samples = 0;
     int cur = s_frameNo & 1, slot = s_mqSlot;
     bool fromPrev = false;
@@ -1427,15 +1528,25 @@ uint32_t pixMetricRead() {
     s_pixTaint = true;
     s_pixCur = poolQuery();
     s_pixCurPooled = true;
-    glBeginQuery(GL_SAMPLES_PASSED, s_pixCur);
+    beginMetric(s_pixCur);
     float S2 = s_scale > 0.0f ? (s_scale * s_scale) : 1.0f;
     uint64_t v = uint64_t(float(samples) / S2) + uint64_t(s_pixTris) * 4;
     return v > 0xFFFFFFFFu ? 0xFFFFFFFFu : uint32_t(v);
 }
 
+void pixMetricFinish() {
+    flushBatch();
+    if (!s_ready || !s_pixActive) return;
+    endMetric();
+    if (s_pixCurPooled) s_queryPool.push_back(s_pixCur);
+    pixReleasePending();
+    s_pixActive = false;
+    s_pixCur = 0;
+}
+
 static void pixMetricPause() {
     if (s_pixActive) {
-        glEndQuery(GL_SAMPLES_PASSED);
+        endMetric();
         s_pixPending.emplace_back(s_pixCur, s_pixCurPooled);
         s_pixTaint = true;  // this count now spans several queries
     }
@@ -1444,7 +1555,7 @@ static void pixMetricResume() {
     if (s_pixActive) {
         s_pixCur = poolQuery();
         s_pixCurPooled = true;
-        glBeginQuery(GL_SAMPLES_PASSED, s_pixCur);
+        beginMetric(s_pixCur);
     }
 }
 
@@ -1802,8 +1913,8 @@ static void resolveWriteBacks(bool all) {
 }
 
 // tw x th: the copy's size in texels as the game sees it.
-static void writeBackCopy(const void* dest, GLuint tex, int ow, int oh, int tw, int th, uint32_t layout) {
-    if (!dest || !copyWriteBackEnabled()) return;
+static void writeBackCopy(const void* dest, GLuint tex, int ow, int oh, int tw, int th, uint32_t layout, bool cpuShared) {
+    if (!dest || (!cpuShared && !copyWriteBackEnabled())) return;
     if (tw < 1 || th < 1) return;
     uint32_t bytes = texLevelBytes(layout, tw, th);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, s_tmpFbo);
@@ -1940,7 +2051,13 @@ static void copyEfb(uint32_t ctrl) {
         glBindTexture(GL_TEXTURE_2D, s_efbDepth);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, s_efbColor);
-        float rect[4] = {float(x) / float(s_efbW), float(y) / EFB_H, float(w) / float(s_efbW), float(h) / EFB_H};
+        const float pixelW = float(int(float(s_efbW) * s_scale + 0.5f));
+        const float pixelH = float(int(float(EFB_H) * s_scale + 0.5f));
+        const float left = floorf(float(x) * s_scale + 0.5f);
+        const float top = floorf(float(y) * s_scale + 0.5f);
+        const float right = floorf(float(x + w) * s_scale + 0.5f);
+        const float bottom = floorf(float(y + h) * s_scale + 0.5f);
+        float rect[4] = {left / pixelW, top / pixelH, (right - left) / pixelW, (bottom - top) / pixelH};
         glUniform4fv(s_copyURect, 1, rect);
         glUniform1i(s_copyUMode, GLint(mode));
         glUniform1i(s_copyUAlphaOne, (g.bp[BP_PE_CONTROL] & 7) != 1);
@@ -1948,7 +2065,11 @@ static void copyEfb(uint32_t ctrl) {
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         glBindVertexArray(s_vao);
         s_stats.efbCopies++;
-        writeBackCopy(dest, tex, ow, oh, tw, th, copyLayout(fmt, zcopy));
+        // R8 copies are the game's shared pollution map: Mario and NPCs
+        // inspect its CPU bytes even with optional copy readbacks disabled.
+        const uint32_t layout = copyLayout(fmt, zcopy);
+        efbCopySetBytes(dest, texLevelBytes(layout, tw, th));
+        writeBackCopy(dest, tex, ow, oh, tw, th, layout, !zcopy && fmt == 8);
     }
     if (clear) clearRect(x, y, w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, s_efbFbo);
@@ -1985,6 +2106,7 @@ extern "C" {
 
 int GXPC_Init(GXPCGetProcFn getProc, int efbScale) {
     if (!gl::load(getProc)) return 0;
+    initPixelMetrics(getProc);
     resetState();
     rendererInit(efbScale);
     return glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
@@ -1999,6 +2121,7 @@ void GXPC_PrepareStage(int stage) {
 
 void GXPC_Shutdown(void) {
     if (!s_ready) return;
+    shutdownPixelMetrics();
     textureShutdown();
     shaderShutdown();
     if (s_overlayTex) glDeleteTextures(1, &s_overlayTex);
@@ -2010,8 +2133,7 @@ void GXPC_Shutdown(void) {
 }
 
 void GXPC_InvalidateRange(const void* p, uint32_t size) {
-    if (copyWriteBackEnabled()) textureCpuWrote(p, size);
-    else textureInvalidateRange(p, size);
+    textureCpuWrote(p, size);
 }
 
 }  // extern "C"
@@ -2588,6 +2710,8 @@ void main() { o_color = texture(u_color, v_uv) * vec4(1.0, 1.0, 1.0, u_alpha); }
         s_overlayProg = compileProgram(vs, fs);
         s_overlayRect = glGetUniformLocation(s_overlayProg, "u_rect");
         s_overlayWindow = glGetUniformLocation(s_overlayProg, "u_window");
+        s_overlayColor = glGetUniformLocation(s_overlayProg, "u_color");
+        s_overlayUAlpha = glGetUniformLocation(s_overlayProg, "u_alpha");
     }
     GLint activeUnit = 0, boundTex = 0, rowLength = 0, unpackAlign = 4;
     GLint program = 0, vao = 0, drawFbo = 0, viewport[4], colorMask[4];
@@ -2667,8 +2791,8 @@ void main() { o_color = texture(u_color, v_uv) * vec4(1.0, 1.0, 1.0, u_alpha); }
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glViewport(0, 0, winW, winH);
     glUseProgram(s_overlayProg);
-    glUniform1i(glGetUniformLocation(s_overlayProg, "u_color"), 0);
-    glUniform1f(glGetUniformLocation(s_overlayProg, "u_alpha"), s_overlayAlpha);
+    glUniform1i(s_overlayColor, 0);
+    glUniform1f(s_overlayUAlpha, s_overlayAlpha);
     glBindVertexArray(s_copyVao);
     float rect[4] = {float(x), float(winH - y - h * scale), float(w * scale), float(h * scale)};
     float window[2] = {float(winW), float(winH)};
