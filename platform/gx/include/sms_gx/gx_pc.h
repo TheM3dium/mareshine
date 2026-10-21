@@ -157,11 +157,13 @@ typedef struct GXPCStats {
 } GXPCStats;
 void GXPC_GetStats(GXPCStats* out);
 void GXPC_GetLastFrameStats(GXPCStats* out); /* the last completed display frame */
-double GXPC_GxSeconds(void);                   /* wall time spent inside sms_gx so far */
+double GXPC_GxSeconds(void);                   /* measured sms_gx time while detailed timers are on */
 /* Where the game thread's time goes, as seconds since start. gx is all time
- * inside sms_gx apart from presenting; the parts of it (vertices .. gpuWait)
- * are measured only while GXPC_SetDetailedTimers(1) is on (the overlay turns
- * it on, as does SMS_GX_STATS). gpuWait is time blocked on the GPU (fences,
+ * inside sms_gx apart from presenting. gx and its parts (vertices .. gpuWait)
+ * are measured only while GXPC_SetDetailedTimers(1) is on. The overlay/log
+ * requests it with SMS_GX_DETAILED_TIMERS=1; SMS_GX_STATS also enables it.
+ * The normal FPS/counter overlay avoids per-draw timing overhead.
+ * gpuWait is time blocked on the GPU (fences,
  * reading back copies, peeks and pixel counts); present is drawing the XFB to
  * the window, swap is SDL_GL_SwapWindow. idle is the time the game had no
  * runnable thread (waiting for the next retrace), from GXPC_SetIdleClock. */

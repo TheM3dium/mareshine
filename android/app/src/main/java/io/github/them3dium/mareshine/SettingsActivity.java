@@ -730,7 +730,7 @@ public class SettingsActivity extends AppActivity {
 
     private static final String[][] PRESETS = {
         // name, render_scale, frame_rate, widescreen, widescreen_hud, draw_distance, msaa, anisotropic, fxaa, shadows/reflections/water/shimmer disabled
-        {"Recommended (HD)", "2.0", "30", "16:9", "edges", "1.5", "4", "4", "0", "0", "0", "0", "0"},
+        {"Recommended (HD)", "1.5", "30", "16:9", "edges", "1.0", "0", "4", "0", "0", "0", "0", "0"},
         {"Low", "0.5", "30", "16:9", "centre", "0.7", "0", "0", "0", "1", "1", "1", "1"},
         {"Medium", "1.0", "30", "16:9", "edges", "1.0", "0", "2", "0", "0", "0", "0", "1"},
         {"High", "1.5", "30", "16:9", "edges", "1.5", "2", "4", "1", "0", "0", "0", "0"},
@@ -793,7 +793,7 @@ public class SettingsActivity extends AppActivity {
         add(new Choice("render_scale", "Internal resolution",
             "How sharp the game is drawn. 2× is about Full HD (1080p). Higher looks sharper but needs a faster "
                 + "device.",
-            Settings.def("render_scale", "2.0"),
+            Settings.def("render_scale", "1.5"),
             new String[] {"0.5", "0.75", "1.0", "1.5", "2.0", "3.0", "4.0"},
             new String[] {"0.5× (264p)", "0.75× (396p)", "1× (528p, GameCube)", "1.5× (792p, ~720p)",
                 "2× (1056p, ~1080p)", "3× (1584p)", "4× (2112p, ~4K)"}));
@@ -818,11 +818,11 @@ public class SettingsActivity extends AppActivity {
         section("QUALITY");
         add(new Choice("draw_distance", "Draw distance",
             "How far away objects are still drawn. 1.0 is the original; 1.5 shows clearly more.",
-            "1.5", new String[] {"0.7", "1.0", "1.5", "2.0", "3.0", "5.0"},
+            Settings.def("draw_distance", "1.0"), new String[] {"0.7", "1.0", "1.5", "2.0", "3.0", "5.0"},
             new String[] {"0.7×", "1× (original)", "1.5×", "2×", "3×", "5×"}));
         add(new Choice("msaa", "Anti-aliasing (MSAA)",
-            "Smooths jagged edges. 4x is a good balance.",
-            "4", new String[] {"0", "2", "4", "8"}, new String[] {"Off", "2×", "4×", "8×"}));
+            "Smooths jagged edges. Higher values need more GPU power.",
+            Settings.def("msaa", "0"), new String[] {"0", "2", "4", "8"}, new String[] {"Off", "2×", "4×", "8×"}));
         add(new Choice("anisotropic", "Texture filtering",
             "Keeps the ground and walls sharp at an angle.",
             "4", new String[] {"0", "2", "4", "8", "16"}, new String[] {"Off", "2×", "4×", "8×", "16×"}));
@@ -1607,9 +1607,15 @@ public class SettingsActivity extends AppActivity {
 
         section("PERFORMANCE");
         add(new Toggle("SMS_OVERLAY", "Performance overlay",
-            "Shows the frame rate at the top left of the game, and how long a frame takes and what for. The numbers "
-                + "are written to the log too, which helps when the game runs slowly on a device.\n\nApplies the next "
-                + "time the game starts.", false, false));
+            "Shows the frame rate and rendering counters. Detailed timing is optional. Applies the next time the game starts.",
+            false, false));
+        add(new Toggle("SMS_GX_DETAILED_TIMERS", "Detailed performance timings",
+            "Measures rendering phases for diagnostics. Can reduce FPS. Restart the game after changing this.",
+            false, false));
+        add(new Choice("SMS_GX_PERSISTENT_BUFFER", "Persistent GPU buffer (test)",
+            "Automatic enables it on supported Adreno GPUs. Restart the game after changing this.",
+            Settings.def("SMS_GX_PERSISTENT_BUFFER", "auto"),
+            new String[] {"auto", "0", "1"}, new String[] {"Automatic (Adreno)", "Off", "On"}));
 
         section("LOGS");
         add(new Row("Logs and crash reports",

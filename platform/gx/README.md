@@ -100,8 +100,9 @@ The renderer reads its state only from that register file, so API calls, GD disp
 - `SMS_GX_DUMP_EVERY=n` writes every n-th XFB as a PPM (see above).
 - `SMS_GX_DUMP_SHADERS=dir` writes every generated program as `dir/prog<id>.vs/.fs`; traces name the program each draw used.
 - `SMS_GX_STATS=n` logs, every n display frames, draws/vertices per frame, shader compiles, texture uploads, the milliseconds per frame spent in sms_gx (split into textures, batches, EFB copies, peeks and GPU waits), how many reads per frame made the CPU wait for the GPU, GL calls per frame (in total and for the most-called entry points), batch flushes, texture bytes hashed, vertex-loader time and idle time.
-  Without it (and with the overlay closed) only the overall sms_gx time is measured; the other timers read the clock per primitive and per texture bind.
-- `GXPC_GetTimes` gives the same breakdown as totals for the overlay; see `gx_pc.h`.
+  It explicitly enables detailed GX timers, which can reduce the frame rate on mobile drivers.
+- `SMS_OVERLAY=1` and `SMS_PERF_LOG=1` use a lightweight FPS/counter mode by default. Add `SMS_GX_DETAILED_TIMERS=1` for the rendering-phase breakdown and `[gx-probe]` output. Compare performance with the same timing mode; enabling detailed timings changed the measured rate substantially on an Adreno 650 test.
+- `GXPC_GetTimes` gives cumulative measured totals; see `gx_pc.h`. GX and its subphases advance only with detailed timers enabled. Present, swap and idle remain available in basic mode; the basic overlay/log omits unavailable phase timings.
   On this machine the 32-bit build renders with Mesa llvmpipe (no 32-bit NVIDIA GL is installed), so GPU work shows up as CPU time at the first sync point, usually the EFB copy.
 
 ## Coverage against `api-surface.tsv`

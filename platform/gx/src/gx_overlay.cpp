@@ -19,6 +19,11 @@
 namespace {
 
 bool s_visible = false;
+
+bool detailedRequested() {
+    const char* e = getenv("SMS_GX_DETAILED_TIMERS");
+    return e && !strcmp(e, "1");
+}
 const int kSpeeds[] = {1, 2, 4, 10};
 std::atomic<int> s_speedIndex(0);
 
@@ -160,7 +165,7 @@ void GXPC_SetNameTags(const GXPCNameTag* tags, int count) {
 
 void GXPC_OverlayToggle(void) {
     s_visible = !s_visible;
-    GXPC_SetDetailedTimers(s_visible);
+    GXPC_SetDetailedTimers(detailedRequested() && (s_visible || s_perfOn > 0));
 }
 int GXPC_OverlayVisible(void) { return s_visible; }
 
@@ -173,7 +178,7 @@ void GXPC_PerfTick(void) {
         const char* e = getenv("SMS_PERF_LOG");
         const char* o = getenv("SMS_OVERLAY");
         s_perfOn = (e && *e && strcmp(e, "0") != 0) || (o && *o && strcmp(o, "0") != 0);
-        if (s_perfOn) GXPC_SetDetailedTimers(1);
+        if (s_perfOn) GXPC_SetDetailedTimers(detailedRequested());
     }
     if (!s_perfOn) return;
     s_perf.tick();
@@ -181,6 +186,15 @@ void GXPC_PerfTick(void) {
     s_perfLast = s_perf.windowStart;
     GXPCStats st;
     GXPC_GetLastFrameStats(&st);
+    if (!gx::g_gxStats) {
+        gx::logmsg("[perf] %.1f fps, frame %.1f ms (worst %.1f), basic timing: "
+                   "present %.1f, swap %.1f, idle %.1f; %u draws, %u vertices, "
+                   "%u EFB copies, %u texture uploads, %u shader compiles",
+                   s_perf.fps, s_perf.avgMs, s_perf.maxMs, s_perf.per.present,
+                   s_perf.per.swap, s_perf.per.idle, st.draws, st.vertices,
+                   st.efbCopies, st.textureUploads, st.shaderCompiles);
+        return;
+    }
     gx::logmsg("[perf] %.1f fps, frame %.1f ms (worst %.1f): game %.1f, GX %.1f (vertices %.1f, batches %.1f, "
                "textures %.1f, copies %.1f, peeks %.1f, GPU wait %.1f), present %.1f, swap %.1f, idle %.1f; "
                "%u draws, %u vertices, %u EFB copies, %u texture uploads, %u shader compiles",
@@ -214,12 +228,20 @@ void GXPC_OverlayDraw(int winW, int winH) {
     GXPC_GetLastFrameStats(&st);
     double up = s_clock.last - s_clock.start;
 
+    char timing[512] = {};
+    if (gx::g_gxStats) {
+        snprintf(timing, sizeof timing,
+                 "ms/frame: game %.1f  GX %.1f  present %.1f  swap %.1f  idle %.1f\n"
+                 "GX: vertices %.1f  batches %.1f  textures %.1f  copies %.1f  peeks %.1f\n"
+                 "    waiting for the GPU %.1f\n",
+                 s_clock.gameMs, s_clock.per.gx, s_clock.per.present, s_clock.per.swap,
+                 s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
+                 s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait);
+    }
     char text[2048];
     snprintf(text, sizeof text,
              "FPS %.1f   frame %.1f ms avg, %.1f ms worst   speed x%d\n"
-             "ms/frame: game %.1f  GX %.1f  present %.1f  swap %.1f  idle %.1f\n"
-             "GX: vertices %.1f  batches %.1f  textures %.1f  copies %.1f  peeks %.1f\n"
-             "    waiting for the GPU %.1f\n"
+             "%s"
              "draws %u   vertices %u   EFB copies %u\n"
              "texture uploads %u   shader compiles %u\n"
              "frames %u   up %d:%02d\n"
@@ -238,9 +260,8 @@ void GXPC_OverlayDraw(int winW, int winH) {
              "Esc: quit"
 #endif
              ,
-             s_clock.fps, s_clock.avgMs, s_clock.maxMs, GXPC_GetSpeed(), s_clock.gameMs, s_clock.per.gx,
-             s_clock.per.present, s_clock.per.swap, s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
-             s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait, st.draws, st.vertices, st.efbCopies,
+             s_clock.fps, s_clock.avgMs, s_clock.maxMs, GXPC_GetSpeed(), timing,
+             st.draws, st.vertices, st.efbCopies,
              st.textureUploads, st.shaderCompiles, s_clock.total, int(up) / 60, int(up) % 60, winW, winH,
              s_renderer.c_str());
 

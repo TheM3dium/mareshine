@@ -564,5 +564,13 @@
  "How strongly the smartphone vibrates, also with a controller. 0% turns it off.": "Quanto forte vibra lo smartphone, anche con il controller. 0% la disattiva.",
  "ALL": "TUTTI",
  "UNLOCKED": "SBLOCCATI",
- "No achievements yet": "Ancora nessun obiettivo"
+ "No achievements yet": "Ancora nessun obiettivo",
+ "Persistent GPU buffer (test)": "Buffer GPU persistente (test)",
+ "Experimental, for Snapdragon devices that run slowly. Applies the next time the game starts.": "Sperimentale, per dispositivi Snapdragon lenti. Vale dal prossimo avvio del gioco.",
+  "Automatic (Adreno)": "Automatico (Adreno)",
+  "Automatic enables it on supported Adreno GPUs. Restart the game after changing this.": "Automatico lo attiva sulle GPU Adreno supportate. Riavvia il gioco dopo aver modificato questa opzione.",
+  "Shows the frame rate and rendering counters. Detailed timing is optional. Applies the next time the game starts.": "Mostra la frequenza dei fotogrammi e i contatori di rendering. La misurazione dettagliata è facoltativa. Si applica al prossimo avvio del gioco.",
+  "Detailed performance timings": "Tempi dettagliati delle prestazioni",
+  "Measures rendering phases for diagnostics. Can reduce FPS. Restart the game after changing this.": "Misura le fasi di rendering per la diagnostica. Può ridurre gli FPS. Riavvia il gioco dopo aver modificato questa opzione.",
+  "Smooths jagged edges. Higher values need more GPU power.": "Smussa i bordi frastagliati. I valori più alti richiedono più potenza della GPU."
 }

@@ -14,17 +14,17 @@ import java.util.Map;
 // settings.txt in the data folder: `name = value` lines, read by the game at
 // start (platform/port_runtime.cpp) and by the settings screens.
 public final class Settings {
-    // Used when settings.txt does not exist yet (first start): about 1080p
-    // (EFB 528 lines x 2), 16:9, 30 fps, draw distance 1.5, MSAA 4x, 4x
-    // anisotropic filtering.
+    // Conservative first-start profile: about 792p (528 lines x 1.5),
+    // 16:9, 30 fps, original draw distance, MSAA off, 4x texture filtering.
+    // Existing settings are preserved by ensureDefaults.
     public static final String[][] DEFAULTS = {
-        {"render_scale", "2.0"},
+        {"render_scale", "1.5"},
         {"widescreen", "16:9"},
         {"widescreen_hud", "edges"},
         {"aspect", "keep"},
         {"frame_rate", "30"},
-        {"draw_distance", "1.5"},
-        {"msaa", "4"},
+        {"draw_distance", "1.0"},
+        {"msaa", "0"},
         {"anisotropic", "4"},
         {"fxaa", "0"},
         {"disable_shadows", "0"},
@@ -34,6 +34,8 @@ public final class Settings {
         {"fast_peek", "1"},
         {"copy_writeback", "0"},
         {"shader_cache", "1"},
+        {"SMS_GX_PERSISTENT_BUFFER", "auto"},
+        {"SMS_GX_DETAILED_TIMERS", "0"},
         {"vsync", "0"},
     };
 

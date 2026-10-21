@@ -15,6 +15,9 @@
 #include <time.h>
 #include <string.h>
 #include <unordered_map>
+#ifdef __ANDROID__
+#include <EGL/egl.h>  // eglGetProcAddress: glBufferStorageEXT (persistent stream buffer)
+#endif
 
 namespace gx {
 
@@ -40,10 +43,9 @@ static double nowSeconds() {
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return double(ts.tv_sec) + double(ts.tv_nsec) * 1e-9;
 }
-// The breakdown timers (textures, draws, copies, peeks, GPU waits, the vertex
-// loader) run with SMS_GX_STATS or while the overlay is open
-// (GXPC_SetDetailedTimers). Otherwise only the overall sms_gx time is
-// measured; the others cost a clock read per texture bind and per primitive.
+// Per-draw clocks can themselves limit mobile frame rates. Keep all GX
+// timings opt-in; the normal FPS/counter overlay needs only a frame clock.
+// SMS_GX_STATS or GXPC_SetDetailedTimers enables the full breakdown.
 static bool statsEnv() {
     const char* e = getenv("SMS_GX_STATS");
     return e && atoi(e) > 0;
@@ -52,7 +54,7 @@ bool g_gxStats = statsEnv();
 struct GxTimer {
     double* acc;
     double t0;
-    explicit GxTimer(double* a = &s_gxSeconds) : acc(a == &s_gxSeconds || g_gxStats ? a : nullptr),
+    explicit GxTimer(double* a = &s_gxSeconds) : acc(g_gxStats ? a : nullptr),
                                                  t0(acc ? nowSeconds() : 0) {}
     ~GxTimer() {
         if (acc) *acc += nowSeconds() - t0;
@@ -143,11 +145,60 @@ struct StreamBuffer {
     size_t size = 0, pos = 0;
     GLsync fence[kSegments] = {};
 
+    uint8_t* mapped = nullptr;  // persistently mapped (SMS_GX_PERSISTENT_BUFFER), else null
+
     void init(size_t bytes) {
         size = bytes;
         glGenBuffers(1, &buf);
         glcBindArrayBuffer(buf);
+        if (initPersistent()) return;
         glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(size), nullptr, GL_STREAM_DRAW);
+    }
+    // Experimental (Settings → OTHER, automatic on Adreno): the buffer is
+    // mapped once for good (GL_EXT_buffer_storage) instead of mapped and
+    // unmapped for every draw, which some drivers make slow. The segment
+    // fences still keep the CPU from writing where the GPU reads.
+    bool initPersistent() {
+#ifdef __ANDROID__
+        const char* e = getenv("SMS_GX_PERSISTENT_BUFFER");
+        bool automatic = !e || !strcmp(e, "auto");
+        if (automatic) {
+            const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+            if (!renderer || !strstr(renderer, "Adreno")) return false;
+        } else if (strcmp(e, "1") != 0) {
+            return false;
+        }
+        bool ext = false;
+        GLint n = 0;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+        for (GLint i = 0; i < n && !ext; i++) {
+            const char* x = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, GLuint(i)));
+            ext = x && !strcmp(x, "GL_EXT_buffer_storage");
+        }
+        typedef void (*BufferStorageFn)(GLenum, GLsizeiptr, const void*, GLbitfield);
+        auto storage = ext ? reinterpret_cast<BufferStorageFn>(eglGetProcAddress("glBufferStorageEXT")) : nullptr;
+        if (!storage) {
+            logmsg("persistent stream buffer: not offered by the driver, using map/unmap");
+            return false;
+        }
+        const GLbitfield kPersistent = 0x0040, kCoherent = 0x0080;  // GL_MAP_PERSISTENT/COHERENT_BIT_EXT
+        storage(GL_ARRAY_BUFFER, GLsizeiptr(size), nullptr, GL_MAP_WRITE_BIT | kPersistent | kCoherent);
+        mapped = static_cast<uint8_t*>(glMapBufferRange(GL_ARRAY_BUFFER, 0, GLsizeiptr(size),
+                                                        GL_MAP_WRITE_BIT | kPersistent | kCoherent));
+        if (!mapped) {  // immutable now: start over with a new buffer
+            glDeleteBuffers(1, &buf);
+            glGenBuffers(1, &buf);
+            // Deletion unbound it; the driver may recycle the same name.
+            g_glc.arrayBuffer = ~0u;
+            glcBindArrayBuffer(buf);
+            logmsg("persistent stream buffer: mapping failed, using map/unmap");
+            return false;
+        }
+        logmsg("persistent stream buffer: on (%zu MiB)%s", size >> 20, automatic ? " [auto]" : "");
+        return true;
+#else
+        return false;
+#endif
     }
     size_t unfenced = 0;  // first segment written since the last fence
 
@@ -161,7 +212,12 @@ struct StreamBuffer {
     void waitSegment(size_t seg) {
         if (!fence[seg]) return;
         GxTimer tw(&s_waitSeconds);
-        glClientWaitSync(fence[seg], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ull);
+        GLenum status = glClientWaitSync(fence[seg], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ull);
+        if (status != GL_ALREADY_SIGNALED && status != GL_CONDITION_SATISFIED) {
+            // A timeout or failed wait does not retire the GPU's readers.
+            logmsg("stream buffer: fence wait returned 0x%x, finishing before reuse", unsigned(status));
+            glFinish();
+        }
         glDeleteSync(fence[seg]);
         fence[seg] = 0;
     }
@@ -172,6 +228,12 @@ struct StreamBuffer {
     }
     // appendAll of pieces this large starts over at the buffer's beginning
     bool wouldWrap(size_t worst) const { return pos + worst > size; }
+    // A cached XF block must not outlive its segment's fence. Copy it
+    // before a draw can leave that segment, including alignment padding.
+    bool needsFreshXf(size_t worst, size_t xfAt) const {
+        return wouldWrap(worst) || segOf(pos) != segOf(xfAt)
+            || segOf(pos + worst - 1) != segOf(xfAt);
+    }
     // Writes the pieces one after another (each at a multiple of its
     // alignment) and sets their offsets. Called before the draw that reads
     // them, after the previous one.
@@ -192,6 +254,11 @@ struct StreamBuffer {
             unfenced = segOf(first);
         }
         for (size_t sg = segOf(first), last = segOf(end - 1); sg <= last; sg++) waitSegment(sg);
+        if (mapped) {
+            for (int i = 0; i < n; i++) memcpy(mapped + pc[i].at, pc[i].data, pc[i].bytes);
+            pos = end;
+            return;
+        }
         glcBindArrayBuffer(buf);
         uint8_t* dst = static_cast<uint8_t*>(
             glMapBufferRange(GL_ARRAY_BUFFER, GLintptr(first), GLsizeiptr(end - first),
@@ -1465,6 +1532,17 @@ static XMap drawXMap() {
     return m;
 }
 
+// [gx-probe]: where flushBatch's time goes, averaged over 512 batches, while
+// the detailed timers run (performance overlay); CPU wall time, no GPU sync.
+static double s_probeMs[5] = {};
+static unsigned s_probeCount = 0;
+static void probeStep(int step, double& clock) {
+    if (!g_gxStats) return;
+    double t = nowSeconds();
+    s_probeMs[step] += (t - clock) * 1000.0;
+    clock = t;
+}
+
 void flushBatch() {
     if (!s_bidx.size || !s_ready) {
         s_bidx.size = s_bdata.size = 0;
@@ -1473,10 +1551,12 @@ void flushBatch() {
     }
     GxTimer timer;
     GxTimer tf(&g_flushSeconds);
+    double probeClock = g_gxStats ? nowSeconds() : 0.0;
     s_xmap = drawXMap();
     const ShaderProgram* sp = shaderForCurrentState();
     glcUseProgram(sp->prog);
     applyGlState();
+    probeStep(0, probeClock);
 
     // textures: every map referenced by an enabled TEV stage or an indirect stage
     float texW[8] = {0}, texH[8] = {0};
@@ -1494,7 +1574,9 @@ void flushBatch() {
         bindTextureMap(m, &texW[m], &texH[m]);
     }
 
+    probeStep(1, probeClock);
     uploadUniforms(sp, texW, texH);
+    probeStep(2, probeClock);
 
     glcBindVertexArray(vaoForFormat(s_bfmt));
     uint32_t matA = g.xfReg[XFR_MATIDX_A], matB = g.xfReg[XFR_MATIDX_B];
@@ -1518,9 +1600,8 @@ void flushBatch() {
     StreamPiece pc[3];
     int np = 0;
     size_t worst = sizeof(xfBlock) + size_t(s_uboAlign) + s_bdata.size + s_bstride + s_bidx.size * 4 + 4;
-    // Starting a new lap of the stream overwrites older data, possibly the
-    // block still bound: write it again with this batch.
-    if (s_stream.wouldWrap(worst)) s_xfDirty = true;
+    // Keep every cached XF reader within the segment covered by its fence.
+    if (s_stream.needsFreshXf(worst, s_xfOffset)) s_xfDirty = true;
     bool xfWritten = s_xfDirty;
     if (s_xfDirty) {
         memcpy(xfBlock, &g.xfMem[0], 256 * 4);
@@ -1533,6 +1614,7 @@ void flushBatch() {
     pc[np++] = {s_bdata.data, s_bdata.size, s_bstride, 0};
     pc[np++] = {s_bidx.data, s_bidx.size * 4, 4, 0};
     s_stream.appendAll(pc, np);
+    probeStep(3, probeClock);
     if (xfWritten) s_xfOffset = pc[0].at;
     if (xfWritten || g_glc.uniformBuffer == ~0u) {
         glBindBufferRange(GL_UNIFORM_BUFFER, 0, s_stream.buf, GLintptr(s_xfOffset), sizeof(xfBlock));
@@ -1543,6 +1625,15 @@ void flushBatch() {
     {
         glDrawElementsBaseVertex(mode, GLsizei(s_bidx.size), GL_UNSIGNED_INT, reinterpret_cast<const void*>(iOff),
                                  GLint(vOff / s_bstride));
+    }
+    probeStep(4, probeClock);
+    if (g_gxStats && ++s_probeCount == 512) {
+        logmsg("[gx-probe] 512 flushes avg ms: shader+state %.3f, textures %.3f, uniforms %.3f, "
+               "stream %.3f, draw+bindings %.3f%s",
+               s_probeMs[0] / 512, s_probeMs[1] / 512, s_probeMs[2] / 512, s_probeMs[3] / 512,
+               s_probeMs[4] / 512, s_stream.mapped ? " (persistent buffer)" : "");
+        memset(s_probeMs, 0, sizeof(s_probeMs));
+        s_probeCount = 0;
     }
     s_stats.draws++;
     s_flushes++;
