@@ -583,5 +583,22 @@
  "Hold LOAD to load": "Tieni premuto LOAD per caricare",
  "Save states work once you are in a level. Load your game first.": "Gli stati di salvataggio funzionano in un livello. Carica prima la tua partita.",
  "Save states are getting ready, please wait": "Gli stati di salvataggio si stanno preparando, attendi",
- "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Annulla"
+ "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Annulla",
+ "C-Stick inversion": "Inversione stick C",
+ "Horizontal (X)": "Orizzontale (X)",
+ "Vertical (Y)": "Verticale (Y)",
+ "Invert the horizontal and vertical C-stick axes separately.": "Inverti separatamente gli assi orizzontale e verticale dello stick C.",
+ "Horizontal inversion is on by default, as in the original game. Restart the game after changing this.": "L’inversione orizzontale è attiva per impostazione predefinita, come nel gioco originale. Riavvia il gioco dopo una modifica.",
+ "Move stick  (Mario)": "Stick movimento  (Mario)",
+ "C-stick  (camera)": "Stick C  (telecamera)",
+ "Left stick": "Stick sinistro",
+ "Right stick": "Stick destro",
+ "Release both sticks, then move the stick to use for\n\n%s\n\n(tap here to cancel)": "Rilascia entrambi gli stick, poi muovi quello da usare per\n\n%s\n\n(tocca qui per annullare)",
+ "Tap a row, then press a button or move a stick on your controller. Long-press a row to unbind it.": "Tocca una riga, poi premi un pulsante o muovi uno stick del controller. Tieni premuta una riga per rimuovere l’assegnazione.",
+ "Calibrate sticks": "Calibra stick",
+ "Measures both sticks of your controller: their resting centre and how far they reach in each direction. The game then corrects for drift and sticks that do not reach the rim.": "Misura entrambi gli stick del tuo controller: il centro a riposo e fin dove arrivano in ogni direzione. Il gioco corregge poi la deriva e gli stick che non arrivano al bordo.",
+ "CALIBRATE STICKS": "CALIBRA STICK",
+ "FLUDD aiming inversion": "Inversione mira SPLAC 3000",
+ "Invert FLUDD aiming separately from movement and the C-stick.": "Inverti la mira dello SPLAC 3000 separatamente dal movimento e dallo stick C.",
+ "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Inverti la mira spruzzando da fermo o in prima persona. Il movimento resta invariato. Riavvia il gioco dopo una modifica."
 }

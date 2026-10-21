@@ -11,6 +11,7 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -1355,24 +1356,44 @@ public class SettingsActivity extends AppActivity {
             || (s & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
     }
 
-    private String padMap(String key, String def) {
-        String m = mSettings.getOrDefault("SMS_PAD_MAP", "");
-        for (String tok : m.split("[\\s;]+")) if (tok.startsWith(key + "=")) return tok.substring(key.length() + 1);
-        return def;
-    }
-
-    private void setPadMap(String key, String value) {
-        String m = mSettings.getOrDefault("SMS_PAD_MAP", "");
-        StringBuilder sb = new StringBuilder();
-        boolean found = false;
-        for (String tok : m.trim().split("[\\s;]+")) {
-            if (tok.isEmpty()) continue;
-            if (tok.startsWith(key + "=")) { tok = key + "=" + value; found = true; }
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(tok);
+    private void showStickInversion(boolean fludd) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        Button first = null;
+        String[] labels = {"Horizontal (X)", "Vertical (Y)"};
+        String[] keys = fludd ? new String[] {"SMS_FLUDD_INVERT_X", "SMS_FLUDD_INVERT_Y"}
+            : new String[] {"SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y"};
+        for (int axis = 0; axis < 2; axis++) {
+            final String key = keys[axis], label = labels[axis];
+            final boolean horizontal = axis == 0;
+            Button row = new Button(this);
+            row.setAllCaps(false);
+            row.setTextColor(TEXT);
+            row.setBackgroundResource(R.drawable.dl_row);
+            row.setPadding(dp(14), dp(10), dp(14), dp(10));
+            // The old flags flip the game's input. Sunshine's horizontal
+            // camera is already inverted, so zero means inversion ON in UI.
+            Runnable update = () -> {
+                boolean flip = !"0".equals(mSettings.getOrDefault(key, "0"));
+                boolean on = horizontal ? !flip : flip;
+                row.setText(t(label) + ": " + t(on ? "On" : "Off"));
+            };
+            row.setOnClickListener(v -> {
+                boolean flip = !"0".equals(mSettings.getOrDefault(key, "0"));
+                mSettings.put(key, flip ? "0" : "1");
+                saved();
+                update.run();
+            });
+            update.run();
+            panel.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (first == null) first = row;
         }
-        if (!found) { if (sb.length() > 0) sb.append(' '); sb.append(key).append('=').append(value); }
-        mSettings.put("SMS_PAD_MAP", sb.toString());
+        dialog().setTitle(t(fludd ? "FLUDD aiming inversion" : "C-Stick inversion"))
+            .setMessage(t(fludd ? "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this."
+                : "Horizontal inversion is on by default, as in the original game. Restart the game after changing this."))
+            .setView(panel).setPositiveButton(t("Close"), null).show();
+        if (first != null) first.requestFocus();
     }
 
     private void buildInput() {
@@ -1404,16 +1425,10 @@ public class SettingsActivity extends AppActivity {
         });
         add(new Action("Configure buttons", "Choose which controller button does what: press a row, then the button.",
             null, () -> startActivity(new Intent(this, ControllerSettingsActivity.class))));
-        add(new Row("Sticks", "Normal: the left stick moves Mario and the right stick turns the camera. Swapped: the other way round.") {
-            boolean swapped() { return "a2".equals(padMap("STICK", "a0")); }
-            @Override String value() { return swapped() ? "Swapped" : "Normal"; }
-            @Override void step(int dir) {
-                boolean s = !swapped();
-                setPadMap("STICK", s ? "a2" : "a0");
-                setPadMap("CSTICK", s ? "a0" : "a2");
-                saved();
-            }
-        });
+        add(new Action("C-Stick inversion", "Invert the horizontal and vertical C-stick axes separately.",
+            null, () -> showStickInversion(false)));
+        add(new Action("FLUDD aiming inversion", "Invert FLUDD aiming separately from movement and the C-stick.",
+            null, () -> showStickInversion(true)));
 
         section("MOVE STICK");
         add(new Slider("SMS_STICK_DEADZONE", "Dead zone",
@@ -1431,10 +1446,9 @@ public class SettingsActivity extends AppActivity {
         add(new Slider("SMS_CSTICK_SENSITIVITY", "Sensitivity",
             "How fast the camera stick reaches full camera speed.",
             100, 25, 300, 5));
-        add(new Action("Calibrate sticks (beta)",
+        add(new Action("Calibrate sticks",
             "Measures both sticks of your controller: their resting centre and how far they reach in each "
-                + "direction. The game then corrects for drift and sticks that do not reach the rim.\n\n"
-                + "Beta: please report how well it works with your controller.",
+                + "direction. The game then corrects for drift and sticks that do not reach the rim.",
             () -> (mSettings.containsKey("SMS_CAL_LEFT") || mSettings.containsKey("SMS_CAL_RIGHT")) ? "Calibrated" : "Not calibrated",
             () -> startActivity(new Intent(this, StickCalibrationActivity.class))));
 

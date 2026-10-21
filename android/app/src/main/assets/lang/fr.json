@@ -582,5 +582,22 @@
  "Hold LOAD to load": "Maintiens LOAD pour charger",
  "Save states work once you are in a level. Load your game first.": "Les sauvegardes d’état fonctionnent dans un niveau. Charge d’abord ta partie.",
  "Save states are getting ready, please wait": "Les sauvegardes d’état se préparent, patiente",
- "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Annuler"
+ "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Annuler",
+ "C-Stick inversion": "Inversion du stick C",
+ "Horizontal (X)": "Horizontal (X)",
+ "Vertical (Y)": "Vertical (Y)",
+ "Invert the horizontal and vertical C-stick axes separately.": "Inverser séparément les axes horizontal et vertical du stick C.",
+ "Horizontal inversion is on by default, as in the original game. Restart the game after changing this.": "L’inversion horizontale est activée par défaut, comme dans le jeu original. Redémarre le jeu après une modification.",
+ "Move stick  (Mario)": "Stick de déplacement  (Mario)",
+ "C-stick  (camera)": "Stick C  (caméra)",
+ "Left stick": "Stick gauche",
+ "Right stick": "Stick droit",
+ "Release both sticks, then move the stick to use for\n\n%s\n\n(tap here to cancel)": "Relâche les deux sticks, puis déplace celui à utiliser pour\n\n%s\n\n(touche ici pour annuler)",
+ "Tap a row, then press a button or move a stick on your controller. Long-press a row to unbind it.": "Touche une ligne, puis appuie sur un bouton ou déplace un stick de la manette. Maintiens une ligne pour supprimer son affectation.",
+ "Calibrate sticks": "Calibrer les sticks",
+ "Measures both sticks of your controller: their resting centre and how far they reach in each direction. The game then corrects for drift and sticks that do not reach the rim.": "Mesure les deux sticks de ta manette : leur centre au repos et leur portée dans chaque direction. Le jeu corrige ensuite la dérive et les sticks qui n'atteignent pas le bord.",
+ "CALIBRATE STICKS": "CALIBRER LES STICKS",
+ "FLUDD aiming inversion": "Inversion de la visée de J.E.T.",
+ "Invert FLUDD aiming separately from movement and the C-stick.": "Inverser la visée de J.E.T. indépendamment du déplacement et du stick C.",
+ "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Inverse la visée en arrosant à l’arrêt ou en vue subjective. Le déplacement reste inchangé. Redémarre le jeu après une modification."
 }

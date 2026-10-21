@@ -260,6 +260,8 @@ int pad_level(int c)
 bool pad_held(int c) { return pad_level(c) >= 128; }
 int pad_stick_axis(int c, int fallback)
 {
+	if (!g_pmap[c][0].kind)
+		return -1; // explicitly unbound in the controller mapping screen
 	return g_pmap[c][0].kind == 'a' && (g_pmap[c][0].idx == 0 || g_pmap[c][0].idx == 2) ? g_pmap[c][0].idx : fallback;
 }
 
@@ -279,6 +281,7 @@ int parse_touch_mode(const char* t)
 // SMS_CAMERA_INVERT_X / SMS_CAMERA_INVERT_Y=1 flip the C-stick, which only
 // turns the camera.
 bool g_invert_cx, g_invert_cy;
+bool g_invert_aim_x, g_invert_aim_y;
 // mouse look (see above): its speed, and the motion not yet given to the camera
 float g_mouseSens = 1.0f;
 int g_mouseDX, g_mouseDY;
@@ -473,6 +476,10 @@ float cal_axis(float v, float c, float mn, float mx)
 // A controller stick as GameCube stick units (about +-100 at the rim, y up).
 void read_stick(int base, int role, int* ox, int* oy)
 {
+	if (base < 0) {
+		*ox = *oy = 0;
+		return;
+	}
 	float fx = g_axis[base] / 32767.0f, fy = g_axis[base + 1] / 32767.0f;
 	const StickCal& c = g_cal[base >= 2 ? 1 : 0];
 	if (c.on) {
@@ -520,6 +527,8 @@ void init()
 	g_touchMode = parse_touch_mode(getenv("SMS_TOUCH_CONTROLS"));
 	g_invert_cx = env_on("SMS_CAMERA_INVERT_X");
 	g_invert_cy = env_on("SMS_CAMERA_INVERT_Y");
+	g_invert_aim_x = env_on("SMS_FLUDD_INVERT_X");
+	g_invert_aim_y = env_on("SMS_FLUDD_INVERT_Y");
 	if (g_invert_cx || g_invert_cy)
 		port_log("[pad] camera inverted:%s%s\n", g_invert_cx ? " X" : "", g_invert_cy ? " Y" : "");
 	const char* path = getenv("SMS_BINDINGS");
@@ -866,6 +875,15 @@ extern "C" u32 PADRead(PADStatus* status)
 	s.substickY = (s8)(g_invert_cy ? -cy : cy);
 	touch_controller_update_pad(&s);
 	return PAD_CHAN0_BIT;
+}
+
+// Aim is transformed where the game consumes it, never in PADRead:
+// the same left stick must retain normal walking, strafing and menu input.
+extern "C" float port_fludd_aim_axis(float value, int axis)
+{
+	init();
+	const bool flip = axis == 0 ? g_invert_aim_x : axis == 1 && g_invert_aim_y;
+	return flip ? -value : value;
 }
 
 // Mouse look: the motion since the last call, in C-stick units (1.0 is full

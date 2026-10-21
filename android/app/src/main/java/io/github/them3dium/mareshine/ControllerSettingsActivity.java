@@ -52,6 +52,8 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         {"R", "R  (spray, full press)"},
         {"R_SOFT", "R half-press  (spray while running)"},
         {"START", "START  (pause)"},
+        {"STICK", "Move stick  (Mario)"},
+        {"CSTICK", "C-stick  (camera)"},
         {"DPAD_UP", "D-pad up"},
         {"DPAD_DOWN", "D-pad down"},
         {"DPAD_LEFT", "D-pad left"},
@@ -77,9 +79,6 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         "Auto (hide while a controller is connected)", "Always show", "Always hide"
     };
     private static final String[] TOUCH_VALUES = {"auto", "on", "off"};
-    private static final String[] STICK_OPTIONS = {
-        "Left stick moves, right stick camera", "Right stick moves, left stick camera"
-    };
 
     private final Map<String, String> mSettings = new LinkedHashMap<>();
     private final Map<String, String> mMap = new LinkedHashMap<>();
@@ -89,6 +88,7 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     private FrameLayout overlay;
     private TextView overlayText;
 
+    private final ControllerStickCapture mStickCapture = new ControllerStickCapture();
     private String mCapturing = null; // the input waiting for a button press
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private final Runnable mCaptureTimeout = () -> stopCapture("Timed out");
@@ -189,11 +189,20 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
 
     private void startCapture(String input, String label) {
         mCapturing = input;
-        overlayText.setText(t("Press a button on your controller for\n\n%s"
-            + "\n\n(tap here to cancel, long-press a row to unbind it)", t(label)));
+        mStickCapture.reset();
+        if (capturingStick()) {
+            overlayText.setText(t("Release both sticks, then move the stick to use for\n\n%s\n\n(tap here to cancel)", t(label)));
+        } else {
+            overlayText.setText(t("Press a button on your controller for\n\n%s"
+                + "\n\n(tap here to cancel, long-press a row to unbind it)", t(label)));
+        }
         overlay.setVisibility(View.VISIBLE);
         mHandler.removeCallbacks(mCaptureTimeout);
         mHandler.postDelayed(mCaptureTimeout, 10000);
+    }
+
+    private boolean capturingStick() {
+        return "STICK".equals(mCapturing) || "CSTICK".equals(mCapturing);
     }
 
     private void stopCapture(String toast) {
@@ -254,6 +263,8 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
             case "b12": return "D-pad down";
             case "b13": return "D-pad left";
             case "b14": return "D-pad right";
+            case "a0": return "Left stick";
+            case "a2": return "Right stick";
             case "a4": return "L2 (trigger)";
             case "a5": return "R2 (trigger)";
             default: return code;
@@ -274,6 +285,11 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (mCapturing != null) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                if (capturingStick()) {
+                    if (event.getKeyCode() == KeyEvent.KEYCODE_BACK || event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_B)
+                        stopCapture(null);
+                    return true;
+                }
                 String code = keyToCode(event.getKeyCode());
                 if (code != null) assign(code);
                 else Toast.makeText(this, t("This button cannot be used, try another one."), Toast.LENGTH_SHORT).show();
@@ -286,6 +302,17 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent ev) {
         if (mCapturing != null && (ev.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
+            if (capturingStick()) {
+                if (ev.getAction() != MotionEvent.ACTION_MOVE) return true;
+                InputDevice device = ev.getDevice();
+                boolean hasZ = device != null && device.getMotionRange(MotionEvent.AXIS_Z) != null
+                    && device.getMotionRange(MotionEvent.AXIS_RZ) != null;
+                String code = mStickCapture.update(ev.getAxisValue(MotionEvent.AXIS_X), ev.getAxisValue(MotionEvent.AXIS_Y),
+                    ev.getAxisValue(hasZ ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RX),
+                    ev.getAxisValue(hasZ ? MotionEvent.AXIS_RZ : MotionEvent.AXIS_RY));
+                if (code != null) assign(code);
+                return true;
+            }
             float lt = Math.max(ev.getAxisValue(MotionEvent.AXIS_LTRIGGER), ev.getAxisValue(MotionEvent.AXIS_BRAKE));
             float rt = Math.max(ev.getAxisValue(MotionEvent.AXIS_RTRIGGER), ev.getAxisValue(MotionEvent.AXIS_GAS));
             float hx = ev.getAxisValue(MotionEvent.AXIS_HAT_X);
@@ -363,7 +390,7 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
 
         col.addView(heading("Button mapping"));
         TextView hint = new TextView(this);
-        hint.setText(t("Tap a row, then press the button on your controller. Long-press a row to unbind it."));
+        hint.setText(t("Tap a row, then press a button or move a stick on your controller. Long-press a row to unbind it."));
         hint.setTextColor(0xFF8FB4D4);
         hint.setTextSize(12);
         col.addView(hint);

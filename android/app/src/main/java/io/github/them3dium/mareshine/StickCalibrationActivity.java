@@ -24,7 +24,7 @@ import java.util.Map;
 
 import static io.github.them3dium.mareshine.L.t;
 
-// Stick calibration (beta): measures the resting centre and the reach of both
+// Stick calibration: measures the resting centre and the reach of both
 // sticks of a controller and saves them as SMS_CAL_LEFT / SMS_CAL_RIGHT
 // ("cx,cy,minx,maxx,miny,maxy", raw -1..1); platform/pad corrects the sticks
 // with them. The left stick is AXIS_X/Y; the right one AXIS_Z/RZ, or RX/RY on
@@ -92,7 +92,7 @@ public class StickCalibrationActivity extends AppActivity {
         root.addView(panel, plp);
 
         TextView title = new TextView(this);
-        title.setText(t("CALIBRATE STICKS  (BETA)"));
+        title.setText(t("CALIBRATE STICKS"));
         title.setTextColor(SUN);
         title.setTypeface(condensed(true));
         title.setTextSize(24);

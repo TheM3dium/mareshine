@@ -582,5 +582,22 @@
  "Hold LOAD to load": "Mantén LOAD para cargar",
  "Save states work once you are in a level. Load your game first.": "Los estados guardados funcionan dentro de un nivel. Carga primero tu partida.",
  "Save states are getting ready, please wait": "Los estados guardados se están preparando, espera",
- "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancelar"
+ "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancelar",
+ "C-Stick inversion": "Inversión del stick C",
+ "Horizontal (X)": "Horizontal (X)",
+ "Vertical (Y)": "Vertical (Y)",
+ "Invert the horizontal and vertical C-stick axes separately.": "Invierte por separado los ejes horizontal y vertical del stick C.",
+ "Horizontal inversion is on by default, as in the original game. Restart the game after changing this.": "La inversión horizontal está activada de forma predeterminada, como en el juego original. Reinicia el juego tras cambiarla.",
+ "Move stick  (Mario)": "Stick de movimiento  (Mario)",
+ "C-stick  (camera)": "Stick C  (cámara)",
+ "Left stick": "Stick izquierdo",
+ "Right stick": "Stick derecho",
+ "Release both sticks, then move the stick to use for\n\n%s\n\n(tap here to cancel)": "Suelta ambos sticks y mueve el que quieras usar para\n\n%s\n\n(toca aquí para cancelar)",
+ "Tap a row, then press a button or move a stick on your controller. Long-press a row to unbind it.": "Toca una fila y pulsa un botón o mueve un stick del mando. Mantén pulsada la fila para quitar la asignación.",
+ "Calibrate sticks": "Calibrar sticks",
+ "Measures both sticks of your controller: their resting centre and how far they reach in each direction. The game then corrects for drift and sticks that do not reach the rim.": "Mide los dos sticks de tu mando: su centro en reposo y hasta dónde llegan en cada dirección. El juego corrige entonces la deriva y los sticks que no llegan al borde.",
+ "CALIBRATE STICKS": "CALIBRAR STICKS",
+ "FLUDD aiming inversion": "Inversión al apuntar con ACUAC",
+ "Invert FLUDD aiming separately from movement and the C-stick.": "Invierte la puntería de ACUAC por separado del movimiento y del stick C.",
+ "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Invierte la puntería al rociar sin moverte o en primera persona. No cambia el movimiento. Reinicia el juego tras cambiarla."
 }
