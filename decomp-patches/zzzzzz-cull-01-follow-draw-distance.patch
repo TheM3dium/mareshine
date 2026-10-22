@@ -1,0 +1,105 @@
+Reason: port: the base Android port's distance culls (NPCs 2500, live actors 3500, map objects 4000, static props 6500; not retail) ignored the draw distance setting, so NPCs and objects popped in and out near Mario even at "1x (original)" (issue #1). They now apply only below the original draw distance (the Low preset's 0.7x); at 1x or more the game clips as on the GameCube. Their own settings (npc_draw_distance and the others) still win, 0 turns one off.
+--- a/src/NPC/NpcBase.cpp
++++ b/src/NPC/NpcBase.cpp
+@@ -764,13 +764,15 @@
+ 
+ #include <stdlib.h>
+ 
++#include <port_cull.h>
++
+ static f32 SMS_GetNpcDrawDistSq()
+ {
+ 	static f32 s_distSq = -1.0f;
+ 	if (s_distSq < 0.0f) {
+-		const char* e = getenv("SMS_NPC_DRAW_DISTANCE");
+-		float dist = e ? (float)atof(e) : 2500.0f;
+-		s_distSq = dist * dist;
++		// port: off at the original draw distance (port_cull.h)
++		float dist = port_cull_distance("SMS_NPC_DRAW_DISTANCE", 2500.0f);
++		s_distSq = dist > 0.0f ? dist * dist : 0.0f;
+ 	}
+ 	return s_distSq;
+ }
+--- a/src/Strategic/livemanager.cpp
++++ b/src/Strategic/livemanager.cpp
+@@ -45,11 +45,15 @@
+ #include <stdlib.h>
+ #include <MarioUtil/MathUtil.hpp>
+ 
++#include <port_cull.h>
++
++// port: 0 (off) at the original draw distance (port_cull.h)
+ static float SMS_GetActorDrawDistance() {
+-	static float s_actorDist = -1.0f;
+-	if (s_actorDist < 0.0f) {
+-		const char* e = getenv("SMS_ACTOR_DRAW_DISTANCE");
+-		s_actorDist = e ? (float)atof(e) : 3500.0f;
++	static bool s_init = false;
++	static float s_actorDist = 0.0f;
++	if (!s_init) {
++		s_actorDist = port_cull_distance("SMS_ACTOR_DRAW_DISTANCE", 3500.0f);
++		s_init      = true;
+ 	}
+ 	return s_actorDist;
+ }
+@@ -64,7 +68,8 @@
+ 	for (int i = 0; i < mObjNum; ++i) {
+ 		TLiveActor* actor = getObj(i);
+ 		if (!actor->checkLiveFlag(LIVE_FLAG_UNK100)) {
+-			if ((void*)actor != (void*)gpMarioOriginal && gpCamera != nullptr) {
++			if (SMS_GetActorDrawDistance() > 0.0f
++			    && (void*)actor != (void*)gpMarioOriginal && gpCamera != nullptr) {
+ 				f32 dSq = MsSquaredDist(actor->mPosition, gpCamera->unk124);
+ 				if (dSq > param_2 * param_2) {
+ 					actor->onLiveFlag(LIVE_FLAG_CLIPPED_OUT);
+@@ -90,7 +95,9 @@
+ 
+ void TLiveManager::clipActors(JDrama::TGraphics* param_1)
+ {
+-	clipActorsAux(param_1, SMS_GetActorDrawDistance(), 200.0f);
++	// retail clips at 4000 when the port's actor cull is off
++	const float dist = SMS_GetActorDrawDistance();
++	clipActorsAux(param_1, dist > 0.0f ? dist : 4000.0f, 200.0f);
+ }
+ 
+ void TLiveManager::setFlagOutOfCube()
+--- a/src/MoveBG/MapObjManager.cpp
++++ b/src/MoveBG/MapObjManager.cpp
+@@ -524,12 +524,14 @@
+ 	}
+ }
+ 
++#include <port_cull.h>
++
+ static float SMS_GetMapObjClipDist()
+ {
+ 	static float s_dist = -1.0f;
+ 	if (s_dist < 0.0f) {
+-		const char* e = getenv("SMS_MAPOBJ_DRAW_DISTANCE");
+-		s_dist = e ? (float)atof(e) : 4000.0f;
++		// port: off at the original draw distance (port_cull.h)
++		s_dist = port_cull_distance("SMS_MAPOBJ_DRAW_DISTANCE", 4000.0f);
+ 	}
+ 	return s_dist;
+ }
+--- a/src/Map/MapStaticObject.cpp
++++ b/src/Map/MapStaticObject.cpp
+@@ -196,13 +196,15 @@
+ 
+ #include <stdlib.h>
+ 
++#include <port_cull.h>
++
+ static float SMS_GetStaticObjDrawDistSq()
+ {
+ 	static float s_distSq = -1.0f;
+ 	if (s_distSq < 0.0f) {
+-		const char* e = getenv("SMS_STATIC_DRAW_DISTANCE");
+-		float d = e ? (float)atof(e) : 6500.0f;
+-		s_distSq = d * d;
++		// port: off at the original draw distance (port_cull.h)
++		float d = port_cull_distance("SMS_STATIC_DRAW_DISTANCE", 6500.0f);
++		s_distSq = d > 0.0f ? d * d : 0.0f;
+ 	}
+ 	return s_distSq;
+ }

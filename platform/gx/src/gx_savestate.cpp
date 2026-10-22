@@ -51,7 +51,10 @@ extern "C" uint8_t* GXPC_SaveStateThumbnail(size_t* size) {
     return out;
 }
 
-// The game's memory changed under the caches (a save state was loaded).
+// The game's memory changed under the caches (a save state was loaded, a DVD
+// or ARAM transfer, DCZeroRange): write stamps for the display-list and
+// texture caches, and the textures it covers are checked again.
 extern "C" void GXPC_MemoryWritten(const void* p, uint32_t size) {
+    gx::memoryWritten(p, size);
     gx::textureCpuWrote(p, size);
 }

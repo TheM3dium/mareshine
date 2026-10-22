@@ -1511,6 +1511,41 @@ public class SettingsActivity extends AppActivity {
         return p;
     }
 
+    // TOUCH's finer settings, in the panel on the right
+    @SuppressWarnings("unchecked")
+    private Panel touchBehaviorPanel(Row row) {
+        Panel p = new Panel();
+        p.row = row;
+        p.orderedNavigation = true;
+        p.intro = "Hiding when idle, the swipe camera's inversion and button feedback.";
+        p.more = "Swiping on the free part of the screen turns the camera, with an inversion of its own apart from "
+            + "the C-stick's. Button feedback pauses while the game itself vibrates and stays off when the "
+            + "smartphone's vibration is set to 0%.";
+        p.labels = new String[] {"Hide when idle", "Invert horizontal (X)", "Invert vertical (Y)", "Button feedback"};
+        p.sections = new String[] {"Display", "Swipe camera", null, "Feedback"};
+        p.values = new java.util.function.Supplier[4];
+        p.gold = new java.util.function.BooleanSupplier[4];
+        p.acts = new Runnable[4];
+        Choice hide = new Choice("SMS_TOUCH_AUTOHIDE", "Hide when idle", "", "0",
+            new String[] {"0", "3", "5", "10"}, new String[] {"Never", "After 3 s", "After 5 s", "After 10 s"});
+        p.values[0] = hide::value;
+        p.gold[0] = () -> hide.index() != 0;
+        p.acts[0] = () -> hide.step(1);
+        String[] keys = {"SMS_SWIPE_INVERT_X", "SMS_SWIPE_INVERT_Y", "SMS_TOUCH_HAPTIC"};
+        String[] defs = {"1", "0", "0"};
+        for (int i = 0; i < keys.length; i++) {
+            final String key = keys[i], def = defs[i];
+            final int index = i + 1;
+            p.gold[index] = () -> !"0".equals(mSettings.getOrDefault(key, def));
+            p.values[index] = () -> p.gold[index].getAsBoolean() ? "On" : "Off";
+            p.acts[index] = () -> {
+                mSettings.put(key, p.gold[index].getAsBoolean() ? "0" : "1");
+                saved();
+            };
+        }
+        return p;
+    }
+
     private void buildInput() {
         section("CONTROLLER");
         add(new Choice("SMS_PAD_DEVICE", "Controller",
@@ -1554,13 +1589,13 @@ public class SettingsActivity extends AppActivity {
                 return v.equals("on") || v.equals("1") ? 1 : v.equals("off") || v.equals("0") ? 2 : 0;
             }
         });
-        add(new Choice("SMS_TOUCH_AUTOHIDE", "Hide when idle",
-            "Fades the on-screen buttons out after a few seconds without a touch. Touching the screen brings "
-                + "them back at once (the touch still counts).",
-            "0", new String[] {"0", "3", "5", "10"}, new String[] {"Never", "After 3 s", "After 5 s", "After 10 s"}));
+        add(new Row("Touch behavior", "Hiding when idle, the swipe camera's inversion and button feedback.") {
+            @Override void click() { openPanel(touchBehaviorPanel(this)); }
+            @Override boolean hasArrow() { return true; }
+        });
         add(new Action("Customize layout",
-            "Move, resize and hide the on-screen buttons and sticks. Drag them with a finger or the mouse; "
-                + "pinch or use Size −/+ to resize.",
+            "Move, resize and hide the on-screen buttons and sticks, and switch on the R+ slider (one R button: "
+                + "slide out of its circle for R+). Drag with a finger or the mouse; pinch or use Size −/+ to resize.",
             () -> mSettings.containsKey("SMS_TOUCH_LAYOUT") ? "Custom" : "Default",
             () -> startActivity(new Intent(this, TouchLayoutActivity.class))));
 

@@ -97,6 +97,16 @@ extern "C" void port_savestate_android_init(void); // savestate/savestate_androi
 // Cutscene subtitles whatever the game's own option says (settings.txt
 // SMS_SUBTITLES, on unless 0; decomp-patches/zzz-subtitles-01-always).
 extern "C" int port_subtitles_always;
+// src/port_include/port_cull.h
+extern "C" float port_cull_distance(const char* env, float forkDefault)
+{
+	if (const char* e = getenv(env))
+		return (float)atof(e);
+	const char* d = getenv("SMS_DRAW_DISTANCE");
+	const float drawDistance = d ? (float)atof(d) : 1.0f;
+	return drawDistance < 0.999f ? forkDefault : 0.0f;
+}
+
 int port_subtitles_always = 1;
 int port_skip_movies = 0;
 // SMS_WIDESCREEN: the displayed width over the GameCube's 4:3 (1 when off);

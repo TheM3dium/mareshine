@@ -249,6 +249,10 @@ public class SunshineActivity extends SDLActivity {
     // and the phone's << 8)
     private static final int COMMAND_RUMBLE_OPTION = 0x8006;
 
+    // platform/pad/touch_controller.cpp: a touch button's feedback, param 1
+    // for a light tick, 2 for a click (the R slider reaching R+)
+    private static final int COMMAND_HAPTIC = 0x8007;
+
     // "Achievement unlocked" with its name, one after another, at the bottom
     private TextView mAchNotice;
     private java.util.Set<String> mAchKnown;
@@ -393,6 +397,10 @@ public class SunshineActivity extends SDLActivity {
             rumble((Integer) param);
             return true;
         }
+        if (command == COMMAND_HAPTIC && param instanceof Integer) {
+            haptic((Integer) param);
+            return true;
+        }
         if (command == COMMAND_RUMBLE_OPTION && param instanceof Integer) {
             int v = (Integer) param;
             java.util.Map<String, String> m = Settings.read(this);
@@ -433,9 +441,12 @@ public class SunshineActivity extends SDLActivity {
         return super.dispatchKeyEvent(e);
     }
 
+    private boolean mRumbling; // the game's rumble runs: touch feedback waits
+
     private void rumble(int strength) {
         android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         if (v == null || !v.hasVibrator()) return;
+        mRumbling = strength > 0;
         if (strength <= 0) {
             v.cancel();
             return;
@@ -446,6 +457,22 @@ public class SunshineActivity extends SDLActivity {
                 v.hasAmplitudeControl() ? Math.max(1, Math.min(255, strength)) : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
         else
             v.vibrate(5000);
+    }
+
+    // A short tick or click for the touch buttons, left out while the game
+    // rumbles (it would cut that rumble short).
+    private void haptic(int kind) {
+        if (mRumbling) return;
+        android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        if (v == null || !v.hasVibrator()) return;
+        if (Build.VERSION.SDK_INT >= 29)
+            v.vibrate(android.os.VibrationEffect.createPredefined(kind == 2
+                ? android.os.VibrationEffect.EFFECT_CLICK : android.os.VibrationEffect.EFFECT_TICK));
+        else if (Build.VERSION.SDK_INT >= 26)
+            v.vibrate(android.os.VibrationEffect.createOneShot(kind == 2 ? 20 : 10,
+                v.hasAmplitudeControl() ? (kind == 2 ? 200 : 90) : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+        else
+            v.vibrate(kind == 2 ? 20 : 10);
     }
 
     @Override

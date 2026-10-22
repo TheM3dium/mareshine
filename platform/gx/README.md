@@ -185,6 +185,8 @@ Without them it still compiles, but only a host-supplied context (`GXPC_Init(get
 
 `SMS_GX_VERTEX_BATCH=auto` (also the absent-setting default) enables the chunked vertex reader on Android Adreno. `0` keeps the original scalar reader; `1` explicitly selects the chunked reader on other hosts for comparison. Other renderer families remain scalar in automatic mode.
 
+`SMS_GX_DL_CACHE=0` turns off the display-list cache (decoded display lists reused while their bytes, arrays and vertex formats are unchanged). `SMS_GX_HASH_ALWAYS=1` makes it and the texture cache compare their sources by hash on every use instead of trusting the memory write stamps.
+
 The VAT setup caches each attribute's input offset and pairs its scalar and chunked conversion functions in one table. Chunks of up to 32 vertices avoid per-vertex indirect calls while keeping the packed output unchanged. One- and two-vertex primitives, or a layout whose cached byte count does not match its source stride, use the scalar path. This changes CPU decoding work, not drawing distance, textures or game logic.
 
 ## Renderer regression checks

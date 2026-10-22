@@ -879,8 +879,10 @@ void onStateChange() {
     if (s_bidx.size) flushBatch();
 }
 
+PrimClass primClass(uint8_t op) { return op >= 0xB8 ? PRIM_POINTS : op >= 0xA8 ? PRIM_LINES : PRIM_TRIS; }
+
 uint8_t* primitiveBegin(uint8_t op, uint32_t n, uint32_t fmt, uint32_t stride) {
-    PrimClass cls = op >= 0xB8 ? PRIM_POINTS : op >= 0xA8 ? PRIM_LINES : PRIM_TRIS;
+    PrimClass cls = primClass(op);
     if (s_bcount && (cls != s_bclass || fmt != s_bfmt)) flushBatch();
     s_bclass = cls;
     s_bfmt = fmt;
@@ -889,12 +891,7 @@ uint8_t* primitiveBegin(uint8_t op, uint32_t n, uint32_t fmt, uint32_t stride) {
     return s_bdata.reserve(size_t(n) * stride);
 }
 
-void primitiveEnd(uint8_t op, uint32_t n) {
-    if (!s_ready || n == 0) return;
-    uint32_t base = s_bcount;
-    s_bcount += n;
-    s_bdata.size = size_t(s_bcount) * s_bstride;
-    uint32_t* w = s_bidx.reserve(size_t(n) * 3);  // no primitive makes more than 3 per vertex
+uint32_t primitiveIndices(uint8_t op, uint32_t n, uint32_t base, uint32_t* w) {
     uint32_t* const w0 = w;
     auto tri = [&](uint32_t a, uint32_t b, uint32_t c) {
         w[0] = base + a;
@@ -938,9 +935,46 @@ void primitiveEnd(uint8_t op, uint32_t n) {
         for (uint32_t i = 0; i < n; i++) *w++ = base + i;
         break;
     }
-    s_bidx.size += size_t(w - w0);
+    return uint32_t(w - w0);
+}
+
+void primitiveEnd(uint8_t op, uint32_t n) {
+    if (!s_ready || n == 0) return;
+    uint32_t base = s_bcount;
+    s_bcount += n;
+    s_bdata.size = size_t(s_bcount) * s_bstride;
+    uint32_t* w = s_bidx.reserve(size_t(n) * 3);  // no primitive makes more than 3 per vertex
+    s_bidx.size += primitiveIndices(op, n, base, w);
     s_stats.vertices += n;
 }
+
+// Vertices decoded earlier (the display-list cache, gx_fifo.cpp), with their
+// indices relative to the first one, added as primitiveBegin/End would.
+void appendDecoded(PrimClass cls, uint32_t fmt, uint32_t stride, const uint8_t* verts, uint32_t n, const uint32_t* idx,
+                   uint32_t nidx) {
+    if (s_bcount && (cls != s_bclass || fmt != s_bfmt)) flushBatch();
+    s_bclass = cls;
+    s_bfmt = fmt;
+    s_bstride = stride;
+    s_bdata.size = size_t(s_bcount) * stride;
+    if (!s_ready || n == 0) return;
+    memcpy(s_bdata.reserve(size_t(n) * stride), verts, size_t(n) * stride);
+    uint32_t base = s_bcount;
+    s_bcount += n;
+    s_bdata.size = size_t(s_bcount) * stride;
+    uint32_t* w = s_bidx.reserve(nidx);
+    for (uint32_t i = 0; i < nidx; i++) w[i] = idx[i] + base;
+    s_bidx.size += nidx;
+    s_stats.vertices += n;
+}
+
+// The display-list arena (cached runs kept in a GPU buffer and drawn in
+// place) is not ported: cached runs are copied into each batch.
+bool arenaEnabled() { return false; }
+uint32_t arenaGeneration() { return 0; }
+bool arenaUpload(const uint8_t*, uint32_t, uint32_t, const uint32_t*, uint32_t, ArenaRef&) { return false; }
+void appendArena(PrimClass, uint32_t, uint32_t, const ArenaRef&, uint32_t, uint32_t, const uint8_t*) {}
+bool batchUsesArena() { return false; }
 
 static inline int sext11(uint32_t v) { return int32_t(v << 21) >> 21; }
 static inline float xff(uint32_t r) {
@@ -1325,7 +1359,8 @@ static void statsFrame() {
 // a real GPU serialises the two. Reads the game makes every frame are answered
 // from the same read one frame earlier instead (as Dolphin does), which the
 // game cannot tell apart; SMS_GX_SYNC_READS=1 goes back to synchronous reads.
-static uint32_t s_frameNo = 0;   // display copies so far
+static uint32_t s_frameNo = 0;
+uint32_t g_displayFrames = 0;  // the same, for the rest of sms_gx   // display copies so far
 static uint32_t s_drawGen = 0;   // bumped by anything that changes the EFB
 static bool asyncReads() {
     static int on = -1;
@@ -1891,6 +1926,7 @@ static void encodeAndStore(const uint8_t* px, const void* dest, int ow, int oh, 
         logCopies--;
     }
     memcpy(const_cast<void*>(dest), enc.data(), n);
+    memoryWritten(dest, n);
     textureInvalidateRange(dest, n);
 }
 
@@ -2117,6 +2153,7 @@ static void copyEfb(uint32_t ctrl) {
         resolveWriteBacks(false);
         hiresEndFrame();
         s_frameNo++;
+        g_displayFrames++;
 #ifdef SMS_GLES
         pointsFrameShown();
 #endif
@@ -2175,6 +2212,7 @@ void GXPC_Shutdown(void) {
 }
 
 void GXPC_InvalidateRange(const void* p, uint32_t size) {
+    memoryWritten(p, size);
     textureCpuWrote(p, size);
 }
 

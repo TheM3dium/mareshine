@@ -69,6 +69,14 @@ public class TouchLayoutActivity extends AppActivity {
     private TextView tvSel;
     private Button btnShow;
     private float mOpacity = 0.7f;
+    // SMS_TOUCH_R_SLIDER: R+ is reached by sliding the finger from R out of a
+    // circle of radius mSlide (a fraction of the screen height,
+    // SMS_TOUCH_R_SLIDE), drawn dashed around R; drag its rim or use Size −/+
+    // to change it. The R+ button itself is then not used
+    private static final float SLIDE_DEFAULT = 0.06f;
+    private boolean mSlider;
+    private float mSlide = SLIDE_DEFAULT;
+    private boolean mSlideSel; // the mark is selected
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,6 +134,10 @@ public class TouchLayoutActivity extends AppActivity {
         try {
             mOpacity = Math.max(0.05f, Math.min(1f, Float.parseFloat(m.getOrDefault("SMS_TOUCH_OPACITY", "70")) / 100f));
         } catch (NumberFormatException ignored) {}
+        mSlider = !"0".equals(m.getOrDefault("SMS_TOUCH_R_SLIDER", "0"));
+        try {
+            mSlide = clamp(Float.parseFloat(m.getOrDefault("SMS_TOUCH_R_SLIDE", Float.toString(SLIDE_DEFAULT))), 0.02f, 0.4f);
+        } catch (NumberFormatException ignored) {}
         String layout = m.get("SMS_TOUCH_LAYOUT");
         if (layout == null) return;
         for (String item : layout.split(";")) {
@@ -155,6 +167,8 @@ public class TouchLayoutActivity extends AppActivity {
         Map<String, String> m = Settings.read(this);
         m.put("SMS_TOUCH_LAYOUT", sb.toString());
         m.put("SMS_TOUCH_OPACITY", Integer.toString(Math.round(mOpacity * 100)));
+        m.put("SMS_TOUCH_R_SLIDER", mSlider ? "1" : "0");
+        m.put("SMS_TOUCH_R_SLIDE", String.format(Locale.ROOT, "%.3f", mSlide));
         Settings.write(this, m);
         Toast.makeText(this, t("Touch layout saved. In the game it applies as soon as you go back to it."), Toast.LENGTH_LONG).show();
         finish();
@@ -213,10 +227,11 @@ public class TouchLayoutActivity extends AppActivity {
         Button smaller = tool("Size −", false);
         Button bigger = tool("Size +", false);
         btnShow = tool("Hide", false);
+        Button slider = tool(mSlider ? "R+ slider: On" : "R+ slider: Off", false);
         Button reset = tool("Reset all", false);
         Button cancel = tool("Cancel", false);
         Button save = tool("Save", true);
-        for (Button b : new Button[] {smaller, bigger, btnShow, reset, cancel, save}) {
+        for (Button b : new Button[] {smaller, bigger, btnShow, slider, reset, cancel, save}) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.setMargins(dp(4), 0, dp(4), 0);
@@ -225,13 +240,25 @@ public class TouchLayoutActivity extends AppActivity {
         smaller.setOnClickListener(v -> resize(1f / 1.1f));
         bigger.setOnClickListener(v -> resize(1.1f));
         btnShow.setOnClickListener(v -> {
-            if (mSel == null) return;
+            if (mSel == null || mSlideSel) return;
             mSel.shown = !mSel.shown;
+            updateToolbar();
+            mView.invalidate();
+        });
+        slider.setOnClickListener(v -> {  // R alone, sliding out of its circle to R+
+            mSlider = !mSlider;
+            slider.setText(t(mSlider ? "R+ slider: On" : "R+ slider: Off"));
+            if (!mSlider && mSlideSel) {
+                mSlideSel = false;
+                mSel = elem("R");
+            }
+            if (mSlider && mSel != null && mSel.name.equals("RPLUS")) mSel = elem("R");
             updateToolbar();
             mView.invalidate();
         });
         reset.setOnClickListener(v -> {
             for (Elem e : mElems) e.reset();
+            mSlide = SLIDE_DEFAULT;
             updateToolbar();
             mView.invalidate();
         });
@@ -304,6 +331,12 @@ public class TouchLayoutActivity extends AppActivity {
     }
 
     private void resize(float f) {
+        if (mSlideSel) {
+            mSlide = clamp(mSlide * f, 0.02f, 0.4f);
+            updateToolbar();
+            mView.invalidate();
+            return;
+        }
         if (mSel == null) return;
         mSel.r = clamp(mSel.r * f, 0.02f, 0.4f);
         updateToolbar();
@@ -311,6 +344,11 @@ public class TouchLayoutActivity extends AppActivity {
     }
 
     private void updateToolbar() {
+        if (mSlideSel) {
+            tvSel.setText("✥ R+ ◌  " + Math.round(mSlide / SLIDE_DEFAULT * 100) + "%");
+            btnShow.setText(t("Hide"));
+            return;
+        }
         if (mSel == null) {
             tvSel.setText(t("Tap a control"));
             return;
@@ -321,17 +359,30 @@ public class TouchLayoutActivity extends AppActivity {
 
     // --- the editing surface -------------------------------------------------
 
+    private Elem elem(String name) {
+        for (Elem e : mElems) if (e.name.equals(name)) return e;
+        return null;
+    }
+
+    // the R+ button has no use while R slides to R+
+    private boolean unused(Elem e) { return mSlider && e.name.equals("RPLUS"); }
+
     private class EditorView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final ScaleGestureDetector scale;
         private Elem drag;
+        private boolean dragSlide;
         private float offX, offY;
 
         EditorView(Context c) {
             super(c);
             scale = new ScaleGestureDetector(c, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 @Override public boolean onScale(ScaleGestureDetector d) {
-                    if (mSel != null) {
+                    if (mSlideSel) {
+                        mSlide = clamp(mSlide * d.getScaleFactor(), 0.02f, 0.4f);
+                        updateToolbar();
+                        invalidate();
+                    } else if (mSel != null) {
                         mSel.r = clamp(mSel.r * d.getScaleFactor(), 0.02f, 0.4f);
                         updateToolbar();
                         invalidate();
@@ -346,6 +397,7 @@ public class TouchLayoutActivity extends AppActivity {
             Elem best = null;
             float bestD = Float.MAX_VALUE;
             for (Elem e : mElems) {
+                if (unused(e)) continue;
                 float d = (float) Math.hypot(px - e.x * w, py - e.y * h);
                 float reach = Math.max(e.r * h * 1.2f, dp(28));
                 if (d <= reach && d < bestD) {
@@ -362,8 +414,21 @@ public class TouchLayoutActivity extends AppActivity {
             float w = getWidth(), h = getHeight();
             switch (ev.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN: {
+                    Elem r = elem("R");
+                    if (mSlider && r != null && r.shown) {  // the R+ circle's rim first
+                        float d = (float) Math.hypot(ev.getX() - r.x * w, ev.getY() - r.y * h);
+                        if (Math.abs(d - mSlide * h) <= dp(18) && d > r.r * h * 0.6f) {
+                            mSlideSel = true;
+                            mSel = null;
+                            dragSlide = true;
+                            updateToolbar();
+                            invalidate();
+                            return true;
+                        }
+                    }
                     Elem e = hit(ev.getX(), ev.getY());
                     if (e != null) {
+                        mSlideSel = false;
                         mSel = e;
                         drag = e;
                         offX = e.x * w - ev.getX();
@@ -374,6 +439,13 @@ public class TouchLayoutActivity extends AppActivity {
                     return true;
                 }
                 case MotionEvent.ACTION_MOVE:
+                    if (dragSlide && ev.getPointerCount() == 1 && !scale.isInProgress()) {
+                        Elem r = elem("R");
+                        if (r != null)
+                            mSlide = clamp((float) Math.hypot(ev.getX() - r.x * w, ev.getY() - r.y * h) / h, 0.02f, 0.4f);
+                        updateToolbar();
+                        invalidate();
+                    }
                     if (drag != null && ev.getPointerCount() == 1 && !scale.isInProgress()) {
                         drag.x = clamp((ev.getX() + offX) / w, 0, 1);
                         drag.y = clamp((ev.getY() + offY) / h, 0, 1);
@@ -382,10 +454,12 @@ public class TouchLayoutActivity extends AppActivity {
                     return true;
                 case MotionEvent.ACTION_POINTER_DOWN:
                     drag = null; // two fingers: resize, not move
+                    dragSlide = false;
                     return true;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     drag = null;
+                    dragSlide = false;
                     return true;
             }
             return true;
@@ -410,6 +484,7 @@ public class TouchLayoutActivity extends AppActivity {
                 w / 2, h - dp(14), p);
 
             for (Elem e : mElems) {
+                if (unused(e)) continue;
                 // drawn as big as the game draws them (touch_controller.cpp: a
                 // button's circle is 0.92 of its radius, a stick's 0.94)
                 float cx = e.x * w, cy = e.y * h, r = e.r * h * (e.stick ? 0.94f : 0.92f);
@@ -449,6 +524,25 @@ public class TouchLayoutActivity extends AppActivity {
                     c.drawCircle(cx, cy, r + dp(6), p);
                 }
             }
+            Elem rb = elem("R");
+            if (mSlider && rb != null && rb.shown) drawSlideMark(c, rb, w, h);
+        }
+
+        // Where R becomes R+: a dashed circle around R, labelled R+ at its top.
+        private void drawSlideMark(Canvas c, Elem rb, float w, float h) {
+            float cx = rb.x * w, cy = rb.y * h, rad = mSlide * h;
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(mSlideSel ? 3 : 2));
+            p.setColor(mSlideSel ? 0xFFFFC531 : 0xCCFFFFFF);
+            p.setPathEffect(new DashPathEffect(new float[] {dp(6), dp(5)}, 0));
+            c.drawCircle(cx, cy, rad, p);
+            p.setPathEffect(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(mSlideSel ? 0xFFFFC531 : 0xDDFFFFFF);
+            p.setTextSize(dp(14));
+            p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+            p.setTextAlign(Paint.Align.CENTER);
+            c.drawText("R+", cx, cy - rad - dp(6), p);
         }
     }
 }

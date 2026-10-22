@@ -316,6 +316,8 @@ int parse_touch_mode(const char* t)
 // turns the camera.
 bool g_invert_cx, g_invert_cy;
 bool g_invert_aim_x, g_invert_aim_y;
+// SMS_SWIPE_INVERT_X / _Y: the touch camera swipe's own inversion (X on by default)
+bool g_invert_swipe_x = true, g_invert_swipe_y;
 // mouse look (see above): its speed, and the motion not yet given to the camera
 float g_mouseSens = 1.0f;
 int g_mouseDX, g_mouseDY;
@@ -574,6 +576,10 @@ void init()
 	g_invert_cy = env_on("SMS_CAMERA_INVERT_Y");
 	g_invert_aim_x = env_on("SMS_FLUDD_INVERT_X");
 	g_invert_aim_y = env_on("SMS_FLUDD_INVERT_Y");
+	const char* swipeX = getenv("SMS_SWIPE_INVERT_X");
+	if (swipeX && *swipeX)
+		g_invert_swipe_x = strcmp(swipeX, "0") != 0;
+	g_invert_swipe_y = env_on("SMS_SWIPE_INVERT_Y");
 	if (g_invert_cx || g_invert_cy)
 		port_log("[pad] camera inverted:%s%s\n", g_invert_cx ? " X" : "", g_invert_cy ? " Y" : "");
 	const char* path = getenv("SMS_BINDINGS");
@@ -927,6 +933,14 @@ extern "C" u32 PADRead(PADStatus* status)
 extern "C" int port_camera_invert_touch(int value, int axis)
 {
 	const bool flip = axis == 0 ? g_invert_cx : g_invert_cy;
+	return flip ? -value : value;
+}
+
+// The camera swipe on the touch screen has an inversion of its own, apart
+// from the C-stick's, so swiping can feel like either a stick or a drag.
+extern "C" int port_swipe_invert_touch(int value, int axis)
+{
+	const bool flip = axis == 0 ? g_invert_swipe_x : g_invert_swipe_y;
 	return flip ? -value : value;
 }
 

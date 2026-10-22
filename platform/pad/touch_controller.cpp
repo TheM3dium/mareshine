@@ -14,6 +14,9 @@ extern "C" void GXPC_SetOverlayAlpha(float alpha) __attribute__((weak));
 #include <cmath>
 
 extern "C" int port_camera_invert_touch(int value, int axis); // pad.cpp
+extern "C" int port_swipe_invert_touch(int value, int axis);  // pad.cpp
+extern "C" int port_vibration_percent(const char* name);       // pad.cpp
+extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(uint32_t command, int param);
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -140,6 +143,50 @@ const char* const kTouchNames[] = { "A", "B", "X", "Y", "L", "R", "RPLUS", "Z", 
 float s_autoHide = 0;
 double s_lastTouch = 0;
 bool s_layoutLoaded = false;
+// SMS_TOUCH_R_SLIDER=1: R alone does both trigger stages. Touching it sprays
+// lightly (R); sliding the finger out of a circle around R's centre
+// (SMS_TOUCH_R_SLIDE, its radius as a fraction of the screen height; the
+// touch layout editor shows and sets it) presses it fully (R+), and back
+// inside half of it returns to R, with a click each way. It lets go only
+// when lifted. The separate R+ button is not shown.
+bool s_rSlider = false;
+bool s_rDeep = false;      // slid out to R+
+float s_rSlide = 0.06f;    // the circle's radius
+// SMS_TOUCH_HAPTIC=1: a light tick on the phone for every touch button
+// pressed. The R slider clicks as it moves between R and R+ either way. Both
+// stay off while the phone's vibration is set to 0%.
+bool s_haptic = false;
+
+// kind 1: a tick (a button), 2: a click (the R slider reaching R+)
+void hapticFeedback(int kind)
+{
+#ifdef __ANDROID__
+    if (port_vibration_percent("SMS_VIBRATION_PHONE") > 0 && SDL_AndroidSendMessage)
+        SDL_AndroidSendMessage(0x8007, kind); // SunshineActivity.COMMAND_HAPTIC
+#else
+    (void)kind;
+#endif
+}
+
+// The finger `dist` pixels from R's centre: out of the circle it clicks into
+// R+, back inside half of it it clicks back to R (the gap keeps it from
+// flickering between the two).
+void sliderMove(float dist)
+{
+    const float reach = s_rSlide * s_winH;
+    if (!s_rDeep && dist > reach) {
+        s_rDeep = true;
+        hapticFeedback(2);
+    } else if (s_rDeep && dist < reach * 0.5f) {
+        s_rDeep = false;
+        hapticFeedback(2);
+    }
+}
+
+bool buttonOff(int i)
+{
+    return s_buttons[i].hidden || (s_rSlider && s_buttons[i].id == TBTN_R_HARD);
+}
 
 double nowSec()
 {
@@ -181,6 +228,12 @@ void loadLayout()
     }
     if (const char* e = getenv("SMS_TOUCH_AUTOHIDE"); e && *e) s_autoHide = (float)atof(e);
     if (const char* e = getenv("SMS_SAVESTATE_DELAY"); e && *e) s_stateDelay = atoi(e) != 0;
+    const char* slider = getenv("SMS_TOUCH_R_SLIDER");
+    s_rSlider = slider && *slider && strcmp(slider, "0") != 0;
+    if (const char* e = getenv("SMS_TOUCH_R_SLIDE"); e && *e)
+        s_rSlide = std::max(0.02f, std::min(0.4f, (float)atof(e)));
+    const char* haptic = getenv("SMS_TOUCH_HAPTIC");
+    s_haptic = haptic && *haptic && strcmp(haptic, "0") != 0;
     const char* e = getenv("SMS_TOUCH_LAYOUT");
     if (!e || !*e) return;
     std::string all = e;
@@ -232,6 +285,7 @@ struct Sprite {
 };
 
 Sprite s_buttonSprites[TBTN_COUNT][2]; // [id][0=normal, 1=pressed]
+Sprite s_rDeepSprite;                  // R while the R slider is down at R+
 Sprite s_stickBaseSprite;
 Sprite s_stickKnobSprite;
 Sprite s_stickKnobPressedSprite;
@@ -621,6 +675,9 @@ void rebuildSprites()
         s_buttonSprites[i][0] = makeButtonSprite(btnPx, s_buttons[i].baseR, s_buttons[i].baseG, s_buttons[i].baseB, s_buttons[i].label, false);
         s_buttonSprites[i][1] = makeButtonSprite(btnPx, s_buttons[i].baseR, s_buttons[i].baseG, s_buttons[i].baseB, s_buttons[i].label, true);
     }
+    // the R slider pulled down: R's size in R+'s colour and label
+    const TouchButton& rh = s_buttons[TBTN_R_HARD];
+    s_rDeepSprite = makeButtonSprite(s_buttonSprites[TBTN_R][1].w, rh.baseR, rh.baseG, rh.baseB, rh.label, true);
 }
 
 } // namespace
@@ -673,7 +730,7 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
 
     // Check buttons first
     for (int i = 0; i < TBTN_COUNT; ++i) {
-        if (s_buttons[i].hidden) continue;
+        if (buttonOff(i)) continue;
         float bx = s_buttons[i].relX * s_winW;
         float by = s_buttons[i].relY * s_winH;
         float br = s_buttons[i].relRadius * s_winH;
@@ -702,6 +759,8 @@ void touch_controller_on_finger_down(int64_t fingerId, float normX, float normY)
                 s_stateFired[which] = false;
                 if (!s_stateDelay) stateFire(which);
             }
+            if (s_buttons[i].id == TBTN_R) s_rDeep = false;
+            if (s_haptic) hapticFeedback(1);
             return;
         }
     }
@@ -837,7 +896,10 @@ void touch_controller_on_finger_move(int64_t fingerId, float normX, float normY)
         return;
     }
 
-    // Check sliding into or out of buttons
+    // Check sliding out of buttons. A held button lets go only well outside
+    // its circle (and never closer than kHoldReach of the screen height), so a
+    // thumb that creeps while holding a small one such as R+ keeps it pressed.
+    const float kHoldReach = 0.12f;
     for (int i = 0; i < TBTN_COUNT; ++i) {
         if (s_buttons[i].fingerId == fingerId) {
             float bx = s_buttons[i].relX * s_winW;
@@ -845,7 +907,11 @@ void touch_controller_on_finger_move(int64_t fingerId, float normX, float normY)
             float br = s_buttons[i].relRadius * s_winH;
             float dx = px - bx;
             float dy = py - by;
-            if (std::sqrt(dx * dx + dy * dy) > br * 1.5f) {
+            if (s_rSlider && s_buttons[i].id == TBTN_R) {  // lets go only when lifted
+                sliderMove(std::sqrt(dx * dx + dy * dy));
+                continue;
+            }
+            if (std::sqrt(dx * dx + dy * dy) > std::max(br * 2.5f, kHoldReach * s_winH)) {
                 s_buttons[i].pressed = false;
                 s_buttons[i].fingerId = -1;
             }
@@ -892,6 +958,7 @@ void touch_controller_on_finger_up(int64_t fingerId, float /*normX*/, float /*no
                     port_savestate_notice(which ? "Hold LOAD to load" : "Hold SAVE to save");
                 s_stateSince[which] = -1;
             }
+            if (s_buttons[i].id == TBTN_R) s_rDeep = false;
             s_buttons[i].pressed = false;
             s_buttons[i].fingerId = -1;
         }
@@ -926,8 +993,9 @@ void touch_controller_update_pad(PADStatus* status)
     if (s_buttons[TBTN_R].pressed) {
         if (status->triggerRight < 180) status->triggerRight = 180;
     }
-    // TBTN_R_HARD: Full spray (255) -> Lock precision aim spray!
-    if (s_buttons[TBTN_R_HARD].pressed) {
+    // TBTN_R_HARD: Full spray (255) -> Lock precision aim spray! (or the R
+    // slider pulled down)
+    if (s_buttons[TBTN_R_HARD].pressed || (s_rSlider && s_rDeep && s_buttons[TBTN_R].pressed)) {
         status->triggerRight = 255;
         status->button |= PAD_TRIGGER_R;
     }
@@ -946,9 +1014,9 @@ void touch_controller_update_pad(PADStatus* status)
     if (s_cstick.active && (s_cstick.stickX != 0 || s_cstick.stickY != 0)) {
         status->substickX = (int8_t)port_camera_invert_touch(s_cstick.stickX, 0);
         status->substickY = (int8_t)port_camera_invert_touch(s_cstick.stickY, 1);
-    } else if (s_cam.active) {  // the swipe camera follows the C-stick's inversion too
-        status->substickX = (int8_t)port_camera_invert_touch(s_cam.substickX, 0);
-        status->substickY = (int8_t)port_camera_invert_touch(s_cam.substickY, 1);
+    } else if (s_cam.active) {  // the swipe camera has an inversion of its own
+        status->substickX = (int8_t)port_swipe_invert_touch(s_cam.substickX, 0);
+        status->substickY = (int8_t)port_swipe_invert_touch(s_cam.substickY, 1);
         // Decay swipe delta
         s_cam.substickX = s_cam.substickX * 2 / 3;
         s_cam.substickY = s_cam.substickY * 2 / 3;
@@ -1036,8 +1104,9 @@ void touch_controller_draw(int winW, int winH)
 
     // 3. Draw all buttons
     for (int i = 0; i < TBTN_COUNT; ++i) {
-        const Sprite& sp = s_buttonSprites[i][s_buttons[i].pressed ? 1 : 0];
-        if (sp.pixels.empty() || s_buttons[i].hidden) continue;
+        const bool deep = s_rSlider && s_rDeep && s_buttons[i].id == TBTN_R && s_buttons[i].pressed;
+        const Sprite& sp = deep ? s_rDeepSprite : s_buttonSprites[i][s_buttons[i].pressed ? 1 : 0];
+        if (sp.pixels.empty() || buttonOff(i)) continue;
         if (s_hideOthers && s_buttons[i].id != TBTN_OPACITY) continue;
 
         int bx = int(s_buttons[i].relX * winW - sp.w * 0.5f);
