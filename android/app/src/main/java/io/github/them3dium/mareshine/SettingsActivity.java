@@ -339,13 +339,12 @@ public class SettingsActivity extends AppActivity {
         vline.setBackgroundColor(0xFF2FB8C9);
         body.addView(vline, new LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT));
 
-        FrameLayout rightFrame = new FrameLayout(this);
+        LinearLayout rightFrame = new LinearLayout(this);
+        rightFrame.setOrientation(LinearLayout.VERTICAL);
         ScrollView right = new ScrollView(this);
         mRightScroll = right;
         // Repeated controller focus moves must not race an unfinished scroll animation.
         right.setSmoothScrollingEnabled(false);
-        right.setClipToPadding(false);
-        right.setPadding(0, dp(18), 0, dp(18));
         LinearLayout rightCol = new LinearLayout(this);
         rightCol.setOrientation(LinearLayout.VERTICAL);
         rightCol.setPadding(dp(28), dp(24), dp(28), dp(24));
@@ -361,14 +360,15 @@ public class SettingsActivity extends AppActivity {
         mOptList.setPadding(0, dp(18), 0, 0);
         mOptList.setVisibility(View.GONE);
         rightCol.addView(mOptList);
-        rightFrame.addView(right, new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // Arrow gutters are outside the viewport so focused rows stay unobscured.
         mScrollUp = scrollArrow("▲");
         mScrollDown = scrollArrow("▼");
-        rightFrame.addView(mScrollUp, new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(20), Gravity.TOP));
-        rightFrame.addView(mScrollDown, new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(20), Gravity.BOTTOM));
+        rightFrame.addView(mScrollUp, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(20)));
+        rightFrame.addView(right, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        rightFrame.addView(mScrollDown, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(20)));
         right.setOnScrollChangeListener((v, x, y, oldX, oldY) -> updateScrollArrows());
         rightCol.addOnLayoutChangeListener((v, l, t, rr, b, ol, ot, orr, ob) -> updateScrollArrows());
         right.addOnLayoutChangeListener((v, l, t, rr, b, ol, ot, orr, ob) -> updateScrollArrows());
@@ -383,7 +383,6 @@ public class SettingsActivity extends AppActivity {
         arrow.setTextColor(GOLD);
         arrow.setTextSize(14);
         arrow.setGravity(Gravity.CENTER);
-        arrow.setBackgroundColor(0xE60A1B30);
         arrow.setFocusable(false);
         arrow.setClickable(false);
         arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
