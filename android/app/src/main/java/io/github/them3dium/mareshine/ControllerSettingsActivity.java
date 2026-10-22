@@ -54,6 +54,10 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         {"START", "START  (pause)"},
         {"STICK", "Left stick  (Mario)"},
         {"CSTICK", "C-stick  (camera)"},
+        {"STICK_X", "Left stick: horizontal (X)"},
+        {"STICK_Y", "Left stick: vertical (Y)"},
+        {"CSTICK_X", "C-stick: horizontal (X)"},
+        {"CSTICK_Y", "C-stick: vertical (Y)"},
         {"DPAD_UP", "D-pad up"},
         {"DPAD_DOWN", "D-pad down"},
         {"DPAD_LEFT", "D-pad left"},
@@ -63,10 +67,23 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         {"LOAD_STATE", "Hotkey + this: quick load"},
         {"MENU", "Quick menu  (tap it; may be the hotkey)"},
     };
+    // the sections of the screen: title, an optional note, the inputs
+    private static final String[][] GROUPS = {
+        {"Buttons", null, "A", "B", "X", "Y", "Z", "L", "R", "R_SOFT", "START"},
+        {"D-pad", null, "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT"},
+        {"Sticks", "Set a stick's axes by hand only if it moves wrongly on Automatic.",
+            "STICK_X", "STICK_Y", "CSTICK_X", "CSTICK_Y"},
+        {"System buttons", "Please set these up for your controller: the quick menu and the save states. "
+            + "Red ones are still on their default and may not suit your controller.",
+            "HOTKEY", "SAVE_STATE", "LOAD_STATE", "MENU"},
+    };
     // the port's own buttons, in a section of their own: shown red until the
     // player has bound them (SYSTEM_SET lists the ones they have)
     private static final java.util.Set<String> SYSTEM = new java.util.HashSet<>(
         java.util.Arrays.asList("HOTKEY", "SAVE_STATE", "LOAD_STATE", "MENU"));
+    // a stick's axis set by hand (jN / -jN, platform/pad/pad.cpp); left out: automatic
+    private static final java.util.Set<String> AXES = new java.util.HashSet<>(
+        java.util.Arrays.asList("STICK_X", "STICK_Y", "CSTICK_X", "CSTICK_Y"));
     private static final String SYSTEM_SET = "SMS_PAD_SYSTEM_SET";
     private final java.util.Set<String> mSystemSet = new java.util.HashSet<>();
 
@@ -82,7 +99,8 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
 
     private final Map<String, String> mSettings = new LinkedHashMap<>();
     private final Map<String, String> mMap = new LinkedHashMap<>();
-    private final Map<String, Button> mRows = new LinkedHashMap<>();
+    private final Map<String, View> mRows = new LinkedHashMap<>();
+    private final Map<String, TextView> mValues = new LinkedHashMap<>();
     private final List<String> mDeviceNames = new ArrayList<>();
 
     private FrameLayout overlay;
@@ -190,7 +208,12 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     private void startCapture(String input, String label) {
         mCapturing = input;
         mStickCapture.reset();
-        if (capturingStick()) {
+        if (AXES.contains(input)) {
+            overlayText.setText(t(input.endsWith("_X")
+                ? "Push the stick for\n\n%s\n\nall the way to the RIGHT\n\n(tap here to cancel, long-press a row to set it back to automatic)"
+                : "Push the stick for\n\n%s\n\nall the way DOWN\n\n(tap here to cancel, long-press a row to set it back to automatic)",
+                t(label)));
+        } else if (capturingStick()) {
             overlayText.setText(t("Release both sticks, then move the stick to use for\n\n%s\n\n(tap here to cancel)", t(label)));
         } else {
             overlayText.setText(t("Press a button on your controller for\n\n%s"
@@ -202,7 +225,43 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     }
 
     private boolean capturingStick() {
-        return "STICK".equals(mCapturing) || "CSTICK".equals(mCapturing);
+        return "STICK".equals(mCapturing) || "CSTICK".equals(mCapturing) || AXES.contains(mCapturing);
+    }
+
+    // The raw axis pushed furthest (SDL's joystick axis number: the device's
+    // joystick ranges without the hat, sorted as SDLControllerManager does),
+    // "-" when it runs the other way than right / down; null until one is
+    // pushed far enough. Only centred axes count (not the triggers).
+    private static String pushedAxis(MotionEvent ev) {
+        InputDevice d = ev.getDevice();
+        if (d == null) return null;
+        List<InputDevice.MotionRange> ranges = new ArrayList<>(d.getMotionRanges());
+        java.util.Collections.sort(ranges, (a, b) -> sdlOrder(a.getAxis()) - sdlOrder(b.getAxis()));
+        int n = 0, best = -1;
+        float bestV = 0.7f, sign = 1;
+        for (InputDevice.MotionRange r : ranges) {
+            if ((r.getSource() & InputDevice.SOURCE_CLASS_JOYSTICK) == 0) continue;
+            int axis = r.getAxis();
+            if (axis == MotionEvent.AXIS_HAT_X || axis == MotionEvent.AXIS_HAT_Y) continue;
+            float v = ev.getAxisValue(axis);
+            if (r.getMin() < 0 && Math.abs(v) > bestV) {
+                bestV = Math.abs(v);
+                best = n;
+                sign = Math.signum(v);
+            }
+            n++;
+        }
+        if (best < 0) return null;
+        return (sign < 0 ? "-j" : "j") + best;
+    }
+
+    // SDLControllerManager.RangeComparator: GAS and BRAKE swapped, Z between RY and RZ
+    private static int sdlOrder(int axis) {
+        if (axis == MotionEvent.AXIS_GAS) axis = MotionEvent.AXIS_BRAKE;
+        else if (axis == MotionEvent.AXIS_BRAKE) axis = MotionEvent.AXIS_GAS;
+        if (axis == MotionEvent.AXIS_Z) return MotionEvent.AXIS_RZ - 1;
+        if (axis > MotionEvent.AXIS_Z && axis < MotionEvent.AXIS_RZ) return axis - 1;
+        return axis;
     }
 
     private void stopCapture(String toast) {
@@ -302,6 +361,12 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent ev) {
         if (mCapturing != null && (ev.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
+            if (AXES.contains(mCapturing)) {
+                if (ev.getAction() != MotionEvent.ACTION_MOVE) return true;
+                String code = pushedAxis(ev);
+                if (code != null) assign(code);
+                return true;
+            }
             if (capturingStick()) {
                 if (ev.getAction() != MotionEvent.ACTION_MOVE) return true;
                 InputDevice device = ev.getDevice();
@@ -337,12 +402,22 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     private TextView heading(String text) {
         TextView t = new TextView(this);
         t.setText(t(text));
-        t.setTextColor(0xFFFFC531);
-        t.setTextSize(16);
+        t.setTextColor(0xFF5ED3DD);
+        t.setTextSize(20);
         t.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
         t.setAllCaps(true);
         t.setPadding(0, dp(18), 0, dp(6));
         return t;
+    }
+
+    private TextView hint(String text) {
+        TextView h = new TextView(this);
+        h.setText(t(text));
+        h.setTextColor(0xFF8FB4D4);
+        h.setTextSize(16);
+        h.setLineSpacing(0, 1.15f);
+        h.setPadding(0, 0, 0, dp(4));
+        return h;
     }
 
     // Rows and buttons in the launcher's (Dusklight) style: rounded, a gold
@@ -371,46 +446,73 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
     }
 
     private void buildUi() {
+        // the app's panel (as Achievements): title and ✕ on top, the rows
+        // scroll, Save / Cancel stay below them
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(0xFF0A1B30);
+        root.setBackgroundResource(R.drawable.dl_scrim_strong);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackgroundResource(R.drawable.dl_panel);
+        panel.setPadding(dp(28), dp(14), dp(28), dp(14));
+        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        plp.setMargins(dp(16), dp(12), dp(16), dp(12));
+        root.addView(panel, plp);
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(24), dp(20), dp(24), dp(24));
+        col.setPadding(0, 0, dp(6), dp(8));
         scroll.addView(col);
-        root.addView(scroll);
 
         TextView title = new TextView(this);
         title.setText(t("CONFIGURE BUTTONS"));
         title.setTextColor(0xFFFFC93C);
-        title.setTextSize(26);
+        title.setTextSize(24);
         title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
-        col.addView(title);
+        // ✕ leaves without saving, like Cancel (for when the screen was opened by mistake)
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        head.addView(closeButton());
+        panel.addView(head);
+        panel.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        col.addView(heading("Button mapping"));
-        TextView hint = new TextView(this);
-        hint.setText(t("Tap a row, then press a button or move a stick on your controller. Long-press a row to unbind it."));
-        hint.setTextColor(0xFF8FB4D4);
-        hint.setTextSize(12);
-        col.addView(hint);
-        for (int pass = 0; pass < 2; pass++) {
-            if (pass == 1) {
-                col.addView(heading("System buttons"));
-                TextView sys = new TextView(this);
-                sys.setText(t("Please set these up for your controller: the quick menu and the save states. "
-                    + "Red ones are still on their default and may not suit your controller."));
-                sys.setTextColor(0xFF8FB4D4);
-                sys.setTextSize(12);
-                col.addView(sys);
-            }
-            for (String[] in : INPUTS) {
-                final String key = in[0], label = in[1];
-                if (SYSTEM.contains(key) != (pass == 1)) continue;
-                Button row = button("", 0xFF1E1E2C);
-                row.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-                row.setOnClickListener(v -> startCapture(key, label));
-                row.setOnLongClickListener(v -> {
+        col.addView(hint("Tap a row, then press a button or move a stick on your controller. Long-press a row to unbind it."));
+        for (String[] group : GROUPS) {
+            col.addView(heading(group[0]));
+            if (group[1] != null) col.addView(hint(group[1]));
+            for (int g = 2; g < group.length; g++) {
+                final String key = group[g];
+                String label = null;
+                for (String[] in : INPUTS) if (in[0].equals(key)) label = in[1];
+                final String name = label;
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setBackgroundResource(R.drawable.dl_row);
+                row.setPadding(dp(18), dp(12), dp(18), dp(12));
+                row.setFocusable(true);
+                row.setClickable(true);
+                TextView l = new TextView(this);
+                l.setText(t(name));
+                l.setTextColor(0xFFF4F8FF);
+                l.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+                l.setTextSize(18);
+                row.addView(l, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.2f));
+                TextView v = new TextView(this);
+                v.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
+                v.setTextSize(18);
+                v.setGravity(Gravity.END);
+                row.addView(v, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                row.setOnClickListener(x -> startCapture(key, name));
+                row.setOnLongClickListener(x -> {
+                    if (AXES.contains(key)) {  // back to automatic
+                        mMap.remove(key);
+                        updateRows();
+                        return true;
+                    }
                     mMap.put(key, "none");
                     if (SYSTEM.contains(key)) mSystemSet.add(key);
                     updateRows();
@@ -418,23 +520,21 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
                 });
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                lp.topMargin = dp(4);
+                lp.topMargin = dp(6);
                 col.addView(row, lp);
                 mRows.put(key, row);
+                mValues.put(key, v);
             }
         }
         updateRows();
 
-        TextView exitNote = new TextView(this);
-        exitNote.setText(t("Select + Start together and the Home button open the quick menu too."));
-        exitNote.setTextColor(0xFF8FB4D4);
-        exitNote.setTextSize(12);
-        exitNote.setPadding(0, dp(10), 0, 0);
+        TextView exitNote = hint("Select + Start together and the Home button open the quick menu too.");
+        exitNote.setPadding(0, dp(12), 0, 0);
         col.addView(exitNote);
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setPadding(0, dp(18), 0, 0);
+        buttons.setPadding(0, dp(10), 0, 0);
         Button reset = button("Reset to defaults", 0xFF455A64);
         Button cancel = button("Cancel", 0xFF455A64);
         Button save = button("💾 Save", 0xFF2E7D32);
@@ -443,7 +543,7 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         buttons.addView(reset, wp);
         buttons.addView(cancel, new LinearLayout.LayoutParams(wp));
         buttons.addView(save, new LinearLayout.LayoutParams(wp));
-        col.addView(buttons);
+        panel.addView(buttons);
         reset.setOnClickListener(v -> {
             mMap.clear();
             mSystemSet.clear();
@@ -476,11 +576,16 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
 
     private void updateRows() {
         for (String[] in : INPUTS) {
-            Button row = mRows.get(in[0]);
+            View row = mRows.get(in[0]);
+            TextView val = mValues.get(in[0]);
             if (row == null) continue;
-            row.setText(t(in[1]) + "   →   " + mappingLabel(mMap.get(in[0])));
+            String v = mMap.get(in[0]);
+            String shown = !AXES.contains(in[0]) ? mappingLabel(v)
+                : v == null ? t("Automatic")
+                : v.startsWith("-") ? t("Axis %s (reversed)", v.substring(2)) : t("Axis %s", v.substring(1));
+            val.setText(shown);
             boolean unset = SYSTEM.contains(in[0]) && !mSystemSet.contains(in[0]);
-            row.setTextColor(unset ? 0xFFFFE0E0 : 0xFFF4F8FF);
+            val.setTextColor(unset ? 0xFFFFE0E0 : 0xFFFFC93C);
             row.setBackgroundTintList(unset ? android.content.res.ColorStateList.valueOf(0xFFB03A3A) : null);
         }
     }

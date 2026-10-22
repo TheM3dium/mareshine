@@ -23,7 +23,7 @@
 namespace sdl {
 enum {
 	QUIT = 0x100, KEYDOWN = 0x300, KEYUP = 0x301, MOUSEMOTION = 0x400,
-	CAXIS = 0x650, CBUTTONDOWN = 0x651, CBUTTONUP = 0x652,
+	JAXIS = 0x600, CAXIS = 0x650, CBUTTONDOWN = 0x651, CBUTTONUP = 0x652,
 	FINGERDOWN = 0x700, FINGERUP = 0x701, FINGERMOTION = 0x702
 };
 struct MouseMotionEvent {
@@ -170,6 +170,10 @@ int g_nbind[C_COUNT];
 bool g_key[512];
 // Game controller state (first controller wins).
 s16 g_axis[6];
+// The controller's raw axes (SDL joystick axes: Android's motion ranges
+// without the hat, in SDLControllerManager's order), for sticks set by hand.
+const int kRawAxes = 16;
+s16 g_rawAxis[kRawAxes];
 bool g_cbtn[21];
 bool g_inited;
 
@@ -194,6 +198,34 @@ struct PadSrc {
 };
 const int kMaxPadSrc = 3;
 PadSrc g_pmap[P_COUNT][kMaxPadSrc];
+// STICK_X / STICK_Y / CSTICK_X / CSTICK_Y = jN or -jN: a stick's axis set by
+// hand to raw axis N (- when it runs the other way), for controllers whose
+// sticks SDL's mapping gets wrong. Left out: the stick from STICK / CSTICK.
+struct StickAxis {
+	int idx; // -1: automatic
+	int sign;
+};
+StickAxis g_stickAxis[2][2] = { { { -1, 1 }, { -1, 1 } }, { { -1, 1 }, { -1, 1 } } };
+bool parse_stick_axis(const char* name, const char* v)
+{
+	static const char* const kNames[4] = { "STICK_X", "STICK_Y", "CSTICK_X", "CSTICK_Y" };
+	for (int i = 0; i < 4; i++) {
+		if (strcasecmp(kNames[i], name) != 0)
+			continue;
+		StickAxis& a = g_stickAxis[i / 2][i % 2];
+		a = { -1, 1 };
+		int sign = 1;
+		if (*v == '-') {
+			sign = -1;
+			v++;
+		}
+		if (v[0] == 'j' && isdigit((unsigned char)v[1]) && atoi(v + 1) < kRawAxes)
+			a = { atoi(v + 1), sign };
+		return true;
+	}
+	return false;
+}
+
 const char* const kDefaultPadMap =
     "A=b0 B=b1 X=b2 Y=b3 Z=b9 L=a4 R=a5 R_SOFT=b10 START=b6 "
     "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2 "
@@ -210,6 +242,8 @@ void parse_pad_map(const char* text)
 		if (!eq)
 			continue;
 		*eq   = 0;
+		if (parse_stick_axis(tok, eq + 1))
+			continue;
 		int c = -1;
 		for (int i = 0; i < P_COUNT; i++)
 			if (strcasecmp(kPadNames[i], tok) == 0)
@@ -382,6 +416,12 @@ void on_event(const union SDL_Event* ev)
 		}
 		break;
 	}
+	case sdl::JAXIS: {
+		const sdl::ControllerAxisEvent* a = (const sdl::ControllerAxisEvent*)ev; // same layout
+		if (a->axis < kRawAxes)
+			g_rawAxis[a->axis] = a->value;
+		break;
+	}
 	case sdl::CAXIS: {
 		const sdl::ControllerAxisEvent* a = (const sdl::ControllerAxisEvent*)ev;
 		if (a->axis < 6)
@@ -481,6 +521,11 @@ void read_stick(int base, int role, int* ox, int* oy)
 		return;
 	}
 	float fx = g_axis[base] / 32767.0f, fy = g_axis[base + 1] / 32767.0f;
+	const StickAxis* hand = g_stickAxis[role];
+	if (hand[0].idx >= 0)
+		fx = hand[0].sign * (g_rawAxis[hand[0].idx] / 32767.0f);
+	if (hand[1].idx >= 0)
+		fy = hand[1].sign * (g_rawAxis[hand[1].idx] / 32767.0f);
 	const StickCal& c = g_cal[base >= 2 ? 1 : 0];
 	if (c.on) {
 		fx = cal_axis(fx, c.cx, c.minx, c.maxx);

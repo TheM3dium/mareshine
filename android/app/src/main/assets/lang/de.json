@@ -618,5 +618,15 @@
     "Stick assignment": "Stick-Zuordnung",
     "C-stick": "C-Stick",
     "FLUDD aiming": "FLUDD-Zielen",
-    "Calibration": "Kalibrierung"
+    "Calibration": "Kalibrierung",
+    "Left stick: horizontal (X)": "Linker Stick: horizontal (X)",
+    "Left stick: vertical (Y)": "Linker Stick: vertikal (Y)",
+    "Automatic": "Automatisch",
+    "Axis %s": "Achse %s",
+    "Axis %s (reversed)": "Achse %s (umgekehrt)",
+    "Push the stick for\n\n%s\n\nall the way to the RIGHT\n\n(tap here to cancel, long-press a row to set it back to automatic)": "Drück den Stick für\n\n%s\n\nganz nach RECHTS\n\n(zum Abbrechen hier tippen, Zeile lange drücken für automatisch)",
+    "Push the stick for\n\n%s\n\nall the way DOWN\n\n(tap here to cancel, long-press a row to set it back to automatic)": "Drück den Stick für\n\n%s\n\nganz nach UNTEN\n\n(zum Abbrechen hier tippen, Zeile lange drücken für automatisch)",
+    "Buttons": "Tasten",
+    "D-pad": "Steuerkreuz",
+    "Set a stick's axes by hand only if it moves wrongly on Automatic.": "Stelle die Achsen eines Sticks nur von Hand ein, wenn er auf Automatisch falsch reagiert."
 }

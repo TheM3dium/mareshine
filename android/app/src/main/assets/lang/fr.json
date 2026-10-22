@@ -617,5 +617,15 @@
     "Stick assignment": "Attribution des sticks",
     "C-stick": "Stick C",
     "FLUDD aiming": "Visée J.E.T.",
-    "Calibration": "Calibrage"
+    "Calibration": "Calibrage",
+    "Left stick: horizontal (X)": "Stick gauche : horizontal (X)",
+    "Left stick: vertical (Y)": "Stick gauche : vertical (Y)",
+    "Automatic": "Automatique",
+    "Axis %s": "Axe %s",
+    "Axis %s (reversed)": "Axe %s (inversé)",
+    "Push the stick for\n\n%s\n\nall the way to the RIGHT\n\n(tap here to cancel, long-press a row to set it back to automatic)": "Pousse le stick pour\n\n%s\n\nà fond vers la DROITE\n\n(touche ici pour annuler, appui long sur une ligne pour revenir en automatique)",
+    "Push the stick for\n\n%s\n\nall the way DOWN\n\n(tap here to cancel, long-press a row to set it back to automatic)": "Pousse le stick pour\n\n%s\n\nà fond vers le BAS\n\n(touche ici pour annuler, appui long sur une ligne pour revenir en automatique)",
+    "Buttons": "Boutons",
+    "D-pad": "Croix directionnelle",
+    "Set a stick's axes by hand only if it moves wrongly on Automatic.": "Règle les axes d'un stick à la main seulement s'il réagit mal en Automatique."
 }

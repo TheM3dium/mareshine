@@ -1172,8 +1172,13 @@ public class SettingsActivity extends AppActivity {
         mOptList.addView(more);
         updatePanel();
         mOptList.setVisibility(View.VISIBLE);
-        // Joystick motion does not leave Android touch mode.
-        if (first != null) first.requestFocusFromTouch();
+        // Joystick motion does not leave Android touch mode, so a controller
+        // forces the focus; after a tap it must not, or the next tap re-enters
+        // touch mode, the focus jumps to a list row and that closes the panel.
+        if (first != null) {
+            if (first.isInTouchMode()) first.requestFocus();
+            else first.requestFocusFromTouch();
+        }
         mRightScroll.post(this::updateScrollArrows);
     }
 
