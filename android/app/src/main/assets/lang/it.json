@@ -614,5 +614,9 @@
  "Left stick: sensitivity": "Stick sinistro: sensibilità",
  "C-stick: dead zone": "Stick C: zona morta",
  "C-stick: sensitivity": "Stick C: sensibilità",
- "Left stick  (Mario)": "Stick sinistro  (Mario)"
+ "Left stick  (Mario)": "Stick sinistro  (Mario)",
+    "Stick assignment": "Assegnazione stick",
+    "C-stick": "Stick C",
+    "FLUDD aiming": "Mira SPLAC 3000",
+    "Calibration": "Calibrazione"
 }

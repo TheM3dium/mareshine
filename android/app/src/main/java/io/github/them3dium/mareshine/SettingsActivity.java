@@ -328,6 +328,7 @@ public class SettingsActivity extends AppActivity {
         panel.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setSmoothScrollingEnabled(false);
         mList = new LinearLayout(this);
         mList.setOrientation(LinearLayout.VERTICAL);
         mList.setPadding(dp(20), dp(10), dp(16), dp(20));
@@ -341,6 +342,8 @@ public class SettingsActivity extends AppActivity {
         FrameLayout rightFrame = new FrameLayout(this);
         ScrollView right = new ScrollView(this);
         mRightScroll = right;
+        // Repeated controller focus moves must not race an unfinished scroll animation.
+        right.setSmoothScrollingEnabled(false);
         right.setClipToPadding(false);
         right.setPadding(0, dp(18), 0, dp(18));
         LinearLayout rightCol = new LinearLayout(this);
@@ -390,8 +393,9 @@ public class SettingsActivity extends AppActivity {
 
     private void updateScrollArrows() {
         if (mRightScroll == null || mScrollUp == null) return;
-        mScrollUp.setVisibility(mRightScroll.canScrollVertically(-1) ? View.VISIBLE : View.INVISIBLE);
-        mScrollDown.setVisibility(mRightScroll.canScrollVertically(1) ? View.VISIBLE : View.INVISIBLE);
+        boolean show = !(mOpen instanceof Slider);
+        mScrollUp.setVisibility(show && mRightScroll.canScrollVertically(-1) ? View.VISIBLE : View.INVISIBLE);
+        mScrollDown.setVisibility(show && mRightScroll.canScrollVertically(1) ? View.VISIBLE : View.INVISIBLE);
     }
 
     private void showTab(int idx) {
@@ -528,6 +532,8 @@ public class SettingsActivity extends AppActivity {
     private void openSlider(Slider sl) {
         closeOptions(false);
         mOpen = sl;
+        updateScrollArrows();
+        mRightScroll.scrollTo(0, 0);
         mDesc.setText(sl.desc);
         mOptList.removeAllViews();
 
@@ -735,7 +741,8 @@ public class SettingsActivity extends AppActivity {
         mOptList.removeAllViews();
         mOptList.setVisibility(View.GONE);
         if (refocusRow && back != null) { openPanel(back, backIndex); return; }
-        if (refocusRow && c != null && c.view != null) c.view.requestFocus();
+        if (refocusRow && c != null && c.view != null) c.view.requestFocusFromTouch();
+        mRightScroll.post(this::updateScrollArrows);
     }
 
     @Override
@@ -1037,6 +1044,7 @@ public class SettingsActivity extends AppActivity {
         Row row;
         String intro, more;
         String[] labels;
+        String[] sections;
         java.util.function.Supplier<String>[] values;
         java.util.function.BooleanSupplier[] gold; // the value is shown gold (switched on)
         Runnable[] acts;
@@ -1083,6 +1091,16 @@ public class SettingsActivity extends AppActivity {
         View first = null;
         for (int i = 0; i < p.labels.length; i++) {
             final int idx = i;
+            if (p.sections != null && p.sections[i] != null) {
+                TextView heading = new TextView(this);
+                heading.setText(t(p.sections[i]));
+                heading.setTextColor(0xFF5ED3DD);
+                heading.setTypeface(condensed(true));
+                heading.setTextSize(20);
+                heading.setPadding(0, dp(18), 0, dp(6));
+                heading.setFocusable(false);
+                mOptList.addView(heading);
+            }
             LinearLayout o = new LinearLayout(this);
             o.setOrientation(LinearLayout.HORIZONTAL);
             o.setGravity(Gravity.CENTER_VERTICAL);
@@ -1108,7 +1126,7 @@ public class SettingsActivity extends AppActivity {
             mPanelItems[i] = o;
             if (p.orderedNavigation) o.setOnFocusChangeListener((item, focused) -> {
                 if (focused) item.post(() -> item.requestRectangleOnScreen(
-                    new android.graphics.Rect(0, 0, item.getWidth(), item.getHeight()), false));
+                    new android.graphics.Rect(0, 0, item.getWidth(), item.getHeight()), true));
             });
             o.setOnClickListener(x -> p.acts[idx].run());
             o.setOnKeyListener((x, code, ev) -> {
@@ -1136,7 +1154,9 @@ public class SettingsActivity extends AppActivity {
         mOptList.addView(more);
         updatePanel();
         mOptList.setVisibility(View.VISIBLE);
-        if (first != null) first.requestFocus();
+        // Joystick motion does not leave Android touch mode.
+        if (first != null) first.requestFocusFromTouch();
+        mRightScroll.post(this::updateScrollArrows);
     }
 
     private void updatePanel() {
@@ -1424,6 +1444,7 @@ public class SettingsActivity extends AppActivity {
         p.labels = new String[] {"Swap sticks", "Left stick: dead zone", "Left stick: sensitivity",
             "C-stick: dead zone", "C-stick: sensitivity", "C-stick: horizontal (X)", "C-stick: vertical (Y)",
             "FLUDD aiming: horizontal (X)", "FLUDD aiming: vertical (Y)", "Calibrate sticks"};
+        p.sections = new String[] {"Stick assignment", "Left stick", null, "C-stick", null, null, null, "FLUDD aiming", null, "Calibration"};
         p.values = new java.util.function.Supplier[10];
         p.gold = new java.util.function.BooleanSupplier[10];
         p.acts = new Runnable[10];

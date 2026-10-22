@@ -614,5 +614,9 @@
  "Left stick: sensitivity": "Linker Stick: Empfindlichkeit",
  "C-stick: dead zone": "C-Stick: Totzone",
  "C-stick: sensitivity": "C-Stick: Empfindlichkeit",
- "Left stick  (Mario)": "Linker Stick  (Mario)"
+ "Left stick  (Mario)": "Linker Stick  (Mario)",
+    "Stick assignment": "Stick-Zuordnung",
+    "C-stick": "C-Stick",
+    "FLUDD aiming": "FLUDD-Zielen",
+    "Calibration": "Kalibrierung"
 }

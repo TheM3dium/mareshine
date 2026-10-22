@@ -613,5 +613,9 @@
  "Left stick: sensitivity": "Stick gauche : sensibilité",
  "C-stick: dead zone": "Stick C : zone morte",
  "C-stick: sensitivity": "Stick C : sensibilité",
- "Left stick  (Mario)": "Stick gauche  (Mario)"
+ "Left stick  (Mario)": "Stick gauche  (Mario)",
+    "Stick assignment": "Attribution des sticks",
+    "C-stick": "Stick C",
+    "FLUDD aiming": "Visée J.E.T.",
+    "Calibration": "Calibrage"
 }
