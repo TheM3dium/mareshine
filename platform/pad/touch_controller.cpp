@@ -1,4 +1,5 @@
 #include "touch_controller.h"
+
 #include "port_savestate.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -11,6 +12,8 @@ extern "C" void GXPC_SetOverlayAlpha(float alpha) __attribute__((weak));
 #include <sms_gx/gx_pc.h>
 #include <algorithm>
 #include <cmath>
+
+extern "C" int port_camera_invert_touch(int value, int axis); // pad.cpp
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -941,8 +944,8 @@ void touch_controller_update_pad(PADStatus* status)
 
     // Right C-stick (Camera analog stick)
     if (s_cstick.active && (s_cstick.stickX != 0 || s_cstick.stickY != 0)) {
-        status->substickX = (int8_t)s_cstick.stickX;
-        status->substickY = (int8_t)s_cstick.stickY;
+        status->substickX = (int8_t)port_camera_invert_touch(s_cstick.stickX, 0);
+        status->substickY = (int8_t)port_camera_invert_touch(s_cstick.stickY, 1);
     } else if (s_cam.active) {
         status->substickX = (int8_t)s_cam.substickX;
         status->substickY = (int8_t)s_cam.substickY;

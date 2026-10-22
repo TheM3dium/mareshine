@@ -922,6 +922,14 @@ extern "C" u32 PADRead(PADStatus* status)
 	return PAD_CHAN0_BIT;
 }
 
+// The camera's inversion for the touch C-stick, which sets the C-stick after
+// PADRead's own (touch_controller_update_pad).
+extern "C" int port_camera_invert_touch(int value, int axis)
+{
+	const bool flip = axis == 0 ? g_invert_cx : g_invert_cy;
+	return flip ? -value : value;
+}
+
 // Aim is transformed where the game consumes it, never in PADRead:
 // the same left stick must retain normal walking, strafing and menu input.
 extern "C" float port_fludd_aim_axis(float value, int axis)
