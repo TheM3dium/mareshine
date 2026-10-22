@@ -1813,17 +1813,33 @@ static GLuint efbReadFbo(bool depth = true) {
     return s_efbResolveFbo;
 }
 
-static void clearRect(int x, int y, int w, int h) {
+// Clears the copied rectangle, x0..x1 in EFB units (fractional when a
+// widescreen copy is stretched), with the same pixel edges as the copy itself:
+// each edge rounded on its own, so a copy drawn back over the cleared area
+// covers all of it (a width rounded apart left a black column at 1.5x).
+static void clearRect(float x0, float x1, int y, int h) {
     uint32_t ar = g.bp[BP_CLEAR_AR], gb = g.bp[BP_CLEAR_GB], z = g.bp[BP_CLEAR_Z];
     glBindFramebuffer(GL_FRAMEBUFFER, s_efbFbo);
     glEnable(GL_SCISSOR_TEST);
-    glScissor(int(float(x) * s_scale + 0.5f), int(float(y) * s_scale + 0.5f),
-              int(float(w) * s_scale + 0.5f), int(float(h) * s_scale + 0.5f));
-    bool hasAlpha = (g.bp[BP_PE_CONTROL] & 7) == 1;
+    const int left = int(floorf(x0 * s_scale + 0.5f)), right = int(floorf(x1 * s_scale + 0.5f));
+    const int top = int(floorf(float(y) * s_scale + 0.5f)), bottom = int(floorf(float(y + h) * s_scale + 0.5f));
+    glScissor(left, top, right - left, bottom - top);
+    const uint32_t pixFmt = g.bp[BP_PE_CONTROL] & 7;
+    const bool hasAlpha = pixFmt == 1;
+    // Without an alpha channel the EFB keeps the alpha it will read once the
+    // game switches to RGBA6_Z24: the hardware does not convert, it reads the
+    // same 24 bits as RGBA6, so alpha is the blue byte's low six bits. A clear
+    // to black in RGB8_Z24 is alpha 0 after the switch (the plaza clears that
+    // way, and a far boat's shadow then drew a dark square where 255 stayed).
+    float alpha = 1.0f;
+    if (hasAlpha) alpha = float((ar >> 8) & 255) / 255.0f;
+    else if (pixFmt == 0) {
+        const uint32_t a6 = gb & 0x3F;
+        alpha = float((a6 << 2) | (a6 >> 4)) / 255.0f;
+    }
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDepthMask(GL_TRUE);
-    glClearColor(float(ar & 255) / 255.0f, float((gb >> 8) & 255) / 255.0f, float(gb & 255) / 255.0f,
-                 hasAlpha ? float((ar >> 8) & 255) / 255.0f : 1.0f);
+    glClearColor(float(ar & 255) / 255.0f, float((gb >> 8) & 255) / 255.0f, float(gb & 255) / 255.0f, alpha);
     glClearDepth(double(z & 0xFFFFFF) / 16777215.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -1985,16 +2001,25 @@ static void copyEfb(uint32_t ctrl) {
     if (traceFile()) traceCopy(disp, x, y, w, h, dest, ctrl);
     // widescreen: a full-width copy takes the whole EFB, others the centred 4:3 part
     int gw = w;
+    float x0 = float(x), x1 = float(x + w);  // the copy's edges in EFB units
     if (s_efbW != EFB_W) {
         if (x <= 0 && x + w >= EFB_W) {
             x = 0;
             w = s_efbW;
+            x0 = 0.0f;
+            x1 = float(s_efbW);
         } else if (s_stretch2D) {  // a fader's pieces of the frame: stretched like its drawing
-            int r = int(float(x + w) * s_wide + 0.5f);
-            x = int(float(x) * s_wide + 0.5f);
+            // the edges stay fractional until they become pixels, as the
+            // stretched quad that draws the copy back has them
+            x0 = float(x) * s_wide;
+            x1 = float(x + w) * s_wide;
+            int r = int(x1 + 0.5f);
+            x = int(x0 + 0.5f);
             w = r - x;
         } else {
             x += s_ox;
+            x0 = float(x);
+            x1 = float(x + w);
         }
     }
     glDisable(GL_SCISSOR_TEST);
@@ -2013,9 +2038,9 @@ static void copyEfb(uint32_t ctrl) {
     if (disp) {
         int scaledW = int(float(w) * s_scale + 0.5f);
         int scaledH = int(float(h) * s_scale + 0.5f);
-        int scaledX = int(float(x) * s_scale + 0.5f);
+        int scaledX = int(floorf(x0 * s_scale + 0.5f));
         int scaledY = int(float(y) * s_scale + 0.5f);
-        int scaledX2 = int(float(x + w) * s_scale + 0.5f);
+        int scaledX2 = int(floorf(x1 * s_scale + 0.5f));
         int scaledY2 = int(float(y + h) * s_scale + 0.5f);
         if (scaledW < 1) scaledW = 1;
         if (scaledH < 1) scaledH = 1;
@@ -2067,9 +2092,9 @@ static void copyEfb(uint32_t ctrl) {
         glBindTexture(GL_TEXTURE_2D, s_efbColor);
         const float pixelW = float(int(float(s_efbW) * s_scale + 0.5f));
         const float pixelH = float(int(float(EFB_H) * s_scale + 0.5f));
-        const float left = floorf(float(x) * s_scale + 0.5f);
+        const float left = floorf(x0 * s_scale + 0.5f);
         const float top = floorf(float(y) * s_scale + 0.5f);
-        const float right = floorf(float(x + w) * s_scale + 0.5f);
+        const float right = floorf(x1 * s_scale + 0.5f);
         const float bottom = floorf(float(y + h) * s_scale + 0.5f);
         float rect[4] = {left / pixelW, top / pixelH, (right - left) / pixelW, (bottom - top) / pixelH};
         glUniform4fv(s_copyURect, 1, rect);
@@ -2085,7 +2110,7 @@ static void copyEfb(uint32_t ctrl) {
         efbCopySetBytes(dest, texLevelBytes(layout, tw, th));
         writeBackCopy(dest, tex, ow, oh, tw, th, layout, !zcopy && fmt == 8);
     }
-    if (clear) clearRect(x, y, w, h);
+    if (clear) clearRect(x0, x1, y, h);
     glBindFramebuffer(GL_FRAMEBUFFER, s_efbFbo);
     if (clear) s_drawGen++;
     if (disp) {

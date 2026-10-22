@@ -181,5 +181,64 @@ int main() {
     const double last=centroid(); printf("copy feedback centroid first=%.6f last=%.6f delta=%.6f\n",first,last,last-first);
     expect("repeated wide R8 copy preserves position",first>0 && last>0 && fabs(last-first)<.75);
     expect("repeated wide R8 copy preserves every mask byte",memcmp(image,firstBytes.data(),firstBytes.size())==0);
+
+    // A fader's piece of the frame, stretched across the widescreen frame: the
+    // game copies a 48x48 square with clear and draws the copy back over it.
+    // The cleared area must be exactly the one drawn back; at 16:9 and 1.5x the
+    // edge x=344 lands on 688.0 pixels, and a clear rounded in EFB units first
+    // left the column at 688 black (the line beside Mario after a wipe).
+    {
+        setOrtho(); colorSetup();
+        GXSetViewport(0,0,640,480,0,1); GXSetScissor(0,0,640,480);
+        GXPC_SetStretch2D(1);
+        colorQuad(0,0,640,480,255,255,255,255);
+        static u8 square[48*48*4] __attribute__((aligned(32)));
+        GXSetTexCopySrc(296,216,48,48); GXSetTexCopyDst(48,48,GX_TF_RGBA8,GX_FALSE);
+        GXCopyTex(square,GX_TRUE);
+        GXTexObj so; GXInitTexObj(&so,square,48,48,GX_TF_RGBA8,GX_CLAMP,GX_CLAMP,GX_FALSE);
+        GXInitTexObjLOD(&so,GX_NEAR,GX_NEAR,0,0,0,GX_FALSE,GX_FALSE,GX_ANISO_1);
+        GXLoadTexObj(&so,GX_TEXMAP0); texSetup();
+        GXSetTevOrder(GX_TEVSTAGE0,GX_TEXCOORD0,GX_TEXMAP0,GX_COLOR0A0); GXSetTevOp(GX_TEVSTAGE0,GX_REPLACE);
+        texQuad(296,216,344,264,255,255,255,255);
+        GXPC_SetStretch2D(0);
+        int w=0,h=0; GXPC_ReadEFB(nullptr,&w,&h);
+        std::vector<u8> px(size_t(w)*h*4); GXPC_ReadEFB(px.data(),&w,&h);
+        const float sx=float(w)/640.0f, sy=float(h)/528.0f;
+        int black=0,total=0;
+        for(int y=int(220*sy);y<int(260*sy);y++) for(int x=int(290*sx);x<int(350*sx);x++) {
+            const u8* q=&px[(size_t(y)*w+x)*4]; total++; black+=q[0]<128||q[1]<128||q[2]<128;
+        }
+        printf("copy-clear-draw back: %d of %d pixels dark\n",black,total);
+        expect("stretched copy with clear, drawn back, leaves no dark pixels",total>0 && black==0);
+    }
+
+    // A clear in RGB8_Z24 has no alpha; after GXSetPixelFmt(RGBA6_Z24) the
+    // hardware reads the same bits as RGBA6, so black reads alpha 0. Blending
+    // by destination alpha must then leave it untouched (a plaza boat's
+    // shadow drew a dark square where the port had kept alpha 255).
+    {
+        setOrtho(); colorSetup();
+        GXSetViewport(0,0,640,480,0,1); GXSetScissor(0,0,640,480);
+        GXPC_SetStretch2D(1);  // the copy and the quad then share one mapping
+        GXSetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+        GXSetCopyClear((GXColor){0,0,0,0},0xFFFFFF);
+        static u8 scratch[64*64*4] __attribute__((aligned(32)));
+        GXSetTexCopySrc(100,100,64,64); GXSetTexCopyDst(64,64,GX_TF_RGBA8,GX_FALSE);
+        GXCopyTex(scratch,GX_TRUE);
+        GXSetPixelFmt(GX_PF_RGBA6_Z24, GX_ZC_LINEAR);
+        GXSetBlendMode(GX_BM_BLEND, GX_BL_DSTALPHA, GX_BL_INVDSTALPHA, GX_LO_NOOP);
+        colorQuad(100,100,164,164,255,255,255,255);
+        GXSetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_CLEAR);
+        GXPC_SetStretch2D(0);
+        int w=0,h=0; GXPC_ReadEFB(nullptr,&w,&h);
+        std::vector<u8> px(size_t(w)*h*4); GXPC_ReadEFB(px.data(),&w,&h);
+        const float sx=float(w)/640.0f, sy=float(h)/528.0f;
+        int lit=0,total=0;
+        for(int y=int(110*sy);y<int(154*sy);y++) for(int x=int(110*sx);x<int(154*sx);x++) {
+            const u8* q=&px[(size_t(y)*w+x)*4]; total++; lit+=q[0]>64||q[1]>64||q[2]>64;
+        }
+        printf("RGB8 clear read as RGBA6: %d of %d pixels lit\n",lit,total);
+        expect("an RGB8 clear to black reads alpha 0 after switching to RGBA6",total>0 && lit==0);
+    }
     GXPC_Shutdown(); return s_fail?1:0;
 }

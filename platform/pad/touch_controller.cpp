@@ -946,9 +946,9 @@ void touch_controller_update_pad(PADStatus* status)
     if (s_cstick.active && (s_cstick.stickX != 0 || s_cstick.stickY != 0)) {
         status->substickX = (int8_t)port_camera_invert_touch(s_cstick.stickX, 0);
         status->substickY = (int8_t)port_camera_invert_touch(s_cstick.stickY, 1);
-    } else if (s_cam.active) {
-        status->substickX = (int8_t)s_cam.substickX;
-        status->substickY = (int8_t)s_cam.substickY;
+    } else if (s_cam.active) {  // the swipe camera follows the C-stick's inversion too
+        status->substickX = (int8_t)port_camera_invert_touch(s_cam.substickX, 0);
+        status->substickY = (int8_t)port_camera_invert_touch(s_cam.substickY, 1);
         // Decay swipe delta
         s_cam.substickX = s_cam.substickX * 2 / 3;
         s_cam.substickY = s_cam.substickY * 2 / 3;
