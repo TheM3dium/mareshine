@@ -328,7 +328,6 @@ public class SettingsActivity extends AppActivity {
         panel.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setSmoothScrollingEnabled(false);
         mList = new LinearLayout(this);
         mList.setOrientation(LinearLayout.VERTICAL);
         mList.setPadding(dp(20), dp(10), dp(16), dp(20));
@@ -392,9 +391,8 @@ public class SettingsActivity extends AppActivity {
 
     private void updateScrollArrows() {
         if (mRightScroll == null || mScrollUp == null) return;
-        boolean show = !(mOpen instanceof Slider);
-        mScrollUp.setVisibility(show && mRightScroll.canScrollVertically(-1) ? View.VISIBLE : View.INVISIBLE);
-        mScrollDown.setVisibility(show && mRightScroll.canScrollVertically(1) ? View.VISIBLE : View.INVISIBLE);
+        mScrollUp.setVisibility(mRightScroll.canScrollVertically(-1) ? View.VISIBLE : View.INVISIBLE);
+        mScrollDown.setVisibility(mRightScroll.canScrollVertically(1) ? View.VISIBLE : View.INVISIBLE);
     }
 
     private void showTab(int idx) {
