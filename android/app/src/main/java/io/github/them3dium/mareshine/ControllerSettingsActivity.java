@@ -52,7 +52,7 @@ public class ControllerSettingsActivity extends AppActivity implements InputMana
         {"R", "R  (spray, full press)"},
         {"R_SOFT", "R half-press  (spray while running)"},
         {"START", "START  (pause)"},
-        {"STICK", "Move stick  (Mario)"},
+        {"STICK", "Left stick  (Mario)"},
         {"CSTICK", "C-stick  (camera)"},
         {"DPAD_UP", "D-pad up"},
         {"DPAD_DOWN", "D-pad down"},

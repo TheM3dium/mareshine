@@ -599,5 +599,19 @@
  "CALIBRATE STICKS": "CALIBRER LES STICKS",
  "FLUDD aiming inversion": "Inversion de la visée de J.E.T.",
  "Invert FLUDD aiming separately from movement and the C-stick.": "Inverser la visée de J.E.T. indépendamment du déplacement et du stick C.",
- "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Inverse la visée en arrosant à l’arrêt ou en vue subjective. Le déplacement reste inchangé. Redémarre le jeu après une modification."
+ "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Inverse la visée en arrosant à l’arrêt ou en vue subjective. Le déplacement reste inchangé. Redémarre le jeu après une modification.",
+ "Stick Behavior": "Comportement des sticks",
+ "Set stick swapping and camera/FLUDD inversion.": "Configurer l’échange des sticks et l’inversion de la caméra et de J.E.T.",
+ "Camera X inversion is on by default. FLUDD inversion is off by default. Restart the game after changing these settings.": "L’inversion X de la caméra est activée par défaut. Celle de J.E.T. est désactivée. Redémarre le jeu après une modification.",
+ "Swap sticks": "Échanger les sticks",
+ "C-stick: horizontal (X)": "Stick C : horizontal (X)",
+ "C-stick: vertical (Y)": "Stick C : vertical (Y)",
+ "FLUDD aiming: horizontal (X)": "Visée J.E.T. : horizontal (X)",
+ "FLUDD aiming: vertical (Y)": "Visée J.E.T. : vertical (Y)",
+ "Stick assignment, inversion, dead zones and sensitivity.": "Affectation des sticks, inversion, zones mortes et sensibilité.",
+ "Left stick: dead zone": "Stick gauche : zone morte",
+ "Left stick: sensitivity": "Stick gauche : sensibilité",
+ "C-stick: dead zone": "Stick C : zone morte",
+ "C-stick: sensitivity": "Stick C : sensibilité",
+ "Left stick  (Mario)": "Stick gauche  (Mario)"
 }

@@ -600,5 +600,19 @@
  "CALIBRATE STICKS": "STICKS KALIBRIEREN",
  "FLUDD aiming inversion": "FLUDD-Zielen invertieren",
  "Invert FLUDD aiming separately from movement and the C-stick.": "FLUDD-Zielen unabhängig von der Bewegung und dem C-Stick invertieren.",
- "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Invertiert das Zielen beim Sprühen im Stand und in der Egoansicht. Die Laufsteuerung bleibt gleich. Starte das Spiel nach einer Änderung neu."
+ "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Invertiert das Zielen beim Sprühen im Stand und in der Egoansicht. Die Laufsteuerung bleibt gleich. Starte das Spiel nach einer Änderung neu.",
+ "Stick Behavior": "Stick-Verhalten",
+ "Set stick swapping and camera/FLUDD inversion.": "Stick-Tausch sowie Kamera- und FLUDD-Invertierung einstellen.",
+ "Camera X inversion is on by default. FLUDD inversion is off by default. Restart the game after changing these settings.": "Kamera-X ist standardmäßig invertiert. FLUDD-Invertierung ist standardmäßig aus. Starte das Spiel nach Änderungen neu.",
+ "Swap sticks": "Sticks tauschen",
+ "C-stick: horizontal (X)": "C-Stick: horizontal (X)",
+ "C-stick: vertical (Y)": "C-Stick: vertikal (Y)",
+ "FLUDD aiming: horizontal (X)": "FLUDD-Zielen invertieren: X",
+ "FLUDD aiming: vertical (Y)": "FLUDD-Zielen invertieren: Y",
+ "Stick assignment, inversion, dead zones and sensitivity.": "Stick-Belegung, Invertierung, Totzonen und Empfindlichkeit.",
+ "Left stick: dead zone": "Linker Stick: Totzone",
+ "Left stick: sensitivity": "Linker Stick: Empfindlichkeit",
+ "C-stick: dead zone": "C-Stick: Totzone",
+ "C-stick: sensitivity": "C-Stick: Empfindlichkeit",
+ "Left stick  (Mario)": "Linker Stick  (Mario)"
 }

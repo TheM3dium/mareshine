@@ -600,5 +600,19 @@
  "CALIBRATE STICKS": "CALIBRA STICK",
  "FLUDD aiming inversion": "Inversione mira SPLAC 3000",
  "Invert FLUDD aiming separately from movement and the C-stick.": "Inverti la mira dello SPLAC 3000 separatamente dal movimento e dallo stick C.",
- "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Inverti la mira spruzzando da fermo o in prima persona. Il movimento resta invariato. Riavvia il gioco dopo una modifica."
+ "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Inverti la mira spruzzando da fermo o in prima persona. Il movimento resta invariato. Riavvia il gioco dopo una modifica.",
+ "Stick Behavior": "Comportamento stick",
+ "Set stick swapping and camera/FLUDD inversion.": "Configura lo scambio degli stick e l’inversione di telecamera e SPLAC 3000.",
+ "Camera X inversion is on by default. FLUDD inversion is off by default. Restart the game after changing these settings.": "L’inversione X della telecamera è attiva per impostazione predefinita. Quella dello SPLAC 3000 è disattivata. Riavvia il gioco dopo le modifiche.",
+ "Swap sticks": "Scambia stick",
+ "C-stick: horizontal (X)": "Stick C: orizzontale (X)",
+ "C-stick: vertical (Y)": "Stick C: verticale (Y)",
+ "FLUDD aiming: horizontal (X)": "Mira SPLAC 3000: orizzontale (X)",
+ "FLUDD aiming: vertical (Y)": "Mira SPLAC 3000: verticale (Y)",
+ "Stick assignment, inversion, dead zones and sensitivity.": "Assegnazione stick, inversione, zone morte e sensibilità.",
+ "Left stick: dead zone": "Stick sinistro: zona morta",
+ "Left stick: sensitivity": "Stick sinistro: sensibilità",
+ "C-stick: dead zone": "Stick C: zona morta",
+ "C-stick: sensitivity": "Stick C: sensibilità",
+ "Left stick  (Mario)": "Stick sinistro  (Mario)"
 }

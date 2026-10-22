@@ -11,7 +11,6 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -180,6 +179,11 @@ public class SettingsActivity extends AppActivity {
     private LinearLayout mList;
     private TextView mDesc;
     private LinearLayout mOptList;
+    private ScrollView mRightScroll;
+    private TextView mScrollUp, mScrollDown;
+    private Panel mReturnPanel;
+    private int mReturnIndex;
+    private View[] mPanelItems;
     private Row mOpen; // the row whose choices (or slider) are shown on the right
     private final List<Row> mRows = new ArrayList<>();
     private View mExactField;     // the open slider's exact-value field, and its controller picker
@@ -237,6 +241,7 @@ public class SettingsActivity extends AppActivity {
     }
 
     private boolean isSlider(String key) {
+        if (mOpen instanceof Slider && ((Slider) mOpen).key.equals(key)) return true;
         for (Row r : mRows)
             if (r instanceof Slider && ((Slider) r).key.equals(key)) return true;
         return false;
@@ -333,7 +338,11 @@ public class SettingsActivity extends AppActivity {
         vline.setBackgroundColor(0xFF2FB8C9);
         body.addView(vline, new LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT));
 
+        FrameLayout rightFrame = new FrameLayout(this);
         ScrollView right = new ScrollView(this);
+        mRightScroll = right;
+        right.setClipToPadding(false);
+        right.setPadding(0, dp(18), 0, dp(18));
         LinearLayout rightCol = new LinearLayout(this);
         rightCol.setOrientation(LinearLayout.VERTICAL);
         rightCol.setPadding(dp(28), dp(24), dp(28), dp(24));
@@ -349,9 +358,40 @@ public class SettingsActivity extends AppActivity {
         mOptList.setPadding(0, dp(18), 0, 0);
         mOptList.setVisibility(View.GONE);
         rightCol.addView(mOptList);
-        body.addView(right, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        rightFrame.addView(right, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mScrollUp = scrollArrow("▲");
+        mScrollDown = scrollArrow("▼");
+        rightFrame.addView(mScrollUp, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(20), Gravity.TOP));
+        rightFrame.addView(mScrollDown, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(20), Gravity.BOTTOM));
+        right.setOnScrollChangeListener((v, x, y, oldX, oldY) -> updateScrollArrows());
+        rightCol.addOnLayoutChangeListener((v, l, t, rr, b, ol, ot, orr, ob) -> updateScrollArrows());
+        right.addOnLayoutChangeListener((v, l, t, rr, b, ol, ot, orr, ob) -> updateScrollArrows());
+        body.addView(rightFrame, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
 
         setContentView(root);
+    }
+
+    private TextView scrollArrow(String symbol) {
+        TextView arrow = new TextView(this);
+        arrow.setText(symbol);
+        arrow.setTextColor(GOLD);
+        arrow.setTextSize(14);
+        arrow.setGravity(Gravity.CENTER);
+        arrow.setBackgroundColor(0xE60A1B30);
+        arrow.setFocusable(false);
+        arrow.setClickable(false);
+        arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        arrow.setVisibility(View.INVISIBLE);
+        return arrow;
+    }
+
+    private void updateScrollArrows() {
+        if (mRightScroll == null || mScrollUp == null) return;
+        mScrollUp.setVisibility(mRightScroll.canScrollVertically(-1) ? View.VISIBLE : View.INVISIBLE);
+        mScrollDown.setVisibility(mRightScroll.canScrollVertically(1) ? View.VISIBLE : View.INVISIBLE);
     }
 
     private void showTab(int idx) {
@@ -685,12 +725,16 @@ public class SettingsActivity extends AppActivity {
     }
 
     private void closeOptions(boolean refocusRow) {
+        Panel back = mReturnPanel;
+        int backIndex = mReturnIndex;
+        mReturnPanel = null;
         mExactField = null;
         mExactPick = null;
         Row c = mOpen;
         mOpen = null;
         mOptList.removeAllViews();
         mOptList.setVisibility(View.GONE);
+        if (refocusRow && back != null) { openPanel(back, backIndex); return; }
         if (refocusRow && c != null && c.view != null) c.view.requestFocus();
     }
 
@@ -727,7 +771,11 @@ public class SettingsActivity extends AppActivity {
 
     @Override
     protected List<View> padItems() {
-        if (mOpen != null) return null;  // the choices on the right: Android's own order
+        if (mOpen != null) {
+            if (mPanel != null && mOpen == mPanel.row && mPanel.orderedNavigation && mPanelItems != null)
+                return java.util.Arrays.asList(mPanelItems);
+            return null; // sliders and other choices use Android's own order
+        }
         List<View> v = new ArrayList<>();
         for (Row r : mRows) v.add(r.view);
         return v;
@@ -992,6 +1040,7 @@ public class SettingsActivity extends AppActivity {
         java.util.function.Supplier<String>[] values;
         java.util.function.BooleanSupplier[] gold; // the value is shown gold (switched on)
         Runnable[] acts;
+        boolean orderedNavigation;
     }
 
     private Panel mPanel;
@@ -1021,13 +1070,16 @@ public class SettingsActivity extends AppActivity {
         return p;
     }
 
-    private void openPanel(Panel p) {
+    private void openPanel(Panel p) { openPanel(p, 0); }
+
+    private void openPanel(Panel p, int focusIndex) {
         closeOptions(false);
         mOpen = p.row;
         mPanel = p;
         mDesc.setText(t(p.intro));
         mOptList.removeAllViews();
         mPanelValues = new TextView[p.labels.length];
+        mPanelItems = new View[p.labels.length];
         View first = null;
         for (int i = 0; i < p.labels.length; i++) {
             final int idx = i;
@@ -1053,6 +1105,11 @@ public class SettingsActivity extends AppActivity {
             v.setTextSize(18);
             v.setGravity(Gravity.END);
             o.addView(v, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            mPanelItems[i] = o;
+            if (p.orderedNavigation) o.setOnFocusChangeListener((item, focused) -> {
+                if (focused) item.post(() -> item.requestRectangleOnScreen(
+                    new android.graphics.Rect(0, 0, item.getWidth(), item.getHeight()), false));
+            });
             o.setOnClickListener(x -> p.acts[idx].run());
             o.setOnKeyListener((x, code, ev) -> {
                 if (ev.getAction() != KeyEvent.ACTION_DOWN) return false;
@@ -1067,7 +1124,7 @@ public class SettingsActivity extends AppActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.topMargin = dp(6);
             mOptList.addView(o, lp);
-            if (i == 0) first = o;
+            if (i == focusIndex) first = o;
         }
         TextView more = new TextView(this);
         more.setText(t(p.more));
@@ -1356,44 +1413,58 @@ public class SettingsActivity extends AppActivity {
             || (s & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
     }
 
-    private void showStickInversion(boolean fludd) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        Button first = null;
-        String[] labels = {"Horizontal (X)", "Vertical (Y)"};
-        String[] keys = fludd ? new String[] {"SMS_FLUDD_INVERT_X", "SMS_FLUDD_INVERT_Y"}
-            : new String[] {"SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y"};
-        for (int axis = 0; axis < 2; axis++) {
-            final String key = keys[axis], label = labels[axis];
-            final boolean horizontal = axis == 0;
-            Button row = new Button(this);
-            row.setAllCaps(false);
-            row.setTextColor(TEXT);
-            row.setBackgroundResource(R.drawable.dl_row);
-            row.setPadding(dp(14), dp(10), dp(14), dp(10));
-            // The old flags flip the game's input. Sunshine's horizontal
-            // camera is already inverted, so zero means inversion ON in UI.
-            Runnable update = () -> {
-                boolean flip = !"0".equals(mSettings.getOrDefault(key, "0"));
-                boolean on = horizontal ? !flip : flip;
-                row.setText(t(label) + ": " + t(on ? "On" : "Off"));
+    @SuppressWarnings("unchecked")
+    private Panel stickBehaviorPanel(Row row) {
+        Panel p = new Panel();
+        p.row = row;
+        p.orderedNavigation = true;
+        p.intro = "Stick assignment, inversion, dead zones and sensitivity.";
+        p.more = "Camera X inversion is on by default. FLUDD inversion is off by default. Restart the game after changing these settings.";
+        String[] keys = {"SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y", "SMS_FLUDD_INVERT_X", "SMS_FLUDD_INVERT_Y"};
+        p.labels = new String[] {"Swap sticks", "Left stick: dead zone", "Left stick: sensitivity",
+            "C-stick: dead zone", "C-stick: sensitivity", "C-stick: horizontal (X)", "C-stick: vertical (Y)",
+            "FLUDD aiming: horizontal (X)", "FLUDD aiming: vertical (Y)", "Calibrate sticks"};
+        p.values = new java.util.function.Supplier[10];
+        p.gold = new java.util.function.BooleanSupplier[10];
+        p.acts = new Runnable[10];
+        p.gold[0] = () -> StickBehavior.swapped(mSettings);
+        p.values[0] = () -> p.gold[0].getAsBoolean() ? "On" : "Off";
+        p.acts[0] = () -> { StickBehavior.toggleSwap(mSettings); saved(); };
+        Slider[] sliders = {
+            new Slider("SMS_STICK_DEADZONE", "Left stick: dead zone",
+                "How far the stick can move before Mario reacts, in percent of the full throw. Raise it if Mario "
+                    + "walks on his own (a worn or drifting stick); lower it for finer control.", 8, 0, 60, 1),
+            new Slider("SMS_STICK_SENSITIVITY", "Left stick: sensitivity",
+                "Above 100% Mario reaches full speed with less stick movement; below 100% the stick needs to go "
+                    + "further. Useful when a controller's sticks do not reach the rim.", 100, 25, 300, 5),
+            new Slider("SMS_CSTICK_DEADZONE", "C-stick: dead zone",
+                "How far the camera stick can move before the camera turns, in percent of the full throw.", 8, 0, 60, 1),
+            new Slider("SMS_CSTICK_SENSITIVITY", "C-stick: sensitivity",
+                "How fast the camera stick reaches full camera speed.", 100, 25, 300, 5)
+        };
+        for (int i = 0; i < sliders.length; i++) {
+            final Slider slider = sliders[i];
+            final int index = i + 1;
+            p.values[index] = slider::value;
+            p.gold[index] = () -> false;
+            p.acts[index] = () -> {
+                openSlider(slider);
+                mReturnPanel = p;
+                mReturnIndex = index;
             };
-            row.setOnClickListener(v -> {
-                boolean flip = !"0".equals(mSettings.getOrDefault(key, "0"));
-                mSettings.put(key, flip ? "0" : "1");
-                saved();
-                update.run();
-            });
-            update.run();
-            panel.addView(row, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            if (first == null) first = row;
         }
-        dialog().setTitle(t(fludd ? "FLUDD aiming inversion" : "C-Stick inversion"))
-            .setMessage(t(fludd ? "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this."
-                : "Horizontal inversion is on by default, as in the original game. Restart the game after changing this."))
-            .setView(panel).setPositiveButton(t("Close"), null).show();
-        if (first != null) first.requestFocus();
+        for (int i = 0; i < keys.length; i++) {
+            final String key = keys[i];
+            final int index = i + 5;
+            p.gold[index] = () -> StickBehavior.inverted(mSettings, key);
+            p.values[index] = () -> p.gold[index].getAsBoolean() ? "On" : "Off";
+            p.acts[index] = () -> { StickBehavior.toggleInversion(mSettings, key); saved(); };
+        }
+        p.values[9] = () -> (mSettings.containsKey("SMS_CAL_LEFT") || mSettings.containsKey("SMS_CAL_RIGHT"))
+            ? "Calibrated" : "Not calibrated";
+        p.gold[9] = () -> false;
+        p.acts[9] = () -> startActivity(new Intent(this, StickCalibrationActivity.class));
+        return p;
     }
 
     private void buildInput() {
@@ -1425,32 +1496,10 @@ public class SettingsActivity extends AppActivity {
         });
         add(new Action("Configure buttons", "Choose which controller button does what: press a row, then the button.",
             null, () -> startActivity(new Intent(this, ControllerSettingsActivity.class))));
-        add(new Action("C-Stick inversion", "Invert the horizontal and vertical C-stick axes separately.",
-            null, () -> showStickInversion(false)));
-        add(new Action("FLUDD aiming inversion", "Invert FLUDD aiming separately from movement and the C-stick.",
-            null, () -> showStickInversion(true)));
-
-        section("MOVE STICK");
-        add(new Slider("SMS_STICK_DEADZONE", "Dead zone",
-            "How far the stick can move before Mario reacts, in percent of the full throw. Raise it if Mario "
-                + "walks on his own (a worn or drifting stick); lower it for finer control.",
-            8, 0, 60, 1));
-        add(new Slider("SMS_STICK_SENSITIVITY", "Sensitivity",
-            "Above 100% Mario reaches full speed with less stick movement; below 100% the stick needs to go "
-                + "further. Useful when a controller's sticks do not reach the rim.",
-            100, 25, 300, 5));
-        section("CAMERA STICK");
-        add(new Slider("SMS_CSTICK_DEADZONE", "Dead zone",
-            "How far the camera stick can move before the camera turns, in percent of the full throw.",
-            8, 0, 60, 1));
-        add(new Slider("SMS_CSTICK_SENSITIVITY", "Sensitivity",
-            "How fast the camera stick reaches full camera speed.",
-            100, 25, 300, 5));
-        add(new Action("Calibrate sticks",
-            "Measures both sticks of your controller: their resting centre and how far they reach in each "
-                + "direction. The game then corrects for drift and sticks that do not reach the rim.",
-            () -> (mSettings.containsKey("SMS_CAL_LEFT") || mSettings.containsKey("SMS_CAL_RIGHT")) ? "Calibrated" : "Not calibrated",
-            () -> startActivity(new Intent(this, StickCalibrationActivity.class))));
+        add(new Row("Stick Behavior", "Stick assignment, inversion, dead zones and sensitivity.") {
+            @Override void click() { openPanel(stickBehaviorPanel(this)); }
+            @Override boolean hasArrow() { return true; }
+        });
 
         section("TOUCH");
         add(new Choice("SMS_TOUCH_CONTROLS", "Touch controls",

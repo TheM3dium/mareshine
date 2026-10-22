@@ -599,5 +599,19 @@
  "CALIBRATE STICKS": "CALIBRAR STICKS",
  "FLUDD aiming inversion": "Inversión al apuntar con ACUAC",
  "Invert FLUDD aiming separately from movement and the C-stick.": "Invierte la puntería de ACUAC por separado del movimiento y del stick C.",
- "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Invierte la puntería al rociar sin moverte o en primera persona. No cambia el movimiento. Reinicia el juego tras cambiarla."
+ "Invert aiming while standing and spraying or in first-person view. Walking is unchanged. Restart the game after changing this.": "Invierte la puntería al rociar sin moverte o en primera persona. No cambia el movimiento. Reinicia el juego tras cambiarla.",
+ "Stick Behavior": "Comportamiento de los sticks",
+ "Set stick swapping and camera/FLUDD inversion.": "Configura el intercambio de sticks y la inversión de cámara y ACUAC.",
+ "Camera X inversion is on by default. FLUDD inversion is off by default. Restart the game after changing these settings.": "La inversión X de cámara está activada por defecto. La de ACUAC está desactivada. Reinicia el juego tras cambiar estos ajustes.",
+ "Swap sticks": "Intercambiar sticks",
+ "C-stick: horizontal (X)": "Stick C: horizontal (X)",
+ "C-stick: vertical (Y)": "Stick C: vertical (Y)",
+ "FLUDD aiming: horizontal (X)": "Apuntar con ACUAC: horizontal (X)",
+ "FLUDD aiming: vertical (Y)": "Apuntar con ACUAC: vertical (Y)",
+ "Stick assignment, inversion, dead zones and sensitivity.": "Asignación de sticks, inversión, zonas muertas y sensibilidad.",
+ "Left stick: dead zone": "Stick izquierdo: zona muerta",
+ "Left stick: sensitivity": "Stick izquierdo: sensibilidad",
+ "C-stick: dead zone": "Stick C: zona muerta",
+ "C-stick: sensitivity": "Stick C: sensibilidad",
+ "Left stick  (Mario)": "Stick izquierdo  (Mario)"
 }
