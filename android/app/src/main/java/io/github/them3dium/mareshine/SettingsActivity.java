@@ -180,7 +180,8 @@ public class SettingsActivity extends AppActivity {
     private TextView mDesc;
     private LinearLayout mOptList;
     private ScrollView mRightScroll;
-    private TextView mScrollUp, mScrollDown;
+    private TextView mScrollDown;
+    private boolean mScrollHintSeen;
     private Panel mReturnPanel;
     private int mReturnIndex;
     private View[] mPanelItems;
@@ -359,16 +360,19 @@ public class SettingsActivity extends AppActivity {
         mOptList.setPadding(0, dp(18), 0, 0);
         mOptList.setVisibility(View.GONE);
         rightCol.addView(mOptList);
-        // Arrow gutters are outside the viewport so focused rows stay unobscured.
-        mScrollUp = scrollArrow("▲");
+        // A first-scroll hint sits outside the viewport; the native scrollbar shows progress.
         mScrollDown = scrollArrow("▼");
-        rightFrame.addView(mScrollUp, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(20)));
         rightFrame.addView(right, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         rightFrame.addView(mScrollDown, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(20)));
-        right.setOnScrollChangeListener((v, x, y, oldX, oldY) -> updateScrollArrows());
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(18)));
+        right.setVerticalScrollBarEnabled(true);
+        right.setScrollbarFadingEnabled(true);
+        right.setScrollBarStyle(View.SCROLLBARS_INSIDE_INSET);
+        right.setOnScrollChangeListener((v, x, y, oldX, oldY) -> {
+            if (y > oldY) mScrollHintSeen = true;
+            updateScrollArrows();
+        });
         rightCol.addOnLayoutChangeListener((v, l, t, rr, b, ol, ot, orr, ob) -> updateScrollArrows());
         right.addOnLayoutChangeListener((v, l, t, rr, b, ol, ot, orr, ob) -> updateScrollArrows());
         body.addView(rightFrame, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
@@ -389,10 +393,27 @@ public class SettingsActivity extends AppActivity {
         return arrow;
     }
 
+    private void showDescription(CharSequence text) {
+        mScrollHintSeen = false;
+        mDesc.setText(text);
+        mRightScroll.scrollTo(0, 0);
+        mRightScroll.post(this::updateScrollArrows);
+    }
+
     private void updateScrollArrows() {
-        if (mRightScroll == null || mScrollUp == null) return;
-        mScrollUp.setVisibility(mRightScroll.canScrollVertically(-1) ? View.VISIBLE : View.INVISIBLE);
-        mScrollDown.setVisibility(mRightScroll.canScrollVertically(1) ? View.VISIBLE : View.INVISIBLE);
+        if (mRightScroll == null || mScrollDown == null) return;
+        boolean hint = !mScrollHintSeen && mRightScroll.canScrollVertically(1);
+        if (hint && mScrollDown.getVisibility() != View.VISIBLE) {
+            android.view.animation.AlphaAnimation pulse = new android.view.animation.AlphaAnimation(0.35f, 1f);
+            pulse.setDuration(700);
+            pulse.setRepeatMode(android.view.animation.Animation.REVERSE);
+            pulse.setRepeatCount(android.view.animation.Animation.INFINITE);
+            mScrollDown.setVisibility(View.VISIBLE);
+            mScrollDown.startAnimation(pulse);
+        } else if (!hint) {
+            mScrollDown.clearAnimation();
+            mScrollDown.setVisibility(View.INVISIBLE);
+        }
     }
 
     private void showTab(int idx) {
@@ -405,7 +426,7 @@ public class SettingsActivity extends AppActivity {
         if (mOpen != null) closeOptions(false);
         mList.removeAllViews();
         mRows.clear();
-        mDesc.setText("");
+        showDescription("");
         switch (idx) {
             case 0: buildGame(); break;
             case 1: buildVideo(); break;
@@ -464,13 +485,13 @@ public class SettingsActivity extends AppActivity {
         r.view = v;
         r.valueView = val;
         v.setOnClickListener(x -> {
-            mDesc.setText(r.desc); // on a touchscreen a row is not focused: tapping it shows what it does
+            showDescription(r.desc); // on a touchscreen a row is not focused: tapping it shows what it does
             if (r.enabled) r.click();
         });
         v.setOnFocusChangeListener((x, has) -> {
             if (!has) return;
             if (mOpen != null) closeOptions(false);
-            mDesc.setText(r.desc);
+            showDescription(r.desc);
         });
         v.setOnKeyListener((x, code, ev) -> {
             if (ev.getAction() != KeyEvent.ACTION_DOWN || !r.enabled) return false;
@@ -488,7 +509,7 @@ public class SettingsActivity extends AppActivity {
         closeOptions(false);
         c.reload();
         mOpen = c;
-        mDesc.setText(c.desc);
+        showDescription(c.desc);
         mOptList.removeAllViews();
         int cur = c.index();
         View focus = null;
@@ -531,7 +552,7 @@ public class SettingsActivity extends AppActivity {
         mOpen = sl;
         updateScrollArrows();
         mRightScroll.scrollTo(0, 0);
-        mDesc.setText(sl.desc);
+        showDescription(sl.desc);
         mOptList.removeAllViews();
 
         TextView big = new TextView(this);
@@ -1081,7 +1102,7 @@ public class SettingsActivity extends AppActivity {
         closeOptions(false);
         mOpen = p.row;
         mPanel = p;
-        mDesc.setText(t(p.intro));
+        showDescription(t(p.intro));
         mOptList.removeAllViews();
         mPanelValues = new TextView[p.labels.length];
         mPanelItems = new View[p.labels.length];

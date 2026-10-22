@@ -24,4 +24,4 @@ javac -d /tmp/mareshine-pad-tests/classes android/app/src/main/java/io/github/th
 java -cp /tmp/mareshine-pad-tests/classes io.github.them3dium.mareshine.StickBehaviorTest
 ```
 
-The Controls tab groups swap, both sticks' dead zones and sensitivities, C-stick/FLUDD axis inversion and calibration under Stick Behavior. Values and slider ranges are retained. The panel has explicit controller order, automatic focus scrolling and overflow arrows. Back from a slider returns to its panel entry.
+The Controls tab groups swap, both sticks' dead zones and sensitivities, C-stick/FLUDD axis inversion and calibration under Stick Behavior. Values and slider ranges are retained. The panel has explicit controller order, automatic focus scrolling and a first-scroll hint with the native side scrollbar. Back from a slider returns to its panel entry.
