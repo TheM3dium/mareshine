@@ -34,6 +34,7 @@
 #include <dolphin/os/OSThread.h>
 
 #include <dirent.h>
+#include <dlfcn.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -124,6 +125,24 @@ double now_seconds()
 	struct timespec t;
 	clock_gettime(CLOCK_MONOTONIC, &t);
 	return t.tv_sec + t.tv_nsec / 1e9;
+}
+
+// Where the ranges are counted from: 0 for an executable at its link address;
+// for the game library on Android (lld maps a shared library from 0) its load
+// address, as the ranges are offsets there.
+uintptr_t range_base()
+{
+#ifdef __ANDROID__
+	static uintptr_t base = 0;
+	if (!base) {
+		Dl_info dl;
+		if (dladdr((const void*)&kRanges, &dl) && dl.dli_fbase)
+			base = (uintptr_t)dl.dli_fbase;
+	}
+	return base;
+#else
+	return 0;
+#endif
 }
 
 uint32_t range_count()
@@ -650,7 +669,12 @@ int port_savestate_progress(int* kind)
 	static float s_from = 0, s_value = 0;
 	static bool s_shown = false;
 	const double t = now_seconds();
-	const int loading = g_loading;
+	int loading = g_loading;
+	if (!loading) { // asked for, not yet taken by the game: it counts as started
+		std::lock_guard<std::mutex> l(g_lock);
+		if (g_pending == PORT_SAVESTATE_LOAD)
+			loading = 1;
+	}
 	const int phase = loading >= 1 && loading <= 3 ? loading : g_writing ? 4 : 0;
 	if (phase != s_phase) {
 		if (!phase) {
@@ -671,8 +695,8 @@ int port_savestate_progress(int* kind)
 	}
 	const float upTo = kUpTo[s_phase] > s_from ? kUpTo[s_phase] : s_from;
 	s_value = s_from + (upTo - s_from) * (float)(1 - exp(-(t - s_since) / kPace[s_phase]));
-	// a moment's load or save (an exact one) goes without it
-	s_shown = s_shown || s_phase == 3 || t - s_start > 0.4;
+	// a load shows from the press on; a save only when it takes a while
+	s_shown = s_shown || !s_kind || t - s_start > 0.4;
 	*kind = s_kind;
 	return s_shown ? (s_value < 1 ? 1 : (int)s_value) : -1;
 }
@@ -739,8 +763,8 @@ int port_savestate_save(const PortSaveStatePortable* portable)
 			job->aram.assign(aram, aram + aramSize);
 		job->globals.reserve(info.globalsSize);
 		for (uint32_t i = 0; i < range_count(); i++) {
-			const u8* a = (const u8*)(uintptr_t)kRanges.ranges[i][0];
-			const u8* b = (const u8*)(uintptr_t)kRanges.ranges[i][1];
+			const u8* a = (const u8*)(range_base() + (uintptr_t)kRanges.ranges[i][0]);
+			const u8* b = (const u8*)(range_base() + (uintptr_t)kRanges.ranges[i][1]);
 			job->globals.insert(job->globals.end(), a, b);
 		}
 	}
@@ -837,7 +861,7 @@ int port_savestate_load_exact(const char* path, PortSaveStatePortable* portable,
 	}
 	size_t at = 0;
 	for (uint32_t i = 0; i < range_count(); i++) {
-		u8* start = (u8*)(uintptr_t)kRanges.ranges[i][0];
+		u8* start = (u8*)(range_base() + (uintptr_t)kRanges.ranges[i][0]);
 		const size_t len = (size_t)(kRanges.ranges[i][1] - kRanges.ranges[i][0]);
 		memcpy(start, globals.data() + at, len);
 		at += len;

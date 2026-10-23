@@ -27,7 +27,7 @@ struct Gfx {
 	int shadowsOff, reflectionsOff, waterAnim;
 	Gfx()
 	{
-		drawDistance   = env_float("SMS_DRAW_DISTANCE", 1.0f, 0.05f, 3.0f);
+		drawDistance   = env_float("SMS_DRAW_DISTANCE", 1.0f, 0.05f, 5.0f);
 		farPlane       = env_float("SMS_FAR_PLANE", 0.0f, 0.0f, 1e9f);
 		shadowsOff     = env_on("SMS_DISABLE_SHADOWS");
 		reflectionsOff = env_on("SMS_DISABLE_REFLECTIONS");

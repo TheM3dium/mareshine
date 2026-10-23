@@ -5,7 +5,7 @@
 
 A save state copies the game's own global variables (platform/savestate), and
 only the link map says where the linker put them. This reads the map (GNU ld
-on Linux and Windows, ld64 on macOS), keeps the writable sections that came
+on Linux and Windows, ld64 on macOS, LLVM lld for Android), keeps the writable sections that came
 from the game's archives, merges the neighbours, and writes them with a
 fingerprint of the build into the placeholder table in the executable (found by
 its magic; kRanges in platform/savestate/savestate.cpp). The fingerprint is a
@@ -129,6 +129,31 @@ def merge(ranges):
     return merged
 
 
+def lld_ranges(lines, archives):
+    """LLVM lld -Map (Android): "VMA LMA Size Align Out In Symbol" columns; an
+    output section names itself after the four numbers, an input section is
+    "file:(section)" there. For a shared library the addresses are offsets from
+    its load address, and the game adds that address back (savestate.cpp)."""
+    out = []
+    section = None
+    for line in lines:
+        f = line.split()
+        if len(f) < 5 or not all(re.fullmatch(r"[0-9a-fA-F]+", x) for x in f[:4]):
+            continue
+        vma, size = int(f[0], 16), int(f[2], 16)
+        rest = " ".join(f[4:])
+        if ":(" not in rest:
+            if rest.startswith("."):
+                section = rest.split()[0]
+            continue  # an output section, or a symbol line
+        if section is None or not GNU_WRITABLE.match(section) or not size:
+            continue
+        path = rest[:rest.rindex(":(")]
+        if from_game(path + "(", archives) or from_game(path, archives):
+            out.append([vma, vma + size])
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--map", required=True)
@@ -140,7 +165,13 @@ def main():
     with open(args.map, encoding="utf-8", errors="replace") as f:
         lines = f.readlines()
     ld64 = any(line.startswith("# Object files:") for line in lines[:50])
-    ranges = merge(ld64_ranges(lines, archives) if ld64 else gnu_ranges(lines, archives))
+    lld = any(line.split()[:5] == ["VMA", "LMA", "Size", "Align", "Out"] for line in lines[:5])
+    if ld64:
+        ranges = merge(ld64_ranges(lines, archives))
+    elif lld:
+        ranges = merge(lld_ranges(lines, archives))
+    else:
+        ranges = merge(gnu_ranges(lines, archives))
     if len(ranges) > MAX_RANGES:
         sys.exit(f"savestate_ranges: {len(ranges)} ranges, more than the table's {MAX_RANGES}")
 

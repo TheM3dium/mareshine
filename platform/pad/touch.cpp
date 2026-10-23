@@ -161,6 +161,7 @@ float g_w = 1920, g_h = 1080;     // the window, from the last draw
 Finger g_fingers[10];
 int g_fingerCount;
 bool g_hideOthers, g_hiddenByPad, g_rDeep;
+uint32_t g_tapped;               // buttons touched since the last pad read (touch_controls_pad)
 float g_swipeX, g_swipeY;         // the camera swipe's last movement (C-stick units)
 double g_lastTouch, g_stateSince[2] = { -1, -1 };
 bool g_stateFired[2];
@@ -296,6 +297,8 @@ void down(int64_t id, float x, float y)
 	f.ax = f.x = x;
 	f.ay = f.y = y;
 	f.holds = pick(x, y);
+	if (f.holds >= 0 && f.holds < ID_COUNT)
+		g_tapped |= 1u << f.holds;
 	switch (f.holds) {
 	case BTN_HUD:
 		g_hideOthers = !g_hideOthers;
@@ -649,14 +652,19 @@ extern "C" void touch_controls_pad(PADStatus* s)
 		u16 mask;
 	} kButtons[] = { { BTN_A, PAD_BUTTON_A }, { BTN_B, PAD_BUTTON_B }, { BTN_X, PAD_BUTTON_X }, { BTN_Y, PAD_BUTTON_Y },
 		             { BTN_Z, PAD_TRIGGER_Z }, { BTN_START, PAD_BUTTON_START } };
+	// a tap let go before this read still counts once: the game reads the
+	// pad once a frame, and a quick tap can start and end between two reads
+	const uint32_t tapped = g_tapped;
+	g_tapped = 0;
+	auto down = [tapped](int id) { return held(id) || (tapped & (1u << id)); };
 	for (const auto& b : kButtons)
-		if (held(b.id))
+		if (down(b.id))
 			s->button |= b.mask;
-	if (held(BTN_A))
+	if (down(BTN_A))
 		s->analogA = 255;
-	if (held(BTN_B))
+	if (down(BTN_B))
 		s->analogB = 255;
-	if (held(BTN_L)) {
+	if (down(BTN_L)) {
 		s->button |= PAD_TRIGGER_L;
 		s->triggerLeft = 255;
 	}

@@ -160,8 +160,8 @@ public class SunshineActivity extends SDLActivity {
     // platform/savestate/savestate_android.cpp: a save state message (code << 8 | slot)
     private static final int COMMAND_SAVESTATE = 0x8002;
 
-    // the MovieDirector patch (zzzz-movieskip-01): 1 = START pressed once in a
-    // movie not seen yet, 0 = skipped
+    // the MovieDirector patch (zzzz-movieskip-01): 1 = START, 2 = A pressed once
+    // in a movie not seen yet, 0 = skipped
     private static final int COMMAND_MOVIE_SKIP = 0x8003;
 
     // platform/achievements: param = how many were just unlocked (the names
@@ -177,9 +177,13 @@ public class SunshineActivity extends SDLActivity {
     // and the phone's << 8)
     private static final int COMMAND_RUMBLE_OPTION = 0x8006;
 
-    // platform/pad/touch_controller.cpp: a touch button's feedback, param 1
+    // platform/pad/touch.cpp: a touch button's feedback, param 1
     // for a light tick, 2 for a click (the R slider reaching R+)
     private static final int COMMAND_HAPTIC = 0x8007;
+
+    // platform/pad/pad.cpp: a hint in the notice line, param 1 = the MENU
+    // button (Select) was tapped once, the menu wants two taps
+    private static final int COMMAND_HINT = 0x8008;
 
     // "Achievement unlocked" with its name, one after another, at the bottom
     private TextView mAchNotice;
@@ -270,7 +274,8 @@ public class SunshineActivity extends SDLActivity {
     private TextView mSkipNotice;
     private final Runnable mHideSkip = () -> { if (mSkipNotice != null) mSkipNotice.animate().alpha(0f).setDuration(200); };
 
-    private void showSkipNotice(boolean show) {
+    private void showSkipNotice(int button) {
+        boolean show = button != 0;
         if (mLayout == null) return;
         if (mSkipNotice == null) {
             if (!show) return;
@@ -291,7 +296,7 @@ public class SunshineActivity extends SDLActivity {
             mHideSkip.run();
             return;
         }
-        mSkipNotice.setText(t("Press START again to skip"));
+        mSkipNotice.setText(button == 2 ? t("Press A again to skip") : t("Press START again to skip"));
         mSkipNotice.setAlpha(1f);
         mSkipNotice.postDelayed(mHideSkip, 3000);
     }
@@ -338,7 +343,11 @@ public class SunshineActivity extends SDLActivity {
             return true;
         }
         if (command == COMMAND_MOVIE_SKIP && param instanceof Integer) {
-            showSkipNotice((Integer) param != 0);
+            showSkipNotice((Integer) param);
+            return true;
+        }
+        if (command == COMMAND_HINT && param instanceof Integer) {
+            if ((Integer) param == 1) showStateNotice(t("Press SELECT twice to open the menu"));
             return true;
         }
         return super.onUnhandledMessage(command, param);

@@ -6,7 +6,7 @@ extern "C" {
 // Mareshine's graphics settings (platform/misc/port_gfx.cpp), for slower
 // phones: read by the game where it draws (decomp-patches/zzzzzz-gfx-01).
 //   SMS_DRAW_DISTANCE        how far the game draws and keeps actors in view,
-//                            times the original (1.0; 0.05 to 3)
+//                            times the original (1.0; 0.05 to 5)
 //   SMS_FAR_PLANE            and never further than this, 0 (default) no limit
 //   SMS_DISABLE_SHADOWS      1: no shadows (blob, bound and the Shine's volume)
 //   SMS_DISABLE_REFLECTIONS  1: no screen after-effects nor mirror copies

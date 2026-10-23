@@ -90,9 +90,9 @@ f32 port_camera_speed_y   = 1.0f;
 }
 
 #ifdef __ANDROID__
-// Mareshine's in-game menu (SunshineActivity / GameMenuActivity): Esc, Select +
-// Start, the controller's Home/Guide button, a tap of the MENU button (Select
-// by default) or the MENU touch button ask the app to open it; the game pauses
+// Mareshine's in-game menu (SunshineActivity / GameMenuActivity): Esc, the
+// MENU button (Select by default) tapped twice, the controller's Home/Guide
+// button or the MENU touch button ask the app to open it; the game pauses
 // while it is shown.
 extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(uint32_t command, int param);
 extern "C" __attribute__((visibility("default"))) void port_open_menu(void)
@@ -265,7 +265,7 @@ StickAxis g_stickAxis[2][2] = { { { -1, 1 }, { -1, 1 } }, { { -1, 1 }, { -1, 1 }
 // SMS_FLUDD_INVERT_X / _Y: FLUDD's aim, apart from the camera (port_fludd_aim_axis)
 bool g_invert_aim_x, g_invert_aim_y;
 // The MENU button's controller buttons (SMS_PAD_MAP MENU, Select by default):
-// tapped alone, they open the in-game menu.
+// tapped twice, they open the in-game menu.
 int g_menuButtons[4], g_nMenuButtons;
 // SMS_CAMERA_INVERT_X / SMS_CAMERA_INVERT_Y=1 flip the C-stick, which only
 // turns the camera.
@@ -654,13 +654,13 @@ void read_stick(int role, int* ox, int* oy)
 // "none" unbinds one. STICK and CSTICK name the first axis of a stick (a0
 // left, a2 right); STICK_X/_Y and CSTICK_X/_Y=[-]jN a single raw axis by hand.
 // HOTKEY held with SAVE_STATE or LOAD_STATE saves or loads (two-button
-// bindings here, with their masking); MENU tapped alone opens the menu.
+// bindings here, with their masking); MENU tapped twice opens the menu.
 // It becomes the PAD_ bindings above, in place of their defaults.
 const char* const kMareshinePadMap =
     "A=b0 B=b1 X=b2 Y=b3 Z=b9 L=a4 R=a5 R_SOFT=b10 START=b6 "
     "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2 "
     "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9 MENU=b4"; // Select held: + R1 quick save, + L1 quick load;
-                                                      // Select tapped: the quick menu
+                                                      // Select tapped twice: the quick menu
 
 void parse_pad_map(const char* text, int hotkey[4], int& nHotkey, int save[4], int& nSave, int load[4], int& nLoad)
 {
@@ -759,6 +759,13 @@ void apply_pad_map()
 	}
 }
 #endif
+
+double pad_seconds()
+{
+	timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
 
 void autopress_init();
 
@@ -1065,32 +1072,39 @@ extern "C" u32 PADRead(PADStatus* status)
 		status[i].err = i == 0 ? PAD_ERR_NONE : PAD_ERR_NO_CONTROLLER;
 	}
 #ifdef __ANDROID__
-	// Select + Start and the Home/Guide button: the in-game menu, which takes
-	// the press (the game does not see Start). A tap of MENU (Select by
-	// default) alone opens it too, unless it saved or loaded meanwhile.
+	// The in-game menu: MENU (Select by default) tapped twice, or the
+	// Home/Guide button, which then does not reach the game. One tap alone
+	// asks the app to say so ("Press SELECT twice"); a tap is a press let go
+	// within a third of a second that saved or loaded nothing meanwhile.
 	{
-		static bool s_comboWas;
-		const bool combo = (g_cbtn[4] && g_cbtn[6]) || g_cbtn[5];
-		if (combo && !s_comboWas)
+		static bool s_guideWas;
+		const bool guide = g_cbtn[5];
+		if (guide && !s_guideWas)
 			port_open_menu();
-		s_comboWas = combo;
-		if (combo)
-			g_cbtn[4] = g_cbtn[5] = g_cbtn[6] = false;
+		s_guideWas = guide;
+		g_cbtn[5]  = false;
 		static bool s_menuWas, s_menuUsed;
-		static int s_menuFrames;
+		static double s_menuDown, s_lastTap = -10;
 		bool menu = false;
 		for (int i = 0; i < g_nMenuButtons; i++)
 			menu = menu || pad_down(g_menuButtons[i]);
+		const double now = pad_seconds();
 		if (menu) {
 			if (!s_menuWas) {
-				s_menuUsed   = false;
-				s_menuFrames = 0;
+				s_menuUsed = false;
+				s_menuDown = now;
 			}
-			s_menuFrames++;
 			if (held(C_SAVESTATE) || held(C_LOADSTATE))
 				s_menuUsed = true;
-		} else if (s_menuWas && !s_menuUsed && s_menuFrames < 20) {
-			port_open_menu();
+		} else if (s_menuWas && !s_menuUsed && now - s_menuDown < 0.35) {
+			if (now - s_lastTap < 0.6) {
+				s_lastTap = -10;
+				port_open_menu();
+			} else {
+				s_lastTap = now;
+				if (SDL_AndroidSendMessage)
+					SDL_AndroidSendMessage(0x8008, 1); // SunshineActivity.COMMAND_HINT: "Press SELECT twice"
+			}
 		}
 		s_menuWas = menu;
 	}

@@ -680,5 +680,7 @@
     "%d of %d on": "%d von %d an",
     "Texture packs from mods load after this one and win where both replace the same texture. Several packs at once can clash: textures that do not match, or more video memory and longer loading. If something looks wrong, switch the other packs off.": "Texturpakete aus Mods laden nach diesem und gewinnen, wo beide dieselbe Textur ersetzen. Mehrere Pakete gleichzeitig können sich in die Quere kommen: Texturen, die nicht zusammenpassen, oder mehr Grafikspeicher und längeres Laden. Wenn etwas falsch aussieht, schalte die anderen Pakete aus.",
     "No disc image": "Kein Disc-Image",
-    "Mareshine needs your own Super Mario Sunshine disc image (North American, GMSE01). Put it into iso/ in your data folder, or pick it in the launcher.": "Mareshine braucht dein eigenes Disc-Image von Super Mario Sunshine (nordamerikanisch, GMSE01). Lege es in den Ordner iso/ in deinem Datenordner oder wähle es im Launcher aus."
+    "Mareshine needs your own Super Mario Sunshine disc image (North American, GMSE01). Put it into iso/ in your data folder, or pick it in the launcher.": "Mareshine braucht dein eigenes Disc-Image von Super Mario Sunshine (nordamerikanisch, GMSE01). Lege es in den Ordner iso/ in deinem Datenordner oder wähle es im Launcher aus.",
+    "Press A again to skip": "A erneut drücken zum Überspringen",
+    "Press SELECT twice to open the menu": "SELECT zweimal drücken für das Menü"
 }
