@@ -31,6 +31,7 @@ public class GameMenuActivity extends AppActivity {
     private TextView tvNote;
     private boolean mSettingsChanged;
     private static final int REQUEST_STATES = 1;
+    private static final int REQUEST_MODS = 2;
     private String mLang;
 
     @Override
@@ -72,6 +73,9 @@ public class GameMenuActivity extends AppActivity {
             });
         });
         findViewById(R.id.btnSound).setOnClickListener(v -> showSound());
+        findViewById(R.id.btnMods).setVisibility(Mods.MENU ? View.VISIBLE : View.GONE);
+        findViewById(R.id.btnMods).setOnClickListener(v -> startActivityForResult(
+            new Intent(this, ModsActivity.class).putExtra(ModsActivity.EXTRA_IN_GAME, true), REQUEST_MODS));
         findViewById(R.id.btnGraphics).setOnClickListener(v -> {
             mSettingsChanged = true;
             startActivity(new Intent(this, SettingsActivity.class).putExtra(SettingsActivity.EXTRA_IN_GAME, true));
@@ -213,6 +217,8 @@ public class GameMenuActivity extends AppActivity {
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request == REQUEST_STATES && result == RESULT_OK) finish();
+        // the mods changed and the player chose to restart now
+        if (request == REQUEST_MODS && result == ModsActivity.RESULT_RESTART) leaveGame(true);
     }
 
     // --- touch controls (live) -------------------------------------------
@@ -268,7 +274,7 @@ public class GameMenuActivity extends AppActivity {
     @Override protected boolean usesPadNav() { return true; }
 
     private static final int[] BAR = {R.id.btnResume, R.id.btnSaveStates, R.id.btnAchievements, R.id.btnSync,
-        R.id.btnSound, R.id.btnGraphics, R.id.btnRestart, R.id.btnQuit};
+        R.id.btnSound, R.id.btnMods, R.id.btnGraphics, R.id.btnRestart, R.id.btnQuit};
 
     @Override
     protected boolean onPadTab(int dir, boolean shoulder) {

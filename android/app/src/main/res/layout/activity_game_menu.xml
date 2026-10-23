@@ -57,6 +57,11 @@
                 android:text="SOUND" />
 
             <Button
+                android:id="@+id/btnMods"
+                style="@style/DlBarItem"
+                android:text="MODS" />
+
+            <Button
                 android:id="@+id/btnGraphics"
                 style="@style/DlBarItem"
                 android:text="SETTINGS" />

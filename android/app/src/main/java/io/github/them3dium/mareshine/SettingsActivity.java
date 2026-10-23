@@ -884,6 +884,23 @@ public class SettingsActivity extends AppActivity {
         add(new Volume("SMS_SFX_VOLUME", "Sound effects",
             "How loud sound effects and voices are. 0% turns them off."));
 
+        // mod packages in mods/ (Mods, ModsActivity); they load when the game starts
+        if (Mods.MENU) section("MODS");
+        if (Mods.MENU) add(new Action("Mods",
+            "Mod packages that change the game's files and textures: switch them on or off, set their order, "
+                + "import new ones. Changes apply when the game starts.",
+            () -> {
+                int on = 0, all = 0;
+                for (Mods.Mod m : Mods.list(ctx())) {
+                    all++;
+                    if (m.enabled) on++;
+                }
+                return all == 0 ? t("None") : t("%d of %d on", on, all);
+            },
+            () -> startActivity(new Intent(this, ModsActivity.class))) {
+            @Override boolean hasArrow() { return true; }
+        });
+
         section("DATA");
         Row data = new Action("Data folder",
             t("Where your settings, saves, disc image, texture packs and logs are kept. They are copied over "
@@ -1014,7 +1031,7 @@ public class SettingsActivity extends AppActivity {
 
         section("TEXTURE PACK AND CUTSCENES");
         Row[] pack = new Row[1];
-        pack[0] = new Action("Texture pack settings", t(TEXTURE_INTRO) + "\n\n" + t(TEXTURE_MORE),
+        pack[0] = new Action("Texture pack settings", t(TEXTURE_INTRO) + "\n\n" + t(TEXTURE_MORE) + (Mods.MENU ? "\n\n" + t(TEXTURE_MIX) : ""),
             () -> !texturesOn() ? t("Off") : t(packLabel()) + (TexturePackActivity.extrasInstalled(ctx()) ? t(" + extras") : ""),
             () -> openPanel(texturePanel(pack[0])));
         add(pack[0]);
@@ -1041,6 +1058,11 @@ public class SettingsActivity extends AppActivity {
     // --- texture packs (TexturePackActivity does the work) -------------------
 
     private static final String TEXTURE_INTRO = "Sharper textures from a texture pack. Restart the game after changing packs.";
+    // several texture sources at once (this pack and mods with textures)
+    static final String TEXTURE_MIX = "Texture packs from mods load after this one and win where both replace the same "
+        + "texture. Several packs at once can clash: textures that do not match, or more video memory and longer "
+        + "loading. If something looks wrong, switch the other packs off.";
+
     private static final String TEXTURE_MORE =
         "Download the Super Mario Sunshine UHD Texture Pack by qashto and razius, in HD (1080p) or Ultra HD "
             + "(4K). Or use your own pack: copy it into textures/ in your data folder (a Dolphin pack for the North "
@@ -1061,6 +1083,7 @@ public class SettingsActivity extends AppActivity {
     private static final class Panel {
         Row row;
         String intro, more;
+        String note; // a second paragraph after `more`, translated apart
         String[] labels;
         String[] sections;
         java.util.function.Supplier<String>[] values;
@@ -1078,6 +1101,7 @@ public class SettingsActivity extends AppActivity {
         p.row = row;
         p.intro = TEXTURE_INTRO;
         p.more = TEXTURE_MORE;
+        if (Mods.MENU) p.note = TEXTURE_MIX;
         p.labels = new String[] {"Texture pack", "Download texture pack", "Download HD extras"};
         p.values = new java.util.function.Supplier[] {
             () -> texturesOn() ? "On" : "Off",
@@ -1163,7 +1187,7 @@ public class SettingsActivity extends AppActivity {
             if (i == focusIndex) first = o;
         }
         TextView more = new TextView(this);
-        more.setText(t(p.more));
+        more.setText(t(p.more) + (p.note != null ? "\n\n" + t(p.note) : ""));
         more.setTextColor(DIM);
         more.setTypeface(condensed(false));
         more.setTextSize(17);

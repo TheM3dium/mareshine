@@ -127,6 +127,37 @@ void shots_poll(u32 field, void* xfb)
 		g_next_shot++;
 }
 
+// SMS_SWEEP's pictures (decomp patch zzzzzz-sweep-01): the next shown frame,
+// at most 640 pixels wide, as a JPEG at `path` (its folder is made).
+extern "C" int GXPC_WriteJpeg(const char* path, const uint8_t* rgba, int w, int h, int quality) __attribute__((weak));
+std::string g_shot_request;
+extern "C" void port_shot_request(const char* path) { g_shot_request = path ? path : ""; }
+
+void shot_request_poll(void* xfb)
+{
+	if (g_shot_request.empty() || !xfb || !GXPC_ReadXFB || !GXPC_WriteJpeg)
+		return;
+	if (!pthread_equal(pthread_self(), g_gx_thread))
+		return;
+	std::string path;
+	path.swap(g_shot_request);
+	int w = 0, h = 0;
+	if (!GXPC_ReadXFB(xfb, NULL, &w, &h) || w <= 0 || h <= 0)
+		return;
+	std::vector<u8> px((size_t)w * h * 4);
+	GXPC_ReadXFB(xfb, px.data(), &w, &h);
+	const int step = (w + 639) / 640;
+	const int ow = w / step, oh = h / step;
+	std::vector<u8> small((size_t)ow * oh * 4);
+	for (int y = 0; y < oh; y++)
+		for (int x = 0; x < ow; x++)
+			memcpy(&small[((size_t)y * ow + x) * 4], &px[((size_t)y * step * w + (size_t)x * step) * 4], 4);
+	const size_t slash = path.rfind('/');
+	if (slash != std::string::npos)
+		port_mkdir(path.substr(0, slash).c_str(), 0777);
+	GXPC_WriteJpeg(path.c_str(), small.data(), ow, oh, 80);
+}
+
 // The debug overlay's speed multiplier (sms_gx; absent in builds without it).
 extern "C" int GXPC_GetSpeed(void) __attribute__((weak));
 
@@ -242,7 +273,11 @@ extern "C" s64 port_vi_virtual_ticks(void)
 extern "C" void VIInit(void) {}
 extern "C" void VIConfigure(GXRenderModeObj* rm) {}
 extern "C" void VIConfigurePan(u16, u16, u16, u16) {}
-extern "C" void VIFlush(void) { shots_poll(game_field(), g_next_fb); }
+extern "C" void VIFlush(void)
+{
+	shots_poll(game_field(), g_next_fb);
+	shot_request_poll(g_next_fb);
+}
 extern "C" void VISetNextFrameBuffer(void* fb) { g_next_fb = fb; }
 extern "C" void VISetNextRightFrameBuffer(void*) {}
 extern "C" void VISetBlack(BOOL black) { g_black = black != 0; }

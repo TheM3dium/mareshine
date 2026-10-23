@@ -142,7 +142,13 @@ public class SunshineActivity extends SDLActivity {
             nativeSetenv("SMS_LANGUAGES_DIR", DataDir.languagesDir(this).getAbsolutePath());
             // Settings → VIDEO → HD textures (on unless turned off)
             boolean hd = !"0".equals(Settings.read(this).getOrDefault("SMS_HD_TEXTURES", "1"));
-            nativeSetenv("SMS_TEXTURE_PACKS", hd ? DataDir.texturesDir(this).getAbsolutePath() : "0");
+            // the enabled mods' textures after the pack's, so a mod's win (Mods)
+            StringBuilder packs = new StringBuilder(hd ? DataDir.texturesDir(this).getAbsolutePath() : "");
+            for (String t : Mods.textureFolders(this)) packs.append(packs.length() > 0 ? ";" : "").append(t);
+            nativeSetenv("SMS_TEXTURE_PACKS", packs.length() > 0 ? packs.toString() : "0");
+            // and their disc files, after any set by hand in settings.txt's `mod`
+            String mods = Mods.discFolders(this), own = Settings.read(this).getOrDefault("mod", "").trim();
+            if (!mods.isEmpty()) nativeSetenv("SMS_MOD", own.isEmpty() ? mods : own + ";" + mods);
             // the cutscene frames the app ships (frames added by an update too)
             String frame = Settings.read(this).getOrDefault("SMS_CUTSCENE_FRAME", "0");
             if (!frame.equals("0") && !frame.isEmpty()) CutscenePack.installFrames(this);

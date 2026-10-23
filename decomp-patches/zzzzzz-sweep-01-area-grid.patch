@@ -1,0 +1,503 @@
+Reason: port: SMS_SWEEP walks areas on a grid for crashes, hangs, slow places and graphics errors (debugging aid, off unless set)
+--- a/src/System/Application.cpp
++++ b/src/System/Application.cpp
+@@ -1181,6 +1181,491 @@
+ extern "C" void port_ach_game_frame(void);
+ #endif
+ 
++#ifdef TARGET_PC
++#include <Map/Map.hpp>
++#include <Map/MapData.hpp>
++#include <Map/MapCollisionData.hpp>
++#include <sms_gx/gx_pc.h>
++#include <stdarg.h>
++#include <sys/stat.h>
++
++// port: SMS_SWEEP (debugging aid, off unless set) walks the game's areas for
++// crashes, hangs, slow places and graphics errors. For each area and episode
++// in the list it lays a grid over the map's collision bounds, puts Mario on
++// the ground under each grid point (the highest floor), and at each point
++// turns him to SMS_SWEEP_VIEWS directions with the camera centred behind him
++// (L), then records the frame times and a picture.
++//   SMS_SWEEP=main | stage:episode,...  what to visit ("main": the plaza and
++//                                       the seven levels' eight episodes)
++//   SMS_SWEEP_DIR=dir      sweep.csv, progress.txt and the pictures (shots/)
++//   SMS_SWEEP_GRID=n       at most n x n grid points per area (default 7)
++//   SMS_SWEEP_VIEWS=n      directions per point (default 3)
++//   SMS_SWEEP_SHOTS=0      no pictures
++//   SMS_SWEEP_SPIN=frames  the camera turns (C-stick) while each view is
++//                          measured, so the views cover the whole circle; the
++//                          picture is still taken facing the view's direction
++//                          (1: 400 frames, about a third of a turn)
++// progress.txt holds the point being visited: a run started again after a
++// crash or hang logs that point as failed and goes on with the next one.
++// Mario cannot be hit (kept invincible, God Mode), does not die
++// (port_sweep_active) and keeps his lives, so enemies do not push him off his
++// point and nothing ends the run. Points where he lands in water (a sea
++// floor under the grid) are left out.
++extern "C" void port_sweep_input(u16 buttons, s8 triggerL);
++extern "C" void port_sweep_heartbeat(void);
++extern "C" void port_shot_request(const char* path);
++extern "C" void port_sweep_cstick(s8 x);
++extern "C" int port_cheat_god_mode; // platform/misc/port_cheats.cpp
++// set while the sweep runs: Mario does not die (Player/MarioCollision.cpp)
++extern "C" {
++int port_sweep_active = 0;
++}
++extern "C" double port_sweep_seconds(void);
++extern "C" double port_sweep_thread_seconds(void);
++
++namespace {
++
++struct SweepTarget {
++	int stage, episode;
++};
++struct SweepPoint {
++	f32 x, y, z;
++};
++
++enum SweepPhase {
++	SWEEP_OFF,
++	SWEEP_BOOT,    // waiting for the first area to play
++	SWEEP_GOTO,    // asked for the target area, waiting to leave
++	SWEEP_ARRIVE,  // left, waiting to play in the target
++	SWEEP_SETTLE,  // in the target: its opening settles
++	SWEEP_PLACE,   // Mario put on the point, camera centring
++	SWEEP_MEASURE, // frame times of the view
++	SWEEP_DONE,
++};
++
++SweepPhase sSweep = SWEEP_OFF;
++SweepTarget sSweepTargets[128];
++int sSweepTargetCount, sSweepTarget;
++SweepPoint sSweepPoints[400];
++int sSweepPointCount, sSweepPoint, sSweepView, sSweepViews = 3, sSweepGrid = 7;
++int sSweepFrames, sSweepPointFrames, sSweepStuck, sSweepResumeTarget = -1, sSweepResumePoint = -1;
++bool sSweepShots = true, sSweepLeft, sSweepBroken;
++char sSweepDir[512];
++double sSweepLast;
++float sSweepTimes[600];
++int sSweepSpin;
++int sSweepTimeCount;
++u32 sSweepDraws;
++double sSweepCpu0;
++
++void SweepLog(const char* fmt, ...)
++{
++	char path[600];
++	snprintf(path, sizeof path, "%s/sweep.csv", sSweepDir);
++	FILE* f = fopen(path, "a");
++	if (!f)
++		return;
++	va_list ap;
++	va_start(ap, fmt);
++	vfprintf(f, fmt, ap);
++	va_end(ap);
++	fclose(f);
++}
++
++void SweepProgress()
++{
++	char path[600];
++	snprintf(path, sizeof path, "%s/progress.txt", sSweepDir);
++	if (FILE* f = fopen(path, "w")) {
++		fprintf(f, "%d %d\n", sSweepTarget, sSweepPoint);
++		fclose(f);
++	}
++}
++
++void SweepAddTarget(int stage, int episode)
++{
++	if (sSweepTargetCount < (int)(sizeof sSweepTargets / sizeof sSweepTargets[0]))
++	{
++		sSweepTargets[sSweepTargetCount].stage   = stage;
++		sSweepTargets[sSweepTargetCount].episode = episode;
++		sSweepTargetCount++;
++	}
++}
++
++bool SweepInit()
++{
++	const char* list = getenv("SMS_SWEEP");
++	if (!list || !*list)
++		return false;
++	if (!strcmp(list, "main")) {
++		SweepAddTarget(1, 0);
++		static const int kLevels[] = { 2, 3, 4, 5, 6, 8, 9 };
++		for (int l = 0; l < 7; l++)
++			for (int e = 0; e < 8; e++)
++				SweepAddTarget(kLevels[l], e);
++	} else {
++		for (const char* p = list; *p;) {
++			int s = -1, e = 0, n = 0;
++			if (sscanf(p, "%d:%d%n", &s, &e, &n) >= 2 && s >= 0)
++				SweepAddTarget(s, e);
++			const char* comma = strchr(p, ',');
++			if (!comma)
++				break;
++			p = comma + 1;
++		}
++	}
++	const char* dir = getenv("SMS_SWEEP_DIR");
++	snprintf(sSweepDir, sizeof sSweepDir, "%s", dir && *dir ? dir : "sweep");
++	mkdir(sSweepDir, 0777); // so the first line (the header) lands too
++	if (const char* g = getenv("SMS_SWEEP_GRID"))
++		sSweepGrid = atoi(g) < 2 ? 2 : atoi(g) > 20 ? 20 : atoi(g);
++	if (const char* v = getenv("SMS_SWEEP_VIEWS"))
++		sSweepViews = atoi(v) < 1 ? 1 : atoi(v) > 8 ? 8 : atoi(v);
++	if (const char* s = getenv("SMS_SWEEP_SHOTS"))
++		sSweepShots = atoi(s) != 0;
++	if (const char* s = getenv("SMS_SWEEP_SPIN")) {
++		sSweepSpin = atoi(s) == 1 ? 400 : atoi(s);
++		sSweepSpin = sSweepSpin < 0 ? 0 : sSweepSpin > 600 ? 600 : sSweepSpin;
++	}
++	// a run after a crash or hang: that point failed, go on after it
++	char path[600];
++	snprintf(path, sizeof path, "%s/progress.txt", sSweepDir);
++	if (FILE* f = fopen(path, "r")) {
++		if (fscanf(f, "%d %d", &sSweepResumeTarget, &sSweepResumePoint) != 2)
++			sSweepResumeTarget = -1;
++		fclose(f);
++	}
++	if (sSweepResumeTarget >= 0 && sSweepResumeTarget < sSweepTargetCount) {
++		const SweepTarget& t = sSweepTargets[sSweepResumeTarget];
++		SweepLog("%d,%d,%d,%d,,,,,FAILED (crash or hang),,,,,\n", sSweepResumeTarget, t.stage, t.episode,
++		         sSweepResumePoint);
++		sSweepTarget = sSweepResumeTarget;
++	} else {
++		sSweepResumeTarget = -1;
++		SweepLog("target,stage,episode,point,x,y,z,view,result,fps,median_ms,worst_ms,busy_ms,draws\n");
++	}
++	OSReport("[sweep] %d areas, grid %d, %d views, into %s\n", sSweepTargetCount, sSweepGrid, sSweepViews,
++	         sSweepDir);
++	port_sweep_active  = sSweepTargetCount > 0;
++	port_cheat_god_mode = port_sweep_active; // no damage either
++	return sSweepTargetCount > 0;
++}
++
++// The grid over the map's collision bounds, each point on its highest floor.
++void SweepBuildPoints()
++{
++	sSweepPointCount = 0;
++	const TMapCollisionData* col = gpMap ? gpMap->mCollisionData : nullptr;
++	if (!col)
++		return;
++	const f32 ex = col->mGridExtentX, ez = col->mGridExtentY;
++	for (int iz = 0; iz < sSweepGrid; iz++)
++		for (int ix = 0; ix < sSweepGrid; ix++) {
++			const f32 x = -ex + (ix + 0.5f) * (2 * ex / sSweepGrid);
++			const f32 z = -ez + (iz + 0.5f) * (2 * ez / sSweepGrid);
++			const TBGCheckData* floor = nullptr;
++			const f32 y = gpMap->checkGround(x, 30000.0f, z, &floor);
++			// left out: floors Mario falls through (water, death planes, warp
++			// and map change planes), which end in a death or another area
++			if (!floor || floor->isIllegalData() || floor->isWaterSurface() || floor->isMarioThrough()
++			    || y < -20000.0f)
++				continue;
++			if (sSweepPointCount < (int)(sizeof sSweepPoints / sizeof sSweepPoints[0]))
++			{
++				SweepPoint& p = sSweepPoints[sSweepPointCount++];
++				p.x = x;
++				p.y = y;
++				p.z = z;
++			}
++		}
++}
++
++void SweepGoto(TMarDirector* dir)
++{
++	const SweepTarget& t = sSweepTargets[sSweepTarget];
++	OSReport("[sweep] area %d episode %d (%d of %d)\n", t.stage, t.episode, sSweepTarget + 1, sSweepTargetCount);
++	TFlagManager::getInstance()->setFlag(0x40003, t.episode);
++	dir->setNextStage((u16)(((t.stage + 1) << 8) | t.episode), nullptr);
++	// a crash while the area loads resumes at its first point
++	if (sSweepResumeTarget != sSweepTarget) {
++		sSweepPoint = -1;
++		SweepProgress();
++	}
++	sSweep       = SWEEP_GOTO;
++	sSweepFrames = 0;
++	sSweepLeft   = false;
++}
++
++void SweepNextTarget(TMarDirector* dir)
++{
++	if (++sSweepTarget >= sSweepTargetCount) {
++		sSweep = SWEEP_DONE;
++		char path[600];
++		snprintf(path, sizeof path, "%s/progress.txt", sSweepDir);
++		remove(path);
++		SweepLog("done,,,,,,,,DONE,,,,,\n");
++		OSReport("[sweep] done\n");
++		// SMS_SWEEP_EXIT=0 keeps the game running afterwards
++		const char* e = getenv("SMS_SWEEP_EXIT");
++		if (!e || atoi(e) != 0)
++			exit(0);
++		return;
++	}
++	SweepGoto(dir);
++}
++
++// Through a talk or an opening that waits: A and B in turn every 1.5 s (A
++// goes on with a text, B answers a question such as "hear my explanation
++// again?" with No).
++void SweepPressThrough(int frame)
++{
++	if (frame % 90 < 6)
++		port_sweep_input((frame / 90) % 2 ? PAD_BUTTON_B : PAD_BUTTON_A, 0);
++}
++
++void SweepPlace()
++{
++	const SweepPoint& p = sSweepPoints[sSweepPoint];
++	JGeometry::TVec3<f32> pos(p.x, p.y + 10.0f, p.z);
++	gpMarioOriginal->warpRequest(pos, sSweepView * (360.0f / sSweepViews));
++	sSweep        = SWEEP_PLACE;
++	sSweepFrames  = 0;
++	sSweepBroken  = false;
++	if (sSweepView == 0) {
++		SweepProgress();
++		sSweepPointFrames = 0;
++	}
++}
++
++int SweepCompareFloat(const void* a, const void* b)
++{
++	const float x = *(const float*)a, y = *(const float*)b;
++	return x < y ? -1 : x > y;
++}
++
++// One view measured: its line, its picture; then the next view or point.
++void SweepViewDone(TMarDirector* dir)
++{
++	const SweepTarget& t = sSweepTargets[sSweepTarget];
++	const SweepPoint& p  = sSweepPoints[sSweepPoint];
++	qsort(sSweepTimes, sSweepTimeCount, sizeof sSweepTimes[0], SweepCompareFloat);
++	float sum = 0;
++	for (int i = 0; i < sSweepTimeCount; i++)
++		sum += sSweepTimes[i];
++	const float median = sSweepTimeCount ? sSweepTimes[sSweepTimeCount / 2] : 0;
++	const float worst  = sSweepTimeCount ? sSweepTimes[sSweepTimeCount - 1] : 0;
++	const float fps    = sum > 0 ? sSweepTimeCount * 1000.0f / sum : 0;
++	// the game thread's work per frame: its CPU time, without its waits
++	const float busy = sSweepTimeCount
++	                       ? (float)((port_sweep_thread_seconds() - sSweepCpu0) * 1000.0 / sSweepTimeCount)
++	                       : 0;
++	SweepLog("%d,%d,%d,%d,%.0f,%.0f,%.0f,%d,ok,%.1f,%.1f,%.1f,%.1f,%u\n", sSweepTarget, t.stage, t.episode,
++	         sSweepPoint, p.x, p.y, p.z, sSweepView, fps, median, worst, busy, sSweepDraws);
++	if (++sSweepView < sSweepViews) {
++		SweepPlace();
++		return;
++	}
++	sSweepView = 0;
++	if (++sSweepPoint < sSweepPointCount) {
++		SweepPlace();
++		return;
++	}
++	SweepNextTarget(dir);
++}
++
++} // namespace
++
++static void ApplicationSweepFrame(TApplication* app)
++{
++	if (sSweep == SWEEP_OFF) {
++		static bool tried;
++		if (tried)
++			return;
++		tried  = true;
++		sSweep = SweepInit() ? SWEEP_BOOT : SWEEP_OFF;
++		return;
++	}
++	port_sweep_heartbeat();
++	if (sSweep == SWEEP_DONE)
++		return;
++	TMarDirector* dir
++	    = app->mAppState == TApplication::APP_STATE_GAMEPLAY ? gpMarDirector : nullptr;
++	const bool playing = dir && gpMarioOriginal && dir->mState == TMarDirector::STATE_UNK4
++	                     && !dir->checkUnk4CFlag(TMarDirector::DIRECTOR_FLAG_STAGE_TRANSITION_PENDING);
++	const double now   = port_sweep_seconds();
++	const float frame  = sSweepLast > 0 ? (float)((now - sSweepLast) * 1000.0) : 0;
++	sSweepLast         = now;
++	port_sweep_input(0, 0);
++
++	// nothing hits him or ends the run: invincible, health and lives full
++	if (playing) {
++		gpMarioOriginal->mInvincibilityFrames = 60;
++		gpMarioOriginal->mHealth              = 8;
++		gpMarioOriginal->mAir                 = gpMarioOriginal->mMaxAir; // no drowning
++		TFlagManager::getInstance()->setFlag(0x20001, 99);
++	}
++
++	const SweepTarget& t = sSweepTargets[sSweepTarget];
++	const bool inTarget  = playing && app->mCurrArea.getStage() == t.stage
++	                      && app->mCurrArea.getScenario() == t.episode;
++	switch (sSweep) {
++	case SWEEP_BOOT:
++		if (playing && ++sSweepFrames > 60)
++			SweepGoto(dir);
++		return;
++	case SWEEP_GOTO:
++		if (!playing)
++			sSweepLeft = true;
++		if (sSweepLeft || ++sSweepFrames > 600) {
++			sSweep       = SWEEP_ARRIVE;
++			sSweepFrames = 0;
++		}
++		return;
++	case SWEEP_ARRIVE:
++		if (inTarget) {
++			sSweep       = SWEEP_SETTLE;
++			sSweepFrames = 0;
++			return;
++		}
++		// an episode's opening that waits for a button (a talk, a title)
++		SweepPressThrough(sSweepFrames);
++		if (++sSweepFrames > 5400) {
++			// the area would not load in 90 seconds (no such episode, or
++			// something waits): log and go on; with no stage to leave from,
++			// abort, so the run starts again after it
++			SweepLog("%d,%d,%d,,,,,,NO AREA,,,,,\n", sSweepTarget, t.stage, t.episode);
++			if (!dir)
++				abort();
++			SweepNextTarget(dir);
++		}
++		return;
++	case SWEEP_SETTLE:
++		if (!inTarget) {
++			sSweep = SWEEP_ARRIVE;
++			return;
++		}
++		// the arrival (title card, "GO!") is over well before ten seconds
++		if (++sSweepFrames < 600)
++			return;
++		SweepBuildPoints();
++		sSweepPoint = 0;
++		if (sSweepResumeTarget == sSweepTarget) {
++			sSweepPoint        = sSweepResumePoint + 1;
++			sSweepResumeTarget = -1;
++		}
++		sSweepView = 0;
++		OSReport("[sweep] %d points\n", sSweepPointCount);
++		if (sSweepPoint >= sSweepPointCount)
++			SweepNextTarget(dir);
++		else
++			SweepPlace();
++		return;
++	case SWEEP_PLACE:
++	case SWEEP_MEASURE:
++		// a point that takes over 20 seconds (plus its turning) in all (a loop in a talk, a
++		// scene): left, and the area entered again for the next point
++		if (++sSweepPointFrames > 1200 + sSweepViews * sSweepSpin) {
++			SweepLog("%d,%d,%d,%d,,,,%d,STUCK,,,,,\n", sSweepTarget, t.stage, t.episode, sSweepPoint, sSweepView);
++			// with no stage to leave from: abort, the run starts again after the point
++			if (!dir)
++				abort();
++			sSweepResumeTarget = sSweepTarget;
++			sSweepResumePoint  = sSweepPoint;
++			SweepGoto(dir);
++			return;
++		}
++		// a scene or a talk that does not end by itself: on with the next point
++		// a talk or a text at a point: on with it (once it is over, the
++		// point is left at once, before A could start the talk again)
++		if (!playing)
++			SweepPressThrough(sSweepStuck);
++		if (!playing)
++			++sSweepStuck;
++		if (!playing && dir && sSweepStuck > 1800) {
++			sSweepStuck = 0;
++			SweepLog("%d,%d,%d,%d,,,,%d,STUCK,,,,,\n", sSweepTarget, t.stage, t.episode, sSweepPoint, sSweepView);
++			sSweepResumeTarget = sSweepTarget;
++			sSweepResumePoint  = sSweepPoint;
++			SweepGoto(dir);
++			return;
++		}
++		if (playing)
++			sSweepStuck = 0;
++		else
++			sSweepBroken = true; // a death (a death plane, a fall), a scene
++		if (inTarget && sSweepBroken) {
++			// back after a respawn: Mario is on the area's start, not the point
++			SweepLog("%d,%d,%d,%d,,,,%d,RESPAWN,,,,,\n", sSweepTarget, t.stage, t.episode, sSweepPoint, sSweepView);
++			sSweepView = 0;
++			if (++sSweepPoint < sSweepPointCount)
++				SweepPlace();
++			else
++				SweepNextTarget(dir);
++			return;
++		}
++		if (!inTarget) {
++			// Mario was caught by something (a death, a warp, a scene):
++			// back to the area, on with the next point
++			if (playing) {
++				SweepLog("%d,%d,%d,%d,,,,%d,LEFT AREA,,,,,\n", sSweepTarget, t.stage, t.episode, sSweepPoint,
++				         sSweepView);
++				sSweepResumeTarget = sSweepTarget;
++				sSweepResumePoint  = sSweepPoint;
++				SweepGoto(dir);
++			}
++			return;
++		}
++		if (sSweep == SWEEP_PLACE) {
++			// the camera centres behind him (L), then settles
++			if (sSweepFrames < 8)
++				port_sweep_input(PAD_TRIGGER_L, (s8)255);
++			// in water (a sea floor): not a place to stand, on to the next point
++			if (sSweepFrames == 30
++			    && (gpMarioOriginal->checkFlag(MARIO_FLAG_IN_ANY_WATER)
++			        || gpMarioOriginal->checkStatusType(MARIO_STATUS_FLAG_SWIMMING))) {
++				SweepLog("%d,%d,%d,%d,,,,%d,WATER,,,,,\n", sSweepTarget, t.stage, t.episode, sSweepPoint, sSweepView);
++				sSweepView = 0;
++				if (++sSweepPoint < sSweepPointCount)
++					SweepPlace();
++				else
++					SweepNextTarget(dir);
++				return;
++			}
++			if (++sSweepFrames >= 45) {
++				// the picture, facing the view's direction (before any turning)
++				if (sSweepShots) {
++					char path[600];
++					snprintf(path, sizeof path, "%s/shots/s%02d_e%d_p%03d_v%d.jpg", sSweepDir, t.stage, t.episode,
++					         sSweepPoint, sSweepView);
++					port_shot_request(path);
++				}
++				sSweep          = SWEEP_MEASURE;
++				sSweepFrames    = 0;
++				sSweepTimeCount = 0;
++				sSweepDraws     = 0;
++				sSweepCpu0      = port_sweep_thread_seconds();
++			}
++			return;
++		}
++		if (sSweepTimeCount < (int)(sizeof sSweepTimes / sizeof sSweepTimes[0]))
++			sSweepTimes[sSweepTimeCount++] = frame;
++		{
++			GXPCStats st;
++			GXPC_GetLastFrameStats(&st);
++			if (st.draws > sSweepDraws)
++				sSweepDraws = st.draws;
++		}
++		if (sSweepSpin)
++			port_sweep_cstick(100);
++		if (++sSweepFrames >= (sSweepSpin ? sSweepSpin : 40))
++			SweepViewDone(dir);
++		return;
++	default:
++		return;
++	}
++}
++#endif
++
+ // TODO: frame 0x50 short (0x70 before the display's video was read through
+ // getVideo()): retail's low region runs to 0xac (the TRect temp) where ours
+ // ended at 0x38, i.e. inline temporaries from an expansion this body lacks;
+@@ -1191,6 +1676,7 @@
+ 	while (nextState <= APP_STATE_DEFAULT) {
+ #ifdef TARGET_PC
+ 		ApplicationSaveStateFrame(this);
++		ApplicationSweepFrame(this);
+ 		port_ach_game_frame();
+ #endif
+ 		mDisplay->startRendering();

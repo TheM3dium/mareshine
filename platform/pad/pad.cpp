@@ -18,6 +18,9 @@
 #include <time.h>
 #include <math.h>
 #include "touch_controller.h"
+#include <atomic>
+#include <pthread.h>
+#include <unistd.h>
 
 // --- SDL2 event ABI (SDL_events.h, SDL_scancode.h, SDL_gamecontroller.h) ---
 namespace sdl {
@@ -316,6 +319,9 @@ int parse_touch_mode(const char* t)
 // turns the camera.
 bool g_invert_cx, g_invert_cy;
 bool g_invert_aim_x, g_invert_aim_y;
+u16 g_sweepButtons;
+u8 g_sweepTriggerL;
+s8 g_sweepCx;
 // SMS_SWIPE_INVERT_X / _Y: the touch camera swipe's own inversion (X on by default)
 bool g_invert_swipe_x = true, g_invert_swipe_y;
 // mouse look (see above): its speed, and the motion not yet given to the camera
@@ -925,7 +931,74 @@ extern "C" u32 PADRead(PADStatus* status)
 	s.substickX = (s8)(g_invert_cx ? -cx : cx);
 	s.substickY = (s8)(g_invert_cy ? -cy : cy);
 	touch_controller_update_pad(&s);
+	// SMS_SWEEP's presses (System/Application.cpp, port_sweep_input)
+	if (g_sweepButtons) {
+		s.button |= g_sweepButtons;
+		if (g_sweepTriggerL)
+			s.triggerLeft = (u8)g_sweepTriggerL;
+	}
+	if (g_sweepCx)
+		s.substickX = g_sweepCx;
 	return PAD_CHAN0_BIT;
+}
+
+// SMS_SWEEP (decomp patch zzzzzz-sweep-01): the buttons it holds this frame,
+// the clock it times frames with, and a watchdog: a game thread that stops
+// calling port_sweep_heartbeat for SMS_SWEEP_HANG seconds (60) is a hang,
+// which aborts the process, so the run can be started again after it.
+extern "C" void port_sweep_input(u16 buttons, s8 triggerL)
+{
+	g_sweepButtons  = buttons;
+	g_sweepTriggerL = (u8)triggerL;
+	g_sweepCx       = 0;
+}
+
+// The C-stick held sideways (the camera turning), until the next port_sweep_input
+extern "C" void port_sweep_cstick(s8 x) { g_sweepCx = x; }
+
+extern "C" double port_sweep_seconds(void)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return t.tv_sec + t.tv_nsec * 1e-9;
+}
+
+// CPU time of the calling thread (the game's work, without its waits)
+extern "C" double port_sweep_thread_seconds(void)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
+	return t.tv_sec + t.tv_nsec * 1e-9;
+}
+
+namespace {
+std::atomic<double> g_sweepBeat{0};
+void* sweep_watchdog(void*)
+{
+	const char* e    = getenv("SMS_SWEEP_HANG");
+	const double max = e && atof(e) > 0 ? atof(e) : 60.0;
+	for (;;) {
+		sleep(2);
+		const double beat = g_sweepBeat.load();
+		if (beat > 0 && port_sweep_seconds() - beat > max) {
+			port_log("[sweep] no frame for %.0f s: hang, aborting\n", max);
+			abort();
+		}
+	}
+	return nullptr;
+}
+} // namespace
+
+extern "C" void port_sweep_heartbeat(void)
+{
+	static bool started;
+	if (!started) {
+		started = true;
+		pthread_t t;
+		if (pthread_create(&t, nullptr, sweep_watchdog, nullptr) == 0)
+			pthread_detach(t);
+	}
+	g_sweepBeat.store(port_sweep_seconds());
 }
 
 // The camera's inversion for the touch C-stick, which sets the C-stick after

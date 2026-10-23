@@ -51,6 +51,12 @@ extern "C" uint8_t* GXPC_SaveStateThumbnail(size_t* size) {
     return out;
 }
 
+// A picture for SMS_SWEEP (platform/vi): w x h RGBA, top row first, as a
+// JPEG file; 1 when written.
+extern "C" int GXPC_WriteJpeg(const char* path, const uint8_t* rgba, int w, int h, int quality) {
+    return stbi_write_jpg(path, w, h, 4, rgba, quality);
+}
+
 // The game's memory changed under the caches (a save state was loaded, a DVD
 // or ARAM transfer, DCZeroRange): write stamps for the display-list and
 // texture caches, and the textures it covers are checked again.
