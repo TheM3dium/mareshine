@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The quick menu over the game, as Dusklight has it: a bar at the top with
+     the entries side by side, the game still visible below. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- a tap here, off the bar, closes the menu -->
+    <View
+        android:id="@+id/dim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#66000000" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="#E60A1B30"
+        android:clickable="true"
+        android:orientation="vertical">
+
+        <!-- GameMenuActivity keeps it clear of the camera cutout and shrinks the
+             entries when they do not fit in one row -->
+        <LinearLayout
+            android:id="@+id/barRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <Button
+                android:id="@+id/btnResume"
+                style="@style/DlBarItem"
+                android:text="RESUME" />
+
+            <Button
+                android:id="@+id/btnSaveStates"
+                style="@style/DlBarItem"
+                android:text="SAVE STATES" />
+
+            <Button
+                android:id="@+id/btnAchievements"
+                style="@style/DlBarItem"
+                android:text="ACHIEVEMENTS" />
+
+            <Button
+                android:id="@+id/btnSync"
+                style="@style/DlBarItem"
+                android:text="SYNC" />
+
+            <Button
+                android:id="@+id/btnSound"
+                style="@style/DlBarItem"
+                android:text="SOUND" />
+
+            <Button
+                android:id="@+id/btnMods"
+                style="@style/DlBarItem"
+                android:text="MODS" />
+
+            <Button
+                android:id="@+id/btnGraphics"
+                style="@style/DlBarItem"
+                android:text="SETTINGS" />
+
+            <Button
+                android:id="@+id/btnRestart"
+                style="@style/DlBarItem"
+                android:text="RESTART" />
+
+            <Button
+                android:id="@+id/btnQuit"
+                style="@style/DlBarItem"
+                android:text="MAIN MENU ✕" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#FF2FB8C9" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvNote"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="32dp"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/dl_panel"
+        android:fontFamily="sans-serif-condensed"
+        android:paddingStart="14dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="8dp"
+        android:text="Unsaved progress is lost when you restart or quit. Save in the game first."
+        android:textColor="@color/dl_text"
+        android:textSize="14sp" />
+</FrameLayout>

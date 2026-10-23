@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Main menu, in the style of Dusklight's: the title on the left, PLAY /
+     SETTINGS / QUIT on the right, the disc status at the bottom right and a
+     panel for messages at the bottom. With a working disc the app usually
+     starts the game straight away (Settings → GAME → Start game
+     automatically), so this shows when that is off or no disc is set. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0A1B30">
+
+    <!-- title: the Mareshine logo (LauncherActivity moves it up when the message panel would reach it) -->
+    <ImageView
+        android:id="@+id/ivLogo"
+        android:layout_width="380dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start|center_vertical"
+        android:layout_marginStart="40dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="Mareshine"
+        android:src="@drawable/mareshine_logo" />
+
+    <!-- top left, at start only: a newer release on GitHub (Updates.java); the
+         bar runs down and the box hides itself; a click asks to update -->
+    <LinearLayout
+        android:id="@+id/updateBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="20dp"
+        android:background="@drawable/dl_badge"
+        android:clickable="true"
+        android:focusable="true"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/updateBadgeText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:duplicateParentState="true"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_badge_text"
+            android:textSize="16sp" />
+
+        <ProgressBar
+            android:id="@+id/updateBadgeBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="6dp"
+            android:duplicateParentState="true"
+            android:max="1000"
+            android:progress="1000"
+            android:progressTint="@color/dl_gold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvVersion"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="40dp"
+        android:fontFamily="sans-serif-condensed"
+        android:shadowColor="#CC000000"
+        android:shadowRadius="4"
+        android:textColor="@color/dl_text"
+        android:textSize="15sp" />
+
+    <!-- menu -->
+    <LinearLayout
+        android:id="@+id/menu"
+        android:layout_width="380dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="24dp"
+        android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnPlay"
+                style="@style/DlMenuItem"
+                android:text="PLAY" />
+
+            <Button
+                android:id="@+id/btnSettings"
+                style="@style/DlMenuItem"
+                android:text="SETTINGS" />
+
+            <Button
+                android:id="@+id/btnQuit"
+                style="@style/DlMenuItem"
+                android:text="QUIT" />
+    </LinearLayout>
+
+    <!-- disc status -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="40dp"
+        android:layout_marginBottom="24dp"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="4"
+            android:textColor="@color/dl_ok"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/tvDiscInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="sans-serif-condensed"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="4"
+            android:textColor="@color/dl_dim"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- bottom left: the shader compile (ShaderService), then the messages -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="24dp"
+        android:layout_marginBottom="20dp"
+        android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/panelShaders"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/dl_panel"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:indeterminateTint="@color/dl_gold" />
+
+        <TextView
+            android:id="@+id/tvShaders"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_text"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <!-- messages: ISO details, warnings, copy / hash progress -->
+    <LinearLayout
+        android:id="@+id/panelInfo"
+        android:layout_width="520dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/dl_panel"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/tvPath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_text"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvDataDir"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_dim"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvProgress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="sans-serif-condensed"
+            android:textColor="@color/dl_gold"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:max="100"
+            android:progressTint="@color/dl_gold"
+            android:visibility="gone" />
+    </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>

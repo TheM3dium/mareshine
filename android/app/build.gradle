@@ -1,0 +1,104 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.github.them3dium.mareshine'
+    compileSdk 35
+    ndkVersion '26.3.11579264'
+
+    defaultConfig {
+        applicationId 'io.github.them3dium.mareshine'
+        minSdk 26
+        targetSdk 35
+        versionCode 18
+        versionName '1.5.0'
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_static',
+                          '-DANDROID_PLATFORM=android-26',
+                          '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+                // Keep asserts/logs relative to the repository; anonymize external paths.
+                def home = System.getProperty('user.home')
+                def sourceRoot = rootProject.projectDir.parentFile.absolutePath
+                cFlags "-ffile-prefix-map=${home}=~", "-ffile-prefix-map=${sourceRoot}=."
+                cppFlags "-ffile-prefix-map=${home}=~", "-ffile-prefix-map=${sourceRoot}=."
+                // the game, the loader that places it (android/bootstrap.cpp) and SDL
+                targets 'sms', 'smsbootstrap', 'SDL2'
+            }
+        }
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    // Release signing: MARESHINE_KEYSTORE names a properties file (storeFile,
+    // storePassword, keyAlias, keyPassword) kept outside the repository;
+    // without it, release builds use the debug key.
+    def keystoreProps = System.getenv('MARESHINE_KEYSTORE')
+    signingConfigs {
+        if (keystoreProps && file(keystoreProps).exists()) {
+            release {
+                def p = new Properties()
+                file(keystoreProps).withInputStream { p.load(it) }
+                storeFile file(p['storeFile'])
+                storePassword p['storePassword']
+                keyAlias p['keyAlias']
+                keyPassword p['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.findByName('release') ?: signingConfigs.debug
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    sourceSets {
+        main {
+            // + the app's translations (lang/) and the HD cutscene catalog
+            assets.srcDirs = ['../../assets', 'src/main/assets', "$buildDir/generated/cutscene-assets"]
+        }
+    }
+
+    // the loader opens libsms.so by path (android_dlopen_ext into a reserved
+    // range), so the libraries are unpacked at install
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+// tools/media/cutscene-release.json (the PC port's HD cutscene catalog) as an
+// asset, so the app's installer and the PC port's read the same file
+tasks.register('copyCutsceneCatalog', Copy) {
+    from '../../tools/media/cutscene-release.json'
+    into "$buildDir/generated/cutscene-assets"
+}
+preBuild.dependsOn 'copyCutsceneCatalog'
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    // unpacking the 4K texture pack (GMS.7z, LZMA2): TexturePackActivity
+    implementation 'org.apache.commons:commons-compress:1.26.2'
+    implementation 'org.tukaani:xz:1.9'
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dl_gold">#FFC531</color>
+    <color name="dl_text">#F4F8FF</color>
+    <color name="dl_dim">#8FB4D4</color>
+    <color name="dl_ok">#BFD98A</color>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Main menu entry (Dusklight style): transparent, a gold bar fading in from
+     the left when focused (D-pad, remote) or pressed. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <gradient android:angle="0" android:startColor="#00FFB020" android:centerColor="#B3FFB020" android:endColor="#FFFFD45A" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <gradient android:angle="0" android:startColor="#00FFB020" android:centerColor="#99FFB020" android:endColor="#F2FFD45A" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+        </shape>
+    </item>
+</selector>
