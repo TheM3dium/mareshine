@@ -1,5 +1,6 @@
 // Language packs: `language = fr` in settings.txt (SMS_LANGUAGE) plays the
-// game in that language with the pack installed in mods/languages/<code>/
+// game in that language with the pack installed in $SMS_LANGUAGES_DIR/<code>/
+// (Android: the data folder's languages/) or mods/languages/<code>/
 // (tools/mods/get.py language <code>, or SMS Launcher). Any code with a pack
 // installed works, so a new language needs only its pack; the list below
 // adds other spellings and the game's own numbering of its five. A pack holds
@@ -14,6 +15,7 @@
 #include <cctype>
 #include <cstring>
 #include <string>
+#include <vector>
 #include <strings.h>
 #include <sys/stat.h>
 
@@ -89,8 +91,14 @@ extern "C" const char* port_language_pack_dir(void)
 	const Language* l = chosen();
 	if (!strcmp(l->code, "en"))
 		return nullptr;
-	for (const char* base : { "mods/languages/", "../../mods/languages/" }) {
-		std::string d = std::string(base) + l->code;
+	std::vector<std::string> bases;
+	if (const char* d = getenv("SMS_LANGUAGES_DIR")) // Android: <data folder>/languages
+		if (*d)
+			bases.push_back(std::string(d) + "/");
+	bases.push_back("mods/languages/");
+	bases.push_back("../../mods/languages/");
+	for (const std::string& base : bases) {
+		std::string d = base + l->code;
 		if (is_dir(d + "/files")) {
 			dir = d;
 			return dir.c_str();

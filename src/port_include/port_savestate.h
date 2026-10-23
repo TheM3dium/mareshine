@@ -100,11 +100,23 @@ int port_savestate_take(char* path, int pathLen);
 // Whether a state can be saved or loaded right now (the game has to be in a
 // stage with nothing loading); the menu and the controls say so when not.
 void port_savestate_set_ready(int ready);
+// While a state load is still under way, its phase (zzzz-savestate-03: 1
+// fading out, 2 closing the pause menu, 3 on the way to its area; 0 none):
+// new requests then say so instead of "not in a level".
+void port_savestate_set_loading(int phase);
+// How far a state load or save under way is, 1 to 100 (100 a moment after it
+// is done), for the touch controls' indicator; *kind 0 a load, 1 a save. -1:
+// none, or one too short to show.
+int port_savestate_progress(int* kind);
 // Saves the game as it is now; the portable part from the caller. 1 if written.
 int port_savestate_save(const PortSaveStatePortable* portable);
 // Whether `path` would load exactly now (reads only its small chunks): the
 // game fades out first when it will.
 int port_savestate_can_load_exact(const char* path);
+// Whether `path` could load exactly but for things that pass in a moment: a
+// disc read, interrupt work, or the game's threads not standing as they did
+// when it was saved. The load then waits a few frames (zzzz-savestate-03).
+int port_savestate_exact_waits(const char* path);
 // Loads `path` exactly, if this build can: returns 1 and the game is then as
 // it was when the state was saved. Otherwise 0, and *portable (if not null)
 // holds the state's portable part for the game to warp with (when it has one).
@@ -131,6 +143,21 @@ int port_savestate_list(PortSaveStateInfo* out, int max); // newest first
 uint8_t* port_savestate_thumbnail_png(const char* path, size_t* size);
 void port_savestate_request_load(const char* path);
 int port_savestate_delete(const char* path);
+
+// Android (Mareshine): five slots, slot1..slot5.smsstate in the folder. A
+// save replaces its slot's state; quick save and quick load (the touch
+// buttons, the controller's stick clicks) use the quick slot. The requests
+// are taken by the game at the top of its next frame, as the others are.
+#define PORT_SAVESTATE_SLOTS 5
+// A notice in the app's message box, as the state messages themselves: the
+// touch buttons' "hold to save/load" hints.
+void port_savestate_notice(const char* text);
+void port_savestate_set_quick_slot(int slot);
+int port_savestate_quick_slot(void);
+void port_savestate_request_save_slot(int slot);
+int port_savestate_request_load_slot(int slot); // 0: the slot is empty or no level is playing
+int port_savestate_slot_info(int slot, PortSaveStateInfo* out); // 0: the slot is empty
+int port_savestate_delete_slot(int slot);
 
 // The pause menu's hint (patch zzzz-savestate-02): SAVE_STATE's binding as the
 // device in use shows it (the keyboard's keys, or a controller's buttons named

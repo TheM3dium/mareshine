@@ -9,6 +9,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
+#include <sys/stat.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -87,10 +89,32 @@ extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** 
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "SMS Launcher", "The game files could not be opened.", nullptr);
         return 1;
     }
-    int log = open((data + "/game.log").c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    // Mareshine: SMS_LOG_DIR (the app's <data>/logs, when its crash reports are
+    // on) holds game.log, the last session's as game.prev.log, and the crash
+    // reports (port_runtime.cpp), readable for the app's report screen.
+    std::string logPath = data + "/game.log";
+    if (const char* dir = getenv("SMS_LOG_DIR")) {
+        if (*dir) {
+            mkdir(dir, 0775);
+            logPath = std::string(dir) + "/game.log";
+            rename(logPath.c_str(), (std::string(dir) + "/game.prev.log").c_str());
+            setenv("SMS_LOG_FILE", logPath.c_str(), 1);
+        }
+    }
+    int log = open(logPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, getenv("SMS_LOG_FILE") ? 0664 : 0600);
     if (log >= 0) { dup2(log, STDOUT_FILENO); dup2(log, STDERR_FILENO); close(log); }
     setvbuf(stdout, nullptr, _IONBF, 0);
     setvbuf(stderr, nullptr, _IONBF, 0);
+    if (getenv("SMS_LOG_FILE")) {
+        time_t t = time(nullptr);
+        struct tm tm;
+        localtime_r(&t, &tm);
+        char when[32];
+        strftime(when, sizeof when, "%Y-%m-%d %H:%M:%S", &tm);
+        fprintf(stderr, "[log] session started %s\n", when);
+        if (const char* info = getenv("SMS_DEVICE_INFO")) // app version, device, Android
+            fprintf(stderr, "[log] %s\n", info);
+    }
     if (const char* policy = getenv("SMS_ANDROID_STARTUP_POLICY"))
         fprintf(stderr, "[android] startup policy: %s\n", policy);
     setenv("HOME", data.c_str(), 1);

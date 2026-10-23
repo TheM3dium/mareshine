@@ -344,6 +344,48 @@ static void crash_handler(int sig)
 	raise(sig);
 }
 #else
+#ifdef __ANDROID__
+// Mareshine: the crash report, a copy of game.log (SMS_LOG_FILE, set by
+// android/bootstrap.cpp) as crash-<date>-<time>.log beside it, which the app
+// offers to send. open/read/write only: called from the crash handler; the
+// paths are taken at start (port_crash_report_init).
+static char s_crash_log[512], s_crash_dir[512];
+static void port_crash_report_init()
+{
+	const char* f = getenv("SMS_LOG_FILE");
+	if (!f || !*f || strlen(f) >= sizeof s_crash_log)
+		return;
+	snprintf(s_crash_log, sizeof s_crash_log, "%s", f);
+	snprintf(s_crash_dir, sizeof s_crash_dir, "%s", f);
+	if (char* slash = strrchr(s_crash_dir, '/'))
+		*slash = 0;
+}
+static void port_crash_report_save()
+{
+	if (!s_crash_log[0])
+		return;
+	time_t t = time(nullptr);
+	struct tm tm;
+	localtime_r(&t, &tm);
+	char name[64], path[600];
+	strftime(name, sizeof name, "crash-%Y%m%d-%H%M%S.log", &tm);
+	snprintf(path, sizeof path, "%s/%s", s_crash_dir, name);
+	int in  = open(s_crash_log, O_RDONLY | O_CLOEXEC);
+	int out = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0664);
+	if (in >= 0 && out >= 0) {
+		char buf[16384];
+		ssize_t n;
+		while ((n = read(in, buf, sizeof buf)) > 0)
+			if (write(out, buf, (size_t)n) != n)
+				break;
+		fsync(out);
+	}
+	if (in >= 0)
+		close(in);
+	if (out >= 0)
+		close(out);
+}
+#endif
 static void crash_handler(int sig, siginfo_t* si, void* uc)
 {
 	// A fault while reporting ends the process with the original signal;
@@ -428,6 +470,9 @@ static void crash_handler(int sig, siginfo_t* si, void* uc)
 	crash_symbolise(bt, n);
 #endif
 	port_stub_report();
+#ifdef __ANDROID__
+	port_crash_report_save();
+#endif
 #ifdef __APPLE__
 	// Under Rosetta, a translated process that dies from a re-raised fatal
 	// signal hangs in the kernel's exit path (state UE, unkillable). Exit
@@ -785,6 +830,24 @@ static const struct {
 	{ "fsr_mode", "SMS_FSR_MODE" }, // with fsr or nis: native, quality, balanced, performance or ultraperformance
 	{ "skip_movies", "SMS_SKIP_MOVIES" },
 	{ "heat_haze", "SMS_HEAT_HAZE" }, // the heat-wave shimmer, on by default
+	// Mareshine's (Android) names: its app writes these
+	{ "render_scale", "SMS_RENDER_SCALE" },     // as resolution
+	{ "disable_shimmer", "SMS_DISABLE_SHIMMER" }, // heat_haze, the other way round
+	{ "shader_cache", "SMS_SHADER_CACHE" },     // 0: no program cache
+	{ "copy_writeback", "SMS_GX_COPY_WRITEBACK" },
+	{ "fast_peek", "SMS_FAST_PEEK" },
+	{ "draw_distance", "SMS_DRAW_DISTANCE" },
+	{ "actor_draw_distance", "SMS_ACTOR_DRAW_DISTANCE" },
+	{ "npc_draw_distance", "SMS_NPC_DRAW_DISTANCE" },
+	{ "mapobj_draw_distance", "SMS_MAPOBJ_DRAW_DISTANCE" },
+	{ "static_draw_distance", "SMS_STATIC_DRAW_DISTANCE" },
+	{ "far_plane", "SMS_FAR_PLANE" },
+	{ "disable_shadows", "SMS_DISABLE_SHADOWS" },
+	{ "disable_reflections", "SMS_DISABLE_REFLECTIONS" },
+	{ "disable_water_anim", "SMS_DISABLE_WATER_ANIM" },
+	{ "music_volume", "SMS_MUSIC_VOLUME" },
+	{ "sfx_volume", "SMS_SFX_VOLUME" },
+	{ "update_check", "SMS_UPDATE_CHECK" },     // the app's own
 	{ "button_prompts", "SMS_BUTTON_PROMPTS" }, // gamecube, auto, xbox, playstation, steamdeck or keyboard
 	{ "button_prompt_pad", "SMS_BUTTON_PROMPT_PAD" }, // with auto: gamecube, xbox, playstation, steamdeck, or match the controller
 	{ "button_prompt_dir", "SMS_BUTTON_PROMPT_DIR" }, // the folder of prompt images (<style>.png)
@@ -879,9 +942,41 @@ static void load_settings()
 		port_log("[port] %d settings from %s\n", n, path);
 }
 
+#ifdef __ANDROID__
+extern "C" void port_savestate_android_init(void); // savestate/savestate_android.cpp
+extern "C" void port_cheats_init(void);           // misc/port_cheats.cpp: the app's cheats
+#endif
+// Mareshine: cutscene subtitles even with the game's own option off
+// (SMS_SUBTITLES, decomp-patches/zzz-subtitles-01; on by default).
+extern "C" {
+int port_subtitles_always = 1;
+}
+#ifdef __ANDROID__
+extern "C" void port_android_register_natives(void); // android/mareshine_jni.cpp
+extern "C" void port_ach_init(void);                 // achievements/achievements.cpp
+// Mareshine's settings that this port has under another name or meaning.
+static void mareshine_settings(void)
+{
+	if (const char* r = getenv("SMS_RENDER_SCALE"))
+		port_setenv("SMS_GX_SCALE", r, 0);
+	if (const char* d = getenv("SMS_DISABLE_SHIMMER"))
+		if (*d && strcmp(d, "0") != 0)
+			port_setenv("SMS_HEAT_HAZE", "0", 0);
+	if (const char* c = getenv("SMS_SHADER_CACHE"))
+		if (!strcmp(c, "0"))
+			port_setenv("SMS_GX_SHADER_CACHE", "0", 0);
+}
+#endif
 extern "C" void port_init(int argc, char** argv)
 {
 	load_settings();
+#ifdef __ANDROID__
+	mareshine_settings();
+	port_crash_report_init();
+	if (const char* sub = getenv("SMS_SUBTITLES"))
+		port_subtitles_always = strcmp(sub, "0") != 0;
+	port_android_register_natives();
+#endif
 	pick_glx_vendor();
 	if (const char* m = getenv("SMS_SKIP_MOVIES"))
 		port_skip_movies = *m && strcmp(m, "0") != 0;
@@ -926,5 +1021,10 @@ extern "C" void port_init(int argc, char** argv)
 	port_window_icon_init();
 	port_noaudio_init();
 	port_vi_init();
+#ifdef __ANDROID__
+	port_savestate_android_init();
+	port_cheats_init();
+	port_ach_init();
+#endif
 	port_log("[port] platform ready\n");
 }

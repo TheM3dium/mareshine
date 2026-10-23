@@ -1,0 +1,69 @@
+Reason: port: invert FLUDD aim only at stationary-spray and first-person aim reads, independently of movement and C-stick camera input.
+--- a/src/Player/MarioWait.cpp
++++ b/src/Player/MarioWait.cpp
+@@ -1,3 +1,6 @@
++#ifdef TARGET_PC
++#include <port_fludd_aim.h>
++#endif
+ #include <Player/Mario.hpp>
+ #include <Player/WaterGun.hpp>
+ #include <System/MarDirector.hpp>
+@@ -392,9 +395,13 @@
+ 		mPosition.x += v2 * JMASCos(mFaceAngle.y);
+ 		mPosition.z -= v2 * JMASSin(mFaceAngle.y);
+ 	} else if (getGamePad()->checkMeaning(TMarioGamePad::MEANING_0x400)) {
+-		f32 absH      = fabsf(getGamePad()->mCompSPos[0]);
++		f32 aimH = getGamePad()->mCompSPos[0];
++#ifdef TARGET_PC
++		aimH = port_fludd_aim_axis(aimH, 0);
++#endif
++		f32 absH      = fabsf(aimH);
+ 		bool positive = true;
+-		if (getGamePad()->mCompSPos[0] < 0.0f)
++		if (aimH < 0.0f)
+ 			positive = false;
+ 
+ 		f32 mid    = mControllerParams.mSquatRotMidAnalog.get();
+--- a/src/Player/WaterGun.cpp
++++ b/src/Player/WaterGun.cpp
+@@ -1,3 +1,6 @@
++#ifdef TARGET_PC
++#include <port_fludd_aim.h>
++#endif
+ #include <Player/WaterGun.hpp>
+ #include <Player/NozzleTrigger.hpp>
+ #include <Player/NozzleBase.hpp>
+@@ -284,8 +287,11 @@
+ 	s16 angle;
+ 	if (NozzleMario(this)->mStatus == MARIO_STATUS_SQUAT) {
+ 			angle = unk36E;
+-		angle += (s16)(NozzleMario(this)->mGamePad->mCompSPos[0 * 2 + 1]
+-		               * mEmitParams.mRButtonMult.get());
++		f32 aimV = NozzleMario(this)->mGamePad->mCompSPos[0 * 2 + 1];
++#ifdef TARGET_PC
++		aimV = port_fludd_aim_axis(aimV, 1);
++#endif
++		angle += (s16)(aimV * mEmitParams.mRButtonMult.get());
+ 	} else {
+ 		angle = -mEmitParams.mLAngleBase.get();
+ 	}
+--- a/src/Camera/CameraNotice.cpp
++++ b/src/Camera/CameraNotice.cpp
+@@ -1,3 +1,6 @@
++#ifdef TARGET_PC
++#include <port_fludd_aim.h>
++#endif
+ #include <Camera/Camera.hpp>
+ #include <Camera/CameraKindParam.hpp>
+ #include <Camera/CameraMarioData.hpp>
+@@ -269,6 +272,10 @@
+ {
+ 	f32 stickX = -unk120->mCompSPos[4];
+ 	f32 stickY = -unk120->mCompSPos[5];
++#ifdef TARGET_PC
++	stickX = port_fludd_aim_axis(stickX, 0);
++	stickY = port_fludd_aim_axis(stickY, 1);
++#endif
+ 
+ 	if (mTargetFreezeFrames == 0) {
+ 		if (!SMS_CheckMarioFlag(MARIO_FLAG_HAS_FLUDD))

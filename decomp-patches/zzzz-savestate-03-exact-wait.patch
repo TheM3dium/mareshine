@@ -1,0 +1,69 @@
+Reason: port: an exact state load waits up to kStateLoadWaitFrames for the game's threads (and a disc read) to stand as they did when the state was saved, instead of falling back at once to the portable load, which restarts the level's actors and replays its intro. Only those passing conditions wait; another build or game still loads the portable way at once.
+A portable load finishes once the state's area is reached, whatever episode the game picked for it (Delfino Plaza follows the story); waiting for the saved episode there held every state request off for 20 seconds and ended in "Could not load the state".
+While a load is under way it tells platform/savestate (port_savestate_set_loading), so a request meanwhile says the state is still loading instead of "not in a level".
+--- a/src/System/Application.cpp
++++ b/src/System/Application.cpp
+@@ -912,6 +912,11 @@
+ static PortSaveStatePortable sStateLoad;
+ static u8 sStateLoadPhase;
+ static u16 sStateLoadFrames;
++// Frames an exact load has waited for the game's threads to stand as they
++// did when the state was saved (port_savestate_exact_waits); they settle in
++// a moment, and only after kStateLoadWaitFrames does it load the portable way.
++static u16 sStateLoadWaits;
++static const u16 kStateLoadWaitFrames = 60;
+ static bool sStateLoadLeft; // the old stage has stopped playing
+ 
+ static void ApplicationStateCollect(TApplication* app, PortSaveStatePortable* p)
+@@ -1089,6 +1094,7 @@
+ 	                     && !dir->checkUnk4CFlag(TMarDirector::DIRECTOR_FLAG_STAGE_TRANSITION_PENDING);
+ 	const bool paused = dir && dir->mState == TMarDirector::STATE_PAUSE_MENU;
+ 	port_savestate_set_ready((playing || paused) && sStateLoadPhase == STATE_LOAD_IDLE);
++	port_savestate_set_loading(sStateLoadPhase);
+ 
+ 	if (sStateLoadPhase == STATE_LOAD_FADE_OUT) {
+ 		// black, or a second at most (a fade the game took over)
+@@ -1096,7 +1102,11 @@
+ 			char path[PORT_SAVESTATE_PATH_LEN];
+ 			snprintf(path, sizeof path, "%s", sStateLoadPath);
+ 			sStateLoadPhase = STATE_LOAD_IDLE;
+-			if (playing || paused) {
++			if ((playing || paused) && !port_savestate_can_load_exact(path) && port_savestate_exact_waits(path)
++			    && ++sStateLoadWaits < kStateLoadWaitFrames) {
++				sStateLoadPhase = STATE_LOAD_FADE_OUT; // still black: try again next frame
++			} else if (playing || paused) {
++				sStateLoadWaits = 0;
+ 				ApplicationStateLoad(app, dir, paused, path);
+ 			} else {
+ 				// the stage stopped meanwhile (Mario lost a life, a stage change)
+@@ -1115,9 +1125,16 @@
+ 			ApplicationStateStartWarp(app, dir);
+ 		} else if (sStateLoadPhase == STATE_LOAD_ARRIVE && !playing) {
+ 			sStateLoadLeft = true;
+-		} else if (playing && sStateLoadLeft && app->mCurrArea.getStage() == sStateLoad.area
+-		           && app->mCurrArea.getScenario() == sStateLoad.episode) {
+-			ApplicationStateFinish();
++		} else if (playing && sStateLoadLeft) {
++			// the area alone counts: the game picks an area's episode itself where
++			// the story decides it (Delfino Plaza), and waiting for the state's
++			// episode there held every state request off until the timeout
++			if (app->mCurrArea.getStage() == sStateLoad.area) {
++				ApplicationStateFinish();
++			} else {
++				sStateLoadPhase = STATE_LOAD_IDLE;
++				port_savestate_notify("Could not load the state");
++			}
+ 		}
+ 		return;
+ 	}
+@@ -1146,7 +1163,10 @@
+ 			sStateLoadFrames = 0;
+ 			app->mFader->setColor(JUtility::TColor(0, 0, 0, 0));
+ 			app->mFader->startFadeoutT(kStateFadeSeconds);
++		} else if (port_savestate_exact_waits(path) && ++sStateLoadWaits < kStateLoadWaitFrames) {
++			port_savestate_request_load(path); // the threads settle in a moment: ask again next frame
+ 		} else {
++			sStateLoadWaits = 0;
+ 			ApplicationStateLoad(app, dir, paused, path);
+ 		}
+ 		break;

@@ -1,0 +1,64 @@
+Reason: port (Mareshine): START pressed twice skips a movie not seen yet, with a hint from the app
+--- a/src/System/MovieDirector.cpp
++++ b/src/System/MovieDirector.cpp
+@@ -473,6 +473,46 @@
+ 
+ // Exact with the binder-shaped TApplication::getFader() at the fader sites
+ // and the BOOL TMarioGamePad::isSomethingPushed() (research c-r29).
++#ifdef TARGET_PC
++// Mareshine: a movie the player has not seen yet (which the game does not let
++// them skip) is skipped with START pressed twice. The first press asks the app
++// to show "Press START again to skip" for a few seconds; a second press while
++// it shows skips the movie. Seen movies keep the game's own single press.
++extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(u32 command, int param);
++extern "C" u32 SDL_GetTicks(void);
++extern "C" __attribute__((weak)) void port_ach_unlock_id(const char* id); // platform/achievements
++static const u32 kMovieSkipCommand = 0x8003; // SunshineActivity.COMMAND_MOVIE_SKIP
++static const u32 kMovieSkipWindowMs = 3000;
++static int sMovieSkipMovie = -1;
++static u32 sMovieSkipAskedAt;
++
++static void movieSkipHint(bool show)
++{
++	if (SDL_AndroidSendMessage)
++		SDL_AndroidSendMessage(kMovieSkipCommand, show ? 1 : 0);
++}
++
++static bool movieSkipPressedTwice(const TMarioGamePad* pad)
++{
++	int movie = gpApplication.getMovie();
++	if (!pad->checkFrameMeaning(0x1)
++	    || TFlagManager::getInstance()->getBool(movie + 0x10391))
++		return false;
++	u32 now = SDL_GetTicks();
++	if (sMovieSkipMovie == movie && now - sMovieSkipAskedAt < kMovieSkipWindowMs) {
++		sMovieSkipMovie = -1;
++		movieSkipHint(false);
++		if (port_ach_unlock_id)
++			port_ach_unlock_id("sms.fun.impatient");
++		return true;
++	}
++	sMovieSkipMovie   = movie;
++	sMovieSkipAskedAt = now;
++	movieSkipHint(true);
++	return false;
++}
++#endif
++
+ int TMovieDirector::direct()
+ {
+ 	if (!unk30.check(0x1)) {
+@@ -605,6 +645,13 @@
+ 		break;
+ 	}
+ 
++#ifdef TARGET_PC
++	if ((unk1C == STATE_FADE_IN || unk1C == STATE_PLAYING) && nextState == unk1C
++	    && desiredAppState == TApplication::APP_STATE_DEFAULT
++	    && movieSkipPressedTwice(getGamePad()))
++		nextState = STATE_FADE_OUT;
++#endif
++
+ 	if (getGamePad()->isSomethingPushed()
+ 	    && gpCardManager->getLastStatus() != CARD_RESULT_BUSY
+ 	    && !unk30.check(0x2)) {

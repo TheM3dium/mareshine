@@ -221,6 +221,17 @@ void GXPC_SetIdleClock(double (*idleSeconds)(void));
  * magnified by scale. Call between GXPC_PresentXFB and the swap.
  * rgba = NULL reuses the last uploaded panel (w and h must match). */
 void GXPC_DrawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
+/* Sprites over the presented frame (Mareshine's touch controls): the atlas
+ * (w x h RGBA, top row first, uploaded when called, so only when it changes)
+ * and, each frame, rectangles cut from it, all at `alpha`. A sprite's x, y,
+ * w, h are window pixels from the top left, u, v, uw, vh atlas pixels. Both
+ * are called while a frame is presented (the touch controls' draw hook). */
+typedef struct GXPCSprite {
+    float x, y, w, h;
+    int u, v, uw, vh;
+} GXPCSprite;
+void GXPC_SpriteAtlas(const uint8_t* rgba, int w, int h);
+void GXPC_DrawSprites(const GXPCSprite* sprites, int count, float alpha, int winW, int winH);
 /* Debug overlay (backtick in the window): toggle, and draw it before a swap. */
 void GXPC_OverlayToggle(void);
 void GXPC_OverlayDraw(int winW, int winH);

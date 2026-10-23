@@ -277,6 +277,12 @@ target_sources(sms_game PRIVATE ${SMS_DECOMP}/libs/dolphin/src/pad/Padclamp.c)
 # The save state menu, drawn by the game in its pause menu with the game's
 # own font and art, so it is built as game code (port_savestate_menu.h).
 target_sources(sms_game PRIVATE ${SMS_PORT_SRC}/savestate_menu.cpp)
+if(ANDROID)
+  # Mareshine: the achievements' game side (it reads the game's flags and
+  # Mario), and the game's rumble option kept equal to the app's vibration.
+  target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_game.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform/pad/rumble_game.cpp)
+endif()
 # port_include must stay ahead of the game headers: its dolphin/types.h
 # overrides the decomp's (LP64 integer widths, weak AT_ADDRESS globals).
 if(DEFINED SMS_CP932_ROOT)
@@ -354,12 +360,18 @@ list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/gx/")
 # platform/mods/eclipse is built by cmake/eclipse.cmake, and only with SMS_ECLIPSE.
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/eclipse/")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/tests/")
+# game code (sms_game, above), and Mareshine's achievements are Android's
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/ach_game\\.cpp$")
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/pad/rumble_game\\.cpp$")
+if(NOT ANDROID)
+  list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/")
+endif()
 if(WIN32 OR APPLE OR ANDROID)
   list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/trace/trace\\.cpp$")
 endif()
 if(ANDROID)
   add_library(sms SHARED ${SMS_PORT_SRC}/port_main.cpp ${SMS_PLATFORM_SOURCES})
-  target_link_libraries(sms PRIVATE log)
+  target_link_libraries(sms PRIVATE log mediandk) # mediandk: platform/thp/mp4_movies.cpp (Mareshine)
   add_library(smsbootstrap SHARED android/bootstrap.cpp)
   target_link_libraries(smsbootstrap PRIVATE SDL2::SDL2 log dl)
   target_compile_features(smsbootstrap PRIVATE cxx_std_17)

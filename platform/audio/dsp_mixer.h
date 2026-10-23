@@ -39,6 +39,23 @@ void port_dspmix_set_mram(port_dspmix_mram_fn fn);
  * command (Q15; SMS uses 0x5000 = 0.625). Voice blocks are updated in place (done/endReached/volumes). */
 void port_dspmix_render(int16_t* outA, int16_t* outB, int n, uint16_t master);
 
+/* Volume classes: a voice follows either the music or the SFX setting
+ * (README.md, Music and SFX volume). The game writes the class into the voice
+ * block's byte at 0x006 when it starts the voice (decomp-patches/audio-05:
+ * 1 for a voice a BGM sequence plays, 0 for everything else); direct-PCM
+ * stream voices are music whatever the byte says. */
+enum { PORT_DSPMIX_CLASS_SFX = 0, PORT_DSPMIX_CLASS_MUSIC = 1, PORT_DSPMIX_CLASSES = 2 };
+
+/* A class's gain in percent, 0..100 (default 100: the samples are not touched).
+ * Safe to call from any thread: the mixer reads it once per subframe and ramps
+ * to a new value over that subframe. */
+void port_dspmix_set_class_percent(int cls, int percent);
+int port_dspmix_class_percent(int cls);
+
+/* The same as a Q15 factor (32768 = unity), for mixing that runs outside this
+ * module and carries music (THP movie audio). */
+int port_dspmix_class_gain(int cls);
+
 /* Diagnostics: voices rendered in the last subframe. */
 int port_dspmix_active_voices(void);
 

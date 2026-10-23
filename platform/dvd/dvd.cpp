@@ -646,7 +646,9 @@ static void apply_user_mods()
 			continue;
 		std::string dir;
 		struct stat st;
-		for (const std::string& c : { name + "/files", "mods/" + name + "/files", "../../mods/" + name + "/files" })
+		// files/, or overlay/ as in Dusklight's packages (Mareshine's mod manager)
+		for (const std::string& c : { name + "/files", name + "/overlay", "mods/" + name + "/files",
+		                              "mods/" + name + "/overlay", "../../mods/" + name + "/files" })
 			if (stat(c.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
 				dir = c;
 				break;

@@ -1,0 +1,71 @@
+Reason: port: with SMS_WIDESCREEN the stage-entry title card's black bars and the halves that slide open onto the stage cover the whole wide frame: TConsoleStr::load runs the scenario_demo panes touching the 4:3 frame's edges on past them (their TExPanes start from the widened bounds), and the card draws through sms_gx's GXPC_SetWide2D (4:3 scale, centred, past the 4:3 edges)
+--- a/src/GC2D/ConsoleStr.cpp
++++ b/src/GC2D/ConsoleStr.cpp
+@@ -62,6 +62,43 @@
+ f32 TConsoleStr::getWipeCloseTime() { return 30.0f / SMSGetVSyncTimesPerSec(); }
+ #endif
+ 
++#ifdef TARGET_PC
++// SMS_WIDESCREEN (platform): the displayed width over the GameCube's 4:3, 1
++// when off.
++extern "C" float port_widescreen;
++// sms_gx: draw the following 2D at the 4:3 frame's scale, centred, and past
++// its edges (0 goes back).
++extern "C" void GXPC_SetWide2D(int on);
++
++// Widescreen: the stage-entry title card's black panes (the bars that close
++// over the intro camera, msk1/msk2, and the halves that slide open onto the
++// stage, wp_l/wp_r) run on past the 4:3 frame's edges they touch, so with
++// GXPC_SetWide2D they cover the wide frame; the halves slide out by their
++// widened width. The stage and episode names stay where they are. Run on the
++// fresh layout; the panes' TExPanes then start from the widened bounds.
++static void ConsoleStrWiden(J2DScreen* screen, TExPane** masks,
++                            TExPane** wipes)
++{
++	J2DPane* root = screen->search('ROOT');
++	if (port_widescreen <= 1.0f || root == nullptr)
++		return;
++	const int w     = screen->getWidth(); // the 4:3 frame (600 x 480)
++	const int extra = (int)(w * (port_widescreen - 1.0f) / 2.0f + 0.999f) + 1;
++	for (JSUTreeIterator<J2DPane> it = root->getFirstChild();
++	     it != root->getEndChild(); ++it) {
++		JUTRect& b = it.getObject()->mBounds;
++		if (b.x1 <= 0)
++			b.x1 -= extra;
++		if (b.x2 >= w)
++			b.x2 += extra;
++	}
++	for (int i = 0; i < 2; ++i) {
++		masks[i]->mInitialBounds = masks[i]->getPane()->getBounds();
++		wipes[i]->mInitialBounds = wipes[i]->getPane()->getBounds();
++	}
++}
++#endif
++
+ // ShineTable.hpp indexes with the full u32; retail's expansion here masks to
+ // u8 before lbzx (clrlwi r0, scenario, 24).
+ static inline s16 ConsoleStrGetShineID(u32 stage, u32 scenario)
+@@ -116,6 +153,9 @@
+ 
+ 	mWipePanes[0] = new TExPane(unk14, 'wp_l');
+ 	mWipePanes[1] = new TExPane(unk14, 'wp_r');
++#ifdef TARGET_PC
++	ConsoleStrWiden(unk14, unk28C, mWipePanes);
++#endif
+ 
+ 	u32 uVar1        = SMS_getShineStage(SMSGetMarDirector()->getCurrentMap());
+ 	TFlagManager* fm = TFlagManager::getInstance();
+@@ -338,7 +378,13 @@
+ 
+ 		local_1a0.setup2D();
+ 		if (unk2B4 == 4) {
++#ifdef TARGET_PC
++			GXPC_SetWide2D(1);
++			unk14->draw(0, 0, &local_1a0);
++			GXPC_SetWide2D(0);
++#else
+ 			unk14->draw(0, 0, &local_1a0);
++#endif
+ 		} else {
+ 			unk10->draw(0, 0, &local_1a0);
+ 		}

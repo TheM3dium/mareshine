@@ -3551,6 +3551,138 @@ void main() { o_color = texture(u_color, v_uv); }
     if (clip1) glEnable(GL_CLIP_DISTANCE1);
 }
 
+// ------------------------------------------------------------------ sprites
+// Images drawn over the presented frame many at a time (Mareshine's touch
+// controls): one atlas, uploaded only when it changes, then per frame a list
+// of rectangles cut from it, all with one opacity. A frame of them is one
+// texture bind and a draw per rectangle, with no upload.
+static GLuint s_spriteTex, s_spriteProg;
+static GLint s_spriteRect = -1, s_spriteUv = -1, s_spriteWindow = -1, s_spriteAlpha = -1;
+static int s_spriteW, s_spriteH;
+
+extern "C" void GXPC_SpriteAtlas(const uint8_t* rgba, int w, int h) {
+    if (!s_ready || !rgba || w <= 0 || h <= 0) return;
+    GLint boundTex = 0, activeUnit = 0, rowLength = 0, unpackAlign = 4;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &activeUnit);
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTex);
+    glGetIntegerv(GL_UNPACK_ROW_LENGTH, &rowLength);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlign);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    if (!s_spriteTex) {
+        glGenTextures(1, &s_spriteTex);
+        glBindTexture(GL_TEXTURE_2D, s_spriteTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    } else {
+        glBindTexture(GL_TEXTURE_2D, s_spriteTex);
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    s_spriteW = w;
+    s_spriteH = h;
+    glBindTexture(GL_TEXTURE_2D, GLuint(boundTex));
+    glActiveTexture(GLenum(activeUnit));
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLength);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlign);
+}
+
+extern "C" void GXPC_DrawSprites(const GXPCSprite* sprites, int count, float alpha, int winW, int winH) {
+    if (!s_ready || !s_spriteTex || !sprites || count <= 0 || alpha <= 0.0f) return;
+    flushBatch();
+    glcInvalidate();
+    if (!s_spriteProg) {
+        static const char* vs = R"(#version 330 core
+uniform vec4 u_rect;
+uniform vec4 u_uv;
+uniform vec2 u_window;
+out vec2 v_uv;
+void main() {
+    vec2 p = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
+    v_uv = u_uv.xy + p * u_uv.zw;
+    gl_Position = vec4((u_rect.xy + vec2(p.x, 1.0 - p.y) * u_rect.zw) / u_window * 2.0 - 1.0, 0.0, 1.0);
+}
+)";
+        static const char* fs = R"(#version 330 core
+uniform sampler2D u_color;
+uniform float u_alpha;
+in vec2 v_uv;
+out vec4 o_color;
+void main() { vec4 c = texture(u_color, v_uv); o_color = vec4(c.rgb, c.a * u_alpha); }
+)";
+        s_spriteProg = compileProgram(vs, fs);
+        s_spriteRect = glGetUniformLocation(s_spriteProg, "u_rect");
+        s_spriteUv = glGetUniformLocation(s_spriteProg, "u_uv");
+        s_spriteWindow = glGetUniformLocation(s_spriteProg, "u_window");
+        s_spriteAlpha = glGetUniformLocation(s_spriteProg, "u_alpha");
+    }
+    GLint activeUnit = 0, boundTex = 0, program = 0, vao = 0, drawFbo = 0, viewport[4], colorMask[4];
+    GLint blend = 0, depth = 0, stencil = 0, cull = 0, scissor = 0;
+    GLint srcRGB = 0, dstRGB = 0, srcAlpha = 0, dstAlpha = 0, eqRGB = 0, eqAlpha = 0;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &activeUnit);
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTex);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFbo);
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_COLOR_WRITEMASK, colorMask);
+    glGetIntegerv(GL_BLEND, &blend);
+    glGetIntegerv(GL_DEPTH_TEST, &depth);
+    glGetIntegerv(GL_STENCIL_TEST, &stencil);
+    glGetIntegerv(GL_CULL_FACE, &cull);
+    glGetIntegerv(GL_SCISSOR_TEST, &scissor);
+    glGetIntegerv(GL_BLEND_SRC_RGB, &srcRGB);
+    glGetIntegerv(GL_BLEND_DST_RGB, &dstRGB);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &srcAlpha);
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &dstAlpha);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB, &eqRGB);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &eqAlpha);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, g_presentFbo);
+    glViewport(0, 0, winW, winH);
+    glUseProgram(s_spriteProg);
+    glUniform1i(glGetUniformLocation(s_spriteProg, "u_color"), 0);
+    glBindTexture(GL_TEXTURE_2D, s_spriteTex);
+    glBindVertexArray(s_copyVao);
+    const float window[2] = {float(winW), float(winH)};
+    glUniform2fv(s_spriteWindow, 1, window);
+    glUniform1f(s_spriteAlpha, alpha > 1.0f ? 1.0f : alpha);
+    for (int i = 0; i < count; i++) {
+        const GXPCSprite& sp = sprites[i];
+        // x, y from the window's top left; GL's y goes up
+        const float rect[4] = {sp.x, float(winH) - sp.y - sp.h, sp.w, sp.h};
+        const float uv[4] = {float(sp.u) / s_spriteW, float(sp.v) / s_spriteH, float(sp.uw) / s_spriteW,
+                             float(sp.vh) / s_spriteH};
+        glUniform4fv(s_spriteRect, 1, rect);
+        glUniform4fv(s_spriteUv, 1, uv);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
+    glBindTexture(GL_TEXTURE_2D, GLuint(boundTex));
+    glActiveTexture(GLenum(activeUnit));
+    glBindVertexArray(GLuint(vao));
+    glUseProgram(GLuint(program));
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFbo));
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    glBlendFuncSeparate(GLenum(srcRGB), GLenum(dstRGB), GLenum(srcAlpha), GLenum(dstAlpha));
+    glBlendEquationSeparate(GLenum(eqRGB), GLenum(eqAlpha));
+    glColorMask(colorMask[0], colorMask[1], colorMask[2], colorMask[3]);
+    if (!blend) glDisable(GL_BLEND);
+    if (depth) glEnable(GL_DEPTH_TEST);
+    if (stencil) glEnable(GL_STENCIL_TEST);
+    if (cull) glEnable(GL_CULL_FACE);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
+}
+
 extern "C" {
 
 void GXPC_GetStats(GXPCStats* out) {

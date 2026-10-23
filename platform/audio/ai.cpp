@@ -26,6 +26,7 @@
 #include "port_platform.h"
 #include <dolphin/ai.h>
 #include <dolphin/os/OSThread.h>
+#include "dsp_mixer.h"
 
 #include <atomic>
 #include <algorithm>
@@ -273,6 +274,20 @@ bool open_sdl()
 	return true;
 }
 
+// SMS_MUSIC_VOLUME / SMS_SFX_VOLUME (0..100): where a volume class starts.
+// The mixer applies it whatever the output (a device, SMS_AUDIO_WAV, none),
+// unlike SMS_VOLUME, which scales the device's stream.
+void init_class_volume(const char* env, int cls, const char* name)
+{
+	const char* e = getenv(env);
+	if (!e || !*e)
+		return;
+	const int percent = std::max(0, std::min(100, atoi(e)));
+	port_dspmix_set_class_percent(cls, percent);
+	if (percent != 100)
+		port_log("[audio] %s volume %d%%\n", name, percent);
+}
+
 void init_output()
 {
 	const char* e = getenv("SMS_AUDIO");
@@ -284,6 +299,8 @@ void init_output()
 	g.volume      = e && *e ? std::max(0, std::min(100, atoi(e))) * 256 / 100 : 256;
 	if (g.volume != 256)
 		port_log("[audio] master volume %d%%\n", (g.volume * 100 + 128) / 256);
+	init_class_volume("SMS_MUSIC_VOLUME", PORT_DSPMIX_CLASS_MUSIC, "music");
+	init_class_volume("SMS_SFX_VOLUME", PORT_DSPMIX_CLASS_SFX, "SFX");
 	g.fifo.assign(32768 * 2, 0);
 	g.head = g.count = 0;
 	if (!g.enabled) {
@@ -464,3 +481,17 @@ extern "C" u32 AIGetDSPSampleRate(void) { return g.dspRate; }
 // DVD audio streaming (DTK, dtk.cpp): retail SMS never streams; code mods do.
 extern "C" void AISetStreamSampleRate(u32 rate) { g.streamRate = rate; }
 extern "C" u32 AIGetStreamSampleRate(void) { return g.streamRate; }
+
+// THP movie audio is mixed on the emulated CPU (JASystem::Kernel
+// mixInterleaveTrack, decomp-patches/audio-05): the music gain as a Q15 factor.
+extern "C" int port_audio_music_gain_q15(void) { return port_dspmix_class_gain(PORT_DSPMIX_CLASS_MUSIC); }
+
+#ifdef __ANDROID__
+#include <jni.h>
+// GameAudio.nativeSetVolume: the quick menu's Music and Sound effects sliders
+// (and Settings changed while the game was paused).
+extern "C" JNIEXPORT void JNICALL Java_io_github_them3dium_mareshine_GameAudio_nativeSetVolume(JNIEnv*, jclass, jint cls, jint percent)
+{
+	port_dspmix_set_class_percent(cls, percent);
+}
+#endif

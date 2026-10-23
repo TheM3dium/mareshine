@@ -1,6 +1,11 @@
 // Save states (src/port_include/port_savestate.h): saving, loading exactly,
 // the folder, and the requests between the controls, the menu and the game.
 //
+// Android (Mareshine): states live in five slots (slot1..slot5.smsstate) that
+// a save overwrites; quick save and quick load use the chosen quick slot. The
+// messages go to the app, which shows them in the player's language
+// (savestate_android.cpp).
+//
 // The exact part of a state is the game's memory: MEM1, ARAM and the game's
 // own global variables. Which addresses those globals have is known only
 // after linking, so tools/savestate_ranges.py reads the link map and writes
@@ -21,11 +26,15 @@
 #include "port_platform.h"
 #include "port_savestate.h"
 #include "state_file.h"
+#ifdef __ANDROID__
+#include "../achievements/achievements.h"
+#endif
 #include <dolphin/dvd.h>
 #include <dolphin/os.h>
 #include <dolphin/os/OSThread.h>
 
 #include <dirent.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +65,8 @@ extern "C" __attribute__((weak)) uint8_t* GXPC_SaveStateThumbnail(size_t* size);
 extern "C" __attribute__((weak)) void GXPC_SetSaveStateApi(const PortSaveStateOverlayApi* api);
 extern "C" __attribute__((weak)) int GXPC_InputStyle(void);
 extern "C" __attribute__((weak)) const void* port_button_glyph(int chr);
+// Android: a message for the app to show (savestate_android.cpp)
+extern "C" __attribute__((weak)) void port_savestate_android_message(const char* text, int slot);
 
 // Filled in after linking (tools/savestate_ranges.py; keep the layout in
 // step): the build's fingerprint and the game's writable data as [start, end)
@@ -103,6 +114,7 @@ std::mutex g_lock;
 int g_pending = PORT_SAVESTATE_NONE;
 std::string g_pendingPath;
 std::atomic<int> g_ready(0);
+std::atomic<int> g_loading(0); // a state load's phase while it is under way (port_savestate_set_loading)
 std::atomic<bool> g_writing(false);
 std::string g_message;
 double g_messageUntil;
@@ -345,8 +357,28 @@ std::vector<uint8_t> thumbnail()
 	return png;
 }
 
+#ifdef __ANDROID__
+std::atomic<int> g_saveSlot(1), g_quickSlot(1); // the slot the next save writes; the quick slot
+
+std::string slot_path(int slot)
+{
+	return state_dir() + "/slot" + std::to_string(slot) + ".smsstate";
+}
+#endif
+
 void set_message(const char* text)
 {
+#ifdef __ANDROID__
+	if (!strncmp(text, "State loaded", 12)) { // platform/achievements: "Time Traveller", no timed run
+		port_ach_note_state_loaded();
+		port_ach_unlock(PORT_ACH_FUN_TIME_TRAVEL);
+	}
+	if (port_savestate_android_message) { // the app shows it instead of the window's toast
+		port_log("[savestate] %s\n", text);
+		port_savestate_android_message(text, g_saveSlot);
+		return;
+	}
+#endif
 	std::lock_guard<std::mutex> l(g_lock);
 	g_message = text;
 	g_messageUntil = now_seconds() + 2.5;
@@ -480,6 +512,13 @@ extern "C" {
 
 void port_savestate_hotkey(int action)
 {
+#ifdef __ANDROID__
+	if (action == PORT_SAVESTATE_HOTKEY_SAVE)
+		port_savestate_request_save_slot(g_quickSlot);
+	else
+		port_savestate_request_load_slot(g_quickSlot);
+	return;
+#endif
 	if (!g_ready) {
 		set_message(action == PORT_SAVESTATE_HOTKEY_SAVE ? "Save states work in a level, once it has loaded"
 		                                                   : "Load states in a level, once it has loaded");
@@ -515,7 +554,128 @@ int port_savestate_take(char* path, int pathLen)
 	return action;
 }
 
+#ifdef __ANDROID__
+void port_savestate_notice(const char* text)
+{
+	g_saveSlot = g_quickSlot.load();
+	set_message(text);
+}
+
+void port_savestate_set_quick_slot(int slot)
+{
+	if (slot >= 1 && slot <= PORT_SAVESTATE_SLOTS)
+		g_quickSlot = slot;
+}
+int port_savestate_quick_slot(void) { return g_quickSlot; }
+
+void port_savestate_request_save_slot(int slot)
+{
+	if (slot < 1 || slot > PORT_SAVESTATE_SLOTS)
+		return;
+	g_saveSlot = slot;
+	if (!g_ready) {
+		set_message(g_loading ? "Still loading a state" : "Save states work in a level, once it has loaded");
+		return;
+	}
+	std::lock_guard<std::mutex> l(g_lock);
+	g_pending = PORT_SAVESTATE_SAVE;
+}
+
+int port_savestate_request_load_slot(int slot)
+{
+	if (slot < 1 || slot > PORT_SAVESTATE_SLOTS)
+		return 0;
+	g_saveSlot = slot;
+	if (!exists(slot_path(slot))) {
+		set_message("This slot is empty");
+		return 0;
+	}
+	if (!g_ready) {
+		set_message(g_loading ? "Still loading a state" : "Load states in a level, once it has loaded");
+		return 0;
+	}
+	port_savestate_request_load(slot_path(slot).c_str());
+	return 1;
+}
+
+int port_savestate_slot_info(int slot, PortSaveStateInfo* out)
+{
+	memset(out, 0, sizeof *out);
+	out->area = -1;
+	if (slot < 1 || slot > PORT_SAVESTATE_SLOTS)
+		return 0;
+	const std::string path = slot_path(slot);
+	snprintf(out->path, sizeof out->path, "%s", path.c_str());
+	static const char* const kWanted[] = { "INFO", "PORT" };
+	std::vector<Chunk> chunks;
+	Info saved;
+	PortSaveStatePortable p;
+	if (!exists(path) || !savestate::read_file(out->path, &chunks, kWanted, 2) || !read_info(chunks, &saved))
+		return 0;
+	if (read_portable(chunks, &p)) {
+		snprintf(out->stageName, sizeof out->stageName, "%s", p.stageName);
+		snprintf(out->episodeName, sizeof out->episodeName, "%s", p.episodeName);
+		out->area      = p.area;
+		out->hasCounts = 1;
+		out->shines    = p.gameInts[0];
+		out->blueCoins = p.gameInts[1];
+		out->coins     = p.gameInts[2];
+		out->lives     = p.cardInts[1];
+	}
+	out->created = saved.created;
+	when_text(saved.created, out->when, sizeof out->when);
+	const Info now = current_info();
+	out->sameGame = same_game(saved, now);
+	const char* why;
+	out->exact = out->sameGame && exact_compatible(saved, now, &why);
+	return 1;
+}
+
+int port_savestate_delete_slot(int slot)
+{
+	return slot >= 1 && slot <= PORT_SAVESTATE_SLOTS && remove(slot_path(slot).c_str()) == 0;
+}
+#endif
+
 void port_savestate_set_ready(int ready) { g_ready = ready != 0; }
+void port_savestate_set_loading(int phase) { g_loading = phase; }
+
+int port_savestate_progress(int* kind)
+{
+	// Each phase heads for its share at its own pace (seconds): the fade, the
+	// pause menu closing, the way to the state's area; then a save's write.
+	static const float kUpTo[] = { 0, 20, 30, 95, 95 }, kPace[] = { 1, 0.15f, 0.2f, 2.5f, 0.4f };
+	static int s_phase = 0, s_kind = 0;
+	static double s_start = 0, s_since = 0, s_doneAt = -10;
+	static float s_from = 0, s_value = 0;
+	static bool s_shown = false;
+	const double t = now_seconds();
+	const int loading = g_loading;
+	const int phase = loading >= 1 && loading <= 3 ? loading : g_writing ? 4 : 0;
+	if (phase != s_phase) {
+		if (!phase) {
+			s_doneAt = t;
+		} else if (!s_phase) {
+			s_start = t;
+			s_value = 0;
+			s_shown = false;
+			s_kind = phase == 4;
+		}
+		s_from = s_value;
+		s_since = t;
+		s_phase = phase;
+	}
+	if (!s_phase) {
+		*kind = s_kind;
+		return s_shown && t - s_doneAt < 0.7 ? 100 : -1; // done: 100 for a moment
+	}
+	const float upTo = kUpTo[s_phase] > s_from ? kUpTo[s_phase] : s_from;
+	s_value = s_from + (upTo - s_from) * (float)(1 - exp(-(t - s_since) / kPace[s_phase]));
+	// a moment's load or save (an exact one) goes without it
+	s_shown = s_shown || s_phase == 3 || t - s_start > 0.4;
+	*kind = s_kind;
+	return s_shown ? (s_value < 1 ? 1 : (int)s_value) : -1;
+}
 int port_savestate_ready(void) { return g_ready; }
 
 void port_savestate_notify(const char* text) { set_message(text); }
@@ -552,10 +712,14 @@ int port_savestate_save(const PortSaveStatePortable* portable)
 	const Info info = current_info();
 	const bool exact = info.rangeCount && has_fingerprint();
 	Pending* job = new Pending;
+#ifdef __ANDROID__
+	job->path = slot_path(g_saveSlot); // the slot's state is replaced
+#else
 	job->path = state_dir() + "/" + file_name(*portable, (time_t)info.created) + ".smsstate";
 	// another state this second: keep both
 	for (int n = 2; exists(job->path) && n < 100; n++)
 		job->path = state_dir() + "/" + file_name(*portable, (time_t)info.created) + " (" + std::to_string(n) + ").smsstate";
+#endif
 
 	const std::string json = metadata(info, *portable, exact);
 	job->small.push_back(savestate::make_chunk("JSON", json.data(), json.size(), false));
@@ -595,6 +759,18 @@ int port_savestate_can_load_exact(const char* path)
 	return savestate::read_file(path, &chunks, kWanted, 2) && read_info(chunks, &saved) && same_game(saved, now)
 	       && exact_compatible(saved, now, &why) && !port_dvd_busy() && !port_os_irq_work_pending()
 	       && threads_match(chunks);
+}
+
+int port_savestate_exact_waits(const char* path)
+{
+	static const char* const kWanted[] = { "INFO", "THRD" };
+	std::vector<Chunk> chunks;
+	Info saved;
+	const Info now = current_info();
+	const char* why = nullptr;
+	return savestate::read_file(path, &chunks, kWanted, 2) && read_info(chunks, &saved) && same_game(saved, now)
+	       && exact_compatible(saved, now, &why)
+	       && (port_dvd_busy() || port_os_irq_work_pending() || !threads_match(chunks));
 }
 
 int port_savestate_load_exact(const char* path, PortSaveStatePortable* portable, int* hasPortable)

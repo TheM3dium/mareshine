@@ -1,0 +1,93 @@
+Reason: Audio: the port's Music Volume and SFX Volume settings. TChannel::playLogicalChannel writes a class byte into the voice block it starts (0x006, padding the DSP never reads: 1 when a BGM sequence's track owns the channel, 0 for the SE sequence's tracks and anything else) for the software mixer to scale by the music or SFX gain, and Kernel::mixInterleaveTrack, which mixes THP movie audio into the DAC block on the CPU, scales it by the music gain. Unchanged at 100 percent.
+--- a/libs/JSystem/src/JAudio/JASystem/JASChannel.cpp
++++ b/libs/JSystem/src/JAudio/JASystem/JASChannel.cpp
+@@ -7,6 +7,11 @@
+ #include <JSystem/JAudio/JASystem/JASDriverIF.hpp>
+ #include <JSystem/JAudio/JASystem/JASDriverTables.hpp>
+ #include <JSystem/JAudio/JASystem/JASCalc.hpp>
++#ifdef TARGET_PC
++#include <JSystem/JAudio/JAInterface/JAIBasic.hpp>
++#include <JSystem/JAudio/JAInterface/JAIParameters.hpp>
++#include <JSystem/JAudio/JASystem/JASTrackMgr.hpp>
++#endif
+ #include <JSystem/JUtility/JUTAssert.hpp>
+ #include <dolphin/types.h>
+ 
+@@ -846,6 +851,35 @@
+ 	return TRUE;
+ }
+ 
++#ifdef TARGET_PC
++// Port: which volume setting a voice follows, for the software mixer (platform/audio/README.md,
++// Music and SFX volume): 1 = music, 0 = sound effects. JAIBasic plays every sound effect as a child
++// track of one sequence, mSeSequence's; any other root sequence is background music. A channel with
++// no track to name counts as a sound effect.
++static u8 portVoiceClass(const TChannel* channel)
++{
++	TTrack* pool = TrackMgr::sTrackPool;
++	if (!channel->unk4 || !pool)
++		return 0;
++
++	// The track that owns the channel is the pool entry whose channel manager this is.
++	const uintptr_t first = (uintptr_t)&pool[0].mChannelUpdater;
++	const uintptr_t at    = (uintptr_t)channel->unk4;
++	if (at < first || (at - first) % sizeof(TTrack) != 0 || (at - first) / sizeof(TTrack) >= TrackMgr::sTrackCount)
++		return 0;
++
++	TTrack* root = &pool[(at - first) / sizeof(TTrack)];
++	for (int depth = 0; root->mParent && depth < 32; ++depth)
++		root = root->mParent;
++
++	JAISound* se = JAIBasic::basic ? JAIBasic::basic->mSeSequence : nullptr;
++	if (se && se->mState >= SOUNDSTATE_Started && se->getSeqParameter()
++	    && TrackMgr::handleToSeq(se->getSeqParameter()->mSeqHandle) == root)
++		return 0;
++	return 1;
++}
++#endif
++
+ BOOL TChannel::playLogicalChannel()
+ {
+ 	if (!unk20)
+@@ -858,6 +892,9 @@
+ 	unk20->mCBInterval = 1;
+ 
+ 	DSPInterface::DSPBuffer* buf = unk20->mDSPHandle;
++#ifdef TARGET_PC
++	buf->unk6[0] = portVoiceClass(this); // the voice block byte the software mixer reads (0x006)
++#endif
+ 
+ 	switch (mLogicalChanType) {
+ 	case 0:
+--- a/libs/JSystem/src/JAudio/JASystem/JASAiCtrl.cpp
++++ b/libs/JSystem/src/JAudio/JASystem/JASAiCtrl.cpp
+@@ -12,6 +12,10 @@
+ #include <dolphin/ai.h>
+ #include <stdint.h>
+ 
++#ifdef TARGET_PC
++extern "C" int port_audio_music_gain_q15(void); // platform/audio/ai.cpp
++#endif
++
+ namespace JASystem {
+ namespace Kernel {
+ 
+@@ -205,9 +209,18 @@
+ 		if (!src)
+ 			return;
+ 
++#ifdef TARGET_PC
++		// This is the mix THP movie audio takes (registerMixCallback mode 3): it follows the
++		// port's music volume, Q15, 32768 = unchanged (platform/audio/README.md).
++		const s32 musicGain = port_audio_music_gain_q15();
++#endif
+ 		s16* destPtr = buffer;
+ 		for (int i = 0; i < sampleCount * 2; i++) {
++#ifdef TARGET_PC
++			*destPtr++ = clamp_s32_to_s16(*destPtr + (s32)(((s64)*src * musicGain) >> 15));
++#else
+ 			*destPtr++ = clamp_s32_to_s16(*destPtr + *src);
++#endif
+ 			src++;
+ 		}
+ 	}

@@ -1303,6 +1303,16 @@ static bool beginUpload(Upload& u) {
         r.state = Replacement::FAILED;
         return false;
     }
+    // Mareshine: smaller than the texture it replaces is a placeholder, not an
+    // upscale (the big Sunshine pack has solid black ones for the European
+    // title's splash pieces, which played over the logo as opaque blocks), so
+    // the original stays
+    if (uint32_t(u.item.image->w) < uint32_t(u.item.request.w) && uint32_t(u.item.image->h) < uint32_t(u.item.request.h)) {
+        logmsg("texture pack: ignoring a %dx%d replacement for a %ux%u texture", u.item.image->w, u.item.image->h,
+               unsigned(u.item.request.w), unsigned(u.item.request.h));
+        r.state = Replacement::FAILED;
+        return false;
+    }
     if (r.state != Replacement::QUEUED) return false;
     if (!r.tex) r.tex = newTexture();
     u.tex = r.tex;

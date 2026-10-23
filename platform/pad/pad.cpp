@@ -12,11 +12,15 @@
 #include "port_platform.h"
 #include "port_savestate.h"
 #include "gc_adapter.h"
+#include "touch.h"
 #include <dolphin/pad.h>
 #include <string.h>
+#include <stdlib.h>
 #include <strings.h>
 #include <ctype.h>
 #include <dlfcn.h>
+#include <math.h>
+#include <time.h>
 #include <algorithm>
 #include <vector>
 
@@ -24,7 +28,8 @@
 namespace sdl {
 enum {
 	QUIT = 0x100, WINDOWEVENT = 0x200, KEYDOWN = 0x300, KEYUP = 0x301, MOUSEMOTION = 0x400,
-	CAXIS = 0x650, CBUTTONDOWN = 0x651, CBUTTONUP = 0x652
+	JAXIS = 0x600, CAXIS = 0x650, CBUTTONDOWN = 0x651, CBUTTONUP = 0x652,
+	FINGERDOWN = 0x700, FINGERUP = 0x701, FINGERMOTION = 0x702
 };
 enum { WINDOWEVENT_FOCUS_GAINED = 12, WINDOWEVENT_FOCUS_LOST = 13 };
 struct WindowEvent {
@@ -55,6 +60,13 @@ struct ControllerButtonEvent {
 	s32 which;
 	u8 button, state, p1, p2;
 };
+// SDL_TouchFingerEvent: x and y are fractions of the window
+struct TouchFingerEvent {
+	u32 type, timestamp;
+	s64 touchId, fingerId;
+	float x, y, dx, dy, pressure;
+	u32 windowID;
+};
 } // namespace sdl
 
 extern "C" {
@@ -76,6 +88,27 @@ int port_free_camera      = 0;
 f32 port_camera_speed_x   = 1.0f;
 f32 port_camera_speed_y   = 1.0f;
 }
+
+#ifdef __ANDROID__
+// Mareshine's in-game menu (SunshineActivity / GameMenuActivity): Esc, Select +
+// Start, the controller's Home/Guide button, a tap of the MENU button (Select
+// by default) or the MENU touch button ask the app to open it; the game pauses
+// while it is shown.
+extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(uint32_t command, int param);
+extern "C" __attribute__((visibility("default"))) void port_open_menu(void)
+{
+	static uint64_t s_last;
+	timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	uint64_t now = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+	if (now - s_last < 800) // one press, one menu
+		return;
+	s_last = now;
+	port_log("[pad] in-game menu requested\n");
+	if (SDL_AndroidSendMessage)
+		SDL_AndroidSendMessage(0x8001, 0); // SunshineActivity.COMMAND_OPEN_MENU
+}
+#endif
 
 // SMS_RUMBLE_STRENGTH above 100: how much more often the game runs the motor,
 // read by RumbleBase::update (decomp-patches/port-10-rumble-boost.patch).
@@ -198,6 +231,42 @@ const struct { int control, source; } kDefaultPad[] = {
 	{ C_SAVESTATE, combo(9, 10) }, // L1 + R1 (LB + RB)
 };
 bool g_inited;
+// The controller's raw axes (SDL joystick axes: Android's motion ranges
+// without the hat, in SDLControllerManager's order), for sticks set by hand.
+const int kRawAxes = 16;
+s16 g_rawAxis[kRawAxes];
+
+// Analog sticks (Mareshine's Settings -> INPUT):
+//   SMS_STICK_DEADZONE / SMS_CSTICK_DEADZONE   percent of the throw ignored around
+//                                              the centre (radial; 8 by default)
+//   SMS_STICK_SENSITIVITY / SMS_CSTICK_...     percent; above 100 full deflection
+//                                              is reached earlier
+//   SMS_CAL_LEFT / SMS_CAL_RIGHT               a physical stick's calibration from
+//                                              the app: "cx,cy,minx,maxx,miny,maxy"
+//                                              in raw units (-1..1)
+// Deadzone and sensitivity belong to the stick's role (move / camera), the
+// calibration to the physical stick (axes 0/1 left, 2/3 right).
+struct StickCal {
+	bool on;
+	float cx, cy, minx, maxx, miny, maxy;
+};
+StickCal g_cal[2];
+float g_dz[2]   = { 0.08f, 0.08f }; // [0] move stick, [1] camera stick
+float g_sens[2] = { 1.0f, 1.0f };
+// Which controller axes each stick reads: the first of a pair (0 left, 2
+// right, -1 none), or (STICK_X=jN and the like) single raw axes set by hand,
+// for controllers whose sticks SDL's mapping gets wrong.
+int g_stickBase[2] = { 0, 2 };
+struct StickAxis {
+	int idx; // -1: automatic
+	int sign;
+};
+StickAxis g_stickAxis[2][2] = { { { -1, 1 }, { -1, 1 } }, { { -1, 1 }, { -1, 1 } } };
+// SMS_FLUDD_INVERT_X / _Y: FLUDD's aim, apart from the camera (port_fludd_aim_axis)
+bool g_invert_aim_x, g_invert_aim_y;
+// The MENU button's controller buttons (SMS_PAD_MAP MENU, Select by default):
+// tapped alone, they open the in-game menu.
+int g_menuButtons[4], g_nMenuButtons;
 // SMS_CAMERA_INVERT_X / SMS_CAMERA_INVERT_Y=1 flip the C-stick, which only
 // turns the camera.
 bool g_invert_cx, g_invert_cy;
@@ -377,6 +446,16 @@ void on_event(const union SDL_Event* ev)
 	}
 	if (!g_focused)
 		return;
+	// the screen's fingers go to the touch controls (touch.cpp); a controller
+	// used hides them while SMS_TOUCH_CONTROLS is auto
+	if (type == sdl::FINGERDOWN || type == sdl::FINGERMOTION || type == sdl::FINGERUP) {
+		const sdl::TouchFingerEvent* f = (const sdl::TouchFingerEvent*)ev;
+		touch_controls_finger(f->fingerId, type == sdl::FINGERDOWN ? 0 : type == sdl::FINGERMOTION ? 1 : 2, f->x, f->y);
+		return;
+	}
+	if (type == sdl::CBUTTONDOWN
+	    || (type == sdl::CAXIS && abs(((const sdl::ControllerAxisEvent*)ev)->value) > 16000))
+		touch_controls_controller_used();
 	switch (type) {
 	case sdl::KEYDOWN:
 	case sdl::KEYUP: {
@@ -386,8 +465,13 @@ void on_event(const union SDL_Event* ev)
 		if (type == sdl::KEYDOWN)
 			for (int i = 0; i < g_nbind[C_QUIT]; i++)
 				if (g_bind[C_QUIT][i] == k->scancode) {
+#ifdef __ANDROID__
+					if (!k->repeat)
+						port_open_menu(); // Esc opens the in-game menu; quitting is there
+#else
 					port_log("[pad] quit key pressed\n");
 					exit(0);
+#endif
 				}
 		break;
 	}
@@ -397,6 +481,12 @@ void on_event(const union SDL_Event* ev)
 			g_mouseDX += m->xrel;
 			g_mouseDY += m->yrel;
 		}
+		break;
+	}
+	case sdl::JAXIS: {
+		const sdl::ControllerAxisEvent* a = (const sdl::ControllerAxisEvent*)ev; // same layout
+		if (a->axis < kRawAxes)
+			g_rawAxis[a->axis] = a->value;
 		break;
 	}
 	case sdl::CAXIS: {
@@ -487,13 +577,188 @@ int analog_trigger(int c)
 	return held(c) ? 255 : v;
 }
 
-s8 axis8(int v, int range)
+void stick_init()
 {
-	int x = v * range / 32767;
-	if (x > -8 && x < 8)
-		x = 0; // dead zone
-	return (s8)(x > 127 ? 127 : x < -128 ? -128 : x);
+	const char* dz[2] = { "SMS_STICK_DEADZONE", "SMS_CSTICK_DEADZONE" };
+	const char* se[2] = { "SMS_STICK_SENSITIVITY", "SMS_CSTICK_SENSITIVITY" };
+	for (int i = 0; i < 2; i++) {
+		if (const char* e = getenv(dz[i])) {
+			float v = (float)atof(e) / 100.0f;
+			g_dz[i] = v < 0 ? 0 : v > 0.6f ? 0.6f : v;
+		}
+		if (const char* e = getenv(se[i])) {
+			float v = (float)atof(e) / 100.0f;
+			g_sens[i] = v < 0.25f ? 0.25f : v > 3.0f ? 3.0f : v;
+		}
+	}
+	const char* cal[2] = { "SMS_CAL_LEFT", "SMS_CAL_RIGHT" };
+	for (int i = 0; i < 2; i++) {
+		StickCal& c = g_cal[i];
+		const char* e = getenv(cal[i]);
+		c.on = e && sscanf(e, "%f,%f,%f,%f,%f,%f", &c.cx, &c.cy, &c.minx, &c.maxx, &c.miny, &c.maxy) == 6
+		       && c.maxx > c.cx && c.minx < c.cx && c.maxy > c.cy && c.miny < c.cy;
+		if (c.on)
+			port_log("[pad] %s stick calibrated: centre %.3f,%.3f x %.2f..%.2f y %.2f..%.2f\n", i ? "right" : "left",
+			         c.cx, c.cy, c.minx, c.maxx, c.miny, c.maxy);
+	}
+	if (g_dz[0] != 0.08f || g_dz[1] != 0.08f || g_sens[0] != 1.0f || g_sens[1] != 1.0f)
+		port_log("[pad] sticks: dead zone %d%%/%d%%, sensitivity %d%%/%d%%\n", (int)(g_dz[0] * 100 + 0.5f),
+		         (int)(g_dz[1] * 100 + 0.5f), (int)(g_sens[0] * 100 + 0.5f), (int)(g_sens[1] * 100 + 0.5f));
 }
+
+float cal_axis(float v, float c, float mn, float mx)
+{
+	float r = v >= c ? (v - c) / (mx - c > 0.05f ? mx - c : 0.05f) : (v - c) / (c - mn > 0.05f ? c - mn : 0.05f);
+	return r > 1 ? 1 : r < -1 ? -1 : r;
+}
+
+// A controller stick (role 0 move, 1 camera) as GameCube stick units (about
+// +-100 at the rim, y up), with its dead zone, sensitivity and calibration.
+void read_stick(int role, int* ox, int* oy)
+{
+	const int base = g_stickBase[role];
+	if (base < 0) {
+		*ox = *oy = 0;
+		return;
+	}
+	float fx = g_axis[base] / 32767.0f, fy = g_axis[base + 1] / 32767.0f;
+	const StickAxis* hand = g_stickAxis[role];
+	if (hand[0].idx >= 0)
+		fx = hand[0].sign * (g_rawAxis[hand[0].idx] / 32767.0f);
+	if (hand[1].idx >= 0)
+		fy = hand[1].sign * (g_rawAxis[hand[1].idx] / 32767.0f);
+	const StickCal& c = g_cal[base >= 2 ? 1 : 0];
+	if (c.on) {
+		fx = cal_axis(fx, c.cx, c.minx, c.maxx);
+		fy = cal_axis(fy, c.cy, c.miny, c.maxy);
+	}
+	float r = sqrtf(fx * fx + fy * fy);
+	float dz = g_dz[role];
+	if (r <= dz || r < 1e-4f) {
+		*ox = *oy = 0;
+		return;
+	}
+	float nr = (r - dz) / (1.0f - dz) * g_sens[role];
+	if (nr > 1.0f)
+		nr = 1.0f;
+	fx *= nr / r;
+	fy *= nr / r;
+	*ox = (int)lrintf(fx * 100.0f);
+	*oy = (int)lrintf(-fy * 100.0f);
+}
+
+#ifdef __ANDROID__
+// Mareshine's controller mapping (Settings -> Controller, SMS_PAD_MAP): which
+// SDL controller button (bN) or trigger axis (a4, a5) drives each control, e.g.
+//   A=b0 B=b1 Z=b9,b4 L=a4 R=a5 R_SOFT=b10 STICK=a0 CSTICK=a2 STICK_X=-j3
+// "none" unbinds one. STICK and CSTICK name the first axis of a stick (a0
+// left, a2 right); STICK_X/_Y and CSTICK_X/_Y=[-]jN a single raw axis by hand.
+// HOTKEY held with SAVE_STATE or LOAD_STATE saves or loads (two-button
+// bindings here, with their masking); MENU tapped alone opens the menu.
+// It becomes the PAD_ bindings above, in place of their defaults.
+const char* const kMareshinePadMap =
+    "A=b0 B=b1 X=b2 Y=b3 Z=b9 L=a4 R=a5 R_SOFT=b10 START=b6 "
+    "DPAD_UP=b11 DPAD_DOWN=b12 DPAD_LEFT=b13 DPAD_RIGHT=b14 STICK=a0 CSTICK=a2 "
+    "HOTKEY=b4 SAVE_STATE=b10 LOAD_STATE=b9 MENU=b4"; // Select held: + R1 quick save, + L1 quick load;
+                                                      // Select tapped: the quick menu
+
+void parse_pad_map(const char* text, int hotkey[4], int& nHotkey, int save[4], int& nSave, int load[4], int& nLoad)
+{
+	static const struct {
+		const char* name;
+		int control; // -1 one of the special ones below
+	} kNames[] = {
+		{ "A", C_A }, { "B", C_B }, { "X", C_X }, { "Y", C_Y }, { "Z", C_Z }, { "L", C_L }, { "R", C_R },
+		{ "R_SOFT", C_RSOFT }, { "L_SOFT", C_LSOFT }, { "START", C_START }, { "DPAD_UP", C_DUP },
+		{ "DPAD_DOWN", C_DDOWN }, { "DPAD_LEFT", C_DLEFT }, { "DPAD_RIGHT", C_DRIGHT }, { "STICK", -1 },
+		{ "CSTICK", -1 }, { "HOTKEY", -1 }, { "SAVE_STATE", -1 }, { "LOAD_STATE", -1 }, { "MENU", -1 },
+	};
+	char buf[1024];
+	snprintf(buf, sizeof buf, "%s", text);
+	char* save_ = NULL;
+	for (char* tok = strtok_r(buf, " \t;\n", &save_); tok; tok = strtok_r(NULL, " \t;\n", &save_)) {
+		char* eq = strchr(tok, '=');
+		if (!eq)
+			continue;
+		*eq = 0;
+		const char* v = eq + 1;
+		static const char* const kAxes[4] = { "STICK_X", "STICK_Y", "CSTICK_X", "CSTICK_Y" };
+		bool axis = false;
+		for (int i = 0; i < 4 && !axis; i++)
+			if (!strcasecmp(kAxes[i], tok)) {
+				axis = true;
+				StickAxis& a = g_stickAxis[i / 2][i % 2];
+				a = { -1, 1 };
+				const int sign = *v == '-' ? -1 : 1;
+				const char* j = v + (*v == '-');
+				if (j[0] == 'j' && isdigit((unsigned char)j[1]) && atoi(j + 1) < kRawAxes)
+					a = { atoi(j + 1), sign };
+			}
+		if (axis)
+			continue;
+		int which = -1;
+		for (size_t i = 0; i < sizeof kNames / sizeof kNames[0]; i++)
+			if (!strcasecmp(kNames[i].name, tok))
+				which = (int)i;
+		if (which < 0) {
+			port_log("[pad] SMS_PAD_MAP: unknown control '%s'\n", tok);
+			continue;
+		}
+		const char* name = kNames[which].name;
+		// the sources: SDL buttons, the trigger axes; a stick's first axis
+		int src[4], n = 0, stick = -1;
+		char list[64];
+		snprintf(list, sizeof list, "%s", v);
+		char* save2 = NULL;
+		for (char* part = strtok_r(list, ",", &save2); part && n < 4; part = strtok_r(NULL, ",", &save2)) {
+			const int idx = isdigit((unsigned char)part[1]) ? atoi(part + 1) : -1;
+			if (part[0] == 'b' && idx >= 0 && idx < 21)
+				src[n++] = idx;
+			else if (part[0] == 'a' && (idx == 4 || idx == 5))
+				src[n++] = idx == 4 ? PAD_SRC_LT : PAD_SRC_RT;
+			else if (part[0] == 'a' && (idx == 0 || idx == 2))
+				stick = idx;
+		}
+		if (!strcmp(name, "STICK") || !strcmp(name, "CSTICK")) {
+			g_stickBase[name[0] == 'C'] = stick;
+		} else if (!strcmp(name, "HOTKEY") || !strcmp(name, "SAVE_STATE") || !strcmp(name, "LOAD_STATE")) {
+			int* out = name[0] == 'H' ? hotkey : name[0] == 'S' ? save : load;
+			int& count = name[0] == 'H' ? nHotkey : name[0] == 'S' ? nSave : nLoad;
+			memcpy(out, src, sizeof src[0] * n);
+			count = n;
+		} else if (!strcmp(name, "MENU")) {
+			memcpy(g_menuButtons, src, sizeof src[0] * n);
+			g_nMenuButtons = n;
+		} else {
+			const int c = kNames[which].control;
+			memcpy(g_pbind[c], src, sizeof src[0] * n);
+			g_npbind[c] = n;
+		}
+	}
+}
+
+// The app's mapping in place of the built-in controller layout.
+void apply_pad_map()
+{
+	int hotkey[4], save[4], load[4], nHotkey = 0, nSave = 0, nLoad = 0;
+	parse_pad_map(kMareshinePadMap, hotkey, nHotkey, save, nSave, load, nLoad);
+	if (const char* r = getenv("SMS_R1_SOFT_SPRAY"))
+		if (!strcmp(r, "0"))
+			parse_pad_map("Z=b9,b4,b10 R_SOFT=none", hotkey, nHotkey, save, nSave, load, nLoad);
+	if (const char* m = getenv("SMS_PAD_MAP")) {
+		parse_pad_map(m, hotkey, nHotkey, save, nSave, load, nLoad);
+		port_log("[pad] controller mapping: %s\n", m);
+	}
+	// HOTKEY + SAVE_STATE / LOAD_STATE: every pair of their buttons
+	g_npbind[C_SAVESTATE] = g_npbind[C_LOADSTATE] = 0;
+	for (int h = 0; h < nHotkey; h++) {
+		for (int i = 0; i < nSave && g_npbind[C_SAVESTATE] < kMaxPad; i++)
+			g_pbind[C_SAVESTATE][g_npbind[C_SAVESTATE]++] = combo(hotkey[h], save[i]);
+		for (int i = 0; i < nLoad && g_npbind[C_LOADSTATE] < kMaxPad; i++)
+			g_pbind[C_LOADSTATE][g_npbind[C_LOADSTATE]++] = combo(hotkey[h], load[i]);
+	}
+}
+#endif
 
 void autopress_init();
 
@@ -534,8 +799,16 @@ void init()
 	for (size_t i = 0; i < sizeof kDefaultPad / sizeof kDefaultPad[0]; i++)
 		g_pbind[kDefaultPad[i].control][g_npbind[kDefaultPad[i].control]++] = kDefaultPad[i].source;
 	parse_bindings(kDefaultBindings, "defaults");
+#ifdef __ANDROID__
+	apply_pad_map();
+	if (!getenv("SMS_SOFT_TRIGGER"))
+		g_softTrigger = 180; // Mareshine's soft R: spraying while running
+#endif
+	stick_init();
 	g_invert_cx = env_on("SMS_CAMERA_INVERT_X");
 	g_invert_cy = env_on("SMS_CAMERA_INVERT_Y");
+	g_invert_aim_x = env_on("SMS_FLUDD_INVERT_X");
+	g_invert_aim_y = env_on("SMS_FLUDD_INVERT_Y");
 	if (g_invert_cx || g_invert_cy)
 		port_log("[pad] camera inverted:%s%s\n", g_invert_cx ? " X" : "", g_invert_cy ? " Y" : "");
 	const char* path = getenv("SMS_BINDINGS");
@@ -709,6 +982,58 @@ extern "C" BOOL PADSync(void) { return TRUE; }
 extern "C" void PADSetSpec(u32) {}
 extern "C" void PADSetAnalogMode(u32) {}
 extern "C" void PADSetSamplingRate(unsigned long) {}
+#ifdef __ANDROID__
+// Mareshine's vibration: on the controllers in use (SMS_VIBRATION_CONTROLLER)
+// and on the phone itself (SMS_VIBRATION_PHONE), each in percent of full
+// strength (80 by default, 0 off); the in-game menu and the game's own Rumble
+// option (rumble_game.cpp) can change both while the game runs. The game
+// rumbles weakly by switching the motor on in only some frames (RumbleMgr);
+// here that becomes one steady rumble, as strong as the share of frames it is
+// on, until it stays off a few frames.
+extern "C" int port_vibration_percent(const char* name)
+{
+	const char* e = getenv(name);
+	int p         = e && *e ? atoi(e) : 80;
+	return p < 0 ? 0 : p > 100 ? 100 : p;
+}
+
+extern "C" void PADControlMotor(s32 chan, u32 command)
+{
+	if (chan != 0)
+		return;
+	init();
+	static float s_duty;
+	static int s_offFrames = 99, s_level, s_refresh;
+	static bool s_pads, s_phone; // where it rumbles now
+	if (!g_focused)
+		command = PAD_MOTOR_STOP;
+	s_duty      = s_duty * 0.85f + (command == PAD_MOTOR_RUMBLE ? 0.15f : 0.0f);
+	s_offFrames = command == PAD_MOTOR_RUMBLE ? 0 : s_offFrames + 1;
+	// strength in quarters (0 = off), at least a quarter while it rumbles
+	int level = s_offFrames > 4 ? 0 : 1 + (int)(s_duty * 3.0f + 0.5f);
+	if (level > 4)
+		level = 4;
+	g_motor = level > 0;
+	if (level == s_level && (level == 0 || ++s_refresh < 120))
+		return;
+	s_refresh = 0;
+	s_level   = level;
+	const int padPct   = level ? port_vibration_percent("SMS_VIBRATION_CONTROLLER") : 0;
+	const int phonePct = level ? port_vibration_percent("SMS_VIBRATION_PHONE") : 0;
+	// the game's strength times the setting; a weak rumble stays one that is felt
+	auto strength = [level](int pct) {
+		float f = level / 4.0f * pct / 100.0f;
+		return f < 0.12f ? 0.12f : f;
+	};
+	if ((padPct || s_pads) && sms_gx_rumble)
+		sms_gx_rumble(padPct ? (unsigned short)(strength(padPct) * 65535.0f) : 0);
+	gc_adapter_rumble(padPct > 0);
+	if ((phonePct || s_phone) && SDL_AndroidSendMessage) // SunshineActivity.COMMAND_RUMBLE
+		SDL_AndroidSendMessage(0x8005, phonePct ? (int)(strength(phonePct) * 255.0f) : 0);
+	s_pads  = padPct > 0;
+	s_phone = phonePct > 0;
+}
+#else
 extern "C" void PADControlMotor(s32 chan, u32 command)
 {
 	if (chan != 0)
@@ -717,6 +1042,7 @@ extern "C" void PADControlMotor(s32 chan, u32 command)
 	g_motor = command == PAD_MOTOR_RUMBLE;
 	update_rumble();
 }
+#endif
 extern "C" void PADControlAllMotors(const u32* commands) { PADControlMotor(0, commands[0]); }
 
 extern "C" __attribute__((weak)) int port_trace_pad_read(struct PADStatus* status);
@@ -738,6 +1064,37 @@ extern "C" u32 PADRead(PADStatus* status)
 		memset(&status[i], 0, sizeof status[i]);
 		status[i].err = i == 0 ? PAD_ERR_NONE : PAD_ERR_NO_CONTROLLER;
 	}
+#ifdef __ANDROID__
+	// Select + Start and the Home/Guide button: the in-game menu, which takes
+	// the press (the game does not see Start). A tap of MENU (Select by
+	// default) alone opens it too, unless it saved or loaded meanwhile.
+	{
+		static bool s_comboWas;
+		const bool combo = (g_cbtn[4] && g_cbtn[6]) || g_cbtn[5];
+		if (combo && !s_comboWas)
+			port_open_menu();
+		s_comboWas = combo;
+		if (combo)
+			g_cbtn[4] = g_cbtn[5] = g_cbtn[6] = false;
+		static bool s_menuWas, s_menuUsed;
+		static int s_menuFrames;
+		bool menu = false;
+		for (int i = 0; i < g_nMenuButtons; i++)
+			menu = menu || pad_down(g_menuButtons[i]);
+		if (menu) {
+			if (!s_menuWas) {
+				s_menuUsed   = false;
+				s_menuFrames = 0;
+			}
+			s_menuFrames++;
+			if (held(C_SAVESTATE) || held(C_LOADSTATE))
+				s_menuUsed = true;
+		} else if (s_menuWas && !s_menuUsed && s_menuFrames < 20) {
+			port_open_menu();
+		}
+		s_menuWas = menu;
+	}
+#endif
 	combo_masks();
 	const bool blocked = GXPC_GameInputBlocked && GXPC_GameInputBlocked();
 	// Port actions on their press, not while a menu has the input.
@@ -817,10 +1174,11 @@ extern "C" u32 PADRead(PADStatus* status)
 		x = x * 7 / 10;
 		y = y * 7 / 10;
 	}
-	int sx = axis8(g_axis[0], 100), sy = axis8(-g_axis[1], 100);
+	int sx, sy, pcx, pcy;
+	read_stick(0, &sx, &sy);
+	read_stick(1, &pcx, &pcy);
 	int cx = held(C_CRIGHT) * 100 - held(C_CLEFT) * 100;
 	int cy = held(C_CUP) * 100 - held(C_CDOWN) * 100;
-	int pcx = axis8(g_axis[2], 100), pcy = axis8(-g_axis[3], 100);
 	if (haveGc && (gc.lx || gc.ly)) { sx = gc.lx; sy = gc.ly; }
 	if (haveGc && (gc.cx || gc.cy)) { pcx = gc.cx; pcy = gc.cy; }
 	s.stickX    = (s8)(x ? x : sx);
@@ -829,6 +1187,7 @@ extern "C" u32 PADRead(PADStatus* status)
 	cy          = cy ? cy : pcy;
 	s.substickX = (s8)(g_invert_cx ? -cx : cx);
 	s.substickY = (s8)(g_invert_cy ? -cy : cy);
+	touch_controls_pad(&s);
 	return PAD_CHAN0_BIT;
 }
 
@@ -850,6 +1209,15 @@ extern "C" int port_camera_take_mouse(f32* dx, f32* dy)
 		*dy = -*dy;
 	g_mouseDX = g_mouseDY = 0;
 	return 1;
+}
+
+// FLUDD's aim is turned where the game reads it (decomp-patches/port-05),
+// never in PADRead: the same left stick walks, strafes and works the menus.
+extern "C" float port_fludd_aim_axis(float value, int axis)
+{
+	init();
+	const bool flip = axis == 0 ? g_invert_aim_x : axis == 1 && g_invert_aim_y;
+	return flip ? -value : value;
 }
 
 // PADClamp comes from the decomp (libs/dolphin/src/pad/Padclamp.c, see CMakeLists.txt).
