@@ -30,6 +30,9 @@
 #include <sys/stat.h>
 #include "port_host.h"
 #include <errno.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 #include <dolphin/dvd.h>
 
 namespace {
@@ -61,7 +64,14 @@ std::string card_dir()
 {
 	if (!g_dir.empty())
 		return g_dir;
-	if (const char* d = getenv("SMS_SAVE_DIR"))
+	// Mareshine: SMS_SWEEP plays from a fresh card of its own every start
+	// (SMS_SWEEP_DIR/card-<process>), so its scripted start never meets the
+	// player's saves or an earlier start's
+	const char* sweep = getenv("SMS_SWEEP");
+	const char* sweepDir = getenv("SMS_SWEEP_DIR");
+	if (sweep && *sweep && sweepDir && *sweepDir)
+		g_dir = std::string(sweepDir) + "/card-" + std::to_string((long)getpid());
+	else if (const char* d = getenv("SMS_SAVE_DIR"))
 		g_dir = d;
 	else if (const char* x = getenv("XDG_DATA_HOME"))
 		g_dir = std::string(x) + "/sms-port/card-a";

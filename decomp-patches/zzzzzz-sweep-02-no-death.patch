@@ -1,0 +1,24 @@
+Reason: port: while SMS_SWEEP runs, the player's Mario does not die, so the sweep is not sent back to an area's start
+--- a/src/Player/MarioCollision.cpp
++++ b/src/Player/MarioCollision.cpp
+@@ -10,6 +10,7 @@
+ 
+ #ifdef TARGET_PC
+ extern "C" int port_cheat_god_mode;
++extern "C" int port_sweep_active; // SMS_SWEEP (System/Application.cpp)
+ #endif
+ 
+ #include <Player/WaterGun.hpp>
+@@ -235,6 +236,12 @@
+ 
+ void TMario::loserExec()
+ {
++#ifdef TARGET_PC
++	// SMS_SWEEP: the player's Mario does not die (drowning, death planes,
++	// pits); the sweep moves him on itself
++	if (port_sweep_active && isMario())
++		return;
++#endif
+ 	// volatile u32 padding[2];
+ 	if (getStatus() != MARIO_STATUS_SWIM_DOWN
+ 	    && getStatus() != MARIO_STATUS_ELEC_DOWN

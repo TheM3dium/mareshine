@@ -104,3 +104,8 @@ void savestateOverlayRender(int winW, int winH) {
 }
 
 }  // namespace gx
+
+// A picture as a JPEG (Mareshine: SMS_SWEEP's shots, platform/vi/vi.cpp).
+extern "C" int GXPC_WriteJpeg(const char* path, const uint8_t* rgba, int w, int h, int quality) {
+    return stbi_write_jpg(path, w, h, 4, rgba, quality);
+}

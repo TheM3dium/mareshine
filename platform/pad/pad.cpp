@@ -22,6 +22,9 @@
 #include <math.h>
 #include <time.h>
 #include <algorithm>
+#include <unistd.h>
+#include <pthread.h>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -268,6 +271,10 @@ bool g_invert_aim_x, g_invert_aim_y;
 // The MENU button's controller buttons (SMS_PAD_MAP MENU, Select by default):
 // tapped twice, they open the in-game menu.
 int g_menuButtons[4], g_nMenuButtons;
+// SMS_SWEEP's presses this frame (port_sweep_input, port_sweep_cstick)
+u16 g_sweepButtons;
+u8 g_sweepTriggerL;
+s8 g_sweepCx;
 // SMS_CAMERA_INVERT_X / SMS_CAMERA_INVERT_Y=1 flip the C-stick, which only
 // turns the camera.
 bool g_invert_cx, g_invert_cy;
@@ -1244,6 +1251,14 @@ extern "C" u32 PADRead(PADStatus* status)
 	s.substickX = (s8)(g_invert_cx ? -cx : cx);
 	s.substickY = (s8)(g_invert_cy ? -cy : cy);
 	touch_controls_pad(&s);
+	// SMS_SWEEP's presses (System/Application.cpp, port_sweep_input)
+	if (g_sweepButtons) {
+		s.button |= g_sweepButtons;
+		if (g_sweepTriggerL)
+			s.triggerLeft = (u8)g_sweepTriggerL;
+	}
+	if (g_sweepCx)
+		s.substickX = g_sweepCx;
 	return PAD_CHAN0_BIT;
 }
 
@@ -1265,6 +1280,65 @@ extern "C" int port_camera_take_mouse(f32* dx, f32* dy)
 		*dy = -*dy;
 	g_mouseDX = g_mouseDY = 0;
 	return 1;
+}
+
+// SMS_SWEEP (decomp patch zzzzzz-sweep-01): the buttons it holds this frame,
+// the clock it times frames with, and a watchdog: a game thread that stops
+// calling port_sweep_heartbeat for SMS_SWEEP_HANG seconds (60) is a hang,
+// which aborts the process, so the run can be started again after it.
+extern "C" void port_sweep_input(u16 buttons, s8 triggerL)
+{
+	g_sweepButtons  = buttons;
+	g_sweepTriggerL = (u8)triggerL;
+	g_sweepCx       = 0;
+}
+
+// The C-stick held sideways (the camera turning), until the next port_sweep_input
+extern "C" void port_sweep_cstick(s8 x) { g_sweepCx = x; }
+
+extern "C" double port_sweep_seconds(void)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return t.tv_sec + t.tv_nsec * 1e-9;
+}
+
+// CPU time of the calling thread (the game's work, without its waits)
+extern "C" double port_sweep_thread_seconds(void)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
+	return t.tv_sec + t.tv_nsec * 1e-9;
+}
+
+namespace {
+std::atomic<double> g_sweepBeat{0};
+void* sweep_watchdog(void*)
+{
+	const char* e    = getenv("SMS_SWEEP_HANG");
+	const double max = e && atof(e) > 0 ? atof(e) : 60.0;
+	for (;;) {
+		sleep(2);
+		const double beat = g_sweepBeat.load();
+		if (beat > 0 && port_sweep_seconds() - beat > max) {
+			port_log("[sweep] no frame for %.0f s: hang, aborting\n", max);
+			abort();
+		}
+	}
+	return nullptr;
+}
+} // namespace
+
+extern "C" void port_sweep_heartbeat(void)
+{
+	static bool started;
+	if (!started) {
+		started = true;
+		pthread_t t;
+		if (pthread_create(&t, nullptr, sweep_watchdog, nullptr) == 0)
+			pthread_detach(t);
+	}
+	g_sweepBeat.store(port_sweep_seconds());
 }
 
 // FLUDD's aim is turned where the game reads it (decomp-patches/port-05),
