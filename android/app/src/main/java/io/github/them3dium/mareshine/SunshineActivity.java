@@ -179,6 +179,11 @@ public class SunshineActivity extends SDLActivity {
     // and the phone's << 8)
     private static final int COMMAND_RUMBLE_OPTION = 0x8006;
 
+    // platform/pad's PADControlMotor: the controllers' vibration through
+    // Android (SDL rumbles only controllers its HIDAPI drivers run), param
+    // its strength 1..255, 0 stops it
+    private static final int COMMAND_PAD_RUMBLE = 0x800A;
+
     // platform/pad/touch.cpp: a touch button's feedback, param 1
     // for a light tick, 2 for a click (the R slider reaching R+)
     private static final int COMMAND_HAPTIC = 0x8007;
@@ -336,6 +341,10 @@ public class SunshineActivity extends SDLActivity {
             rumble((Integer) param);
             return true;
         }
+        if (command == COMMAND_PAD_RUMBLE && param instanceof Integer) {
+            padRumble((Integer) param);
+            return true;
+        }
         if (command == COMMAND_HAPTIC && param instanceof Integer) {
             haptic((Integer) param);
             return true;
@@ -418,6 +427,35 @@ public class SunshineActivity extends SDLActivity {
         }
     }
 
+    // Every connected controller with a motor Android can drive, at one strength
+    // (renewed by platform/pad while it lasts, which also stops it).
+    private void padRumble(int strength) {
+        if (Build.VERSION.SDK_INT < 26) return;
+        int amp = Math.max(1, Math.min(255, strength));
+        for (int id : android.view.InputDevice.getDeviceIds()) {
+            android.view.InputDevice d = android.view.InputDevice.getDevice(id);
+            if (d == null || d.isVirtual()) continue;
+            int src = d.getSources();
+            if ((src & android.view.InputDevice.SOURCE_GAMEPAD) != android.view.InputDevice.SOURCE_GAMEPAD
+                && (src & android.view.InputDevice.SOURCE_JOYSTICK) != android.view.InputDevice.SOURCE_JOYSTICK) continue;
+            try {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    android.os.VibratorManager vm = d.getVibratorManager();
+                    if (vm.getVibratorIds().length == 0) continue;
+                    if (strength <= 0) vm.cancel();
+                    else vm.vibrate(android.os.CombinedVibration.createParallel(
+                        android.os.VibrationEffect.createOneShot(2500, amp)));
+                } else {
+                    android.os.Vibrator v = d.getVibrator();
+                    if (v == null || !v.hasVibrator()) continue;
+                    if (strength <= 0) v.cancel();
+                    else v.vibrate(android.os.VibrationEffect.createOneShot(2500,
+                        v.hasAmplitudeControl() ? amp : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                }
+            } catch (RuntimeException ignored) {}  // a controller gone meanwhile
+        }
+    }
+
     // A short tick or click for the touch buttons, left out while the game
     // rumbles (it would cut that rumble short).
     private void haptic(int kind) {
@@ -438,6 +476,7 @@ public class SunshineActivity extends SDLActivity {
     protected void onPause() {
         super.onPause();
         rumble(0);
+        padRumble(0);
     }
 
     // Touch: three fingers swiped down from the top of the screen open the

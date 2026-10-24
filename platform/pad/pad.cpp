@@ -1082,6 +1082,10 @@ extern "C" void PADControlMotor(s32 chan, u32 command)
 	};
 	if ((padPct || s_pads) && sms_gx_rumble)
 		sms_gx_rumble(padPct ? (unsigned short)(strength(padPct) * 65535.0f) : 0);
+	// SDL drives only controllers its HIDAPI drivers run: the app the others
+	// (SunshineActivity.COMMAND_PAD_RUMBLE)
+	if ((padPct || s_pads) && SDL_AndroidSendMessage)
+		SDL_AndroidSendMessage(0x800A, padPct ? (int)(strength(padPct) * 255.0f) : 0);
 	gc_adapter_rumble(padPct > 0);
 	if ((phonePct || s_phone) && SDL_AndroidSendMessage) // SunshineActivity.COMMAND_RUMBLE
 		SDL_AndroidSendMessage(0x8005, phonePct ? (int)(strength(phonePct) * 255.0f) : 0);

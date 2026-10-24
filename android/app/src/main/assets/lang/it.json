@@ -696,5 +696,11 @@
     "Moon jump": "Salto lunare",
     "Holding A in the air lifts Mario, so he can fly up anywhere.\n\nTakes effect the next time the game starts.": "Tenendo premuto A in aria Mario sale e può volare ovunque.\n\nHa effetto al prossimo avvio del gioco.",
     "Copy write-back": "Ricopia delle copie",
-    "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.": "Ricopia nella memoria del gioco ciò che il gioco disegna nelle proprie texture, come su GameCube. Disattivarlo può aumentare gli FPS sui dispositivi più deboli; la mappa della melma viene sempre copiata, quindi pulire la melma funziona ancora. Riavvia il gioco dopo averlo cambiato."
+    "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.": "Ricopia nella memoria del gioco ciò che il gioco disegna nelle proprie texture, come su GameCube. Disattivarlo può aumentare gli FPS sui dispositivi più deboli; la mappa della melma viene sempre copiata, quindi pulire la melma funziona ancora. Riavvia il gioco dopo averlo cambiato.",
+    "Takes effect after the game restarts.": "Ha effetto dopo il riavvio del gioco.",
+    "Install the languages again from your own EU .iso file": "Reinstalla le lingue dal tuo .iso europeo",
+    "Delete the European disc image (%.1f GB)": "Elimina l'immagine disco europea (%.1f GB)",
+    "Delete the European disc image?": "Eliminare l'immagine disco europea?",
+    "The language packs do not need it any more. Delete %s?": "I pacchetti lingua non ne hanno più bisogno. Eliminare %s?",
+    "The European disc could not be deleted": "Non è stato possibile eliminare il disco europeo"
 }

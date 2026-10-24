@@ -153,7 +153,13 @@ public class SettingsActivity extends AppActivity {
         }
 
         @Override String value() { return get() + "%" + (get() == def ? t(" (default)") : ""); }
-        @Override void step(int dir) { set(get() + dir * stepSize); }
+        // past either end it wraps round: left from the lowest goes to the highest
+        @Override void step(int dir) {
+            int v = get();
+            if (dir < 0 && v <= min) set(max);
+            else if (dir > 0 && v >= max) set(min);
+            else set(v + dir * stepSize);
+        }
         @Override void click() { openSlider(this); }
     }
 
@@ -596,7 +602,17 @@ public class SettingsActivity extends AppActivity {
         bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFFC531));
         bar.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFFB020));
         bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2A5A85));
-        bar.setKeyProgressIncrement(1);
+        bar.setKeyProgressIncrement(sl.stepSize);
+        // the D-pad steps like the row does, wrapping round past either end
+        bar.setOnKeyListener((v, code, ev) -> {
+            if (ev.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+            int dir = code == android.view.KeyEvent.KEYCODE_DPAD_LEFT ? -1
+                : code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : 0;
+            if (dir == 0) return false;
+            sl.step(dir);
+            bar.setProgress(sl.get() - sl.min);
+            return true;
+        });
         bar.setPadding(dp(16), dp(14), dp(16), dp(14));
         bar.setBackgroundResource(R.drawable.dl_row);
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
@@ -901,11 +917,31 @@ public class SettingsActivity extends AppActivity {
             boolean subtitles() { return !"0".equals(mSettings.getOrDefault("SMS_SUBTITLES", "1")); }
 
             @Override String[] extras() {
-                return new String[] {t("Extract languages from your own EU .iso file"),
-                    t("Subtitles in cutscenes") + ": " + t(subtitles() ? "On" : "Off")};
+                java.io.File pal = LanguagePackActivity.europeanDisc(ctx());
+                List<String> e = new ArrayList<>();
+                e.add(values.length > 1 ? t("Install the languages again from your own EU .iso file")
+                                        : t("Extract languages from your own EU .iso file"));
+                e.add(t("Subtitles in cutscenes") + ": " + t(subtitles() ? "On" : "Off"));
+                if (pal != null) e.add(t("Delete the European disc image (%.1f GB)", pal.length() / 1e9));
+                return e.toArray(new String[0]);
             }
 
             @Override void extra(int i) {
+                if (i == 2) {
+                    java.io.File pal = LanguagePackActivity.europeanDisc(ctx());
+                    if (pal == null) return;
+                    dialog().setTitle(t("Delete the European disc image?"))
+                        .setMessage(t("The language packs do not need it any more. Delete %s?", pal.getName()))
+                        .setPositiveButton(t("Delete it"), (d, w) -> {
+                            String err = LanguagePackActivity.deleteDisc(pal);
+                            if (err != null)
+                                dialog().setTitle(t("The European disc could not be deleted")).setMessage(err)
+                                    .setPositiveButton(t("OK"), null).show();
+                            refreshValues();
+                        })
+                        .setNegativeButton(t("Cancel"), null).show();
+                    return;
+                }
                 if (i == 0) {
                     if (mInGame)
                         android.widget.Toast.makeText(ctx(), t("Only in the main menu, not while the game runs."),
@@ -1088,6 +1124,9 @@ public class SettingsActivity extends AppActivity {
         add(new Toggle("disable_reflections", "Reflections", "Reflections on water and shiny surfaces.", true, true));
         add(new Toggle("disable_water_anim", "Water animation", "The animated water surface.", true, true));
         add(new Toggle("disable_shimmer", "Heat shimmer", "The shimmer and glow effects.", true, true));
+        add(new Toggle("copy_writeback", "Copy write-back",
+            "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.",
+            true, false));
         section("RESET");
         add(new Action("Reset video settings", "Sets the VIDEO tab back to Recommended (HD).", () -> "", () -> {
             for (int k = 0; k < PRESET_KEYS.length; k++) mSettings.put(PRESET_KEYS[k], PRESETS[0][k + 1]);
@@ -1294,6 +1333,13 @@ public class SettingsActivity extends AppActivity {
         mSettings.put(CutscenePack.SETTING, next.equals("thp") ? CutscenePack.dir(this).getAbsolutePath() : "0");
         mSettings.put(CutsceneActivity.MP4_SETTING, next.equals("mp4") ? CutsceneActivity.mp4Dir(this).getAbsolutePath() : "0");
         saved();
+        restartNote();
+    }
+
+    // In the game's menu: a setting the game reads when it starts
+    private void restartNote() {
+        if (mInGame)
+            android.widget.Toast.makeText(this, t("Takes effect after the game restarts."), android.widget.Toast.LENGTH_LONG).show();
     }
 
     private String cutsceneState() {
@@ -1360,6 +1406,13 @@ public class SettingsActivity extends AppActivity {
     }
 
     private void chooseMp4() {
+        if (mInGame && mp4Ready() && !mp4On()) {  // switching to the converted MP4s needs no main menu
+            mSettings.put(CutscenePack.SETTING, "0");
+            mSettings.put(CutsceneActivity.MP4_SETTING, CutsceneActivity.mp4Dir(this).getAbsolutePath());
+            saved();
+            restartNote();
+            return;
+        }
         if (mInGame) {
             android.widget.Toast.makeText(this, t("Quit to the main menu to change this."), android.widget.Toast.LENGTH_LONG).show();
             return;
@@ -1453,6 +1506,10 @@ public class SettingsActivity extends AppActivity {
         String cur = TexturePackActivity.installedPack(this);
         List<String> items = new ArrayList<>();
         List<Runnable> acts = new ArrayList<>();
+        if ("1080".equals(cur) || "4k".equals(cur)) {
+            items.add(t("Install again"));
+            acts.add(() -> startPackJob("4k".equals(cur) ? TexturePackActivity.JOB_4K : TexturePackActivity.JOB_1080));
+        }
         items.add(t("Download HD, 1080p  (156 MB, recommended)"));
         acts.add(() -> startPackJob(TexturePackActivity.JOB_1080));
         items.add(t("Download Ultra HD, 4K  (986 MB, 3.2 GB on the device)"));
@@ -1938,9 +1995,6 @@ public class SettingsActivity extends AppActivity {
         add(new Toggle("SMS_GX_DETAILED_TIMERS", "Detailed performance timings",
             "Measures rendering phases for diagnostics. Can reduce FPS. Restart the game after changing this.",
             false, false));
-        add(new Toggle("copy_writeback", "Copy write-back",
-            "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.",
-            true, false));
         add(new Choice("SMS_GX_PERSISTENT_BUFFER", "Persistent GPU buffer (test)",
             "Automatic enables it on supported Adreno GPUs. Restart the game after changing this.",
             Settings.def("SMS_GX_PERSISTENT_BUFFER", "auto"),

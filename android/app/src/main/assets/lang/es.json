@@ -695,5 +695,11 @@
     "Moon jump": "Salto lunar",
     "Holding A in the air lifts Mario, so he can fly up anywhere.\n\nTakes effect the next time the game starts.": "Si mantienes A en el aire, Mario sube y puede volar a cualquier sitio.\n\nSe aplica la próxima vez que se inicie el juego.",
     "Copy write-back": "Copiar de vuelta",
-    "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.": "Copia lo que el juego dibuja en sus propias texturas de vuelta a la memoria del juego, como en GameCube. Desactivarlo puede subir los FPS en dispositivos más débiles; el mapa de suciedad se copia siempre, así que limpiar la suciedad sigue funcionando. Reinicia el juego tras cambiarlo."
+    "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.": "Copia lo que el juego dibuja en sus propias texturas de vuelta a la memoria del juego, como en GameCube. Desactivarlo puede subir los FPS en dispositivos más débiles; el mapa de suciedad se copia siempre, así que limpiar la suciedad sigue funcionando. Reinicia el juego tras cambiarlo.",
+    "Takes effect after the game restarts.": "Se aplica tras reiniciar el juego.",
+    "Install the languages again from your own EU .iso file": "Volver a instalar los idiomas desde tu propio .iso europeo",
+    "Delete the European disc image (%.1f GB)": "Borrar la imagen de disco europea (%.1f GB)",
+    "Delete the European disc image?": "¿Borrar la imagen de disco europea?",
+    "The language packs do not need it any more. Delete %s?": "Los paquetes de idioma ya no lo necesitan. ¿Borrar %s?",
+    "The European disc could not be deleted": "No se pudo borrar el disco europeo"
 }
