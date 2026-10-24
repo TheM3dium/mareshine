@@ -213,6 +213,10 @@ set_source_files_properties(${SMS_DECOMP_PCH_SOURCES} PROPERTIES
 option(SMS_WITH_GX "Build and link platform/gx (the graphics layer)" ON)
 if(ANDROID)
   set(SMS_SDL2_SOURCE "" CACHE PATH "SDL2 source directory for Android")
+  # default: the release tools/build use, unpacked in build/deps/
+  if(NOT SMS_SDL2_SOURCE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/SDL2-2.32.10/CMakeLists.txt")
+    set(SMS_SDL2_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/SDL2-2.32.10" CACHE PATH "" FORCE)
+  endif()
   if(NOT EXISTS "${SMS_SDL2_SOURCE}/CMakeLists.txt")
     message(FATAL_ERROR "Set SMS_SDL2_SOURCE to an SDL2 source checkout")
   endif()
