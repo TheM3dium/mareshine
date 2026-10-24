@@ -158,7 +158,10 @@ public class SettingsActivity extends AppActivity {
             int v = get();
             if (dir < 0 && v <= min) set(max);
             else if (dir > 0 && v >= max) set(min);
-            else set(v + dir * stepSize);
+            else {  // to the next whole step (94 goes to 100 or 90)
+                int base = Math.floorDiv(v - min, stepSize) * stepSize + min;
+                set(dir > 0 ? base + stepSize : (base == v ? v - stepSize : base));
+            }
         }
         @Override void click() { openSlider(this); }
     }
@@ -597,22 +600,13 @@ public class SettingsActivity extends AppActivity {
         mOptList.addView(big);
 
         android.widget.SeekBar bar = new android.widget.SeekBar(this);
-        bar.setMax(sl.max - sl.min);
-        bar.setProgress(sl.get() - sl.min);
+        // in whole steps (10 % for most); the exact field takes any value
+        bar.setMax((sl.max - sl.min) / sl.stepSize);
+        bar.setProgress(Math.round((sl.get() - sl.min) / (float) sl.stepSize));
         bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFFC531));
         bar.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFFB020));
         bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2A5A85));
-        bar.setKeyProgressIncrement(sl.stepSize);
-        // the D-pad steps like the row does, wrapping round past either end
-        bar.setOnKeyListener((v, code, ev) -> {
-            if (ev.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
-            int dir = code == android.view.KeyEvent.KEYCODE_DPAD_LEFT ? -1
-                : code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : 0;
-            if (dir == 0) return false;
-            sl.step(dir);
-            bar.setProgress(sl.get() - sl.min);
-            return true;
-        });
+        bar.setKeyProgressIncrement(1);
         bar.setPadding(dp(16), dp(14), dp(16), dp(14));
         bar.setBackgroundResource(R.drawable.dl_row);
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
@@ -664,7 +658,8 @@ public class SettingsActivity extends AppActivity {
             updating[0] = true;
             int v = sl.get();
             big.setText(v + "%");
-            if (bar.getProgress() != v - sl.min) bar.setProgress(v - sl.min);
+            int p = Math.round((v - sl.min) / (float) sl.stepSize);
+            if (bar.getProgress() != p) bar.setProgress(p);
             if (!field.hasFocus()) field.setText(Integer.toString(v));
             updating[0] = false;
         };
@@ -672,7 +667,7 @@ public class SettingsActivity extends AppActivity {
         bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int p, boolean user) {
                 if (updating[0]) return;
-                sl.set(sl.min + p);
+                sl.set(sl.min + p * sl.stepSize);
                 show.run();
             }
             @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
@@ -702,7 +697,16 @@ public class SettingsActivity extends AppActivity {
             }
             return false;
         };
-        bar.setOnKeyListener(back);
+        // the D-pad steps like the row does, wrapping round past either end
+        bar.setOnKeyListener((v, code, ev) -> {
+            if (back.onKey(v, code, ev)) return true;
+            if (ev.getAction() != KeyEvent.ACTION_DOWN) return false;
+            int dir = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : 0;
+            if (dir == 0) return false;
+            sl.step(dir);
+            show.run();
+            return true;
+        });
         mExactField = field;
         mExactPick = () -> pickExact(sl, show, bar, field);
         mOptList.setVisibility(View.VISIBLE);
@@ -753,7 +757,9 @@ public class SettingsActivity extends AppActivity {
             int step = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1
                 : code == KeyEvent.KEYCODE_DPAD_DOWN ? -10 : code == KeyEvent.KEYCODE_DPAD_UP ? 10 : 0;
             if (step != 0) {
-                v[0] = Math.max(sl.min, Math.min(sl.max, v[0] + step));
+                // past either end it wraps round, as the row does
+                v[0] = v[0] + step > sl.max ? (v[0] == sl.max ? sl.min : sl.max)
+                     : v[0] + step < sl.min ? (v[0] == sl.min ? sl.max : sl.min) : v[0] + step;
                 draw.run();
                 return true;
             }
