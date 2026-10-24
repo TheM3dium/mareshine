@@ -62,6 +62,8 @@ public class SunshineActivity extends SDLActivity {
             nativeSetenv("SMS_SETTINGS", DataDir.settingsFile(this).getAbsolutePath());
             nativeSetenv("SMS_SAVE_DIR", DataDir.savesDir(this).getAbsolutePath());
             nativeSetenv("SMS_LANGUAGES_DIR", DataDir.languagesDir(this).getAbsolutePath());
+            // test builds (2.0-dev): the game shows test aids, such as "MP4" while an MP4 movie plays
+            if (Warp.available(this)) nativeSetenv("SMS_TEST_BUILD", "1");
             // Settings → VIDEO → HD textures (on unless turned off)
             boolean hd = !"0".equals(Settings.read(this).getOrDefault("SMS_HD_TEXTURES", "1"));
             // the enabled mods' textures after the pack's, so a mod's win (Mods)

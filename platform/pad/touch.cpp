@@ -754,8 +754,10 @@ extern "C" void touch_controls_draw(int winW, int winH)
 	const int percent = port_savestate_progress ? port_savestate_progress(&kind) : -1;
 	static int s_overlay = -1;
 	if (s_overlay < 0) {
+		// with the performance overlay, or always in a test build (SMS_TEST_BUILD, from the app)
 		const char* o = getenv("SMS_OVERLAY");
-		s_overlay = o && *o && strcmp(o, "0") != 0;
+		const char* t = getenv("SMS_TEST_BUILD");
+		s_overlay = (o && *o && strcmp(o, "0") != 0) || (t && *t && strcmp(t, "0") != 0);
 	}
 	const bool mp4 = s_overlay && port_mp4_showing && port_mp4_showing();
 	if (!visible() && percent < 0 && !mp4)

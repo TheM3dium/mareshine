@@ -1012,8 +1012,14 @@ void sms_gx_pump_events(void) {
         // is kept from the pad layer, release included. Otherwise they reach
         // the pad layer as any key or button does (PAD_BACK can be bound).
         const bool warpKey = (ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP) && ev.key.keysym.scancode == SDL_SCANCODE_F8;
+#ifdef __ANDROID__
+        // Mareshine: Select belongs to the app's quick menu (tapped twice) and the
+        // save state hotkey; the quick menu has its own WARP
+        const bool warpButton = false;
+#else
         const bool warpButton = (ev.type == SDL_CONTROLLERBUTTONDOWN || ev.type == SDL_CONTROLLERBUTTONUP) &&
                                 ev.cbutton.button == SDL_CONTROLLER_BUTTON_BACK;
+#endif
         if (warpKey || warpButton) {
             bool& held = s_warpToggleHeld[warpButton];
             const bool down = ev.type == SDL_KEYDOWN || ev.type == SDL_CONTROLLERBUTTONDOWN;

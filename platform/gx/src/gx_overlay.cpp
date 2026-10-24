@@ -197,7 +197,9 @@ void GXPC_OverlayDraw(int winW, int winH) {
                  "texture uploads %u   shader compiles %u\n"
                  "frames %u   up %d:%02d\n"
                  "window %dx%d\n"
-                 "GL %s\n"
+                 "GL %s"
+#ifndef __ANDROID__  // a phone has no keyboard: the numbers only (Mareshine)
+                 "\n"
                  "\n"
                  "KEYS (defaults, see bindings.txt)\n"
                  "Stick: arrows or WASD (hold LCtrl for half)\n"
@@ -208,7 +210,9 @@ void GXPC_OverlayDraw(int winW, int winH) {
                  "D-pad: 1 2 3 4\n"
                  "`: this overlay     F7: speed x1/x2/x4/x10\n"
                  "F8 or Select: warp menu     F9: cheat menu\n"
-                 "Esc: quit",
+                 "Esc: quit"
+#endif
+                 ,
                  s_clock.fps, s_clock.shownFps, s_clock.avgMs, s_clock.maxMs, GXPC_GetSpeed(), s_clock.gameMs, s_clock.per.gx,
                  s_clock.per.present, s_clock.per.swap, s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
                  s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait, st.draws, st.vertices, st.efbCopies,
