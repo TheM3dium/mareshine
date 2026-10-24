@@ -1,0 +1,27 @@
+Reason: port: Moon Jump cheat (SMS_CHEAT_MOON_JUMP): holding A in the air lifts Mario (port_cheat_moon_jump in platform/misc/port_cheats.cpp)
+--- a/src/Player/MarioMove.cpp
++++ b/src/Player/MarioMove.cpp
+@@ -2752,6 +2752,10 @@
+ 
+ // SMSGetMarDirector() at the first billboard test and the camera angle read
+ // through the MarioMoveCameraUnk258 binder give retail's slots.
++#ifdef TARGET_PC
++extern "C" int port_cheat_moon_jump;
++#endif
++
+ void TMario::playerControl(JDrama::TGraphics* param_1)
+ {
+ 	unk9C         = mFaceAngle.y;
+@@ -2793,6 +2797,12 @@
+ 	checkYoshiGetOff();
+ 	thinkYoshiHeadCollision();
+ 	thinkTorocco();
++#ifdef TARGET_PC
++	// Moon jump: holding A in the air lifts Mario
++	if (port_cheat_moon_jump && isMario() && (getStatus() & MARIO_STATUS_FLAG_JUMPING)
++	    && (unk108->mInput & TMarioControllerWork::A) && mVel.y < 30.0f)
++		mVel.y = 30.0f;
++#endif
+ 	stateMachine();
+ 	stateMachineUpper();
+ 	thinkSituation();

@@ -691,5 +691,9 @@
     "Type two numbers, for example 2,0.": "Saisis deux nombres, par exemple 2,0.",
     "Game language": "Langue du jeu",
     "The language of the game's text and menus. English is built in; French, German, Spanish and Italian can be made from your own European disc image (below the languages).\n\nSubtitles in cutscenes is the same setting as the subtitle option in the game's own options.\n\nThe language applies the next time the game starts.": "La langue des textes et des menus du jeu. L'anglais est intégré ; le français, l'allemand, l'espagnol et l'italien peuvent être créés à partir de ta propre image disque européenne (sous les langues).\n\nSous-titres des cinématiques est le même réglage que l'option des sous-titres dans les options du jeu.\n\nLa langue s'applique au prochain lancement du jeu.",
-    "Only in the main menu, not while the game runs.": "Seulement dans le menu principal, pas pendant que le jeu tourne."
+    "Only in the main menu, not while the game runs.": "Seulement dans le menu principal, pas pendant que le jeu tourne.",
+    "Moon jump": "Saut lunaire",
+    "Holding A in the air lifts Mario, so he can fly up anywhere.\n\nTakes effect the next time the game starts.": "Maintenir A en l'air fait monter Mario, il peut ainsi voler n'importe où.\n\nPrend effet au prochain lancement du jeu.",
+    "Copy write-back": "Recopie des copies",
+    "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.": "Recopie dans la mémoire du jeu ce que le jeu dessine dans ses propres textures, comme sur GameCube. Le désactiver peut augmenter les FPS sur les appareils plus faibles ; la carte de la boue est toujours copiée, nettoyer la boue fonctionne donc toujours. Redémarre le jeu après un changement."
 }

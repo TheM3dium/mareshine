@@ -1776,6 +1776,8 @@ public class SettingsActivity extends AppActivity {
         add(new Choice("SMS_CHEAT_JUMP_HEIGHT", "Jump height",
             "Normal, double and triple jumps go higher." + CHEAT_NOTE, "1",
             new String[] {"1", "2", "4", "6"}, new String[] {"Off", "2x", "4x", "6x"}));
+        add(new Toggle("SMS_CHEAT_MOON_JUMP", "Moon jump",
+            "Holding A in the air lifts Mario, so he can fly up anywhere." + CHEAT_NOTE, false, false));
         section("ITEMS");
         add(new Choice("SMS_CHEAT_COIN_MULTIPLIER", "Coin multiplier",
             "Each yellow coin counts several times. Blue and red coins are not changed." + CHEAT_NOTE, "1",
@@ -1936,6 +1938,9 @@ public class SettingsActivity extends AppActivity {
         add(new Toggle("SMS_GX_DETAILED_TIMERS", "Detailed performance timings",
             "Measures rendering phases for diagnostics. Can reduce FPS. Restart the game after changing this.",
             false, false));
+        add(new Toggle("copy_writeback", "Copy write-back",
+            "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.",
+            true, false));
         add(new Choice("SMS_GX_PERSISTENT_BUFFER", "Persistent GPU buffer (test)",
             "Automatic enables it on supported Adreno GPUs. Restart the game after changing this.",
             Settings.def("SMS_GX_PERSISTENT_BUFFER", "auto"),

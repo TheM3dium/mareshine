@@ -2522,9 +2522,13 @@ static void resolveWriteBacks(bool all) {
     s_writeBacks.resize(keep);
 }
 
-// tw x th: the copy's size in texels as the game sees it.
-static void writeBackCopy(const void* dest, GLuint tex, int ow, int oh, int tw, int th, uint32_t layout) {
-    if (!dest || !copyWriteBackEnabled()) return;
+// tw x th: the copy's size in texels as the game sees it. `always`: written
+// back even with SMS_GX_COPY_WRITEBACK=0 (R8 copies are the goop map, whose
+// bytes Mario, NPCs and goop enemies read: without them cleaned goop stays
+// in the game, invisible).
+static void writeBackCopy(const void* dest, GLuint tex, int ow, int oh, int tw, int th, uint32_t layout,
+                          bool always = false) {
+    if (!dest || !(always || copyWriteBackEnabled())) return;
     if (tw < 1 || th < 1) return;
     uint32_t bytes = texLevelBytes(layout, uint32_t(tw), uint32_t(th));
     if (!bytes) return;
@@ -2713,7 +2717,7 @@ static void copyEfb(uint32_t ctrl) {
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         glBindVertexArray(s_vao);
         s_stats.efbCopies++;
-        writeBackCopy(dest, tex, ow, oh, tw, th, copyLayout(fmt, zcopy));
+        writeBackCopy(dest, tex, ow, oh, tw, th, copyLayout(fmt, zcopy), !zcopy && fmt == 8);
     }
     if (clear) clearRect(x0, x1, y, h);
     glBindFramebuffer(GL_FRAMEBUFFER, s_efbFbo);
