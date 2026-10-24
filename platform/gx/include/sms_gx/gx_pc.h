@@ -30,39 +30,29 @@ typedef void* (*GXPCGetProcFn)(const char* name);
  * the pointer's display; render scale does not change its size.
  * SMS_VSYNC=1 or --vsync (swap interval 1),
  * SMS_OVERLAY=1 (open the debug overlay at start),
- * SMS_GX_DUMP_EVERY=n + SMS_GX_DUMP_DIR=dir (write every n-th XFB as PPM).
+ * SMS_GX_DUMP_EVERY=n + SMS_GX_DUMP_DIR=dir (write every n-th XFB as PPM),
+ * SMS_PRESENT_HZ=rate (testing: each swap also waits for a display at that rate).
  * Every GXCopyDisp presents the copied XFB to the window and swaps (disable
  * with GXPC_SetAutoPresent(0) if the VI layer calls GXPC_Present itself). */
 int GXPC_ParseArgs(int* argc, char** argv);  /* strips the options above; returns count removed */
 void GXPC_SetHeadless(int headless);
-int GXPC_InitAuto(int efbScale);             /* 1 on success */
+/* --display-info: one line of JSON with each display's HDR state and
+ * brightness as Windows reports it (an empty list elsewhere). */
+void GXPC_PrintDisplayInfo(void);
+int GXPC_InitAuto(float efbScale);           /* 1 on success */
 int GXPC_IsHeadless(void);
 void GXPC_SetAutoPresent(int enable);
 void GXPC_Present(const void* xfb);          /* window mode: draw XFB, swap, pump events */
-void GXPC_SetBackdropMovie(const char* ownOverlay); /* NULL: no movie; "": a movie (the frame); a path: its own overlay */
-void GXPC_SetBackdropActive(int on); /* a movie plays: the cutscene frame (SMS_CUTSCENE_FRAME) fills the window behind it */
-void GXPC_SetStreamingRange(const void* p, uint32_t bytes); /* textures there are video frames: always uploaded, no pack lookup */
 void GXPC_SkipNextPresent(int skip);         /* the next GXCopyDisp is not presented (events still pumped), if presenting is slow */
 double GXPC_LastPresentSeconds(void);        /* the last GXCopyDisp's present, 0 if it was not presented */
 uint32_t GXPC_FrameCount(void);              /* display copies so far */
 /* Window (taskbar / Dock) icon: w x h RGBA8 pixels, copied. Applied to the
  * SDL window now, or when it opens; ignored without a window. */
 void GXPC_SetWindowIcon(const uint8_t* rgba, int w, int h);
-/* Pre-game launcher (gx_launcher.cpp): a settings menu in its own window that
- * edits settingsPath (settings.txt) and bindingsPath (bindings.txt) in place.
- * Skipped when settings.txt has `launcher = off` (unless Shift is held, or
- * force is set). Returns 1 to start the game, 0 when the player quit. */
-int GXPC_RunLauncher(const char* settingsPath, const char* bindingsPath, int force);
 /* 1 while the window holds the mouse for mouse look (SMS_MOUSE_CAMERA). */
 int GXPC_MouseCaptured(void);
-/* Name tags over other players (online co-op), for the next presented frame:
- * x, y in the game camera's 4:3 normalized device coordinates (-1..1, +y up),
- * placed into the picture as the renderer widens and letterboxes it. */
-typedef struct GXPCNameTag {
-    float x, y;
-    char name[16];
-} GXPCNameTag;
-void GXPC_SetNameTags(const GXPCNameTag* tags, int count);
+/* 1 while the cheat menu (F9) is open: the PAD layer reports an idle controller. */
+int GXPC_GameInputBlocked(void);
 /* Widescreen: the displayed width over the GameCube's 4:3 (1 = off). Set
  * before the context exists; the EFB, the display and the window widen, and
  * draws map the game's 640-wide coordinates into it (see gx_render.cpp). The
@@ -90,18 +80,29 @@ float GXPC_GetWidescreen(void);
 union SDL_Event;
 void sms_gx_set_event_callback(void (*cb)(const union SDL_Event* ev));
 void sms_gx_pump_events(void);
-/* Game controllers in use (SMS_PAD_DEVICE limits them to one by name). */
-int sms_gx_pad_count(void);
-/* Alpha (0..1) for the following GXPC_DrawOverlay calls. */
-void GXPC_SetOverlayAlpha(float alpha);
+/* Rumble on the game controller last used (0 stops it, 65535 is full); calls
+ * that change nothing are cheap.  Returns 0 without a controller. */
+int sms_gx_rumble(unsigned short strength);
 
 /* Call once with an OpenGL 3.3 core context current (SDL, EGL, ...), before the
- * game calls GXInit.  efbScale multiplies the 640x528 EFB (1 = native).
+ * game calls GXInit.  efbScale multiplies the 640x528 EFB (1 = native; FSR 1's
+ * modes make it fractional).
  * Returns 0 on failure (missing entry points, FBO creation failed). */
-int GXPC_Init(GXPCGetProcFn getProc, int efbScale);
+int GXPC_Init(GXPCGetProcFn getProc, float efbScale);
 void GXPC_Shutdown(void);
-/* As a stage finishes loading (before its first frame): compiles the shader
- * programs it is known to draw with (the warm-up, gx_shader.cpp). */
+
+/* End a completed pixel-metric scope immediately after GXReadPixMetric.
+ * Later draws leave its last result unchanged until GXClearPixMetric starts
+ * the next scope. Ordinary GXReadPixMetric still keeps counting. */
+void GXPC_EndPixMetric(void);
+
+/* Before endian conversion, discover HD replacements in BTI, J3D TEX1 and
+ * JPA resources. Thread-safe; hashes synchronously and keeps no game pointers.
+ * PreloadTextures drains those requests on the GL thread before gameplay.
+ * PrepareStage, as a stage finishes loading, first compiles the shader
+ * programs that stage is known to draw with (the warm-up), then preloads. */
+void GXPC_PrefetchResource(const void* data, uint32_t size, const char* name);
+void GXPC_PreloadTextures(void);
 void GXPC_PrepareStage(int stage);
 
 /* 32-bit "physical" addresses appear inside command streams: display lists
@@ -202,13 +203,11 @@ typedef struct GXPCStats {
 } GXPCStats;
 void GXPC_GetStats(GXPCStats* out);
 void GXPC_GetLastFrameStats(GXPCStats* out); /* the last completed display frame */
-double GXPC_GxSeconds(void);                   /* measured sms_gx time while detailed timers are on */
+double GXPC_GxSeconds(void);                   /* wall time spent inside sms_gx so far */
 /* Where the game thread's time goes, as seconds since start. gx is all time
- * inside sms_gx apart from presenting. gx and its parts (vertices .. gpuWait)
- * are measured only while GXPC_SetDetailedTimers(1) is on. The overlay/log
- * requests it with SMS_GX_DETAILED_TIMERS=1; SMS_GX_STATS also enables it.
- * The normal FPS/counter overlay avoids per-draw timing overhead.
- * gpuWait is time blocked on the GPU (fences,
+ * inside sms_gx apart from presenting; the parts of it (vertices .. gpuWait)
+ * are measured only while GXPC_SetDetailedTimers(1) is on (the overlay turns
+ * it on, as does SMS_GX_STATS). gpuWait is time blocked on the GPU (fences,
  * reading back copies, peeks and pixel counts); present is drawing the XFB to
  * the window, swap is SDL_GL_SwapWindow. idle is the time the game had no
  * runnable thread (waiting for the next retrace), from GXPC_SetIdleClock. */
@@ -219,19 +218,29 @@ void GXPC_GetTimes(GXPCTimes* out);
 void GXPC_SetDetailedTimers(int on);
 void GXPC_SetIdleClock(double (*idleSeconds)(void));
 /* Blend an RGBA image (row 0 = top) onto the window at (x, y) from its top-left,
- * magnified by scale.  Call between GXPC_PresentXFB and the swap. */
+ * magnified by scale. Call between GXPC_PresentXFB and the swap.
+ * rgba = NULL reuses the last uploaded panel (w and h must match). */
 void GXPC_DrawOverlay(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
-// The same for an image that stays the same from frame to frame (the touch
-// controls' sprites): uploaded once, by its pixel pointer, until
-// GXPC_ForgetOverlayCache (call it when such images are rebuilt or freed).
-void GXPC_DrawOverlayStatic(const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
-void GXPC_ForgetOverlayCache(void);
+/* Sprites over the presented frame (Mareshine's touch controls): the atlas
+ * (w x h RGBA, top row first, uploaded when called, so only when it changes)
+ * and, each frame, rectangles cut from it, all at `alpha`. A sprite's x, y,
+ * w, h are window pixels from the top left, u, v, uw, vh atlas pixels. Both
+ * are called while a frame is presented (the touch controls' draw hook). */
+typedef struct GXPCSprite {
+    float x, y, w, h;
+    int u, v, uw, vh;
+} GXPCSprite;
+void GXPC_SpriteAtlas(const uint8_t* rgba, int w, int h);
+void GXPC_DrawSprites(const GXPCSprite* sprites, int count, float alpha, int winW, int winH);
+// Any texture the same way (the cutscene frame, gx_backdrop.cpp): made with
+// GXPC_UploadTexture (RGBA8, w x h), drawn in rectangles cut from it.
+unsigned GXPC_UploadTexture(const uint8_t* rgba, int w, int h);
+void GXPC_DrawTexture(unsigned texture, int texW, int texH, const GXPCSprite* sprites, int count, float alpha,
+                      int winW, int winH);
 /* Debug overlay (backtick in the window): toggle, and draw it before a swap. */
 void GXPC_OverlayToggle(void);
 void GXPC_OverlayDraw(int winW, int winH);
-// SMS_PERF_LOG=1: every 5 seconds the frame rate and where the frame time went
-// into the log (each presented frame calls it, with or without a window)
-void GXPC_PerfTick(void);
+void GXPC_OverlayFrame(void);  /* every display copy, presented or not: the overlay's frame clock */
 int GXPC_OverlayVisible(void);
 /* Game speed multiplier (F7 while the overlay is open cycles 1, 2, 4, 10);
  * VI retraces and host audio advance at this rate, including THP movies. */

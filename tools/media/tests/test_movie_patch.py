@@ -100,6 +100,16 @@ class MoviePatchTests(unittest.TestCase):
         self.assertFalse(list(self.root.glob('.hd-cutscenes-*')))
         self.assertFalse((out/MARKER).exists())
 
+    def test_unreadable_movie_names_the_file_and_keeps_the_previous_pack(self):
+        # A dump that lost one movie's data (zeros where the THP should be).
+        iso,bundle,catalog=self.fixture();out=self.root/'installed';out.mkdir();(out/'previous').write_bytes(b'keep me')
+        data=bytearray(iso.read_bytes());pos=0x1000+15*256;data[pos:pos+256]=bytes(256);iso.write_bytes(data)
+        name=MOVIES[15]+'.thp'
+        with self.assertRaisesRegex(ValueError,'data/%s on your disc is not a readable movie .*damaged or trimmed'%name):
+            install(iso,out,catalog,self.root/'cache',bundle)
+        self.assertEqual((out/'previous').read_bytes(),b'keep me')
+        self.assertFalse(list(self.root.glob('.hd-cutscenes-*')))
+
     def test_cancel_unwinds_and_preserves_the_previous_pack(self):
         iso,bundle,catalog=self.fixture();out=self.root/'installed';out.mkdir();(out/'previous').write_bytes(b'keep me')
         with mock.patch('install_cutscenes.apply',side_effect=KeyboardInterrupt):

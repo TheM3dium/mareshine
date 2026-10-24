@@ -4,6 +4,7 @@
 #include "gx_glcache.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 #include <algorithm>
 #include <unordered_map>
@@ -158,9 +159,11 @@ void decodeTexture(const uint8_t* src, uint32_t fmt, uint32_t w, uint32_t h, con
                         }
                         pal[2][3] = pal[3][3] = 255;
                     } else {
+                        // Index 3 is transparent but keeps index 2's colour
+                        // (the hardware's, as Dolphin decodes it), not black:
+                        // a material that ignores texture alpha shows it.
                         for (int k = 0; k < 3; k++) {
                             pal[2][k] = uint8_t((pal[0][k] + pal[1][k]) / 2);
-                            // GX retains RGB under transparent CMPR texels.
                             pal[3][k] = pal[2][k];
                         }
                         pal[2][3] = 255;
@@ -201,6 +204,7 @@ struct TexEntry {
     bool hashAlways = false;  // its data once changed with no write reported: hashed on every check
     uint32_t bytes = 0;
     std::string hires;  // the texture pack's replacement for the current data, if any
+    int prompt = -1;    // the button prompt glyph this picture shows (promptGlyph), or -1
     bool arbitraryMips = false;  // its mip levels are not reductions of level 0 (mipLevelDiff)
 };
 
@@ -213,55 +217,33 @@ static bool s_rangesSorted = true;
 static uint32_t s_maxBytes = 0;
 static uint32_t s_gen = 1;
 static std::vector<uint8_t> s_decodeBuf, s_prevLevelBuf;
-static float s_lodBias[8];  // the bound samplers' LOD bias, per map (textureLodBias)
 
-float textureLodBias(int map) { return s_lodBias[map & 7]; }
-
-// How far a decoded mip level (w x h, ch bytes a texel) is from a 2x2 box
-// reduction of the level above it (pw x ph): the mean difference per
-// channel, 0..255. Some textures draw an effect into their smaller levels
-// instead of a reduction, such as the sea's sparkle map, whose level 0 is dark
-// with sparse sparkles and whose smaller levels are brighter pictures of their
-// own. Like Dolphin's arbitrary mipmap detection, a mean over all levels above
+// How far a decoded mip level (w x h RGBA8) is from a 2x2 box reduction of
+// the level above it (pw x ph): the mean difference per channel, 0..255.
+// Some textures draw an effect into their smaller levels instead of a
+// reduction, such as the sea's sparkle map, whose level 0 is dark with sparse
+// sparkles and whose smaller levels are brighter pictures of their own. Like
+// Dolphin's arbitrary mipmap detection, a mean over all levels above
 // kArbitraryMipThreshold marks such a texture.
 static const float kArbitraryMipThreshold = 14.0f;
-static float mipLevelDiff(const uint8_t* prev, uint32_t pw, uint32_t ph, const uint8_t* cur, uint32_t w, uint32_t h,
-                          int ch) {
+static float mipLevelDiff(const uint8_t* prev, uint32_t pw, uint32_t ph, const uint8_t* cur, uint32_t w, uint32_t h) {
     uint64_t sum = 0;
     for (uint32_t y = 0; y < h; y++) {
         const uint32_t y0 = std::min(2 * y, ph - 1), y1 = std::min(2 * y + 1, ph - 1);
         for (uint32_t x = 0; x < w; x++) {
             const uint32_t x0 = std::min(2 * x, pw - 1), x1 = std::min(2 * x + 1, pw - 1);
-            const uint8_t* a = prev + (size_t(y0) * pw + x0) * ch;
-            const uint8_t* b = prev + (size_t(y0) * pw + x1) * ch;
-            const uint8_t* c = prev + (size_t(y1) * pw + x0) * ch;
-            const uint8_t* d = prev + (size_t(y1) * pw + x1) * ch;
-            const uint8_t* o = cur + (size_t(y) * w + x) * ch;
-            for (int i = 0; i < ch; i++) {
+            const uint8_t* a = prev + (size_t(y0) * pw + x0) * 4;
+            const uint8_t* b = prev + (size_t(y0) * pw + x1) * 4;
+            const uint8_t* c = prev + (size_t(y1) * pw + x0) * 4;
+            const uint8_t* d = prev + (size_t(y1) * pw + x1) * 4;
+            const uint8_t* o = cur + (size_t(y) * w + x) * 4;
+            for (int i = 0; i < 4; i++) {
                 const int diff = (a[i] + b[i] + c[i] + d[i] + 2) / 4 - int(o[i]);
                 sum += uint32_t(diff < 0 ? -diff : diff);
             }
         }
     }
-    return float(double(sum) / (double(w) * h * ch));
-}
-
-// Video frames (the HD movie pools, GXPC_SetStreamingRange): new data every
-// frame, so no change hash and no texture pack lookup.
-static uintptr_t s_streamLo = 0, s_streamHi = 0;
-
-// I8 as one byte per texel (uploaded as R8, read as I via the texture's
-// swizzle): a quarter of the RGBA data, and a straight detile.
-static void decodeI8(const uint8_t* src, uint32_t w, uint32_t h, uint8_t* out) {
-    const uint32_t cols = (w + 7) / 8, rows = (h + 3) / 4;
-    for (uint32_t ty = 0; ty < rows; ty++)
-        for (uint32_t tx = 0; tx < cols; tx++, src += 32)
-            for (uint32_t r = 0; r < 4; r++) {
-                const uint32_t y = ty * 4 + r, x = tx * 8;
-                if (y >= h) continue;
-                const uint32_t n = x + 8 <= w ? 8 : w - x;
-                memcpy(out + size_t(y) * w + x, src + r * 8, n);
-            }
+    return float(double(sum) / (double(w) * h * 4));
 }
 
 struct CopyEntry {
@@ -508,23 +490,14 @@ static float anisotropy() {
 // none). Its LOD range moves up by that much, so the same screen size samples
 // the same level of detail; a replacement of a texture without mipmaps gets
 // generated ones down to the original size, so it does not shimmer.
-// The sampler's LOD bias: GX's, plus, for a texture whose levels are an
-// effect (arbitraryMips, see mipLevelDiff), log2 of the internal resolution,
-// so it samples the level the GameCube would. The distance at which each
-// level shows is part of such a picture.
-static float lodBiasFor(uint32_t mode0, uint32_t levels, bool arbitraryMips) {
-    float bias = float(int8_t((mode0 >> 9) & 0xFF)) / 32.0f;
-    if (arbitraryMips && levels > 1 && ((mode0 >> 5) & 3) != 0) bias += log2f(efbScale());
-    return bias;
-}
-
-// arbitraryMips: no anisotropic filtering either, which would pick sharper
-// levels (it turned the distant sea white).
+// arbitraryMips: the texture's levels are an effect, not reductions (see
+// mipLevelDiff), so the distance at which each level shows is part of the
+// picture. Such a texture samples the GameCube's level of detail: the LOD
+// bias makes up for the internal resolution, and no anisotropic filtering,
+// which would pick sharper levels (it turned the distant sea white).
 static GLuint samplerFor(uint32_t mode0, uint32_t mode1, uint32_t levels, int hires = -1, bool arbitraryMips = false) {
-    const float bias = lodBiasFor(mode0, levels, arbitraryMips);
-    const bool effectMips = arbitraryMips && levels > 1 && ((mode0 >> 5) & 3) != 0;
     uint64_t key = uint64_t(mode0 & 0x1FFFF) | uint64_t(mode1 & 0xFFFF) << 17 | uint64_t(levels > 1) << 33 |
-                   uint64_t(hires + 1) << 34 | uint64_t(effectMips) << 40;
+                   uint64_t(hires + 1) << 34 | uint64_t(arbitraryMips) << 40;
     GLuint& smp = s_samplers[key];
     if (smp) return smp;
     glGenSamplers(1, &smp);
@@ -551,12 +524,11 @@ static GLuint samplerFor(uint32_t mode0, uint32_t mode1, uint32_t levels, int hi
             maxLod += float(hires);
         }
     }
+    const bool effectMips = arbitraryMips && levels > 1 && mip != 0;
+    float bias = float(int8_t((mode0 >> 9) & 0xFF)) / 32.0f;
+    if (effectMips) bias += log2f(efbScale());
     glSamplerParameteri(smp, GL_TEXTURE_MIN_FILTER, minf);
-#ifndef SMS_GLES
-    glSamplerParameterf(smp, GL_TEXTURE_LOD_BIAS, bias);  // GLES: u_lodbias in the shader
-#else
-    (void)bias;
-#endif
+    glSamplerParameterf(smp, GL_TEXTURE_LOD_BIAS, bias);
     glSamplerParameterf(smp, GL_TEXTURE_MIN_LOD, minLod);
     glSamplerParameterf(smp, GL_TEXTURE_MAX_LOD, maxLod);
     if (minf != GL_NEAREST && minf != GL_NEAREST_MIPMAP_NEAREST && !effectMips && anisotropy() > 1.0f)
@@ -565,6 +537,42 @@ static GLuint samplerFor(uint32_t mode0, uint32_t mode1, uint32_t levels, int hi
 }
 
 static GLuint s_whiteTex = 0;
+
+// The HUD's pictures of a GameCube button, by their data (the hashes texture
+// packs name them by), and the button prompt glyph each shows; -1 for others.
+static int promptGlyph(const uint8_t* ptr, uint32_t fmt, uint32_t w, uint32_t h) {
+    if (fmt == 2 && w == 34 && h == 44 && xxh64(ptr, texLevelBytes(fmt, w, h), 0) == 0xc9717b966554213full)
+        return 2;  // the FLUDD gauge's X (water_button_x)
+    return -1;
+}
+
+// The button prompt in place of such a picture: the glyph's 64x64 image centred
+// on a canvas twice the picture's size, one GL texture per style and glyph.
+// 0 while the game's own pictures are shown.
+static GLuint promptTexture(int glyph, int map, uint32_t w, uint32_t h) {
+    int style = 0;
+    const uint8_t* img = promptImage(glyph, &style);
+    if (!img) return 0;
+    static std::unordered_map<int, GLuint> s_prompts;
+    GLuint& t = s_prompts[style * 8 + glyph];
+    if (t) return t;
+    const int cw = int(w) * 2, ch = int(h) * 2, ox = (cw - 64) / 2, oy = (ch - 64) / 2;
+    std::vector<uint8_t> canvas(size_t(cw) * ch * 4, 0);
+    for (int y = 0; y < 64; y++)
+        for (int x = 0; x < 64; x++) {
+            const int cx = ox + x, cy = oy + y;
+            if (cx >= 0 && cy >= 0 && cx < cw && cy < ch) memcpy(&canvas[(size_t(cy) * cw + cx) * 4], img + (y * 64 + x) * 4, 4);
+        }
+    glGenTextures(1, &t);
+    glcActiveUnit(map);
+    glBindTexture(GL_TEXTURE_2D, t);
+    glcNoteBound(map, t);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, cw, ch, 0, GL_RGBA, GL_UNSIGNED_BYTE, canvas.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    return t;
+}
 
 unsigned bindTextureMap(int map, float* outW, float* outH) {
     drainDeletedCopies();
@@ -581,7 +589,6 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
     if (GLuint ct = efbCopyLookup(ptr, &cw, &ch)) {
         glcBindTexture(map, ct);
         glcBindSampler(map, samplerFor(mode0, 0, 1));
-        s_lodBias[map] = lodBiasFor(mode0, 1, false);
         return ct;
     }
     if (!ptr) {
@@ -595,7 +602,6 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
         }
         glcBindTexture(map, s_whiteTex);
         glcBindSampler(map, 0);  // its own (default) parameters, as before samplers
-        s_lodBias[map] = 0.0f;
         return s_whiteTex;
     }
 
@@ -631,36 +637,28 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
         s_rangesSorted = false;
         if (total > s_maxBytes) s_maxBytes = total;
     }
-    const bool streamed = reinterpret_cast<uintptr_t>(ptr) >= s_streamLo && reinterpret_cast<uintptr_t>(ptr) < s_streamHi;
-    if (streamed) {
-        upload = true;  // a video frame: always new
+    // After GXInvalidateTexAll (every frame) the data is hashed again, unless
+    // no write stamp touched it since the last hash (a range invalidation,
+    // checkedGen 0, always hashes; so does every kRecheckFrames-th frame).
+    bool unwritten = false;  // no write reported since the last hash
+    if (e.checkedGen != s_gen && e.checkedGen != 0 && !upload && trustWriteStamps() && !e.hashAlways &&
+        e.bytes == total && unwrittenSince(ptr, total, e.checkedClock)) {
+        unwritten = true;
+        if (g_displayFrames - e.checkedFrame < kRecheckFrames && (tlut ? hashBytes(tlut, tlutBytes) : 0) == e.tlutHash)
+            e.checkedGen = s_gen;
+    }
+    if (e.checkedGen != s_gen || upload) {
+        g_statTexHashBytes += total;
+        e.checkedClock = writeClock();
+        e.checkedFrame = g_displayFrames;
+        uint64_t dh = hashBytes(ptr, total);
+        uint64_t th = tlut ? hashBytes(tlut, tlutBytes) : 0;
+        if (unwritten && dh != e.dataHash) e.hashAlways = true;  // changed behind the write stamps' back
+        if (upload || dh != e.dataHash || th != e.tlutHash) upload = true;
+        e.dataHash = dh;
+        e.tlutHash = th;
         e.checkedGen = s_gen;
         e.bytes = total;
-    } else {
-        // After GXInvalidateTexAll (every frame) the data is hashed again, unless
-        // no write stamp touched it since the last hash (a range invalidation,
-        // checkedGen 0, always hashes; so does every kRecheckFrames-th frame).
-        bool unwritten = false;  // no write reported since the last hash
-        if (e.checkedGen != s_gen && e.checkedGen != 0 && !upload && trustWriteStamps() && !e.hashAlways &&
-            e.bytes == total && unwrittenSince(ptr, total, e.checkedClock)) {
-            unwritten = true;
-            if (g_displayFrames - e.checkedFrame < kRecheckFrames &&
-                (tlut ? hashBytes(tlut, tlutBytes) : 0) == e.tlutHash)
-                e.checkedGen = s_gen;
-        }
-        if (e.checkedGen != s_gen || upload) {
-            g_statTexHashBytes += total;
-            e.checkedClock = writeClock();
-            e.checkedFrame = g_displayFrames;
-            uint64_t dh = hashBytes(ptr, total);
-            uint64_t th = tlut ? hashBytes(tlut, tlutBytes) : 0;
-            if (unwritten && dh != e.dataHash) e.hashAlways = true;  // changed behind the write stamps' back
-            if (upload || dh != e.dataHash || th != e.tlutHash) upload = true;
-            e.dataHash = dh;
-            e.tlutHash = th;
-            e.checkedGen = s_gen;
-            e.bytes = total;
-        }
     }
     glcBindTexture(map, e.tex);
     // the pack names' _m: mipmap filtering with a maximum LOD above 0
@@ -670,7 +668,7 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
         decodeTexture(ptr, fmt, w, h, tlut, (tlutReg >> 10) & 3, rgba.data());
         hiresDump(hiresName(ptr, fmt, w, h, mipmapped, tlut, tlutBytes, false), rgba.data(), w, h);
     }
-    if (upload && !streamed && hiresEnabled()) {  // a texture pack's replacement for the new data
+    if (upload && hiresEnabled()) {  // a texture pack's replacement for the new data
         e.hires = hiresName(ptr, fmt, w, h, mipmapped, tlut, tlutBytes, true);
         // the same image dumped from a use with the other mipmap setting
         if (e.hires.empty()) e.hires = hiresName(ptr, fmt, w, h, !mipmapped, tlut, tlutBytes, true);
@@ -687,27 +685,15 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
         uint32_t lw = w, lh = h;
         uint32_t pw = w, ph = h;
         float mipDiff = 0.0f;
-        const bool i8 = (fmt & 15) == 1;
-        // R8 read back as I (r, r, r, r) for I8; RGBA8 for everything else
-        const GLint swz[4] = {GL_RED, i8 ? GL_RED : GL_GREEN, i8 ? GL_RED : GL_BLUE, i8 ? GL_RED : GL_ALPHA};
-        glTexParameteri(GL_TEXTURE_2D, 0x8E42 /* GL_TEXTURE_SWIZZLE_R */, swz[0]);
-        glTexParameteri(GL_TEXTURE_2D, 0x8E43 /* GL_TEXTURE_SWIZZLE_G */, swz[1]);
-        glTexParameteri(GL_TEXTURE_2D, 0x8E44 /* GL_TEXTURE_SWIZZLE_B */, swz[2]);
-        glTexParameteri(GL_TEXTURE_2D, 0x8E45 /* GL_TEXTURE_SWIZZLE_A */, swz[3]);
+        std::vector<float> coverage;  // for the replacement's levels (hiresNoteOriginal)
         for (uint32_t l = 0; l < levels; l++) {
-            if (i8) {
-                s_decodeBuf.resize(size_t(lw) * lh);
-                decodeI8(src, lw, lh, s_decodeBuf.data());
-                glTexImage2D(GL_TEXTURE_2D, GLint(l), GL_R8, GLsizei(lw), GLsizei(lh), 0, GL_RED, GL_UNSIGNED_BYTE,
-                             s_decodeBuf.data());
-            } else {
-                s_decodeBuf.resize(size_t(lw) * lh * 4);
-                decodeTexture(src, fmt, lw, lh, tlut, (tlutReg >> 10) & 3, s_decodeBuf.data());
-                glTexImage2D(GL_TEXTURE_2D, GLint(l), GL_RGBA8, GLsizei(lw), GLsizei(lh), 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                             s_decodeBuf.data());
-            }
-            if (l > 0) mipDiff += mipLevelDiff(s_prevLevelBuf.data(), pw, ph, s_decodeBuf.data(), lw, lh, i8 ? 1 : 4);
-            if (levels > 1) s_prevLevelBuf.swap(s_decodeBuf);
+            s_decodeBuf.resize(size_t(lw) * lh * 4);
+            decodeTexture(src, fmt, lw, lh, tlut, (tlutReg >> 10) & 3, s_decodeBuf.data());
+            glTexImage2D(GL_TEXTURE_2D, GLint(l), GL_RGBA8, GLsizei(lw), GLsizei(lh), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                         s_decodeBuf.data());
+            if (!e.hires.empty()) coverage.push_back(alphaCoverage(s_decodeBuf.data(), size_t(lw) * lh));
+            if (l > 0) mipDiff += mipLevelDiff(s_prevLevelBuf.data(), pw, ph, s_decodeBuf.data(), lw, lh);
+            s_prevLevelBuf.swap(s_decodeBuf);
             pw = lw;
             ph = lh;
             src += texLevelBytes(fmt, lw, lh);
@@ -715,26 +701,28 @@ unsigned bindTextureMap(int map, float* outW, float* outH) {
             lh = lh > 1 ? lh / 2 : 1;
         }
         e.arbitraryMips = levels > 1 && mipDiff / float(levels - 1) > kArbitraryMipThreshold;
+        hiresNoteOriginal(e.hires, std::move(coverage));
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, GLint(levels - 1));
+    }
+    if (upload) e.prompt = promptGlyph(ptr, fmt, w, h);
+    if (e.prompt >= 0) {  // a button picture, drawn as the button prompt in use
+        if (GLuint t = promptTexture(e.prompt, map, w, h)) {
+            glcBindTexture(map, t);
+            glcBindSampler(map, samplerFor(mode0, mode1, 1, 1));
+            return t;
+        }
     }
     if (!e.hires.empty()) {  // the replacement, once decoded (the original meanwhile)
         int scale = 0;
         if (GLuint t = hiresTexture(e.hires, map, w, h, &scale)) {
             glcBindTexture(map, t);
             glcBindSampler(map, samplerFor(mode0, mode1, levels, scale, e.arbitraryMips));
-            s_lodBias[map] = lodBiasFor(mode0, levels, e.arbitraryMips);
             return t;
         }
     }
     glcBindSampler(map, samplerFor(mode0, mode1, levels, -1, e.arbitraryMips));
-    s_lodBias[map] = lodBiasFor(mode0, levels, e.arbitraryMips);
     return e.tex;
 }
 
 }  // namespace gx
-
-extern "C" void GXPC_SetStreamingRange(const void* p, uint32_t bytes) {
-    gx::s_streamLo = reinterpret_cast<uintptr_t>(p);
-    gx::s_streamHi = gx::s_streamLo + bytes;
-}

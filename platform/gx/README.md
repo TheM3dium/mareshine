@@ -34,11 +34,12 @@ The renderer reads its state only from that register file, so API calls, GD disp
 | File | Role |
 | --- | --- |
 | `src/gx_api.cpp` | GX API: register encoding, texture/TLUT/light objects, getters, FIFO objects, perf/verify stubs, helper shapes |
-| `src/gx_fifo.cpp` | Register file, the BP/CP/XF command parser, the vertex loader (direct, index8 and index16 attributes, every component type and fraction), the write-gather pipe, and the physical-address window |
+| `src/gx_fifo.cpp` | Register file, the BP/CP/XF command parser, the vertex loader (direct, index8 and index16 attributes, every component type and fraction), the display-list cache, the write-gather pipe, the memory write stamps, and the physical-address window |
 | `src/gx_shader.cpp` | Generates GLSL from the register state. The vertex shader covers position/normal matrices, the GX projection and viewport, texgen (regular, post-transform/dual-tex, colour, approximate emboss) and lighting (8 lights, diffuse/spot/specular attenuation). The fragment shader covers up to 16 TEV stages in integer math, swap tables, konst selection, compare modes, 4 indirect stages, alpha compare and fog. Programs are cached by the state bytes that shape the code. |
 | `src/gx_texture.cpp` | Decoders for I4, I8, IA4, IA8, RGB565, RGB5A3, RGBA8, CMPR, C4, C8 and C14X2 with IA8/RGB565/RGB5A3 TLUTs. The GL texture cache is keyed by address, format, size, mip levels and TLUT, and content hashes are re-checked after an invalidate. |
 | `src/gx_render.cpp` | EFB as an FBO (640×528 × scale). Batches primitives (quads, strips and fans become triangle lists). Maps blend, logic-op, depth, cull, scissor, colour/alpha-update and dst-alpha state. Handles EFB copies (display copies become XFB textures; texture copies go through a format-converting pass that includes intensity/YUV, R/G/B/A/RG/GB and Z formats), XFB presentation and EFB peeks. |
 | `src/gx_platform.cpp` | Creates the SDL2 window or headless EGL context, presents on `GXCopyDisp`, pumps events and handles the command-line and environment switches |
+| `src/gx_glthread.cpp` | The GL thread and its command queue; `src/gl_loader.cpp` turns the GL entry points into proxies that queue work for it |
 | `src/gx_vert.cpp` | `GXPosition3f32` and the other vertex writers as real functions |
 | `src/gl_loader.cpp` | Loads the GL 3.3 entry points through the host's get-proc function, so nothing links against libGL |
 | decomp `libs/dolphin/src/gd/*.c` | GD, compiled unchanged from the decompiled SDK with `src/gd_host_prefix.h` force-included |
@@ -78,7 +79,7 @@ The renderer reads its state only from that register file, so API calls, GD disp
    Every `GXCopyDisp` draws the XFB into the window, letterboxed to 4:3, swaps, and pumps events.
    If VI should own presentation, call `GXPC_SetAutoPresent(0)` and then `GXPC_Present(xfb)` on retrace.
    - Command line: `GXPC_ParseArgs(&argc, argv)` strips `--headless`, `--window` and `--vsync`.
-   - Environment: `SMS_HEADLESS=1`, `SMS_GX_SCALE=n` (internal resolution), `SMS_WINDOW_SCALE=n`, `SMS_VSYNC=1`, `SMS_FULLSCREEN=1`.
+   - Environment: `SMS_HEADLESS=1`, `SMS_GX_SCALE=n` (internal resolution), `SMS_WINDOW_SCALE=n`, `SMS_VSYNC=1`, `SMS_FULLSCREEN=1`, `SMS_PRESENT_HZ=rate` (testing: swaps wait for a display at that rate).
    - `SMS_FULLSCREEN=1` starts in desktop fullscreen on the same monitor chosen for the window, without changing its display mode. Unset it or use `SMS_FULLSCREEN=0` to keep the centered, resizable window. The launcher sets this from **Settings → Visuals → Full screen**, effective on the next game launch. Headless runs ignore it. If fullscreen fails, the game logs the error and keeps its window available.
    - Windows start centered on the pointer's monitor, with a default size of up to 1280×720. The window and its borders fit within 80% of the usable desktop, leaving its title bar and resize edges accessible. Internal resolution does not enlarge the window; `SMS_WINDOW_SCALE` requests a different starting size, still fitted to the screen.
    - Frame dumps: `SMS_GX_DUMP_EVERY=n SMS_GX_DUMP_DIR=dir` writes every n-th XFB as a PPM, which is useful for headless bring-up.
@@ -88,7 +89,44 @@ The renderer reads its state only from that register file, so API calls, GD disp
    Events are also pumped after every present.
    Game controllers are opened as they are plugged in, and closing the window exits the process.
 8. **Threads.**
-   All GX calls must come from the thread that ran `GXInit`, which owns the GL context.
+   GX calls come from the game's threads, one at a time (as `platform/os` runs them).
+   OpenGL runs on a thread of its own once the window or headless context is ready (see Performance below); `SMS_GX_GL_THREAD=0` keeps it on the thread that ran `GXInit`.
+
+## Performance
+
+What a heavy frame (the scripted Delfino Plaza view, about 730 draws and 170,000 vertices) costs the game's thread, and what keeps it down:
+
+- **Display-list cache** (`callDisplayList`, `gx_fifo.cpp`).
+  Nearly all vertices come from display lists the game calls every frame (J3D shapes).
+  The first call of a list decodes it as usual and keeps the packed vertices and batch indices; later calls reuse them while everything the decode read is unchanged (vertex descriptor and formats, array bases, strides and byte order, default matrix indices, the list's bytes and the array elements it indexes).
+  The kept vertices and indices also go into a GPU buffer once (the *arena*, `gx_render.cpp`), so a batch draws them in place with one multi-draw instead of copying them each frame.
+  Lists that only set state (J3D materials, vertex formats) are kept decoded into register writes; lists that both set state and draw are parsed every time.
+  `SMS_GX_DL_CACHE=0` turns the cache off; `SMS_GX_DL_ARENA=0` copies the kept vertices into each batch instead.
+- **Write stamps.**
+  Every write the renderer is told about (`DCFlushRange`/`DCStoreRange`, DVD and ARAM transfers, `DCZeroRange`, copy write-backs) stamps the 4 KiB pages it covers.
+  The display-list cache and the texture cache compare their source bytes by hash only when a stamp touched them, and every 30 (lists) or 8 (textures) frames regardless, for writes nothing reported; a list caught changing without a stamp is compared on every call from then on.
+  `SMS_GX_HASH_ALWAYS=1` compares by hash on every use, as before the stamps.
+- **Stream buffer.**
+  Per-draw data (streamed vertices, indices, the XF block) goes into a 128 MiB ring that, with `ARB_buffer_storage` (GL 4.4; not macOS), stays mapped, so a batch costs no map and unmap. `SMS_GX_PERSISTENT_MAP=0` maps each batch's range instead.
+- **EFB copy write-backs are encoded on the GPU**: a pass writes the copy's GX tile layout (scaled to the texels the game sees) and only those bytes are read back. `SMS_GX_COPY_VERIFY=1` also encodes each write-back on the CPU and logs any difference.
+- **MSAA**: a copy or peek resolves only the region and buffers it reads, and nothing already resolved since the last draw.
+- **Shader programs are kept on disk** (`gx_shader.cpp`): each linked program's binary (`glGetProgramBinary`) goes to `gx-programs-<32|64>.bin` in `$XDG_CACHE_HOME/sms-port` (`~/.cache/sms-port`; `~/Library/Caches/sms-port` on macOS; `%LOCALAPPDATA%\sms-port` on Windows), and the next session loads them all at its first draw, so materials seen before cost no compile (a stage's arrival compiles dozens, a hitch of up to 100 ms). The file starts over when the GL driver changes, and an entry is used only while its key still generates the same GLSL. `SMS_GX_SHADER_CACHE=path` puts it elsewhere; `=0` turns it off.
+- **Shader warm-up** (`gx_shader.cpp`): `gx_shader_keys.inc` lists the program keys each stage is known to draw with, recorded from headless runs (`tools/gx/record_shader_keys.sh`, then `tools/gx/shader_keys.py`). As a stage loads (`GXPC_PrepareStage`, called by `TMarDirector::direct` before the first gameplay frame) its programs not yet made are compiled together, in parallel where the driver offers `GL_KHR/ARB_parallel_shader_compile`, then the other known programs for up to a second of the load (250 ms without the extension), so a computer's first few loads make them all. Nothing is compiled between frames: while the driver compiles, the GPU fences a frame waits for (EFB copies) are held up for whole compiles (35 to 270 ms on an NVIDIA GTX 1060 at the file select screen). Programs made this way go into the program cache as well. The keys are kept in the layout `kShaderKeyLayout` names; changing `ShaderKey` or `ProgramKey` means bumping it and recording the keys again (until then the warm-up stays off). `SMS_GX_SHADER_KEYS=file` appends the keys each stage draws with; `SMS_GX_SHADER_WARMUP=0` (`shader_warmup = off`) turns the warm-up off, and `SMS_GX_SHADER_WARMUP_SERIAL=1` compiles as on drivers without parallel compiles.
+- **`SMS_GX_HITCH_MS=n`** logs every display frame slower than n ms, with its draw-time shader compiles, texture uploads, texture pack bytes sent, time making batches, and time waiting for the GL thread.
+- **The GL thread** (`gx_glthread.cpp`).
+  Once the context is ready it moves to a thread of its own, and the GL entry points become proxies: calls without results are queued, calls that return something wait for the GL thread, and pointers are copied (or are offsets into bound buffers).
+  The driver's time for each draw and state change then leaves the game's thread.
+  The GL thread sleeps when it has nothing to do and is woken once a few dozen KiB of commands have collected or when the game needs an answer.
+  Presenting runs on it while the game's thread waits for the swap, as before, so frame pacing is unchanged.
+  The results the game reads a frame late (copy write-backs, peek snapshots, pixel-metric queries) are fetched by the GL thread as soon as their frame is shown.
+  `SMS_GX_GL_THREAD=0` keeps GL on the game's thread. 32-bit Windows always does (its GL entry points are `__stdcall`).
+
+| Heavy plaza view, 120 fps, i5-6600K + GTX 1060 (Linux, 64-bit) | before | after |
+| --- | --- | --- |
+| 4:3, 1x | 9.5 ms/frame | 3.6 ms/frame |
+| 16:9, 1x | 10.3 ms/frame | 3.9 ms/frame |
+| 16:9, 2x, 4x MSAA | 11.6 ms/frame | 4.0 ms/frame |
+| Eclipse, Fire Petey | 9.8 ms/frame | 3.7 ms/frame |
 
 ## Debugging aids
 
@@ -100,9 +138,9 @@ The renderer reads its state only from that register file, so API calls, GD disp
 - `SMS_GX_DUMP_EVERY=n` writes every n-th XFB as a PPM (see above).
 - `SMS_GX_DUMP_SHADERS=dir` writes every generated program as `dir/prog<id>.vs/.fs`; traces name the program each draw used.
 - `SMS_GX_STATS=n` logs, every n display frames, draws/vertices per frame, shader compiles, texture uploads, the milliseconds per frame spent in sms_gx (split into textures, batches, EFB copies, peeks and GPU waits), how many reads per frame made the CPU wait for the GPU, GL calls per frame (in total and for the most-called entry points), batch flushes, texture bytes hashed, vertex-loader time and idle time.
-  It explicitly enables detailed GX timers, which can reduce the frame rate on mobile drivers.
-- `SMS_OVERLAY=1` and `SMS_PERF_LOG=1` use a lightweight FPS/counter mode by default. Add `SMS_GX_DETAILED_TIMERS=1` for the rendering-phase breakdown and `[gx-probe]` output. Compare performance with the same timing mode; enabling detailed timings changed the measured rate substantially on an Adreno 650 test.
-- `GXPC_GetTimes` gives cumulative measured totals; see `gx_pc.h`. GX and its subphases advance only with detailed timers enabled. Present, swap and idle remain available in basic mode; the basic overlay/log omits unavailable phase timings.
+  Without it (and with the overlay closed) only the overall sms_gx time is measured; the other timers read the clock per primitive and per texture bind.
+- `GXPC_GetTimes` gives the same breakdown as totals for the overlay; see `gx_pc.h`. With the GL thread, the game's waits for it count as GPU waits.
+- `SMS_GX_COPY_VERIFY=1` checks every EFB copy write-back's GPU encoding against the CPU encoder (`encodeTexture`).
   On this machine the 32-bit build renders with Mesa llvmpipe (no 32-bit NVIDIA GL is installed), so GPU work shows up as CPU time at the first sync point, usually the EFB copy.
 
 ## Coverage against `api-surface.tsv`
@@ -128,19 +166,24 @@ The following are accepted, and their state is stored, but they have no or only 
 | `GXInitTexCacheRegion` | bookkeeping only; textures are read from RAM |
 | `GXSetZTexture` | not rendered |
 | `GXSetFogRangeAdj` | registers written; range adjustment not rendered |
-| `GXSetLineWidth` | lines are 1 px, because core GL has no wide lines |
+| `GXSetLineWidth` | applied (line batches draw quads through a geometry shader); the texture offsets are not |
 | `GXEnableTexOffsets`, `GXSetTexCoordCylWrap` | not rendered |
 | `GXPixModeSync`, `GXSetDrawDone`, `GXWaitDrawDone`, `GXDrawDone` | the pipeline is synchronous; callbacks fire immediately |
 | `GXGetCPUFifo`, `GXGetFifoPtrs` | report a static FIFO object |
 
 ## Tests
 
-`build/gx_selftest` (CTest `gx_selftest`, run offscreen) passes 28/28 checks on both this machine's NVIDIA EGL device and Mesa llvmpipe:
+`build/gx_selftest` (CTest `gx_selftest`, run offscreen) passes 42/42 checks on both this machine's NVIDIA EGL device and Mesa llvmpipe:
 
 - copy-clear, and a vertex-colour quad through `PASSCLR`
+- copy clears respect colour/alpha/depth write enables and preserve backing alpha in RGB8, preventing opaque boat-shadow fragments at the airstrip (issue #33)
+- early/late alpha rejection, shadow-volume depth blocking and ordered overlapping primitives, including the early-Z fallback
+- pixel metrics with early Z on count only the pixels that pass the alpha test, also through the early-Z fallback
 - a textured RGBA8 quad through a **2-stage TEV** (texture × rasterized colour, then × konst colour): exact 8-bit results
 - an **EFB → texture copy** (RGBA8, and I8 through the luma conversion) sampled back
 - alpha blending, alpha compare, subtractive blending and scissor
+- an unclamped last TEV stage keeping its low 8 bits for the output and the alpha compare, as Bianco Hills' river surface needs (sms-launcher issue #60)
+- a quad exactly on an orthographic camera's far plane, as the episode select's gradient background is
 - a **GD-built display list** (decomp `GDSetCullMode`/`GDSetZMode`, raw BP writes and a draw command) through `GXCallDisplayList`
 - raw write-gather-pipe BP writes via `GXPC_WGPipe`
 - perspective projection with depth test, a lit channel (diffuse light, ambient × material) and `GXPeekZ`
@@ -159,16 +202,18 @@ Without them it still compiles, but only a host-supplied context (`GXPC_Init(get
 
 ## Known gaps
 
-- **Hardware coverage is scene-specific.**
-  Android tests cover the Airstrip pollution fight and NPC recovery, Plaza gameplay, and selected scenes. This is not a complete audit of every material and stage.
-- **Indirect texturing still has gaps.**
-  Static indirect coordinates now preserve signed 24-bit wrapping, including large matrix exponents. Dynamic S/T matrices (bump mapping) and exact hardware rounding remain incomplete. Emboss texgen passes the source coordinate through.
+- **Not verified against the game yet.**
+  Nothing here has drawn a J2D screen from the real game, and the 3D paths (J3D display lists, skinning, indirect effects) are untested beyond the self-test.
+- **Indirect texturing is approximate.**
+  Offsets are computed with the static matrices as the hardware does: s.10 entries, the product `>> 3` in 1/128 texels, shifted by the matrix's exponent and kept to 24 bits, so a shift of 24 or more leaves no offset (Sunshine's goop bubbles, `ms_raku_indawa.jpa`, use 29; as a float the offset sent them millions of texels off the screen copy, and they drew as flat colour quadrants).
+  Dynamic S/T matrices (bump mapping) are missing.
+  Emboss texgen passes the source coordinate through.
 - **Early-Z.**
-  With `GXSetZCompLoc(GX_TRUE)` and alpha test, the hardware writes depth for pixels that fail the alpha test; GL does not.
-- **EFB copies and CPU coherence.**
-  Texture copies retain a GPU sampling fast path. R8 pollution copies always update CPU-visible tiled memory, including with `SMS_GX_COPY_WRITEBACK=0`, because game logic reads the pollution map. The setting still controls other copy write-backs. `SMS_GX_COPY_LOG=n` logs the first n write-backs.
-- **Pixel metrics.**
-  GLES 3.1 uses numeric fragment counters for depth-disabled pollution passes, with sample-mask coverage when supported. Pollution callbacks explicitly finish the count so unrelated scene draws do not enter it. GLES 3.0, missing sample-mask support, and depth-enabled metrics retain limited fallback behavior; they are not equivalent to full hardware counters.
+  `GXSetZCompLoc(GX_TRUE)` on a depth-writing draw whose alpha test can reject uses `ARB_shader_image_load_store`'s early fragment tests so alpha-rejected pixels still write depth, as on GX. Contexts without the extension use ordered colour/depth passes per primitive for those draws. `SMS_GX_FORCE_EARLY_Z_FALLBACK=1` exercises that fallback. This keeps later shadow-volume masks behind foreground depth (issue #33).
+  Other draws keep the late test even with early Z on: early fragment tests also count occlusion-query samples before the alpha test's `discard`, and the pollution counters draw with `ReInitializeGX`'s early Z, Z off and an alpha test (with every texel counted, Noki Bay's wall rocks never rose).
+- **EFB copies are also written back to RAM.**
+  Every texture copy is encoded into its GX tile layout on the GPU, read back and stored (the GL copy stays as the sampling fast path), because the game reads some on the CPU: Delfino's goop map (`TPollutionLayer::isPolluted`) is updated only by EFB copies. A `DCFlushRange`/`DCStoreRange` over a copy drops the GL copy so RAM wins again. `SMS_GX_COPY_WRITEBACK=0` turns write-back off; `SMS_GX_COPY_LOG=n` logs the first n write-backs.
+- **Pixel metrics** (`GXClearPixMetric`/`GXReadPixMetric`) count samples that pass (a GL occlusion query) plus 4 per triangle, which the pollution counters subtract again; copy passes and the early-Z fallback's depth passes are not counted. A depth-writing, alpha-tested early-Z draw through the extension would count its alpha-rejected samples; the game reads metrics only around draws with Z off.
 - **GPU reads arrive one frame late.**
   A synchronous read makes the CPU wait until the GPU has drawn everything queued, so the two stop overlapping (the plaza made 30–85 such reads a frame).
   As in Dolphin, the reads the game repeats every frame are answered from the same read one frame earlier: copy write-backs are stored a frame later (a pixel buffer and a fence), a pixel-metric pair is answered from the previous frame's query when it drew the same number of triangles, and each group of `GXPeekARGB`/`GXPeekZ` calls with no drawing in between is answered from the previous frame's 1× snapshot of the EFB.
@@ -180,24 +225,3 @@ Without them it still compiles, but only a host-supplied context (`GXPC_Init(get
 - **Pixel formats.**
   `RGB565_Z16` (AA) is treated like RGB8; RGBA6 is not quantized to 6 bits.
 - **Other hardware features** are not emulated: TMEM preloading, the vertex cache, bounding boxes, performance counters, the scissor box offset, and the texture LOD differences between GX and GL.
-
-## Vertex reader selection
-
-`SMS_GX_VERTEX_BATCH=auto` (also the absent-setting default) enables the chunked vertex reader on Android Adreno. `0` keeps the original scalar reader; `1` explicitly selects the chunked reader on other hosts for comparison. Other renderer families remain scalar in automatic mode.
-
-`SMS_GX_DL_CACHE=0` turns off the display-list cache (decoded display lists reused while their bytes, arrays and vertex formats are unchanged). `SMS_GX_HASH_ALWAYS=1` makes it and the texture cache compare their sources by hash on every use instead of trusting the memory write stamps.
-
-The VAT setup caches each attribute's input offset and pairs its scalar and chunked conversion functions in one table. Chunks of up to 32 vertices avoid per-vertex indirect calls while keeping the packed output unchanged. One- and two-vertex primitives, or a layout whose cached byte count does not match its source stride, use the scalar path. This changes CPU decoding work, not drawing distance, textures or game logic.
-
-## Renderer regression checks
-
-The GLES suite uses synthetic textures and geometry, without disc data. It checks indirect 24-bit wrap, final TEV 8-bit wrap, fog depth, CMPR transparent RGB, pollution metrics and R8 CPU coherence. Separate feedback tests preserve every mask byte over 150 copy cycles at fractional scales, MSAA and 20:9.
-
-```sh
-cmake -S platform/gx -B build/gx-gles -DSMS_GLES=ON -DSMS_GX_BUILD_TESTS=ON
-cmake --build build/gx-gles -j4
-ctest --test-dir build/gx-gles --output-on-failure -R 'gx_gles_regressions|gx_copy_feedback'
-python3 tools/tests/npc_recovery_test.py
-```
-
-The GPU regressions need an EGL OpenGL ES 3.1 implementation with sample-mask support. Missing contexts return skip code 77. The NPC check extracts the actual original and patched recovery functions and collision query, then uses synthetic floors under ASan/UBSan. It covers raised ground, valid lower storeys, missing/illegal floors and absent pollution-height evidence.

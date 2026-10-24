@@ -73,8 +73,17 @@ def extract(a):
             if not name.lower().endswith('.thp'):
                 continue
             data = disc.read(be32(fst, e+4), be32(fst, e+8))
-            row = metadata(data)
-            row.update(disc_path='/'.join([s[1] for s in stack] + [name]),
+            disc_path = '/'.join([s[1] for s in stack] + [name])
+            try:
+                row = metadata(data)
+            except ValueError as error:
+                # A movie that is not a THP where the file table says one is
+                # means the image lacks or has damaged data there (scrubbed
+                # and NKit dumps drop data the game never reads).
+                raise ValueError(f'{disc_path} on your disc is not a readable movie ({error}). '
+                                 'The disc image is damaged or trimmed there; HD cutscenes need '
+                                 'a complete 1:1 dump of the disc') from None
+            row.update(disc_path=disc_path,
                        bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
             dest = out / 'originals' / name
             if dest.exists() and dest.read_bytes() != data:

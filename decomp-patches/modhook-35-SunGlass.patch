@@ -1,7 +1,7 @@
 Reason: port: code-mod hooks (sms_modhook.h): Eclipse sunglass tint outside Delfino
 --- a/src/GC2D/SunGlass.cpp
 +++ b/src/GC2D/SunGlass.cpp
-@@ -3,6 +3,17 @@
+@@ -3,6 +3,24 @@
  #include <JSystem/JParticle/JPAEmitterManager.hpp>
  #include <Player/MarioAccess.hpp>
  #include <System/FlagManager.hpp>
@@ -10,16 +10,23 @@ Reason: port: code-mod hooks (sms_modhook.h): Eclipse sunglass tint outside Delf
 +
 +// Eclipse (darkness.cpp) replaces the Delfino test of getShineAlpha's
 +// expansions in loadAfter and startFade; this is its alpha without the test.
++// Like getShineAlpha it divides by retail's 120.0 constant, which
++// BetterSunshineEngine sets to its own shine count (modhook-03): with 120,
++// past 121 of Eclipse's shines the factor went negative and the u8 wrapped
++// (-2 is 254), a near-opaque black tint over Delfino Plaza.
++extern "C" f32 sms_port_sunGlassShineMax;
 +static inline u8 SunGlassTintAlpha(const TSunGlass* glass)
 +{
 +	return (u8)((f32)(glass->unk1E - glass->unk1F)
-+	            * (1.0f - (f32)SMSGetFlagManager()->getFlag(0x40000) / 120.0f));
++	            * (1.0f
++	               - (f32)SMSGetFlagManager()->getFlag(0x40000)
++	                     / sms_port_sunGlassShineMax));
 +}
 +#endif
  #include <System/MarDirector.hpp>
  #include <dolphin/gx.h>
  #include <dolphin/mtx.h>
-@@ -25,12 +36,27 @@
+@@ -25,12 +43,27 @@
  	// TODO: dead in the shipped build; presumably fed a removed debug print.
  	s32 shineCount = SunGlassGetFlagManager()->getFlag(0x40000);
  
@@ -47,7 +54,7 @@ Reason: port: code-mod hooks (sms_modhook.h): Eclipse sunglass tint outside Delf
  	}
  
  	unk26 = arg1;
-@@ -126,7 +152,22 @@
+@@ -126,7 +159,22 @@
  	return alpha;
  }
  

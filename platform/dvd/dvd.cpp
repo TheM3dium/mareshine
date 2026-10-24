@@ -2,9 +2,11 @@
 // (<root>/files, with the disc's own FST at <root>/../sys/fst.bin so entry
 // numbers match the real disc). Reads are synchronous host preads; async
 // completions are delivered as interrupts at the next check point.
+#include "os/crash.h"
 #include "port_compat.h"
 #include "port_os.h"
 #include "port_platform.h"
+#include "port_framerate.h"
 #include <dolphin/dvd.h>
 #include <dolphin/os.h>
 #include <dolphin/vi.h>
@@ -447,7 +449,7 @@ void prepare_patched(u32 entry)
 	DVDFileInfo fi;
 	memset(&fi, 0, sizeof fi);
 	fi.startAddr = entry;
-	if (do_read(&fi, src.data(), (s32)src.size(), 0) != (s32)src.size())
+	if (do_read_raw(&fi, src.data(), (s32)src.size(), 0) != (s32)src.size())
 		return;
 	bool packed = src.size() >= 4 && !memcmp(src.data(), "Yaz0", 4);
 	if (packed ? !yaz0_decode(src, raw) : (raw.swap(src), false))
@@ -487,28 +489,6 @@ static bool open_image()
 		if (port_disc_root && stat(port_disc_root, &st) == 0 && S_ISREG(st.st_mode))
 			img = port_disc_root;
 	}
-#ifdef __ANDROID__
-	if (!img) {
-		static const char* const candidates[] = {
-			"/sdcard/Download/GMSE01.iso",
-			"/sdcard/Download/Super Mario Sunshine (USA).iso",
-			"/sdcard/Download/Super Mario Sunshine.iso",
-			"/sdcard/Download/SMS.iso",
-			"/sdcard/sms/GMSE01.iso",
-			"/sdcard/sms/Super Mario Sunshine.iso",
-			"/storage/emulated/0/Download/GMSE01.iso",
-			"/storage/emulated/0/Download/Super Mario Sunshine.iso"
-		};
-		for (size_t i = 0; i < sizeof candidates / sizeof candidates[0]; i++) {
-			struct stat st;
-			if (stat(candidates[i], &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 1024 * 1024) {
-				img = candidates[i];
-				port_log("[dvd] auto-detected disc image: %s\n", img);
-				break;
-			}
-		}
-	}
-#endif
 	if (!img)
 		return false;
 	if (!g_disc)
@@ -580,9 +560,8 @@ static u32 add_entry(const std::string& abs, bool dir, const std::string& host, 
 	return idx;
 }
 
-// The files below a folder: {path below it, host path}.
-static void list_files(const std::string& host, const std::string& rel,
-                       std::vector<std::pair<std::string, std::string>>& out)
+// The files below `host`, as paths below it (`prefix` + name).
+static void list_files(const std::string& host, const std::string& prefix, std::vector<std::pair<std::string, std::string>>& out)
 {
 	DIR* dp = opendir(host.c_str());
 	if (!dp)
@@ -590,7 +569,7 @@ static void list_files(const std::string& host, const std::string& rel,
 	while (dirent* e = readdir(dp)) {
 		if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
 			continue;
-		std::string h = host + "/" + e->d_name, r = rel + "/" + e->d_name;
+		std::string h = host + "/" + e->d_name, r = prefix + "/" + e->d_name;
 		struct stat st;
 		if (stat(h.c_str(), &st) != 0)
 			continue;
@@ -602,8 +581,7 @@ static void list_files(const std::string& host, const std::string& rel,
 	closedir(dp);
 }
 
-static void overlay_dir(const std::string& host, const std::string& rel, int* replaced, int* added,
-                        int* inside = nullptr)
+static void overlay_dir(const std::string& host, const std::string& rel, int* replaced, int* added, int* inside)
 {
 	DIR* dp = opendir(host.c_str());
 	if (!dp)
@@ -630,8 +608,7 @@ static void overlay_dir(const std::string& host, const std::string& rel, int* re
 						c = (char)tolower((unsigned char)c);
 					p.files[low] = f.second;
 				}
-				if (inside)
-					(*inside) += (int)files.size();
+				(*inside) += (int)files.size();
 				continue;
 			}
 			overlay_dir(h, r, replaced, added, inside);
@@ -669,9 +646,9 @@ static void apply_user_mods()
 			continue;
 		std::string dir;
 		struct stat st;
-		// files/, or overlay/ as in Dusklight's packages (the app's mod manager)
+		// files/, or overlay/ as in Dusklight's packages (Mareshine's mod manager)
 		for (const std::string& c : { name + "/files", name + "/overlay", "mods/" + name + "/files",
-		                              "../../mods/" + name + "/files" })
+		                              "mods/" + name + "/overlay", "../../mods/" + name + "/files" })
 			if (stat(c.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
 				dir = c;
 				break;
@@ -679,10 +656,10 @@ static void apply_user_mods()
 		if (dir.empty()) {
 			port_log("[dvd] mod %s: no files/ folder (looked in mods/%s/files)\n", name.c_str(), name.c_str());
 		} else {
-			int replaced = 0, added = 0;
-			overlay_dir(dir, std::string(), &replaced, &added);
-			port_log("[dvd] mod %s: %d disc files replaced, %d added (%s)\n", name.c_str(), replaced, added,
-			         dir.c_str());
+			int replaced = 0, added = 0, inside = 0;
+			overlay_dir(dir, std::string(), &replaced, &added, &inside);
+			port_log("[dvd] mod %s: %d disc files replaced, %d added, %d replaced inside archives (%s)\n",
+			         name.c_str(), replaced, added, inside, dir.c_str());
 		}
 		name.clear();
 	}
@@ -691,9 +668,9 @@ static void apply_user_mods()
 static void apply_mods()
 {
 	if (const char* pack = port_hd_cutscene_directory()) {
-		int replaced = 0, added = 0;
+		int replaced = 0, added = 0, inside = 0;
 		std::string files = std::string(pack) + "/files";
-		overlay_dir(files, std::string(), &replaced, &added);
+		overlay_dir(files, std::string(), &replaced, &added, &inside);
 		port_log("[dvd] HD cutscenes: %d movies replaced (%s)\n", replaced, pack);
 	}
 	// The language pack, before explicit mods so that a mod's own files win.
@@ -787,6 +764,7 @@ extern "C" void DVDInit(void) {}
 extern "C" s32 DVDConvertPathToEntrynum(char* path)
 {
 	s32 r = lookup(path);
+	port_crash_note_file(path);
 	if (r < 0)
 		port_log("[dvd] path not found: %s\n", path);
 	return r;
@@ -874,7 +852,8 @@ double schedule_read(u32 entry, s32 len, s32 offset)
 	if (g_dvd_bps <= 0 && g_dvd_seek_fields <= 0)
 		return now;
 	double start = g_drive_free > now ? g_drive_free : now;
-	g_drive_free = start + g_dvd_seek_fields + (g_dvd_bps > 0 ? len / g_dvd_bps * 59.94 : 0);
+	g_drive_free = start + port_vi_retrace_multiplier()
+	    * (g_dvd_seek_fields + (g_dvd_bps > 0 ? len / g_dvd_bps * 59.94 : 0));
 	return g_drive_free;
 }
 
@@ -894,6 +873,9 @@ void poll_reads()
 	}
 }
 } // namespace
+
+// A read is still on its way (save states wait for the drive to be idle).
+extern "C" int port_dvd_busy(void) { return !g_pending_reads.empty(); }
 
 extern "C" s32 DVDReadPrio(DVDFileInfo* fi, void* addr, s32 length, s32 offset, s32 prio)
 {
@@ -985,15 +967,40 @@ extern "C" BOOL DVDReadDir(DVDDir* dir, DVDDirEntry* ent)
 
 extern "C" BOOL DVDCloseDir(DVDDir* dir) { return TRUE; }
 
-// Streaming audio (DVD ADPCM streams) is not emulated: report success with no data.
+// Streaming audio (DTK): the region is read whole and played by the Audio
+// Interface (platform/audio/dtk.cpp). The stream stops at the end of its
+// region; DVDStopStreamAtEndAsync asks for nothing more.
+extern "C" void port_dtk_prepare(u32 base, u32 offset, std::vector<u8>& data);
+extern "C" void port_dtk_cancel(void);
+extern "C" u32 port_dtk_play_addr(void);
+extern "C" int port_dtk_active(void);
+
 extern "C" BOOL DVDPrepareStreamAsync(DVDFileInfo* fi, u32 length, u32 offset, DVDCallback cb)
 {
+	std::vector<u8> data;
+	u32 entry = fi->startAddr;
+	if (entry < g_fst.size() && !g_fst[entry].dir && offset < g_fst[entry].length) {
+		u32 len = g_fst[entry].length - offset;
+		if (length && length < len)
+			len = length;
+		data.resize(len);
+		DVDFileInfo tmp = *fi;
+		s32 n           = do_read(&tmp, data.data(), (s32)len, (s32)offset);
+		data.resize(n > 0 ? (size_t)n : 0);
+	}
+	port_dtk_prepare(entry, offset, data);
 	if (cb)
 		port_irq_defer([fi, cb]() { cb(0, fi); });
 	return TRUE;
 }
+extern "C" s32 DVDCancelStream(DVDCommandBlock*)
+{
+	port_dtk_cancel();
+	return 0;
+}
 extern "C" BOOL DVDCancelStreamAsync(DVDCommandBlock* block, DVDCBCallback cb)
 {
+	port_dtk_cancel();
 	if (cb)
 		port_irq_defer([block, cb]() { cb(0, block); });
 	return TRUE;
@@ -1006,10 +1013,16 @@ extern "C" BOOL DVDStopStreamAtEndAsync(DVDCommandBlock* block, DVDCBCallback cb
 }
 extern "C" BOOL DVDGetStreamPlayAddrAsync(DVDCommandBlock* block, DVDCBCallback cb)
 {
+	u32 addr = port_dtk_play_addr();
 	if (cb)
-		port_irq_defer([block, cb]() { cb(0, block); });
+		port_irq_defer([block, cb, addr]() { cb((s32)addr, block); });
 	return TRUE;
 }
-
-// For save states: a disc read still under way
-extern "C" int port_dvd_busy(void) { return !g_pending_reads.empty(); }
+// 1 while the stream plays, 0 once it is cancelled or has played its region
+extern "C" BOOL DVDGetStreamErrorStatusAsync(DVDCommandBlock* block, DVDCBCallback cb)
+{
+	s32 status = port_dtk_active();
+	if (cb)
+		port_irq_defer([block, cb, status]() { cb(status, block); });
+	return TRUE;
+}

@@ -1,248 +1,65 @@
+--- a/bse/include/BetterSMS/music.hxx
++++ b/bse/include/BetterSMS/music.hxx
+@@ -125,6 +125,10 @@
+             bool isPlaying() const;
+             bool isPaused() const;
++            // The port: the stop and clear of leaving a stage are still to run
++            // (stopMusicOnExitStage); the next stage can be ready before they
++            // are, while the old song fades out.
++            bool isLeavingStage() const { return mRequestedClear; }
+ 
+             bool isLooping() const;
 --- a/bse/src/area.cpp
 +++ b/bse/src/area.cpp
-@@ -312,7 +312,7 @@
-     // --- 0xDC
+@@ -9,6 +9,9 @@
+ #define MESSAGE_NO_DATA "NO DATA"
  
-     // Preallocate
--    *(u32 **)((u8 *)menu + 0xDC) = new u32[sScenarioCountForSelectArea];
-+    *(J2DPicture ***)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xDC)) = new J2DPicture *[sScenarioCountForSelectArea];
-     PowerPC::writeU32((u32 *)0x80175020, 0x60000000);  // nop the initializer ^^
+ static void moveStage_override(TMarDirector *director);
++// port: an episode's name for the port's warp menu (src/port_include/port_warp.h)
++extern "C" int (*port_warp_scenario_name_id)(int area, int episode);
++static int portWarpScenarioNameID(int area, int episode);
  
-     PowerPC::writeU32((u32 *)0x80175094, 0x835F00DC);  // lwz r26, 0xDC (r31)
-@@ -423,11 +423,11 @@
-     PowerPC::writeU32((u32 *)0x8017447C, 0x80630010);  // lwz r3, 0x10 (r3)
-     PowerPC::writeU32((u32 *)0x80174480, 0x7C63002E);  // lwzx r3, r3, r0
+ namespace BetterSMS {
  
--    *(u8 **)((u8 *)menu + 0x150) = new u8[sScenarioCountForSelectArea];
-+    *(u8 **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x150)) = new u8[sScenarioCountForSelectArea];
+@@ -101,8 +104,36 @@
  
-     // Emulate functionality at 0x80174DFC
-     for (u32 i = 0; i < sScenarioCountForSelectArea; ++i) {
--        (*(u8 **)((u8 *)menu + 0x150))[i] = 2;
-+        (*(u8 **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x150)))[i] = 2;
+         oldHeap->becomeCurrentHeap();
      }
- 
-     // Emulate functionality at 0x80174E84
-@@ -443,7 +443,7 @@
-             continue;
-         }
- 
--        (*(u8 **)((u8 *)menu + 0x150))[i] = 3;
-+        (*(u8 **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x150)))[i] = 3;
-         unlocked_scenarios += 1;
-     }
- 
-@@ -451,13 +451,13 @@
- 
-     // Emulate functionality at 0x80174EE8
-     for (u32 i = unlocked_scenarios; i < sScenarioCountForSelectArea; ++i) {
--        (*(u8 **)((u8 *)menu + 0x150))[i] = 0;
-+        (*(u8 **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x150)))[i] = 0;
-     }
- 
-     if (gForceOpenShineSelect) {
-         for (u32 i = 0; i < sScenarioCountForSelectArea; ++i) {
--            if ((*(u8 **)((u8 *)menu + 0x150))[i] != 3) {
--                (*(u8 **)((u8 *)menu + 0x150))[i] = 2;
-+            if ((*(u8 **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x150)))[i] != 3) {
-+                (*(u8 **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x150)))[i] = 2;
-             }
-         }
-         menu->mEpisodeCount   = sScenarioCountForSelectArea;
-@@ -483,23 +483,23 @@
- 
-     data->entryMatColorAnimator(color);
- 
--    *(u32 **)((u8 *)manager + 0x10) = new u32[sScenarioCountForSelectArea];
-+    *(void ***)((u8 *)manager + SMS_OFFSET(TSelectShineManager, 0x10)) = new void *[sScenarioCountForSelectArea];
- }
- SMS_PATCH_BL(SMS_PORT_REGION(0x80178B50, 0, 0, 0), allocBufferForSelectShineManager);
- 
- static void SelectShineManager_startCloseOverride(TSelectShineManager *manager) {
--    int current = *(u32 *)((u8 *)manager + 0x8C);
--    *(((u8 *)((*(u32 ***)((u8 *)manager + 0x10))[current])) + 0x24) = 0;
-+    int current = *(u32 *)((u8 *)manager + SMS_OFFSET(TSelectShineManager, 0x8C));
-+    *(((u8 *)((*(u32 ***)((u8 *)manager + SMS_OFFSET(TSelectShineManager, 0x10)))[current])) + SMS_OFFSET(TSelectShine, 0x24)) = 0;
- 
-     for (int i = 0; i < sScenarioCountForSelectArea; i++) {
--        u8 *shine = (u8 *)((*(u32 ***)((u8 *)manager + 0x10))[i]);
--        if (shine != nullptr && i != current && *(shine + 0x49) == 0) {
--            *(shine + 0x49) = 1;
--            *(shine + 0x48) = 0;
--        }
--    }
--
--    *((u8 *)manager + 0xA7) = 1;
-+        u8 *shine = (u8 *)((*(u32 ***)((u8 *)manager + SMS_OFFSET(TSelectShineManager, 0x10)))[i]);
-+        if (shine != nullptr && i != current && *(shine + SMS_OFFSET(TSelectShine, 0x49)) == 0) {
-+            *(shine + SMS_OFFSET(TSelectShine, 0x49)) = 1;
-+            *(shine + SMS_OFFSET(TSelectShine, 0x48)) = 0;
-+        }
-+    }
 +
-+    *((u8 *)manager + SMS_OFFSET(TSelectShineManager, 0xA7)) = 1;
++    port_warp_scenario_name_id = portWarpScenarioNameID;
  }
- SMS_PATCH_B(SMS_PORT_REGION(0x80178830, 0, 0, 0), SelectShineManager_startCloseOverride);
  
-@@ -509,7 +509,7 @@
- 
-     JUTTexture *texture      = new JUTTexture();
-     texture->mTexObj2.val[2] = 0;
--    texture->storeTIMG(*(const ResTIMG **)((u8 *)defaultTex + 0x20));
-+    texture->storeTIMG(*(const ResTIMG **)((u8 *)defaultTex + SMS_OFFSET(JUTTexture, 0x20)));
-     texture->_50 = false;
- 
-     digitPicture->insert(texture, 0, 1.0f);
-@@ -536,10 +536,10 @@
-     TSelectMenu *menu;
-     SMS_FROM_GPR(31, menu);
- 
--    J2DPicture *picPrevFront = *(J2DPicture **)((u8 *)menu + 0x48);
--    J2DPicture *picPrevBack  = *(J2DPicture **)((u8 *)menu + 0x4C);
--    J2DPicture *picCurFront = *(J2DPicture **)((u8 *)menu + 0x70);
--    J2DPicture *picCurBack   = *(J2DPicture **)((u8 *)menu + 0x74);
-+    J2DPicture *picPrevFront = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x48));
-+    J2DPicture *picPrevBack  = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x4C));
-+    J2DPicture *picCurFront = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x70));
-+    J2DPicture *picCurBack   = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x74));
- 
-     picPrevBack->mIsVisible = false;
-     picCurBack->mIsVisible = false;
-@@ -562,28 +562,28 @@
-     // Because of other modifications, these pointers are free use
-     J2DPicture *picPrevFront2 = picPrevFront2 =
-         createExtraDigitAsChildOf('xnf2', defaultTex, picPrevFront, false);
--    *(J2DPicture **)((u8 *)menu + 0xE0) = picPrevFront2;
-+    *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xE0)) = picPrevFront2;
- 
-     J2DPicture *picPrevBack2 = picPrevBack2 =
-         createExtraDigitAsChildOf('xnb2', defaultTex, picPrevBack, true);
--    *(J2DPicture **)((u8 *)menu + 0xE4) = picPrevBack2;
-+    *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xE4)) = picPrevBack2;
- 
-     J2DPicture *picCurFront2 = createExtraDigitAsChildOf('xcf2', defaultTex, picCurFront, false);
--    *(J2DPicture **)((u8 *)menu + 0xE8) = picCurFront2;
-+    *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xE8)) = picCurFront2;
- 
-     J2DPicture *picCurBack2 = createExtraDigitAsChildOf('xcb2', defaultTex, picCurBack, true);
--    *(J2DPicture **)((u8 *)menu + 0xEC) = picCurBack2;
-+    *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xEC)) = picCurBack2;
- 
-     const u8 uiCurIndex = menu->mEpisodeID + 1;
-     if (uiCurIndex >= 10) {
-         picPrevFront->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevBack->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevFront2->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevBack2->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevFront2->mIsVisible = true;
-         picPrevBack2->mIsVisible  = true;
- 
-@@ -591,9 +591,9 @@
-         picPrevBack->resize(25, 40);
-     } else {
-         picPrevFront->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevBack->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevFront2->mIsVisible = false;
-         picPrevBack2->mIsVisible  = false;
-     }
-@@ -608,29 +608,29 @@
-     u32 toIndex;
-     SMS_FROM_GPR(23, toIndex);
- 
--    J2DPicture *picPrevFront = *(J2DPicture **)((u8 *)menu + 0x48);
--    J2DPicture *picPrevBack  = *(J2DPicture **)((u8 *)menu + 0x4C);
--    J2DPicture *picCurFront = *(J2DPicture **)((u8 *)menu + 0x70);
--    J2DPicture *picCurBack  = *(J2DPicture **)((u8 *)menu + 0x74);
-+    J2DPicture *picPrevFront = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x48));
-+    J2DPicture *picPrevBack  = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x4C));
-+    J2DPicture *picCurFront = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x70));
-+    J2DPicture *picCurBack  = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0x74));
- 
-     // Because of other modifications, these pointers are free use
--    J2DPicture *picPrevFront2 = *(J2DPicture **)((u8 *)menu + 0xE0);
--    J2DPicture *picPrevBack2  = *(J2DPicture **)((u8 *)menu + 0xE4);
--    J2DPicture *picCurFront2  = *(J2DPicture **)((u8 *)menu + 0xE8);
--    J2DPicture *picCurBack2   = *(J2DPicture **)((u8 *)menu + 0xEC);
-+    J2DPicture *picPrevFront2 = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xE0));
-+    J2DPicture *picPrevBack2  = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xE4));
-+    J2DPicture *picCurFront2  = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xE8));
-+    J2DPicture *picCurBack2   = *(J2DPicture **)((u8 *)menu + SMS_OFFSET(TSelectMenu, 0xEC));
- 
-     const u8 uiToIndex  = toIndex + 1;
-     const u8 uiCurIndex = menu->mEpisodeID + 1;
- 
-     if (uiCurIndex >= 10) {
-         picPrevFront->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevBack->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex / 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevFront2->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevBack2->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex % 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevFront2->mIsVisible = true;
-         picPrevBack2->mIsVisible  = true;
- 
-@@ -638,9 +638,9 @@
-         picPrevBack->resize(25, 40);
-     } else {
-         picPrevFront->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevBack->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiCurIndex] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picPrevFront2->mIsVisible = false;
-         picPrevBack2->mIsVisible  = false;
- 
-@@ -650,13 +650,13 @@
- 
-     if (uiToIndex >= 10) {
-         picCurFront->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex / 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex / 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picCurBack->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex / 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex / 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picCurFront2->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex % 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex % 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picCurBack2->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex % 10] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex % 10] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picCurFront2->mIsVisible = true;
-         picCurBack2->mIsVisible  = true;
- 
-@@ -664,9 +664,9 @@
-         picCurBack->resize(25, 40);
-     } else {
-         picCurFront->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picCurBack->changeTexture(
--            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex] + 0x20), 0);
-+            *(const ResTIMG **)((u8 *)menu->mCoinCountNumberTex[uiToIndex] + SMS_OFFSET(JUTTexture, 0x20)), 0);
-         picCurFront2->mIsVisible = false;
-         picCurBack2->mIsVisible  = false;
- 
-@@ -780,8 +780,8 @@
-                                                                   void *global_bmg) {
++// The episode's message in scenarioname.bmg, as the level select and the
++// pause menu name it: an area's by its scenario, a secret course's by its
++// Shine (an episode's or one of the stage's others); -1 for none.
++static int portWarpScenarioNameID(int area, int episode) {
++    if (area < 0 || area >= BETTER_SMS_AREA_MAX)
++        return -1;
++    const s32 shineStageID = sNormalAreaInfos[area].mShineStageID;
++    if (shineStageID < 0 || !sShineAreaInfos[shineStageID])
++        return -1;
++    const ShineAreaInfo &info = *sShineAreaInfos[shineStageID];
++    if (area < BETTER_SMS_EXAREA_MAX && sExAreaInfos[area].mShineStageID != -1) {
++        const s32 shineID = sExAreaInfos[area].mShineID;
++        for (int ex = 0; shineID != -1 && ex < 2; ++ex) {
++            const TGlobalVector<s32> &ids   = ex ? info.getExScenarioIDs() : info.getScenarioIDs();
++            const TGlobalVector<s32> &names = ex ? info.getExScenarioNameIDs() : info.getScenarioNameIDs();
++            for (size_t i = 0; i < ids.size() && i < names.size(); ++i) {
++                if (ids[i] == shineID)
++                    return names[i];
++            }
++        }
++        return -1;
++    }
++    const TGlobalVector<s32> &names = info.getScenarioNameIDs();
++    return episode >= 0 && size_t(episode) < names.size() ? names[episode] : -1;
++}
++
+ bool BetterSMS::Stage::registerShineStage(ShineAreaInfo *info) {
+     if (sShineAreaInfos[info->getShineStageID()]) {
+         OSReport("[WARN] Overwriting stage info for stage %d\n", info->getShineStageID());
+@@ -359,8 +359,8 @@
+ SMS_NO_INLINE static const char *loadScenarioNameFromBMGAfterStub(u8 *pause_menu, void* global_bmg) {
      const char *name = loadScenarioNameFromBMGAfter(global_bmg);
      if (!name || strcmp(name, "") == 0) {
 -        (*(J2DPane **)(pause_menu + 0x1C))->add(0, 30);
@@ -252,7 +69,7 @@
      }
  
      return name;
-@@ -831,7 +831,7 @@
+@@ -410,6 +410,6 @@
          TFlagManager::smInstance->setFlag(0x40002, 0);
      }
  
@@ -260,7 +77,6 @@
 +    *(u32 *)((u8 *)director + SMS_OFFSET(TMarDirector, 0xE4)) = 8;
      director->mNextState            = 8;
  }
- 
 --- a/bse/src/graphics.cpp
 +++ b/bse/src/graphics.cpp
 @@ -43,16 +43,16 @@
@@ -306,7 +122,70 @@
  }
 --- a/bse/src/music.cpp
 +++ b/bse/src/music.cpp
-@@ -487,12 +487,12 @@
+@@ -241,9 +241,50 @@
+ void AudioStreamer::setVolumeFadeTo(u8 to, f32 seconds) {
++    // The port: a song being stopped fades out to silence before the stop
++    // (and the next song) runs. Eclipse's Shadow Mario episodes set the
++    // stream's volume from his distance every frame; a console's slow stage
++    // load let the character select's stop finish first, but here the stage
++    // was running while it faded and held it at that volume, so the stop
++    // never ran and the character select's song played on.
++    if (mRequestedStop)
++        return;
+     _mTargetVolume = to;
+     _mFadeTime     = seconds;
+ }
+ 
+ bool AudioStreamer::queueAudio(const AudioPacket &packet) {
++    // The port: leaving a stage stops the song with a 0.8 s fade and clears the
++    // queue once the fade ends. A console spends seconds reading the next stage
++    // from the disc, so the clear has run before that stage queues its song.
++    // Here the stage is ready long before, and the late clear dropped the new
++    // song too (silent secret course intros, silent stages without an intro,
++    // and nothing for Pizza Time's skipStream to play). Finish the old song now.
++    if (mRequestedClear) {
++        if (_mIsPlaying || _mIsPaused || mRequestedStop)
++            stopLowStream();
++        _mIsPlaying         = false;
++        _mIsPaused          = false;
++        mRequestedStop      = false;
++        mRequestedPause     = false;
++        mRequestedNext      = false;
++        mRequestedPlay      = false;
++        _mDelayedTime       = 0.0f;
++        _mFadeTime          = 0.0f;
++        _mTargetVolume      = 0;
++        _mVolLeft           = 0;
++        _mVolRight          = 0;
++        _mPreservedVolLeft  = 0;
++        _mPreservedVolRight = 0;
++
++        TAtomicGuard guard;
++
++        _mAudioIndex = 0;
++        for (size_t i = 0; i < AudioQueueSize; ++i) {
++            _mAudioQueue[i] = AudioPacket();
++        }
++        mStreamPos      = 0;
++        mRequestedClear = false;
++    }
++
+     for (u32 i = 0; i < AudioQueueSize; ++i) {
+         AudioPacket &slot = _mAudioQueue[(i + _mAudioIndex) % AudioQueueSize];
+         if (slot.getID() == 0xFFFFFFFF) {
+@@ -340,8 +381,9 @@
+ }
+ 
+ void AudioStreamer::clear() {
+-    sAudioCommand = AudioCommand::CLEAR;
+-    OSSendMessage(&mMessageQueue, static_cast<u32>(sAudioCommand), OS_MESSAGE_NOBLOCK);
++    // The port: flagged here, not by the audio thread, so queueAudio above
++    // sees a clear that is still to run whichever thread ran first.
++    clear_();
+ }
+ 
+ SMS_NO_INLINE bool AudioStreamer::play_() {
+@@ -487,12 +529,12 @@
  
  static JAISound *GetJAISoundForMusic(u32 id) {
      JAISound **unk = (JAISound **)search__19JALListS_5(id & 0x3FF); 
@@ -321,9 +200,25 @@
  }
  
  static f32 GetJAISoundSeInterVolume(JAISound *sound, u8 channel) {
+@@ -959,8 +993,14 @@
+     if (!config->mMusicEnabled.get())
+         return;
+ 
+     if (config->mIsExStage.get()) {
+-        if (MSBgm::getHandle(0) || streamer->isPlaying()) {
++        // The port: a secret course leaves its music to the entrance demo
++        // (initExMusic) when a song is already playing. A console reads the
++        // course from the disc while the last stage's song fades out, so that
++        // song has stopped by now; here it can still be fading, and courses
++        // with sequenced music (Daisy Cruiser's) stayed silent until Mario
++        // died and the stage started again.
++        if (MSBgm::getHandle(0) || (streamer->isPlaying() && !streamer->isLeavingStage())) {
+             return;
+         }
+     }
 --- a/bse/src/p_settings.hxx
 +++ b/bse/src/p_settings.hxx
-@@ -1245,8 +1245,8 @@
+@@ -1246,8 +1246,8 @@
  
      static void valueChangedCB(void *old, void *cur, ValueKind kind) {
          OSReport("GammaSetting::valueChangedCB\n");
@@ -506,7 +401,7 @@
 \ No newline at end of file
 --- a/eclipse/src/camera/2d_camera.cpp
 +++ b/eclipse/src/camera/2d_camera.cpp
-@@ -40,15 +40,15 @@
+@@ -50,15 +50,15 @@
      camera->mTargetPos.z      = gpMarioPos->z;
      camera->mWorldTranslation = camera->mTranslation;
  
@@ -615,7 +510,7 @@
      }
 --- a/eclipse/src/darkness.cpp
 +++ b/eclipse/src/darkness.cpp
-@@ -202,10 +202,10 @@
+@@ -224,10 +224,10 @@
      }
      case TLightContext::ActiveType::FOLLOWCAMERA: {
          manager.mDarkLevel = sBrightLevel;
@@ -670,7 +565,7 @@
  }
 --- a/eclipse/src/enemy/firey_petey.cpp
 +++ b/eclipse/src/enemy/firey_petey.cpp
-@@ -80,11 +80,16 @@
+@@ -119,11 +119,16 @@
                  ((static_cast<float>(rand()) / static_cast<float>(0x7fff)) - 0.5f) * 10000.0f;
  
              if (target->_118 < target->_114) {
@@ -692,18 +587,22 @@
                  target->_118++;
              }
              target->mTarget = 0;
-@@ -317,7 +322,7 @@
-                         mFire->mVelocity.y = 0;
-                         mFire->mVelocity.z = 50.0f * cosf(angleToRadians(target->mRotation.y));
-                         mFire->mTranslation.set(
--                            *reinterpret_cast<TVec3f *>(((u8 *)emitterFire) + 0x15C));
-+                            *reinterpret_cast<TVec3f *>(((u8 *)emitterFire) + SMS_OFFSET(JPABaseEmitter, 0x15C)));
-                         mFire->mTranslation.y -= 237.5f;
-                         mFire->mLifetime = 30 * 4;
-                     }
+@@ -333,7 +338,10 @@
+ 
+                     JPABaseEmitter *emitterFireCb =
+                         gpMarioParticleManager->emitAndBindToMtxPtr(0x1a6, *fire_mtx, 1, target);
+-                    *(JPACallBackBase<> **)((u8 *)emitterFireCb + 0x110) =
+-                        target->m_fire_particle_callback;
++                    // The port: there is no emitter when the particle pool is
++                    // full; bowser_car.cpp's fire breath checks for that too.
++                    if (emitterFireCb)
++                        *(JPACallBackBase<> **)((u8 *)emitterFireCb + SMS_OFFSET(JPABaseEmitter, 0x110)) =
++                            target->m_fire_particle_callback;
+ 
+                     gpMarioParticleManager->emitAndBindToMtxPtr(0x1a5, *fire_mtx, 1, target);
 --- a/eclipse/src/menu/character_select.cpp
 +++ b/eclipse/src/menu/character_select.cpp
-@@ -559,7 +559,7 @@
+@@ -548,7 +548,7 @@
  static int flagCharacterSelectMenu(u8 state) {
      // Only here for time sake
      if (gpApplication.mContext == TApplication::CONTEXT_DIRECT_STAGE) {
@@ -723,6 +622,54 @@
      bool is_water_card    = director->mGCConsole->mIsWaterCard;
  
      AtomBalloonMessageViewer *message = AtomBalloonMessageViewer::peekMessage();
+--- a/eclipse/src/object/emario_portal.cpp
++++ b/eclipse/src/object/emario_portal.cpp
+@@ -10,17 +10,20 @@
+ #include "player.hxx"
+ 
+ // Exploits unused padding bytes in every actor
+-static bool IsLiveActor(JDrama::TActor *actor) { return ((bool *)actor)[0xE]; }
++// (the port: byte 0xE, after mPerformFlags, holds mPosition on 64-bit hosts;
++// the byte after mPlacementFlags, retail 0x1E, is padding in every layout)
++static bool &LiveActorFlag(JDrama::TActor *actor) { return ((bool *)&actor->mPlacementFlags)[2]; }
++static bool IsLiveActor(JDrama::TActor *actor) { return LiveActorFlag(actor); }
+ 
+ // Patching constructors
+ static JDrama::TFlagT<u16> *flagNotLiveActor(JDrama::TActor *actor) {
+-    ((bool *)actor)[0xE] = false;
++    LiveActorFlag(actor) = false;
+     return (JDrama::TFlagT<u16> *)&actor->mPerformFlags;
+ }
+ SMS_PATCH_BL(0x80223EAC, flagNotLiveActor);
+ 
+ static u32 flagLiveActor(THitActor *actor) {
+-    ((bool *)actor)[0xE] = true;
++    LiveActorFlag(actor) = true;
+     return 0x803AB71C;
+ }
+ SMS_PATCH_BL(0x80218E94, flagLiveActor);
+--- a/eclipse/src/object/star_bit.cpp
++++ b/eclipse/src/object/star_bit.cpp
+@@ -85,7 +85,7 @@
+ 
+     OSReport("Trying to set the TEV color!\n");
+ 
+-    J3DTevBlock *tevBlock = *(J3DTevBlock **)((u8 *)tevStage + 0x28);
++    J3DTevBlock *tevBlock = *(J3DTevBlock **)((u8 *)tevStage + SMS_OFFSET(J3DMaterial, 0x28));
+     tevBlock->setTevKColor(0, color);
+ 
+     gpItemManager->_70 = 5.0f;  // 2.0f rotation -> 5.0f rotation
+--- a/eclipse/src/player/init.cpp
++++ b/eclipse/src/player/init.cpp
+@@ -30,7 +30,7 @@
+     if (gSunglassSetting.getBool()) {
+         if (TFlagManager::smInstance->getFlag(0x3001B) != 0) {
+             /*player->wearGlass();*/
+-            ((u16 *)player->mCap)[2] |= 4;
++            *(u16 *)((u8 *)player->mCap + SMS_OFFSET(TMarioCap, 0x4)) |= 4;
+ 
+             if (TFlagManager::smInstance->getShineFlag(119)) {
+                 player->mAttributes.mIsShineShirt = true;
 --- a/eclipse/src/player/voice.cpp
 +++ b/eclipse/src/player/voice.cpp
 @@ -105,8 +105,8 @@
@@ -801,9 +748,20 @@
  
          health = 8;
          switch (soundID) {
+--- a/eclipse/src/stage.cpp
++++ b/eclipse/src/stage.cpp
+@@ -752,7 +752,7 @@
+ 
+ static void SME_extendedCorrectFlagsWithBetterSMSPatch(TFlagManager *manager) {
+     // Replicate the BetterSMS patch since we are clobbering it
+-    memset(((u8 *)manager) + 0x1F4, 0, 0x8C);
++    memset(((u8 *)manager) + SMS_OFFSET(TFlagManager, 0x1F4), 0, 0x8C);
+     // ==================
+ 
+     manager->correctFlag();
 --- a/eclipse/src/stage/behavior.cpp
 +++ b/eclipse/src/stage/behavior.cpp
-@@ -185,7 +185,7 @@
+@@ -189,7 +189,7 @@
          if (JDrama::TNameRef *p = name_ref->searchF(key_code, "LanciaLight")) {
              TGenericRailObj *light_obj = reinterpret_cast<TGenericRailObj *>(p);
              J3DTevStage *tev_stage     = light_obj->mActorData->mModel->mModelData->mStages[0];
@@ -812,7 +770,7 @@
              tev_block->setTevKColor(0, is_enabled ? enabled_color : disabled_color);
  
              if (is_enabled &&
-@@ -201,7 +201,7 @@
+@@ -205,7 +205,7 @@
          if (JDrama::TNameRef *p = name_ref->searchF(key_code, "VaporLight")) {
              TGenericRailObj *light_obj = reinterpret_cast<TGenericRailObj *>(p);
              J3DTevStage *tev_stage     = light_obj->mActorData->mModel->mModelData->mStages[0];
@@ -821,7 +779,7 @@
              tev_block->setTevKColor(0, is_enabled ? on_color : off_color);
  
              if (is_enabled &&
-@@ -218,7 +218,7 @@
+@@ -222,7 +222,7 @@
          if (JDrama::TNameRef *p = name_ref->searchF(key_code, "CityLight")) {
              TGenericRailObj *light_obj = reinterpret_cast<TGenericRailObj *>(p);
              J3DTevStage *tev_stage     = light_obj->mActorData->mModel->mModelData->mStages[0];
@@ -830,7 +788,7 @@
              tev_block->setTevKColor(0, is_enabled ? enabled_color : disabled_color);
  
              if (is_enabled &&
-@@ -235,7 +235,7 @@
+@@ -239,7 +239,7 @@
          if (JDrama::TNameRef *p = name_ref->searchF(key_code, "YoshiLight")) {
              TGenericRailObj *light_obj = reinterpret_cast<TGenericRailObj *>(p);
              J3DTevStage *tev_stage     = light_obj->mActorData->mModel->mModelData->mStages[0];
@@ -839,7 +797,7 @@
              tev_block->setTevKColor(0, is_enabled ? enabled_color : disabled_color);
  
              if (is_enabled &&
-@@ -252,7 +252,7 @@
+@@ -256,7 +256,7 @@
          if (JDrama::TNameRef *p = name_ref->searchF(key_code, "PeachLight")) {
              TGenericRailObj *light_obj = reinterpret_cast<TGenericRailObj *>(p);
              J3DTevStage *tev_stage     = light_obj->mActorData->mModel->mModelData->mStages[0];
@@ -848,7 +806,7 @@
              tev_block->setTevKColor(0, is_enabled ? enabled_color : disabled_color);
  
              if (is_enabled &&
-@@ -369,7 +369,7 @@
+@@ -395,7 +395,7 @@
          SME::TGlobals::sCharacterIDList[2] = SME::CharacterID::PIANTISSIMO;
          SME::TGlobals::sCharacterIDList[3] = SME::CharacterID::SHADOW_MARIO;
          TFlagManager::smInstance->resetCard();
@@ -857,7 +815,7 @@
          return;
      }
  
-@@ -395,9 +395,9 @@
+@@ -421,9 +421,9 @@
      // Force unlock all gates, yoshi, and nozzles post-corona mountain
      if (TFlagManager::smInstance->getBool(0x10077)) {
          // Set the nozzle flags
@@ -870,7 +828,7 @@
  
          TFlagManager::smInstance->setBool(true, 0x10384);  // Bianco gate
          TFlagManager::smInstance->setBool(true, 0x10385);  // M on statue
-@@ -456,12 +456,12 @@
+@@ -482,12 +482,12 @@
  s32 s_final_boss_debs_list[] = {20, 21, -1};
  
  static void setDolpic11DEBSList(TGCConsole2 *console2) {
@@ -916,7 +874,60 @@
      startStageEntranceDemo__10MSMainProcFUcUc(director->mAreaID, director->mEpisodeID);
 --- a/eclipse/src/stage/music.cpp
 +++ b/eclipse/src/stage/music.cpp
-@@ -93,16 +93,28 @@
+@@ -49,11 +49,21 @@
+     ~MSStageDistFadeStream(){};
+ 
+     void proc() override {
+-        if (!Music::isPlaying() || Music::isPaused()) {
++        if (Music::isPaused()) {
+             return;
+         }
+ 
+         MSBgm *handle = (MSBgm *)MSBgm::getHandle(1);
++        if (!Music::isPlaying()) {
++            // The Shadow Mario theme starts with the stage at full volume, but the
++            // stage song only streams from GO!. Hold the theme at its distance
++            // blend until then so it doesn't blare before the crossfade takes over.
++            if (handle != nullptr) {
++                MSBgm::setTrackVolume(1, distanceBlend(), 0, 0);
++            }
++            return;
++        }
++
+         if (handle == nullptr) {
+             if (mFrameCounter++ >= 150 && !mFadedPermanently) {
+                 Music::setVolumeFade(Music::getMaxVolume(), 0.4f);
+@@ -62,14 +72,7 @@
+             return;
+         }
+ 
+-        f32 distance = PSVECDistance(*gpMarioPos, mPosPtr);
+-
+-        f32 blend = 0.0f;
+-        if (distance <= mBlendRadiusEnd && distance > mBlendRadiusStart) {
+-            blend = (mBlendRadiusEnd - distance) / (mBlendRadiusEnd - mBlendRadiusStart);
+-        } else if (distance <= mBlendRadiusStart) {
+-            blend = 1.0f;
+-        }
++        f32 blend = distanceBlend();
+ 
+         f32 *timingTable = (f32 *)sms_mod_rawdata(0x803ACA68);
+         f32 *expTable    = (f32 *)sms_mod_rawdata(0x803ACAB0);
+@@ -90,19 +93,42 @@
+     }
+ 
+ private:
++    f32 distanceBlend() const {
++        f32 distance = PSVECDistance(*gpMarioPos, mPosPtr);
++        if (distance <= mBlendRadiusStart) {
++            return 1.0f;
++        }
++        if (distance <= mBlendRadiusEnd) {
++            return (mBlendRadiusEnd - distance) / (mBlendRadiusEnd - mBlendRadiusStart);
++        }
++        return 0.0f;
++    }
++
      bool mFadedPermanently;
  };
  
@@ -951,7 +962,7 @@
              OSReport("MSoundEnterStageExtended: Episode 6\n");
          }
      }
-@@ -114,7 +126,7 @@
+@@ -114,7 +140,7 @@
      bool excluded = area == SME::STAGE_LACRIMA || area == SME::STAGE_LACRIMA_INSIDE;
      if (!excluded && area >= SME::STAGE_ERTO && area <= SME::STAGE_LACRIMA_BACKHOUSE) {
          if (episode == 6) {

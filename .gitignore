@@ -12,30 +12,3 @@
 /mods/*
 !/mods/README.md
 __pycache__/
-# Release packages (packaging/package.sh).
-/dist/
-
-# Disc images and runtime outputs
-*.iso
-*.ISO
-*.gcm
-*.ciso
-log.txt
-save/
-
-# Android build outputs and caches
-.gradle/
-android/.gradle/
-android/local.properties
-android/.idea/
-android/**/build/
-android/**/.cxx/
-android/**/.externalNativeBuild/
-*.apk
-*.aab
-
-
-# Release signing keys never go into the repository
-*.jks
-*.keystore
-keystore.properties

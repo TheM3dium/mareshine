@@ -18,8 +18,8 @@ While a load is under way it tells platform/savestate (port_savestate_set_loadin
 @@ -1089,6 +1094,7 @@
  	                     && !dir->checkUnk4CFlag(TMarDirector::DIRECTOR_FLAG_STAGE_TRANSITION_PENDING);
  	const bool paused = dir && dir->mState == TMarDirector::STATE_PAUSE_MENU;
- 	port_savestate_set_ready(playing && sStateLoadPhase == STATE_LOAD_IDLE);
-+	port_savestate_set_loading(sStateLoadPhase != STATE_LOAD_IDLE);
+ 	port_savestate_set_ready((playing || paused) && sStateLoadPhase == STATE_LOAD_IDLE);
++	port_savestate_set_loading(sStateLoadPhase);
  
  	if (sStateLoadPhase == STATE_LOAD_FADE_OUT) {
  		// black, or a second at most (a fade the game took over)

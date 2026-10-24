@@ -19,7 +19,7 @@ Every system uses the same scripts from the repository root:
   Put it in [`rom/`](rom/), pass its path, or set `SMS_DISC_IMAGE`.
   The port reads it in place; nothing is extracted or copied.
 - **`./build.sh`** updates the pinned `decomp/` submodule, configures `build/<os>-<arch>/` with CMake and compiles `sms`.
-  With an image (the argument, `SMS_DISC_IMAGE`, or the one image in `rom/`) it also builds the [standalone executable](#standalone-executable).
+  With an image (the argument, `SMS_DISC_IMAGE`, or the one image in `rom/`) it also builds the [standalone executable](#standalone-executable), unless `SMS_STANDALONE=0` is set.
   `JOBS=n` limits parallel compiler jobs (default: all cores).
   The first build compiles about 600 game files; later builds only rebuild what changed.
 - **`./run.sh`** runs `build/<os>-<arch>/`.
@@ -209,6 +209,7 @@ The standalone executable needs no image, no `rom/` folder and no extracted file
 On Linux it still needs the system's SDL2 (`libsdl2`); on Windows its MinGW and SDL2 DLLs must be next to it or on `PATH`.
 On macOS the build produces [`SMS.app`](#macos-app) instead, with SDL2 and the packed image inside the bundle.
 `./run.sh` without a disc argument starts it when it exists; a disc argument, `SMS_DISC_IMAGE` or `SMS_DISC_ROOT` still takes precedence over the bundled files.
+`SMS_STANDALONE=0 ./build.sh` skips it and builds only `sms` (with the image still giving `sms.exe` its icon on Windows); SMS Launcher builds this way, since it runs `sms` with your image.
 Keep the executable private: it contains the game.
 
 ### Icons

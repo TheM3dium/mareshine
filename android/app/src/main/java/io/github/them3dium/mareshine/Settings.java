@@ -32,7 +32,7 @@ public final class Settings {
         {"disable_water_anim", "0"},
         {"disable_shimmer", "0"},
         {"fast_peek", "1"},
-        {"copy_writeback", "0"},
+        {"copy_writeback", "1"},
         {"shader_cache", "1"},
         {"SMS_GX_PERSISTENT_BUFFER", "auto"},
         {"SMS_GX_DETAILED_TIMERS", "0"},
@@ -82,9 +82,27 @@ public final class Settings {
     // A first start gets the defaults above, so the game does not fall back
     // to its own (native resolution, 4:3).
     public static void ensureDefaults(Context ctx) {
-        if (DataDir.settingsFile(ctx).exists()) return;
+        if (DataDir.settingsFile(ctx).exists()) {
+            upgrade(ctx);
+            return;
+        }
         Map<String, String> m = new LinkedHashMap<>();
         for (String[] kv : DEFAULTS) m.put(kv[0], kv[1]);
+        write(ctx, m);
+    }
+
+    // Settings written by older versions, brought up to date once (the
+    // revision is kept in settings.txt; the game ignores the key).
+    private static final String REV = "SMS_LAUNCHER_SETTINGS_REV";
+
+    private static void upgrade(Context ctx) {
+        Map<String, String> m = read(ctx);
+        int rev = 0;
+        try { rev = Integer.parseInt(m.getOrDefault(REV, "0")); } catch (NumberFormatException ignored) {}
+        if (rev >= 2) return;
+        // 1.x always wrote copy_writeback = 0; 2.0 has it on, with a switch
+        if ("0".equals(m.get("copy_writeback"))) m.put("copy_writeback", "1");
+        m.put(REV, "2");
         write(ctx, m);
     }
 }

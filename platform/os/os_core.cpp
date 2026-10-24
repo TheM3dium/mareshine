@@ -13,12 +13,7 @@
 #include <dolphin/os/OSError.h>
 #include <dolphin/os/OSMemory.h>
 #include <time.h>
-#if !defined(__ANDROID__) && !defined(_WIN32)
-#include <execinfo.h>
-#endif
-#ifdef __ANDROID__
-#include <android/log.h>
-#endif
+#include "port_backtrace.h"
 
 extern "C" void port_os_threads_init(void);
 
@@ -149,28 +144,13 @@ extern "C" void OSPanic(const char* file, int line, const char* msg, ...)
 {
 	va_list ap;
 	va_start(ap, msg);
-#ifdef __ANDROID__
-	{ // also into game.log (port_log), so a panic shows in the crash report
-		char text[1024];
-		va_list copy;
-		va_copy(copy, ap);
-		vsnprintf(text, sizeof text, msg, copy);
-		va_end(copy);
-		port_log("[OSPanic] %s:%d: %s\n", file, line, text);
-	}
-	__android_log_print(ANDROID_LOG_FATAL, "SMS_OSPanic", "[OSPanic] %s:%d", file, line);
-	__android_log_vprint(ANDROID_LOG_FATAL, "SMS_OSPanic", msg, ap);
-#else
 	fprintf(stderr, "[OSPanic] %s:%d: ", file, line);
 	vfprintf(stderr, msg, ap);
-#endif
 	va_end(ap);
 	fputc('\n', stderr);
-#if !defined(__ANDROID__) && !defined(_WIN32)
 	void* bt[64];
 	int n = backtrace(bt, 64);
 	backtrace_symbols_fd(bt, n, 2);
-#endif
 	abort();
 }
 

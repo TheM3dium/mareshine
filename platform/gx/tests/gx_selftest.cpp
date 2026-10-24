@@ -14,6 +14,7 @@
 #include <dolphin/mtx.h>
 
 #include "sms_gx/gx_pc.h"
+#include "gl_funcs.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -24,6 +25,7 @@
 namespace gx {
 void decodeTexture(const uint8_t* src, uint32_t fmt, uint32_t w, uint32_t h, const uint8_t* tlut, uint32_t tlutFmt,
                    uint8_t* out);
+bool shaderHasEarlyFragmentTests();
 }
 
 // The OS layer normally provides these.
@@ -32,8 +34,26 @@ void OSPanic(const char* file, int line, const char* msg, ...) {
     abort();
 }
 void DCFlushRange(void* p, u32 n) { GXPC_InvalidateRange(p, uint32_t(n)); }
+extern "C" void port_ptr32_trap(const void* p) {
+    fprintf(stderr, "GX self-test: texture pointer %p is outside emulated memory\n", p);
+    abort();
+}
 
 static int s_fail = 0, s_pass = 0;
+
+static int s_overlayAllocations = 0, s_overlayUploads = 0;
+static PFNGLTEXIMAGE2DPROC s_realImage;
+static PFNGLTEXSUBIMAGE2DPROC s_realSubImage;
+static void APIENTRY countOverlayImage(GLenum target, GLint level, GLint format, GLsizei w, GLsizei h,
+                                      GLint border, GLenum pixelFormat, GLenum type, const void* pixels) {
+    s_overlayAllocations++;
+    s_realImage(target, level, format, w, h, border, pixelFormat, type, pixels);
+}
+static void APIENTRY countOverlaySubImage(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h,
+                                         GLenum format, GLenum type, const void* pixels) {
+    s_overlayUploads++;
+    s_realSubImage(target, level, x, y, w, h, format, type, pixels);
+}
 
 static bool near(int a, int b, int tol) { return a >= b - tol && a <= b + tol; }
 
@@ -69,12 +89,12 @@ static void setOrtho() {
     GXSetCurrentMtx(GX_PNMTX0);
 }
 
-static void colorQuad(float x0, float y0, float x1, float y1, u8 r, u8 g, u8 b, u8 a) {
+static void colorQuad(float x0, float y0, float x1, float y1, u8 r, u8 g, u8 b, u8 a, float z = -1) {
     GXBegin(GX_QUADS, GX_VTXFMT0, 4);
-    GXPosition3f32(x0, y0, -1); GXColor4u8(r, g, b, a);
-    GXPosition3f32(x1, y0, -1); GXColor4u8(r, g, b, a);
-    GXPosition3f32(x1, y1, -1); GXColor4u8(r, g, b, a);
-    GXPosition3f32(x0, y1, -1); GXColor4u8(r, g, b, a);
+    GXPosition3f32(x0, y0, z); GXColor4u8(r, g, b, a);
+    GXPosition3f32(x1, y0, z); GXColor4u8(r, g, b, a);
+    GXPosition3f32(x1, y1, z); GXColor4u8(r, g, b, a);
+    GXPosition3f32(x0, y1, z); GXColor4u8(r, g, b, a);
     GXEnd();
 }
 
@@ -135,7 +155,17 @@ static void texSetup() {
     GXSetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
 }
 
+#ifdef __ANDROID__
+extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** argv) {
+#else
 int main(int argc, char** argv) {
+#endif
+    // Assertions need the current EFB, rather than the game's pipelined peeks.
+#ifdef _WIN32
+    _putenv_s("SMS_GX_SYNC_READS", "1");
+#else
+    setenv("SMS_GX_SYNC_READS", "1", 1);
+#endif
     // default to offscreen; `gx_selftest --window` shows the result instead
     GXPC_SetHeadless(1);
     GXPC_ParseArgs(&argc, argv);
@@ -168,6 +198,29 @@ int main(int argc, char** argv) {
     expectPixel("vertex colour quad", 30, 30, 255, 0, 0);
     expectPixel("outside the quad", 70, 70, 32, 48, 64);
 
+    // The GLES clipping adapter must compile and retain both GX clip planes.
+    // Adreno rejected a standalone gl_ClipDistance redeclaration; removing
+    // it must not turn clipping off. Exercise the extension with real pixels.
+    bool clipDistances = true;
+#ifdef __ANDROID__
+    clipDistances = false;
+    GLint extensionCount = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
+    for (GLint i = 0; i < extensionCount; ++i) {
+        const char* extension = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, GLuint(i)));
+        if (extension && !strcmp(extension, "GL_EXT_clip_cull_distance")) clipDistances = true;
+    }
+#endif
+    if (clipDistances) {
+        GXSetClipMode(GX_CLIP_ENABLE);
+        colorQuad(100, 10, 140, 50, 255, 0, 0, 255, -11);
+        expectPixel("GX far clip rejects outside geometry", 120, 30, 32, 48, 64);
+        colorQuad(150, 10, 190, 50, 255, 0, 0, 255, 1);
+        expectPixel("GX near clip rejects outside geometry", 170, 30, 32, 48, 64);
+        colorQuad(200, 10, 240, 50, 0, 255, 0, 255, -5);
+        expectPixel("GX clip retains inside geometry", 220, 30, 0, 255, 0);
+    }
+
     // 2. textured quad with a two-stage TEV (texture*ras, then *konst)
     {
         u8 img[8 * 8 * 4];
@@ -180,8 +233,12 @@ int main(int argc, char** argv) {
             }
         static std::vector<u8> tex;
         tex = encodeRGBA8(img, 8, 8);
+        // Texture addresses are stored in a 32-bit GX object slot. Keep the
+        // fixture in the same emulated memory window as copied textures.
+        u8* texData = arena + 0x8000;
+        memcpy(texData, tex.data(), tex.size());
         GXTexObj to;
-        GXInitTexObj(&to, tex.data(), 8, 8, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
+        GXInitTexObj(&to, texData, 8, 8, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
         GXInitTexObjLOD(&to, GX_NEAR, GX_NEAR, 0, 0, 0, GX_FALSE, GX_FALSE, GX_ANISO_1);
         GXLoadTexObj(&to, GX_TEXMAP0);
         texSetup();
@@ -250,6 +307,40 @@ int main(int argc, char** argv) {
     expectPixel("inside scissor", 15, 110, 255, 255, 0);
     expectPixel("outside scissor", 30, 110, 32, 48, 64);
     GXSetScissor(0, 0, 640, 480);
+
+    // 6b. an unclamped last stage keeps the low 8 bits (Bianco Hills' river
+    // surface: alpha (1 + a) * 2 wraps to 2a and passes GEQUAL 215 OR LEQUAL 30)
+    colorSetup();
+    GXSetTevColorIn(GX_TEVSTAGE0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
+    GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_2, GX_FALSE, GX_TEVPREV);
+    GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO, GX_CA_RASA);
+    GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_2, GX_FALSE, GX_TEVPREV);
+    colorQuad(70, 100, 120, 120, 200, 100, 50, 255);
+    expectPixel("unclamped TEV output wraps", 95, 110, 144, 200, 100);
+    GXSetAlphaCompare(GX_GEQUAL, 215, GX_AOP_OR, GX_LEQUAL, 30);
+    colorQuad(70, 100, 120, 120, 0, 0, 255, 200);  // alpha 400 -> 144: rejected
+    expectPixel("alpha compare sees the wrapped alpha", 95, 110, 144, 200, 100);
+    GXSetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+    GXSetTevOp(GX_TEVSTAGE0, GX_PASSCLR);
+
+    // 6c. a quad exactly on the far plane is drawn (the episode select's
+    // gradient background: an ortho camera from -100 to 100, its quad at -100)
+    {
+        Mtx44 m;
+        memset(m, 0, sizeof(m));
+        float n = -100.0f, f = 100.0f, t = 1.0f / (f - n);  // as C_MTXOrtho
+        m[0][0] = 2.0f / 640;
+        m[0][3] = -1.0f;
+        m[1][1] = 2.0f / -480;
+        m[1][3] = 1.0f;
+        m[2][2] = -t;
+        m[2][3] = -f * t;
+        m[3][3] = 1.0f;
+        GXSetProjection(m, GX_ORTHOGRAPHIC);
+        colorQuad(130, 100, 180, 120, 0, 255, 255, 255, -100.0f);
+        expectPixel("quad on the far plane", 155, 110, 0, 255, 255);
+        setOrtho();
+    }
 
     // 7. display list built with GD: a TEV register write and a draw command
     {
@@ -356,7 +447,18 @@ int main(int argc, char** argv) {
         GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, GX_SRC_REG, GX_LIGHT_NULL, GX_DF_NONE, GX_AF_NONE);
         GXSetFog(GX_FOG_LIN, 0.0f, 20.0f, n, f, fogc);
         quad(2, 1.5f, -10, 1);
+        // the same fog on a floor running from behind the camera to z = -90:
+        // fog follows each pixel's depth, half at distance 10, not a depth
+        // interpolated across the clipped polygon (fully fogged bands)
+        GXBegin(GX_QUADS, GX_VTXFMT2, 4);
+        GXPosition3f32(-3, -1.5f, 5); GXNormal3f32(0, 1, 0);
+        GXPosition3f32(3, -1.5f, 5); GXNormal3f32(0, 1, 0);
+        GXPosition3f32(3, -1.5f, -90); GXNormal3f32(0, 1, 0);
+        GXPosition3f32(-3, -1.5f, -90); GXNormal3f32(0, 1, 0);
+        GXEnd();
         GXSetFog(GX_FOG_NONE, 0, 1, 0.1f, 1, fogc);
+        expectPixel("linear fog on a floor reaching behind the camera", 320, int(240 + 240 * (1.5f * cot / 10)), 100, 50,
+                    153, 3);
         {
             // the game's underwater fog: near 1, far 33333, start -8.4, end 111.6
             Mtx44 p2;
@@ -407,11 +509,239 @@ int main(int argc, char** argv) {
         u8 cmpr[32] = {0xFF, 0xFF, 0x00, 0x00, 0x1B, 0x1B, 0x1B, 0x1B};
         gx::decodeTexture(cmpr, GX_TF_CMPR, 8, 8, nullptr, 0, out);
         expect("CMPR decode", out[0] == 255 && out[4] == 0 && out[8] == 170 && out[12] == 85);
+        // CMPR 3-colour mode: c0 = black <= c1 = white, index 3 is transparent
+        // with the average colour (Super Mario Eclipse's talk cursor arrow)
+        u8 cmpr3[32] = {0x00, 0x00, 0xFF, 0xFF, 0x1B, 0x1B, 0x1B, 0x1B};
+        gx::decodeTexture(cmpr3, GX_TF_CMPR, 8, 8, nullptr, 0, out);
+        expect("CMPR 3-colour decode", out[0] == 0 && out[4] == 255 && out[8] == 127 && out[11] == 255 &&
+                                            out[12] == 127 && out[13] == 127 && out[15] == 0);
         // C8 with an RGB565 TLUT
         u8 c8[32] = {0, 1};
         u8 tlut[4] = {0xF8, 0x00, 0x07, 0xE0};
         gx::decodeTexture(c8, GX_TF_C8, 8, 4, tlut, GX_TL_RGB565, out);
         expect("C8 + RGB565 TLUT decode", out[0] == 255 && out[1] == 0 && out[4] == 0 && out[5] == 255);
+    }
+
+    // Early-Z must retain an alpha-rejected surface's depth. Shadow volumes
+    // use that depth to keep their alpha mask off foreground geometry (#33).
+    {
+        colorSetup();
+        setOrtho();
+        GXSetColorUpdate(GX_TRUE);
+        GXSetAlphaUpdate(GX_TRUE);
+        GXSetDstAlpha(GX_FALSE, 0);
+        GXSetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
+        GXColor white = {255, 255, 255, 0};
+        GXSetCopyClear(white, 0xFFFFFF);
+        GXCopyDisp(xfb, GX_TRUE);
+        for (int early = 0; early < 2; early++) {
+            float x = 100.0f + early * 100.0f;
+            GXSetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
+            colorQuad(x, 100, x + 80, 180, 255, 255, 255, 0, -3);
+            GXSetZCompLoc(GXBool(early));
+            GXSetZMode(GX_TRUE, GX_LESS, GX_TRUE);
+            GXSetAlphaCompare(GX_GREATER, 128, GX_AOP_AND, GX_ALWAYS, 0);
+            colorQuad(x, 100, x + 80, 180, 255, 0, 0, 0, -2);
+            expectPixel("alpha-rejected wall keeps colour", int(x + 40), 140, 255, 255, 255);
+            u32 depth = 0;
+            GXPeekZ(u16(x + 40), 140, &depth);
+            expect(early ? "early alpha rejection writes depth" : "late alpha rejection preserves depth",
+                   early ? depth > 3300000 && depth < 3400000 : depth > 5000000 && depth < 5100000);
+
+            // Reset alpha, then the near and far faces of a shadow volume.
+            GXSetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+            GXSetColorUpdate(GX_FALSE);
+            GXSetZMode(GX_TRUE, GX_ALWAYS, GX_FALSE);
+            GXSetDstAlpha(GX_TRUE, 0);
+            colorQuad(x, 100, x + 80, 180, 0, 0, 0, 180, -2.5f);
+            GXSetDstAlpha(GX_FALSE, 0);
+            GXSetZMode(GX_TRUE, GX_LEQUAL, GX_FALSE);
+            colorQuad(x, 100, x + 80, 180, 0, 0, 0, 180, -2.5f);
+            GXSetColorUpdate(GX_TRUE);
+            GXSetDstAlpha(GX_TRUE, 0);
+            GXSetZMode(GX_TRUE, GX_GEQUAL, GX_FALSE);
+            GXSetBlendMode(GX_BM_BLEND, GX_BL_DSTALPHA, GX_BL_INVDSTALPHA, GX_LO_NOOP);
+            colorQuad(x, 100, x + 80, 180, 0, 0, 0, 180, -4);
+            expectPixel(early ? "shadow blocked by early-Z wall" : "shadow visible without wall depth",
+                        int(x + 40), 140, early ? 255 : 75, early ? 255 : 75, early ? 255 : 75);
+            GXSetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_NOOP);
+            GXSetDstAlpha(GX_FALSE, 0);
+        }
+        // Both quads share one batch. The second must fail LESS against the
+        // first even though its alpha passes; the fallback must keep order.
+        GXSetZCompLoc(GX_TRUE);
+        GXSetZMode(GX_TRUE, GX_LESS, GX_TRUE);
+        GXSetAlphaCompare(GX_GREATER, 128, GX_AOP_AND, GX_ALWAYS, 0);
+        colorQuad(300, 100, 380, 180, 255, 0, 0, 255, -1);
+        colorQuad(300, 100, 380, 180, 0, 0, 255, 255, -1);
+        expectPixel("early-Z overlapping LESS keeps first", 340, 140, 255, 0, 0);
+    }
+
+    // Pixel metrics count only the pixels that pass the alpha test, also with
+    // early Z on as ReInitializeGX leaves it: the pollution counters (Noki
+    // Bay's wall rocks, the goop events) draw that way with Z off.
+    {
+        colorSetup();
+        setOrtho();
+        u32 d = 0, alone = 0, both = 0;
+        GXSetZCompLoc(GX_TRUE);
+        GXClearPixMetric();
+        colorQuad(100, 260, 140, 300, 255, 255, 255, 255);
+        GXReadPixMetric(&d, &d, &d, &d, &alone, &d);
+        GXSetAlphaCompare(GX_GREATER, 0, GX_AOP_AND, GX_ALWAYS, 0);
+        GXClearPixMetric();
+        colorQuad(100, 260, 140, 300, 255, 255, 255, 255);
+        colorQuad(200, 260, 240, 300, 255, 255, 255, 0);
+        GXReadPixMetric(&d, &d, &d, &d, &both, &d);
+        expect("early-Z pixel metric skips alpha-rejected pixels", alone > 8 && both == alone + 8);
+        if (!gx::shaderHasEarlyFragmentTests()) {
+            // the fallback's depth pass draws rejected pixels too
+            GXSetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
+            GXClearPixMetric();
+            colorQuad(100, 260, 140, 300, 255, 255, 255, 255);
+            colorQuad(200, 260, 240, 300, 255, 255, 255, 0);
+            GXReadPixMetric(&d, &d, &d, &d, &both, &d);
+            expect("early-Z fallback pixel metric skips its depth pass", both == alone + 8);
+        }
+        GXSetZMode(GX_FALSE, GX_ALWAYS, GX_FALSE);
+        GXSetAlphaCompare(GX_ALWAYS, 0, GX_AOP_AND, GX_ALWAYS, 0);
+
+        // A normal read is cumulative. The port's explicit scope end freezes
+        // the completed count, while a new clear restarts counting normally.
+        GXClearPixMetric();
+        colorQuad(100, 260, 140, 300, 255, 255, 255, 255);
+        GXReadPixMetric(&d, &d, &d, &d, &alone, &d);
+        colorQuad(200, 260, 240, 300, 255, 255, 255, 255);
+        GXReadPixMetric(&d, &d, &d, &d, &both, &d);
+        expect("pixel metric reads keep counting", both == alone * 2);
+        GXPC_EndPixMetric();
+        GXPC_EndPixMetric();
+        colorQuad(300, 260, 340, 300, 255, 255, 255, 255);
+        u32 stopped = 0;
+        GXReadPixMetric(&d, &d, &d, &d, &stopped, &d);
+        expect("completed metric scope excludes later draws", stopped == both);
+        GXClearPixMetric();
+        colorQuad(100, 260, 140, 300, 255, 255, 255, 255);
+        GXReadPixMetric(&d, &d, &d, &d, &stopped, &d);
+        expect("clear restarts a completed metric scope", stopped == alone);
+        GXPC_EndPixMetric();
+    }
+
+    // Copy clears must preserve disabled channels and alpha in RGB8. The
+    // airstrip boat shadow uses that backing alpha after switching to RGBA6.
+    {
+        colorSetup();
+        setOrtho();
+        GXSetColorUpdate(GX_TRUE);
+        GXSetAlphaUpdate(GX_TRUE);
+        GXSetDstAlpha(GX_FALSE, 0);
+        GXSetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
+        colorQuad(400, 100, 480, 180, 200, 100, 50, 180, -3);
+        u32 oldDepth = 0, depth = 0, pixel = 0;
+        GXPeekZ(440, 140, &oldDepth);
+        GXColor clear = {32, 48, 64, 255};
+        GXSetCopyClear(clear, 0xFFFFFF);
+        GXSetAlphaUpdate(GX_FALSE);
+        GXSetZMode(GX_FALSE, GX_ALWAYS, GX_FALSE);
+        GXCopyDisp(xfb, GX_TRUE);
+        expectPixel("copy-clear enabled colour", 440, 140, 32, 48, 64);
+        GXPeekARGB(440, 140, &pixel);
+        expect("copy-clear preserves shadow alpha", (pixel >> 24) == 180);
+        GXPeekZ(440, 140, &depth);
+        expect("copy-clear preserves disabled depth", depth == oldDepth);
+
+        GXSetAlphaUpdate(GX_TRUE);
+        GXSetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
+        GXCopyDisp(xfb, GX_TRUE);
+        GXSetPixelFmt(GX_PF_RGBA6_Z24, GX_ZC_LINEAR);
+        GXPeekARGB(440, 140, &pixel);
+        expect("RGB8 copy-clear preserves backing alpha", (pixel >> 24) == 180);
+
+        GXSetColorUpdate(GX_FALSE);
+        GXSetAlphaUpdate(GX_TRUE);
+        GXSetZMode(GX_TRUE, GX_ALWAYS, GX_TRUE);
+        clear.r = 255;
+        GXSetCopyClear(clear, 0xFFFFFF);
+        GXCopyDisp(xfb, GX_TRUE);
+        expectPixel("copy-clear preserves disabled colour", 440, 140, 32, 48, 64);
+        GXPeekARGB(440, 140, &pixel);
+        expect("copy-clear enabled alpha", (pixel >> 24) == 255);
+        GXPeekZ(440, 140, &depth);
+        expect("copy-clear enabled depth", depth == 0xFFFFFF);
+        GXSetColorUpdate(GX_TRUE);
+    }
+
+    // Logic operations. Mario's electric shock draws his body with XOR, first
+    // with colour writes off (for depth), then on. A draw with colour off
+    // leaves colour alone; each later XOR draw sees the one before it.
+    {
+        colorSetup();
+        setOrtho();
+        GXSetColorUpdate(GX_TRUE);
+        GXSetAlphaUpdate(GX_FALSE);
+        colorQuad(500, 100, 580, 180, 0x30, 0x60, 0x90, 255);
+        GXSetBlendMode(GX_BM_LOGIC, GX_BL_ONE, GX_BL_ZERO, GX_LO_XOR);
+        GXSetColorUpdate(GX_FALSE);
+        colorQuad(500, 100, 580, 180, 0xFF, 0xFF, 0xFF, 255);
+        expectPixel("logic XOR with colour writes off", 540, 140, 0x30, 0x60, 0x90, 0);
+        GXSetColorUpdate(GX_TRUE);
+        colorQuad(500, 100, 580, 180, 0xFF, 0xFF, 0xFF, 255);
+        expectPixel("logic XOR", 540, 140, 0xCF, 0x9F, 0x6F, 0);
+        colorQuad(520, 120, 560, 160, 0x0F, 0xF0, 0x00, 255);
+        expectPixel("logic XOR over an earlier XOR draw", 540, 140, 0xC0, 0x6F, 0x6F, 0);
+        GXSetBlendMode(GX_BM_NONE, GX_BL_ONE, GX_BL_ZERO, GX_LO_CLEAR);
+    }
+
+    // The performance overlay must reuse its texture between text updates,
+    // update matching storage in place, and leave game rendering intact.
+    {
+        using namespace gx::gl;
+        auto image = gx_glTexImage2D;
+        auto subImage = gx_glTexSubImage2D;
+        int& allocations = s_overlayAllocations;
+        int& uploads = s_overlayUploads;
+        s_realImage = image;
+        s_realSubImage = subImage;
+        gx_glTexImage2D = countOverlayImage;
+        gx_glTexSubImage2D = countOverlaySubImage;
+        while (glGetError() != GL_NO_ERROR) {}  // isolate overlay errors
+        const u8 panel[16] = {255, 255, 255, 255};
+        GXPC_DrawOverlay(panel, 2, 2, 0, 0, 1, 640, 480);
+        expect("overlay allocates initial texture", allocations == 1 && uploads == 0);
+        for (int i = 0; i < 10; i++) GXPC_DrawOverlay(nullptr, 2, 2, 0, 0, 1, 640, 480);
+        expect("cached overlay draws without uploads", allocations == 1 && uploads == 0);
+        GXPC_DrawOverlay(panel, 2, 2, 0, 0, 1, 640, 480);
+        expect("overlay refresh reuses texture storage", allocations == 1 && uploads == 1);
+        GXPC_DrawOverlay(panel, 1, 2, 0, 0, 1, 640, 480);
+        expect("overlay resize reallocates storage", allocations == 2 && uploads == 1);
+        if (!GXPC_OverlayVisible()) GXPC_OverlayToggle();
+        GXPC_OverlayDraw(640, 480);
+        int refreshed = allocations + uploads;
+        GXPC_OverlayDraw(640, 480);
+        expect("performance panel caches its bitmap", allocations + uploads == refreshed);
+        GXPC_CycleSpeed();
+        GXPC_OverlayDraw(640, 480);
+        expect("speed change refreshes overlay immediately", allocations + uploads == ++refreshed);
+        GXPC_OverlayDraw(800, 600);
+        expect("window resize refreshes overlay immediately", allocations + uploads == ++refreshed);
+        GXPC_OverlayToggle();
+        GXPC_OverlayDraw(800, 600);
+        expect("hidden overlay does not upload", allocations + uploads == refreshed);
+        GXPC_OverlayToggle();
+        GXPC_OverlayDraw(800, 600);
+        expect("reopening overlay refreshes immediately", allocations + uploads == ++refreshed);
+        GXPC_OverlayToggle();
+        for (int i = 0; i < 3; i++) GXPC_CycleSpeed();  // restore x1
+        // Surfaceless EGL has no default framebuffer for the window panel.
+        GLenum error = glGetError();
+        expect("overlay GL status", error == GL_NO_ERROR ||
+               (GXPC_IsHeadless() && error == GL_INVALID_FRAMEBUFFER_OPERATION));
+        gx_glTexImage2D = image;
+        gx_glTexSubImage2D = subImage;
+        colorSetup();
+        colorQuad(10, 10, 60, 60, 255, 0, 0, 255);
+        expectPixel("game draw after cached overlay", 30, 30, 255, 0, 0);
+        expect("overlay leaves no GL errors", glGetError() == GL_NO_ERROR);
     }
 
     GXPCStats st;

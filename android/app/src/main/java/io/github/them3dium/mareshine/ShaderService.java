@@ -23,6 +23,10 @@ public class ShaderService extends Service {
 
     static void start(Context c) {
         java.util.Map<String, String> s = Settings.read(c);
+        // The game library is loaded by its bootstrap (libsmsbootstrap) at a
+        // fixed address, not as libmain here; the game warms its shaders itself
+        // (SMS_GX_SHADER_WARMUP) until this has a way into the library.
+        if (true) return;
         if ("0".equals(s.getOrDefault("shader_cache", "1"))) return; // nothing to keep the programs in
         try {
             c.startService(new Intent(c, ShaderService.class));

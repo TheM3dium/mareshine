@@ -105,6 +105,11 @@ public class SettingsActivity extends AppActivity {
 
         // OK / tap: the choices open in the panel on the right
         @Override void click() { openOptions(this); }
+
+        // actions listed under the choices in the panel (the game language's
+        // extra entries); none by default
+        String[] extras() { return null; }
+        void extra(int i) {}
     }
 
     // On/off settings; `inverted` for the disable_* keys ("Shadows: On" = 0).
@@ -148,7 +153,16 @@ public class SettingsActivity extends AppActivity {
         }
 
         @Override String value() { return get() + "%" + (get() == def ? t(" (default)") : ""); }
-        @Override void step(int dir) { set(get() + dir * stepSize); }
+        // past either end it wraps round: left from the lowest goes to the highest
+        @Override void step(int dir) {
+            int v = get();
+            if (dir < 0 && v <= min) set(max);
+            else if (dir > 0 && v >= max) set(min);
+            else {  // to the next whole step (94 goes to 100 or 90)
+                int base = Math.floorDiv(v - min, stepSize) * stepSize + min;
+                set(dir > 0 ? base + stepSize : (base == v ? v - stepSize : base));
+            }
+        }
         @Override void click() { openSlider(this); }
     }
 
@@ -214,6 +228,8 @@ public class SettingsActivity extends AppActivity {
         mSettings.clear();
         mSettings.putAll(Settings.read(this));
         refreshValues();
+        // back from making language packs: the open list shows the new ones
+        if (mOpen instanceof Choice) openOptions((Choice) mOpen);
     }
 
     // the slider changed last: dragging it or stepping it on counts once
@@ -543,6 +559,27 @@ public class SettingsActivity extends AppActivity {
             mOptList.addView(o, lp);
             if (i == cur) focus = o;
         }
+        String[] extras = c.extras();
+        for (int i = 0; extras != null && i < extras.length; i++) {
+            final int idx = i;
+            TextView o = new TextView(this);
+            o.setText("›  " + extras[i]);
+            o.setTextColor(DIM);
+            o.setTypeface(condensed(false));
+            o.setTextSize(17);
+            o.setBackgroundResource(R.drawable.dl_row);
+            o.setPadding(dp(18), dp(12), dp(18), dp(12));
+            o.setFocusable(true);
+            o.setClickable(true);
+            o.setOnClickListener(v -> {
+                c.extra(idx);
+                if (mOpen == c) openOptions(c); // its label may have changed (an on/off entry)
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(i == 0 ? 18 : 6);
+            mOptList.addView(o, lp);
+        }
         mOptList.setVisibility(View.VISIBLE);
         if (focus != null) focus.requestFocus();
     }
@@ -563,8 +600,9 @@ public class SettingsActivity extends AppActivity {
         mOptList.addView(big);
 
         android.widget.SeekBar bar = new android.widget.SeekBar(this);
-        bar.setMax(sl.max - sl.min);
-        bar.setProgress(sl.get() - sl.min);
+        // in whole steps (10 % for most); the exact field takes any value
+        bar.setMax((sl.max - sl.min) / sl.stepSize);
+        bar.setProgress(Math.round((sl.get() - sl.min) / (float) sl.stepSize));
         bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFFC531));
         bar.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFFB020));
         bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2A5A85));
@@ -620,7 +658,8 @@ public class SettingsActivity extends AppActivity {
             updating[0] = true;
             int v = sl.get();
             big.setText(v + "%");
-            if (bar.getProgress() != v - sl.min) bar.setProgress(v - sl.min);
+            int p = Math.round((v - sl.min) / (float) sl.stepSize);
+            if (bar.getProgress() != p) bar.setProgress(p);
             if (!field.hasFocus()) field.setText(Integer.toString(v));
             updating[0] = false;
         };
@@ -628,7 +667,7 @@ public class SettingsActivity extends AppActivity {
         bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(android.widget.SeekBar b, int p, boolean user) {
                 if (updating[0]) return;
-                sl.set(sl.min + p);
+                sl.set(sl.min + p * sl.stepSize);
                 show.run();
             }
             @Override public void onStartTrackingTouch(android.widget.SeekBar b) {}
@@ -658,7 +697,16 @@ public class SettingsActivity extends AppActivity {
             }
             return false;
         };
-        bar.setOnKeyListener(back);
+        // the D-pad steps like the row does, wrapping round past either end
+        bar.setOnKeyListener((v, code, ev) -> {
+            if (back.onKey(v, code, ev)) return true;
+            if (ev.getAction() != KeyEvent.ACTION_DOWN) return false;
+            int dir = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : 0;
+            if (dir == 0) return false;
+            sl.step(dir);
+            show.run();
+            return true;
+        });
         mExactField = field;
         mExactPick = () -> pickExact(sl, show, bar, field);
         mOptList.setVisibility(View.VISIBLE);
@@ -709,7 +757,9 @@ public class SettingsActivity extends AppActivity {
             int step = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1
                 : code == KeyEvent.KEYCODE_DPAD_DOWN ? -10 : code == KeyEvent.KEYCODE_DPAD_UP ? 10 : 0;
             if (step != 0) {
-                v[0] = Math.max(sl.min, Math.min(sl.max, v[0] + step));
+                // past either end it wraps round, as the row does
+                v[0] = v[0] + step > sl.max ? (v[0] == sl.max ? sl.min : sl.max)
+                     : v[0] + step < sl.min ? (v[0] == sl.min ? sl.max : sl.min) : v[0] + step;
                 draw.run();
                 return true;
             }
@@ -840,10 +890,13 @@ public class SettingsActivity extends AppActivity {
         add(verify);
 
         section("LANGUAGE");
-        add(new Choice("language", "Language",
+        // the game's language, with the language packs' maker and the cutscene
+        // subtitles (one setting with the game's own option) under its choices
+        add(new Choice("language", "Game language",
             "The language of the game's text and menus. English is built in; French, German, Spanish and Italian "
-                + "can be made from your own European disc image (the entry below).\n\nApplies the next time the game "
-                + "starts.",
+                + "can be made from your own European disc image (below the languages).\n\nSubtitles in cutscenes "
+                + "is the same setting as the subtitle option in the game's own options.\n\nThe language applies "
+                + "the next time the game starts.",
             "en", new String[] {"en"}, new String[] {"English"}) {
             @Override void reload() {
                 List<String> v = new ArrayList<>(), l = new ArrayList<>();
@@ -866,16 +919,47 @@ public class SettingsActivity extends AppActivity {
                 values = v.toArray(new String[0]);
                 labels = l.toArray(new String[0]);
             }
+
+            boolean subtitles() { return !"0".equals(mSettings.getOrDefault("SMS_SUBTITLES", "1")); }
+
+            @Override String[] extras() {
+                java.io.File pal = LanguagePackActivity.europeanDisc(ctx());
+                List<String> e = new ArrayList<>();
+                e.add(values.length > 1 ? t("Install the languages again from your own EU .iso file")
+                                        : t("Extract languages from your own EU .iso file"));
+                e.add(t("Subtitles in cutscenes") + ": " + t(subtitles() ? "On" : "Off"));
+                if (pal != null) e.add(t("Delete the European disc image (%.1f GB)", pal.length() / 1e9));
+                return e.toArray(new String[0]);
+            }
+
+            @Override void extra(int i) {
+                if (i == 2) {
+                    java.io.File pal = LanguagePackActivity.europeanDisc(ctx());
+                    if (pal == null) return;
+                    dialog().setTitle(t("Delete the European disc image?"))
+                        .setMessage(t("The language packs do not need it any more. Delete %s?", pal.getName()))
+                        .setPositiveButton(t("Delete it"), (d, w) -> {
+                            String err = LanguagePackActivity.deleteDisc(pal);
+                            if (err != null)
+                                dialog().setTitle(t("The European disc could not be deleted")).setMessage(err)
+                                    .setPositiveButton(t("OK"), null).show();
+                            refreshValues();
+                        })
+                        .setNegativeButton(t("Cancel"), null).show();
+                    return;
+                }
+                if (i == 0) {
+                    if (mInGame)
+                        android.widget.Toast.makeText(ctx(), t("Only in the main menu, not while the game runs."),
+                            android.widget.Toast.LENGTH_SHORT).show();
+                    else
+                        startActivity(new Intent(SettingsActivity.this, LanguagePackActivity.class));
+                } else {
+                    mSettings.put("SMS_SUBTITLES", subtitles() ? "0" : "1");
+                    saved();
+                }
+            }
         });
-        Row langs = new Action("Extract languages from your own EU .iso file",
-            t("Makes French, German, Spanish and Italian from your own European disc image. Nothing is "
-                + "downloaded, and the European image can be deleted afterwards.") + (mInGame ? inGameNote : ""),
-            null, () -> startActivity(new Intent(this, LanguagePackActivity.class)));
-        langs.enabled = !mInGame;
-        add(langs);
-        add(new Toggle("SMS_SUBTITLES", "Subtitles in cutscenes",
-            "Shows subtitles in the cutscenes, in the game's language, even when they are off in the game's own "
-                + "options.\n\nApplies the next time the game starts.", true, false));
 
         // the mixer's music and sound effect gains (platform/audio, decomp-patches/audio-05)
         section("SOUND");
@@ -1046,6 +1130,9 @@ public class SettingsActivity extends AppActivity {
         add(new Toggle("disable_reflections", "Reflections", "Reflections on water and shiny surfaces.", true, true));
         add(new Toggle("disable_water_anim", "Water animation", "The animated water surface.", true, true));
         add(new Toggle("disable_shimmer", "Heat shimmer", "The shimmer and glow effects.", true, true));
+        add(new Toggle("copy_writeback", "Copy write-back",
+            "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.",
+            true, false));
         section("RESET");
         add(new Action("Reset video settings", "Sets the VIDEO tab back to Recommended (HD).", () -> "", () -> {
             for (int k = 0; k < PRESET_KEYS.length; k++) mSettings.put(PRESET_KEYS[k], PRESETS[0][k + 1]);
@@ -1252,6 +1339,13 @@ public class SettingsActivity extends AppActivity {
         mSettings.put(CutscenePack.SETTING, next.equals("thp") ? CutscenePack.dir(this).getAbsolutePath() : "0");
         mSettings.put(CutsceneActivity.MP4_SETTING, next.equals("mp4") ? CutsceneActivity.mp4Dir(this).getAbsolutePath() : "0");
         saved();
+        restartNote();
+    }
+
+    // In the game's menu: a setting the game reads when it starts
+    private void restartNote() {
+        if (mInGame)
+            android.widget.Toast.makeText(this, t("Takes effect after the game restarts."), android.widget.Toast.LENGTH_LONG).show();
     }
 
     private String cutsceneState() {
@@ -1318,6 +1412,13 @@ public class SettingsActivity extends AppActivity {
     }
 
     private void chooseMp4() {
+        if (mInGame && mp4Ready() && !mp4On()) {  // switching to the converted MP4s needs no main menu
+            mSettings.put(CutscenePack.SETTING, "0");
+            mSettings.put(CutsceneActivity.MP4_SETTING, CutsceneActivity.mp4Dir(this).getAbsolutePath());
+            saved();
+            restartNote();
+            return;
+        }
         if (mInGame) {
             android.widget.Toast.makeText(this, t("Quit to the main menu to change this."), android.widget.Toast.LENGTH_LONG).show();
             return;
@@ -1411,6 +1512,10 @@ public class SettingsActivity extends AppActivity {
         String cur = TexturePackActivity.installedPack(this);
         List<String> items = new ArrayList<>();
         List<Runnable> acts = new ArrayList<>();
+        if ("1080".equals(cur) || "4k".equals(cur)) {
+            items.add(t("Install again"));
+            acts.add(() -> startPackJob("4k".equals(cur) ? TexturePackActivity.JOB_4K : TexturePackActivity.JOB_1080));
+        }
         items.add(t("Download HD, 1080p  (156 MB, recommended)"));
         acts.add(() -> startPackJob(TexturePackActivity.JOB_1080));
         items.add(t("Download Ultra HD, 4K  (986 MB, 3.2 GB on the device)"));
@@ -1734,6 +1839,8 @@ public class SettingsActivity extends AppActivity {
         add(new Choice("SMS_CHEAT_JUMP_HEIGHT", "Jump height",
             "Normal, double and triple jumps go higher." + CHEAT_NOTE, "1",
             new String[] {"1", "2", "4", "6"}, new String[] {"Off", "2x", "4x", "6x"}));
+        add(new Toggle("SMS_CHEAT_MOON_JUMP", "Moon jump",
+            "Holding A in the air lifts Mario, so he can fly up anywhere." + CHEAT_NOTE, false, false));
         section("ITEMS");
         add(new Choice("SMS_CHEAT_COIN_MULTIPLIER", "Coin multiplier",
             "Each yellow coin counts several times. Blue and red coins are not changed." + CHEAT_NOTE, "1",

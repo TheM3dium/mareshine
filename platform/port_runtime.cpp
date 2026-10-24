@@ -3,6 +3,7 @@
 #include "sms_mod/modhooks.h"
 #include "port_compat.h"
 #include "port_platform.h"
+#include "port_framerate.h"
 #include "port_stub.h"
 #include "port_os.h"
 #include <dolphin/os.h>
@@ -10,52 +11,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
-#include <vector>
 #include <signal.h>
-#if !defined(__ANDROID__) && !defined(_WIN32)
-#include <execinfo.h>
-#endif
-#ifdef __ANDROID__
-#include <android/log.h>
-#include <dlfcn.h>
-#include <unwind.h>
-struct AndroidBacktraceState {
-	void** current;
-	void** end;
-};
-static _Unwind_Reason_Code android_unwind_cb(struct _Unwind_Context* context, void* arg) {
-	AndroidBacktraceState* state = static_cast<AndroidBacktraceState*>(arg);
-	uintptr_t pc = _Unwind_GetIP(context);
-	if (pc) {
-		if (state->current == state->end) return _URC_END_OF_STACK;
-		*state->current++ = reinterpret_cast<void*>(pc);
-	}
-	return _URC_NO_REASON;
-}
-static void dump_android_backtrace() {
-	const size_t max = 30;
-	void* buffer[max];
-	AndroidBacktraceState state = {buffer, buffer + max};
-	_Unwind_Backtrace(android_unwind_cb, &state);
-	size_t count = state.current - buffer;
-	for (size_t i = 0; i < count; ++i) {
-		const void* addr = buffer[i];
-		Dl_info info;
-		if (dladdr(addr, &info) && info.dli_fname) {
-			port_log("[port]   #%02zu pc 0x%lx  %s (%s+0x%lx)\n", i,
-				(unsigned long)((uintptr_t)addr - (uintptr_t)info.dli_fbase),
-				info.dli_fname,
-				info.dli_sname ? info.dli_sname : "?",
-				(unsigned long)((uintptr_t)addr - (uintptr_t)info.dli_saddr));
-		} else {
-			port_log("[port]   #%02zu pc %p\n", i, addr);
-		}
-	}
-}
-#endif
+#include "port_backtrace.h"
 #include "port_host.h"
 #include "disc/gcdisc.h"
+#include "os/crash.h"
+#include "os/crash_line.h"
 #ifdef _WIN32
 #include <windows.h>
 #include <io.h>
@@ -64,14 +25,28 @@ static void dump_android_backtrace() {
 #include <unistd.h>
 #include <dlfcn.h>
 #include <sys/wait.h>
-#include <dirent.h>
-#if !defined(__ANDROID__)
-#include <spawn.h>
+#include <fcntl.h>
+#include <pthread.h>
+#ifdef __linux__
+#include <link.h>
+#include <sys/syscall.h>
 #endif
-#include <errno.h>
-#if defined(__APPLE__) || defined(__ANDROID__) || defined(__linux__)
+#ifndef __APPLE__
 #include <ucontext.h>
 #endif
+#ifdef __APPLE__
+#include <sys/ucontext.h>
+#endif
+#endif
+
+#ifdef _WIN32
+// Laptops with two GPUs (NVIDIA Optimus, AMD PowerXpress) run a program on the
+// integrated one unless the executable exports these: without them the game
+// renders on the slower GPU even when a dedicated one is there.
+extern "C" {
+__attribute__((dllexport)) unsigned long NvOptimusEnablement = 1;
+__attribute__((dllexport)) int AmdPowerXpressRequestHighPerformance = 1;
+}
 #endif
 
 // Game source named by a bare argument or SMS_DISC_ROOT (a disc image or an
@@ -87,39 +62,21 @@ const char* port_disc_root =
 // Set when the command line or SMS_DISC_ROOT named the game source; otherwise
 // a disc image bundled into the executable wins over the default above.
 int port_disc_explicit = 0;
-// SMS_SKIP_MOVIES=1 reports every THP movie as finished at once (patch 0016).
+// SMS_SKIP_MOVIES=1 skips cutscenes; looping world textures still play (0016).
 extern "C" int port_skip_movies;
-extern "C" void port_cheats_init(void);  // misc/port_cheats.cpp
-extern "C" void port_ach_init(void);     // achievements/achievements.cpp
-#ifdef __ANDROID__
-extern "C" void port_savestate_android_init(void); // savestate/savestate_android.cpp
-#endif
-// Cutscene subtitles whatever the game's own option says (settings.txt
-// SMS_SUBTITLES, on unless 0; decomp-patches/zzz-subtitles-01-always).
-extern "C" int port_subtitles_always;
-// src/port_include/port_cull.h
-extern "C" float port_cull_distance(const char* env, float forkDefault)
-{
-	if (const char* e = getenv(env))
-		return (float)atof(e);
-	const char* d = getenv("SMS_DRAW_DISTANCE");
-	const float drawDistance = d ? (float)atof(d) : 1.0f;
-	return drawDistance < 0.999f ? forkDefault : 0.0f;
-}
-
-int port_subtitles_always = 1;
 int port_skip_movies = 0;
+// SMS_HEAT_HAZE=0 turns off the heat-wave shimmer (patch zzz-heat-haze-01).
+extern "C" int port_heat_haze;
+int port_heat_haze = 1;
 // SMS_WIDESCREEN: the displayed width over the GameCube's 4:3 (1 when off);
 // the game camera (widescreen-01 patch) and sms_gx widen by it.
 extern "C" float port_widescreen;
 float port_widescreen = 1.0f;
 extern "C" __attribute__((weak)) void GXPC_SetWidescreen(float widthOver43);
-extern "C" __attribute__((weak)) void GXPC_SetMemoryWindow(void* base, uint32_t size);
-// SMS_FRAME_RATE: 30 (the game's own, Android's default), 60 or 120, for
-// gameplay (the Application patch framerate-01 reads it; logos, menus and
-// movies stay at 30). port_active_frame_rate is the rate in force now.
+// SMS_FRAME_RATE: 30 (the game's own), 60 (default), or 120, for gameplay (the Application
+// patch framerate-01 reads it; logos, menus and movies stay at 30).
 extern "C" int port_frame_rate;
-int port_frame_rate = 30;
+int port_frame_rate = 60;
 extern "C" int port_active_frame_rate;
 int port_active_frame_rate = 30;
 extern "C" int port_high_fps_active;
@@ -144,109 +101,11 @@ static float parse_widescreen(const char* v)
 	return f;
 }
 
-#ifdef __ANDROID__
-// SMS_LOG_DIR (set by the Android app: <data folder>/logs): everything
-// port_log writes also goes to game.log there (the previous session's is kept
-// as game.prev.log). A fatal signal copies it to crash-<date>-<time>.log.
-// The file is written with write(2), unbuffered, so it is complete when the
-// process dies.
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <time.h>
-static int s_log_fd = -2; // -2 not opened yet, -1 off
-static char s_log_path[512];
-static char s_log_dir[448];
-
-static int log_fd()
-{
-	if (s_log_fd != -2)
-		return s_log_fd;
-	s_log_fd       = -1;
-	const char* dir = getenv("SMS_LOG_DIR");
-	if (!dir || !*dir || strlen(dir) >= sizeof s_log_dir)
-		return -1;
-	snprintf(s_log_dir, sizeof s_log_dir, "%s", dir);
-	mkdir(s_log_dir, 0775);
-	snprintf(s_log_path, sizeof s_log_path, "%s/game.log", s_log_dir);
-	char prev[512];
-	snprintf(prev, sizeof prev, "%s/game.prev.log", s_log_dir);
-	rename(s_log_path, prev);
-	s_log_fd = open(s_log_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0664);
-	if (s_log_fd >= 0) {
-		// stderr (the GX layer's [sms_gx] lines, [endian], ...) goes nowhere on
-		// Android: send it to game.log too.
-		fflush(stderr);
-		dup2(s_log_fd, 2);
-		setvbuf(stderr, nullptr, _IONBF, 0);
-		char head[128];
-		time_t t = time(nullptr);
-		struct tm tm;
-		localtime_r(&t, &tm);
-		int n = (int)strftime(head, sizeof head, "[log] session started %Y-%m-%d %H:%M:%S\n", &tm);
-		if (n > 0 && write(s_log_fd, head, (size_t)n) < 0) {
-		}
-		if (const char* info = getenv("SMS_DEVICE_INFO")) { // app version, device, Android
-			char line[512];
-			n = snprintf(line, sizeof line, "[log] %s\n", info);
-			if (n > 0 && write(s_log_fd, line, (size_t)(n < (int)sizeof line ? n : (int)sizeof line - 1)) < 0) {
-			}
-		}
-	}
-	return s_log_fd;
-}
-
-// Copies game.log to crash-<date>-<time>.log (open/read/write only: called
-// from the crash handler).
-static void log_save_crash()
-{
-	if (s_log_fd < 0)
-		return;
-	fsync(s_log_fd);
-	time_t t = time(nullptr);
-	struct tm tm;
-	localtime_r(&t, &tm);
-	char name[64], path[600];
-	strftime(name, sizeof name, "crash-%Y%m%d-%H%M%S.log", &tm);
-	snprintf(path, sizeof path, "%s/%s", s_log_dir, name);
-	int in = open(s_log_path, O_RDONLY | O_CLOEXEC);
-	int out = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0664);
-	if (in >= 0 && out >= 0) {
-		char buf[16384];
-		ssize_t n;
-		while ((n = read(in, buf, sizeof buf)) > 0)
-			if (write(out, buf, (size_t)n) != n)
-				break;
-		fsync(out);
-	}
-	if (in >= 0)
-		close(in);
-	if (out >= 0)
-		close(out);
-	__android_log_print(ANDROID_LOG_ERROR, "SMS", "crash report written to %s", path);
-}
-#endif
-
 extern "C" void port_log(const char* fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-#ifdef __ANDROID__
-	int fd = log_fd();
-	if (fd >= 0) {
-		char buf[2048];
-		va_list copy;
-		va_copy(copy, ap);
-		int n = vsnprintf(buf, sizeof buf, fmt, copy);
-		va_end(copy);
-		if (n > (int)sizeof buf - 1)
-			n = (int)sizeof buf - 1;
-		if (n > 0 && write(fd, buf, (size_t)n) < 0) {
-		}
-	}
-	__android_log_vprint(ANDROID_LOG_INFO, "SMS", fmt, ap);
-#else
 	std::vfprintf(stderr, fmt, ap);
-#endif
 	va_end(ap);
 	std::fflush(stderr);
 }
@@ -271,44 +130,73 @@ extern "C" void port_stub_report(void)
 		port_log("[stub]   %-32s %lu\n", r->name, r->count);
 }
 
-// Symbolise the backtrace with addr2line so a crash report names functions
-// and source lines without the exact binary at hand (not async-signal-safe;
-// acceptable on the way down).
+// Symbolise the backtrace's frames in the executable (addr2line on Linux,
+// atos on macOS) so a crash report names functions and source lines without
+// the exact binary at hand. Not async-signal-safe: it runs last, after the
+// rest of the report is written.
 #ifndef _WIN32
+#ifndef __ANDROID__
 static void crash_symbolise(void** bt, int n)
 {
 	char exe[512];
-	if (!gcdisc_self_path(exe, sizeof exe))
+	if (!realpath(port_crash_executable(), exe))
 		return;
 	static char addrs[64][24];
-	char* argv[64 + 8];
+	char* argv[64 + 10];
 	int argc = 0;
+#ifdef __APPLE__
+	static char load[24];
+	argv[argc++] = (char*)"atos";
+	argv[argc++] = (char*)"-o";
+	argv[argc++] = exe;
+	argv[argc++] = (char*)"-l";
+	argv[argc++] = load;
+#else
 	argv[argc++] = (char*)"addr2line";
 	argv[argc++] = (char*)"-f";
 	argv[argc++] = (char*)"-C";
+	argv[argc++] = (char*)"-i"; // inlined calls as well
 	argv[argc++] = (char*)"-p";
 	argv[argc++] = (char*)"-e";
 	argv[argc++] = exe;
-	for (int i = 0; i < n && argc < 64 + 7; i++) {
+#endif
+	const int fixed = argc;
+	for (int i = 0; i < n && i < 64; i++) {
 		Dl_info info;
+#ifdef __linux__
+		struct link_map* map = nullptr;
+		if (!dladdr1(bt[i], &info, (void**)&map, RTLD_DL_LINKMAP) || !info.dli_fname || !map)
+			continue;
+#else
 		if (!dladdr(bt[i], &info) || !info.dli_fname || !info.dli_fbase)
 			continue;
+#endif
 		char self[512];
 		if (!realpath(info.dli_fname, self) || strcmp(self, exe) != 0)
 			continue;
-		// return addresses point after the call; step back into it
-		snprintf(addrs[i], sizeof addrs[i], "0x%lx",
-		         (unsigned long)((char*)bt[i] - (char*)info.dli_fbase - 1));
+		// Return addresses point after the call; step back into it.
+#ifdef __APPLE__
+		// atos takes run-time addresses and the load address (-l).
+		snprintf(load, sizeof load, "0x%lx", (unsigned long)(uintptr_t)info.dli_fbase);
+		uintptr_t address = (uintptr_t)bt[i] - 1;
+#else
+		// The address in the file: the load bias is 0 for a non-PIE executable.
+		uintptr_t address = (uintptr_t)bt[i] - (uintptr_t)map->l_addr - 1;
+#endif
+		snprintf(addrs[i], sizeof addrs[i], "0x%lx", (unsigned long)address);
 		argv[argc++] = addrs[i];
 	}
 	argv[argc] = nullptr;
-	if (argc == 6)
+	if (argc == fixed)
 		return;
-	port_log("[port] backtrace:\n");
+	port_log("[port] backtrace in %s, symbolised by %s:\n", exe, argv[0]);
 	pid_t pid = fork();
 	if (pid == 0) {
 		dup2(2, 1);
-		execvp("addr2line", argv);
+		execvp(argv[0], argv);
+		PortCrashLine line;
+		line.text("[port] "); line.text(argv[0]); line.text(" not found: frames left unsymbolised\n");
+		port_crash_emit(line);
 		_exit(127);
 	}
 	if (pid > 0)
@@ -316,60 +204,274 @@ static void crash_symbolise(void** bt, int n)
 }
 #endif
 
+// Every general register, and what the hardware said about the fault.
+static void crash_registers(void* context, uintptr_t* pc, uintptr_t* sp)
+{
+	*pc = *sp = 0;
+	if (!context)
+		return;
+	PortCrashLine line;
+	const char* access = nullptr;
+#if defined(__linux__) && defined(__x86_64__)
+	const greg_t* r = ((ucontext_t*)context)->uc_mcontext.gregs;
+	*pc = r[REG_RIP], *sp = r[REG_RSP];
+	line.text("[port] registers:"); line.reg("rax", r[REG_RAX]); line.reg("rbx", r[REG_RBX]);
+	line.reg("rcx", r[REG_RCX]); line.reg("rdx", r[REG_RDX]); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("rsi", r[REG_RSI]); line.reg("rdi", r[REG_RDI]);
+	line.reg("rbp", r[REG_RBP]); line.reg("rsp", r[REG_RSP]); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("r8", r[REG_R8]); line.reg("r9", r[REG_R9]);
+	line.reg("r10", r[REG_R10]); line.reg("r11", r[REG_R11]); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("r12", r[REG_R12]); line.reg("r13", r[REG_R13]);
+	line.reg("r14", r[REG_R14]); line.reg("r15", r[REG_R15]); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("rip", r[REG_RIP]); line.reg("eflags", r[REG_EFL]);
+	line.reg("trapno", r[REG_TRAPNO]); line.reg("err", r[REG_ERR]); line.text("\n"); port_crash_emit(line);
+	// x86 page fault error code: bit 0 protection, 1 write, 4 instruction fetch.
+	if (r[REG_TRAPNO] == 14)
+		access = r[REG_ERR] & 16 ? "an instruction fetch" : r[REG_ERR] & 2 ? "a write" : "a read";
+#elif defined(__linux__) && defined(__i386__)
+	const greg_t* r = ((ucontext_t*)context)->uc_mcontext.gregs;
+	*pc = r[REG_EIP], *sp = r[REG_ESP];
+	line.text("[port] registers:"); line.reg("eax", r[REG_EAX]); line.reg("ebx", r[REG_EBX]);
+	line.reg("ecx", r[REG_ECX]); line.reg("edx", r[REG_EDX]); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("esi", r[REG_ESI]); line.reg("edi", r[REG_EDI]);
+	line.reg("ebp", r[REG_EBP]); line.reg("esp", r[REG_ESP]); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("eip", r[REG_EIP]); line.reg("eflags", r[REG_EFL]);
+	line.reg("trapno", r[REG_TRAPNO]); line.reg("err", r[REG_ERR]); line.text("\n"); port_crash_emit(line);
+	if (r[REG_TRAPNO] == 14)
+		access = r[REG_ERR] & 16 ? "an instruction fetch" : r[REG_ERR] & 2 ? "a write" : "a read";
+#elif defined(__linux__) && defined(__aarch64__)
+	const mcontext_t& m = ((ucontext_t*)context)->uc_mcontext;
+	*pc = m.pc, *sp = m.sp;
+	static const char* const names[31] = {"x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10",
+		"x11", "x12", "x13", "x14", "x15", "x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23", "x24", "x25",
+		"x26", "x27", "x28", "fp", "lr"};
+	line.text("[port] registers:");
+	for (int i = 0; i < 31; i++) {
+		line.reg(names[i], m.regs[i]);
+		if (i % 4 == 3) { line.text("\n"); port_crash_emit(line); line.text("[port]  "); }
+	}
+	line.reg("sp", m.sp); line.reg("pc", m.pc); line.reg("pstate", m.pstate);
+	line.reg("fault_address", m.fault_address); line.text("\n"); port_crash_emit(line);
+#elif defined(__APPLE__) && defined(__x86_64__)
+	// No gdb on macOS and lldb needs developer-mode approval: the registers
+	// let a bad pointer be traced from the log.
+	const auto& r = ((ucontext_t*)context)->uc_mcontext->__ss;
+	const auto& e = ((ucontext_t*)context)->uc_mcontext->__es;
+	*pc = r.__rip, *sp = r.__rsp;
+	line.text("[port] registers:"); line.reg("rax", r.__rax); line.reg("rbx", r.__rbx);
+	line.reg("rcx", r.__rcx); line.reg("rdx", r.__rdx); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("rsi", r.__rsi); line.reg("rdi", r.__rdi);
+	line.reg("rbp", r.__rbp); line.reg("rsp", r.__rsp); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("r8", r.__r8); line.reg("r9", r.__r9);
+	line.reg("r10", r.__r10); line.reg("r11", r.__r11); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("r12", r.__r12); line.reg("r13", r.__r13);
+	line.reg("r14", r.__r14); line.reg("r15", r.__r15); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("rip", r.__rip); line.reg("rflags", r.__rflags);
+	line.reg("trapno", e.__trapno); line.reg("err", e.__err); line.reg("faultvaddr", e.__faultvaddr);
+	line.text("\n"); port_crash_emit(line);
+	if (e.__trapno == 14)
+		access = e.__err & 16 ? "an instruction fetch" : e.__err & 2 ? "a write" : "a read";
+#elif defined(__APPLE__) && defined(__aarch64__)
+	const auto& r = ((ucontext_t*)context)->uc_mcontext->__ss;
+	const auto& e = ((ucontext_t*)context)->uc_mcontext->__es;
+	*pc = r.__pc, *sp = r.__sp;
+	line.text("[port] registers:");
+	for (int i = 0; i < 29; i++) {
+		char name[4] = {'x', (char)(i < 10 ? '0' + i : '0' + i / 10), (char)(i < 10 ? 0 : '0' + i % 10), 0};
+		line.reg(name, r.__x[i]);
+		if (i % 4 == 3) { line.text("\n"); port_crash_emit(line); line.text("[port]  "); }
+	}
+	line.reg("fp", r.__fp); line.reg("lr", r.__lr); line.reg("sp", r.__sp); line.text("\n"); port_crash_emit(line);
+	line.text("[port]  "); line.reg("pc", r.__pc); line.reg("cpsr", r.__cpsr);
+	line.reg("far", e.__far); line.reg("esr", e.__esr); line.text("\n"); port_crash_emit(line);
+	// ESR exception class: 0x24/0x25 data abort (bit 6 set for a write),
+	// 0x20/0x21 instruction abort.
+	const unsigned ec = e.__esr >> 26;
+	if (ec == 0x24 || ec == 0x25)
+		access = (e.__esr >> 6) & 1 ? "a write" : "a read";
+	else if (ec == 0x20 || ec == 0x21)
+		access = "an instruction fetch";
+#endif
+	if (access) {
+		line.text("[port] the fault was "); line.text(access); line.text("\n");
+		port_crash_emit(line);
+	}
+}
+
+#ifdef __linux__
+// The lines of /proc/self/maps holding the fault address and pc: what the
+// memory is (file, heap, stack, guard page) and its permissions.
+static void crash_maps(uintptr_t fault, uintptr_t pc)
+{
+	int fd = open("/proc/self/maps", O_RDONLY);
+	if (fd < 0)
+		return;
+	char buffer[4096];
+	char text[512];
+	size_t length = 0;
+	ssize_t got;
+	while ((got = read(fd, buffer, sizeof buffer)) > 0) {
+		for (ssize_t i = 0; i < got; i++) {
+			if (buffer[i] != '\n') {
+				if (length + 1 < sizeof text) text[length++] = buffer[i];
+				continue;
+			}
+			text[length] = 0;
+			length = 0;
+			char* end;
+			uintptr_t from = strtoul(text, &end, 16);
+			uintptr_t to = *end == '-' ? strtoul(end + 1, nullptr, 16) : 0;
+			bool has_fault = fault >= from && fault < to, has_pc = pc >= from && pc < to;
+			if (!has_fault && !has_pc)
+				continue;
+			PortCrashLine line;
+			line.text("[port] map ("); line.text(has_fault && has_pc ? "fault, pc" : has_fault ? "fault" : "pc");
+			line.text("): "); line.text(text); line.text("\n");
+			port_crash_emit(line);
+		}
+	}
+	close(fd);
+}
+#endif
+#endif
+
 #ifdef _WIN32
 static void crash_handler(int sig)
 {
-	port_log("\n[port] fatal signal %d\n", sig);
-	void* bt[64];
-	int n = backtrace(bt, 64);
-	backtrace_symbols_fd(bt, n, 2);
+	port_windows_report_current("abort() (SIGABRT)");
 	port_stub_report();
 	signal(sig, SIG_DFL);
 	raise(sig);
 }
 #else
+#ifdef __ANDROID__
+// Mareshine: the crash report, a copy of game.log (SMS_LOG_FILE, set by
+// android/bootstrap.cpp) as crash-<date>-<time>.log beside it, which the app
+// offers to send. open/read/write only: called from the crash handler; the
+// paths are taken at start (port_crash_report_init).
+static char s_crash_log[512], s_crash_dir[512];
+static void port_crash_report_init()
+{
+	const char* f = getenv("SMS_LOG_FILE");
+	if (!f || !*f || strlen(f) >= sizeof s_crash_log)
+		return;
+	snprintf(s_crash_log, sizeof s_crash_log, "%s", f);
+	snprintf(s_crash_dir, sizeof s_crash_dir, "%s", f);
+	if (char* slash = strrchr(s_crash_dir, '/'))
+		*slash = 0;
+}
+static void port_crash_report_save()
+{
+	if (!s_crash_log[0])
+		return;
+	time_t t = time(nullptr);
+	struct tm tm;
+	localtime_r(&t, &tm);
+	char name[64], path[600];
+	strftime(name, sizeof name, "crash-%Y%m%d-%H%M%S.log", &tm);
+	snprintf(path, sizeof path, "%s/%s", s_crash_dir, name);
+	int in  = open(s_crash_log, O_RDONLY | O_CLOEXEC);
+	int out = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0664);
+	if (in >= 0 && out >= 0) {
+		char buf[16384];
+		ssize_t n;
+		while ((n = read(in, buf, sizeof buf)) > 0)
+			if (write(out, buf, (size_t)n) != n)
+				break;
+		fsync(out);
+	}
+	if (in >= 0)
+		close(in);
+	if (out >= 0)
+		close(out);
+}
+#endif
 static void crash_handler(int sig, siginfo_t* si, void* uc)
 {
-	port_log("\n[port] fatal signal %d (%s) at address %p\n", sig, strsignal(sig), si ? si->si_addr : nullptr);
+	// A fault while reporting ends the process with the original signal;
+	// another thread crashing meanwhile waits for this report to finish.
+	static pthread_t reporter;
+	static volatile sig_atomic_t reporting;
+	if (__sync_lock_test_and_set(&reporting, 1)) {
+		if (pthread_equal(reporter, pthread_self())) {
+			signal(sig, SIG_DFL);
+			raise(sig);
+		}
+		for (;;)
+			pause();
+	}
+	reporter = pthread_self();
+	// Write the actual signal, fault address and instruction address first,
+	// without stdio locks or allocation. Symbolisation below is best effort.
+	PortCrashLine line;
+	line.text("\n[port] fatal signal ");
+	const char* name = sig == SIGSEGV ? "SIGSEGV" : sig == SIGBUS ? "SIGBUS" : sig == SIGFPE ? "SIGFPE"
+	                 : sig == SIGILL ? "SIGILL" : sig == SIGABRT ? "SIGABRT" : "unknown";
+	line.text(name); line.text(" ("); line.number(sig, 10); line.text(")");
+	// For user-raised signals si_addr aliases the sender's PID, not a fault.
+	const bool fault = si && si->si_code > 0 && sig != SIGABRT;
+	if (fault) {
+		line.text(" at address "); line.hex((uintptr_t)si->si_addr);
+	}
+	if (si) {
+		line.text(" si_code ");
+		if (si->si_code < 0) line.text("-");
+		line.number(si->si_code < 0 ? -(int64_t)si->si_code : si->si_code, 10);
+		if (sig == SIGSEGV && si->si_code == SEGV_MAPERR) line.text(" (address not mapped)");
+		if (sig == SIGSEGV && si->si_code == SEGV_ACCERR) line.text(" (no permission for the access)");
+		if (sig == SIGBUS && si->si_code == BUS_ADRALN) line.text(" (misaligned address)");
+		if (sig == SIGFPE && si->si_code == FPE_INTDIV) line.text(" (integer divide by zero)");
+	}
+	uintptr_t pc = 0, sp = 0;
 #if defined(__APPLE__) && defined(__x86_64__)
-	if (uc) {
-		// No gdb on macOS and lldb needs developer-mode approval: print the
-		// faulting registers so a bad pointer can be traced from the log.
-		const auto& r = ((ucontext_t*)uc)->uc_mcontext->__ss;
-		port_log("[port] rip=%llx rsp=%llx rbp=%llx\n"
-		         "[port] rax=%llx rbx=%llx rcx=%llx rdx=%llx rsi=%llx rdi=%llx\n"
-		         "[port] r8=%llx r9=%llx r10=%llx r11=%llx r12=%llx r13=%llx r14=%llx r15=%llx\n",
-		         r.__rip, r.__rsp, r.__rbp, r.__rax, r.__rbx, r.__rcx, r.__rdx, r.__rsi, r.__rdi,
-		         r.__r8, r.__r9, r.__r10, r.__r11, r.__r12, r.__r13, r.__r14, r.__r15);
-	}
+	if (uc) pc = ((ucontext_t*)uc)->uc_mcontext->__ss.__rip;
+#elif defined(__APPLE__) && defined(__aarch64__)
+	if (uc) pc = ((ucontext_t*)uc)->uc_mcontext->__ss.__pc;
+#elif defined(__linux__) && defined(__x86_64__)
+	if (uc) pc = ((ucontext_t*)uc)->uc_mcontext.gregs[REG_RIP];
+#elif defined(__linux__) && defined(__i386__)
+	if (uc) pc = ((ucontext_t*)uc)->uc_mcontext.gregs[REG_EIP];
+#elif defined(__linux__) && defined(__aarch64__)
+	if (uc) pc = ((ucontext_t*)uc)->uc_mcontext.pc;
 #endif
-#if defined(__aarch64__)
-	if (uc) {
-		ucontext_t* ctx = (ucontext_t*)uc;
-		uintptr_t pc = ctx->uc_mcontext.pc;
-		uintptr_t sp = ctx->uc_mcontext.sp;
-		uintptr_t lr = ctx->uc_mcontext.regs[30];
-		port_log("[port] aarch64 pc=%p sp=%p lr=%p\n", (void*)pc, (void*)sp, (void*)lr);
-		Dl_info info;
-		if (dladdr((void*)pc, &info)) {
-			port_log("[port] pc sym: %s in %s (+0x%lx)\n", info.dli_sname ? info.dli_sname : "?", info.dli_fname ? info.dli_fname : "?", (uintptr_t)pc - (uintptr_t)info.dli_fbase);
-		}
-		if (dladdr((void*)lr, &info)) {
-			port_log("[port] lr sym: %s in %s (+0x%lx)\n", info.dli_sname ? info.dli_sname : "?", info.dli_fname ? info.dli_fname : "?", (uintptr_t)lr - (uintptr_t)info.dli_fbase);
-		}
-	}
+	line.text(" pc "); line.hex(pc);
+	line.text(" thread ");
+#ifdef __linux__
+	line.number((uint64_t)syscall(SYS_gettid), 10);
+#else
+	uint64_t thread_id = 0;
+	pthread_threadid_np(nullptr, &thread_id);
+	line.number(thread_id, 10);
 #endif
-#if defined(__ANDROID__)
-	dump_android_backtrace();
-#elif !defined(_WIN32)
+	line.text("\n");
+	port_crash_emit(line);
+	uintptr_t base;
+	const char* module;
+	if (pc && port_crash_module(pc, &base, &module)) {
+		line.text("[port] exception module "); line.text(module); line.text(" base "); line.hex(base);
+		line.text(" offset "); line.hex(pc - base); line.text("\n");
+		port_crash_emit(line);
+	}
+	if (fault)
+		port_crash_describe_address("fault address", (uintptr_t)si->si_addr);
+	crash_registers(uc, &pc, &sp);
+#ifdef __linux__
+	crash_maps(fault ? (uintptr_t)si->si_addr : 0, pc);
+#endif
 	void* bt[64];
 	int n = backtrace(bt, 64);
+	line.text("[port] backtrace ("); line.number(n, 10); line.text(" frames, the signal handler first):\n");
+	port_crash_emit(line);
 	backtrace_symbols_fd(bt, n, 2);
+	if (pc)
+		port_crash_dump_memory(pc, sp);
+	port_crash_describe_context();
+#ifndef __ANDROID__
 	crash_symbolise(bt, n);
 #endif
 	port_stub_report();
 #ifdef __ANDROID__
-	log_save_crash();
+	port_crash_report_save();
 #endif
 #ifdef __APPLE__
 	// Under Rosetta, a translated process that dies from a re-raised fatal
@@ -383,39 +485,50 @@ static void crash_handler(int sig, siginfo_t* si, void* uc)
 }
 #endif
 
-#ifdef __ANDROID__
-// Android: claim MEM1's address as soon as libmain is loaded. Later (when the
-// game starts) the GPU driver or the Java heap may already sit at 0x80000000,
-// and MEM1 elsewhere breaks GX addresses that live in 24-bit fields.
-static void* s_early_mem1;
-static size_t s_early_mem1_size;
-__attribute__((constructor)) static void android_reserve_mem1()
+void port_crash_thread_init()
 {
-	size_t size = 64u << 20;
-	if (const char* e = getenv("SMS_MEM_MB"))
-		size = (size_t)atoi(e) << 20;
-	void* want = (void*)(uintptr_t)0x80000000u;
-	void* p    = mmap(want, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
-	if (p == want) {
-		s_early_mem1      = p;
-		s_early_mem1_size = size;
-	} else if (p != MAP_FAILED) {
-		munmap(p, size);
-	}
-}
+#ifndef _WIN32
+	// A separate stack allows the first diagnostic to survive stack exhaustion.
+	alignas(16) static thread_local unsigned char crash_stack[64 * 1024];
+	stack_t stack = {};
+	stack.ss_sp = crash_stack;
+	stack.ss_size = sizeof crash_stack;
+	if (sigaltstack(&stack, nullptr) != 0)
+		port_log("[port] cannot install alternate crash stack\n");
 #endif
+}
+
+void port_install_crash_handlers()
+{
+	port_crash_prepare_info();
+#ifdef _WIN32
+	port_install_windows_exception_logger();
+	// Native hardware exceptions keep their Windows status. Translating them
+	// through a CRT signal handler would replace it with a generic abort code.
+	signal(SIGABRT, crash_handler);
+#else
+	// The first backtrace() loads the unwinder, which allocates: do it now.
+	void* warm[1];
+	backtrace(warm, 1);
+	struct sigaction sa = {};
+	sa.sa_sigaction = crash_handler;
+	sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+	for (int sig : {SIGSEGV, SIGBUS, SIGFPE, SIGILL, SIGABRT})
+		if (sigaction(sig, &sa, nullptr) != 0) port_log("[port] cannot install crash handler for signal %d\n", sig);
+#endif
+	port_crash_thread_init();
+}
 
 // Emulated MEM1: the game's arena lives at the GameCube's own cached
-// addresses (0x80000000..), so OSPhysicalToCached/OSCachedToPhysical and the
-// few raw low-memory reads (e.g. *(OSModuleInfo**)0x800030C8) work unchanged.
+// addresses (0x80000000..) when available. Android can occupy that range;
+// its SDK translations and GX window follow a relocated compatibility arena.
 u8* port_mem1_base;
 u32 port_mem1_size;
-
-#ifndef _WIN32
-#ifndef MAP_FIXED_NOREPLACE
-#define MAP_FIXED_NOREPLACE 0x100000
+#ifdef __ANDROID__
+extern "C" __attribute__((weak)) void GXPC_SetMemoryWindow(void* base, uint32_t size);
 #endif
 
+#ifndef _WIN32
 // mmap exactly at `want` without replacing an existing mapping. Linux has
 // MAP_FIXED_NOREPLACE; Darwin's MAP_FIXED silently replaces whatever is there
 // (dylibs, graphics driver memory: the low 4 GiB is shared with the system
@@ -423,18 +536,15 @@ u32 port_mem1_size;
 // placement.
 static void* map_exact(void* want, size_t size)
 {
+#ifdef MAP_FIXED_NOREPLACE
 	void* p = mmap(want, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+#else
+	void* p = mmap(want, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
 	if (p == want)
 		return p;
-	if (p != MAP_FAILED) {
+	if (p != MAP_FAILED)
 		munmap(p, size);
-	} else if (errno == EINVAL) {
-		p = mmap(want, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-		if (p == want)
-			return p;
-		if (p != MAP_FAILED)
-			munmap(p, size);
-	}
 	return MAP_FAILED;
 }
 #endif
@@ -448,26 +558,6 @@ static void map_mem1()
 		mb = (u32)atoi(e);
 	port_mem1_size = mb << 20;
 	void* want = (void*)(uintptr_t)0x80000000u;
-#ifdef __ANDROID__
-	// Reserved when the library was loaded (see android_reserve_mem1), before
-	// the GPU driver and the Java heap could take the address.
-	if (s_early_mem1 && s_early_mem1_size >= port_mem1_size) {
-		port_mem1_base = (u8*)s_early_mem1;
-		port_log("[port] MEM1: %u MiB at %p (reserved at load)\n", port_mem1_size >> 20, s_early_mem1);
-		return;
-	}
-	{ // who holds 0x80000000?
-		FILE* m = fopen("/proc/self/maps", "r");
-		char line[512];
-		while (m && fgets(line, sizeof line, m)) {
-			unsigned long lo, hi;
-			if (sscanf(line, "%lx-%lx", &lo, &hi) == 2 && hi > 0x80000000ul && lo < 0x80000000ul + port_mem1_size)
-				port_log("[port] MEM1 range taken by: %s", line);
-		}
-		if (m)
-			fclose(m);
-	}
-#endif
 #ifdef _WIN32
 	void* p = VirtualAlloc(want, port_mem1_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (p != want) {
@@ -479,35 +569,47 @@ static void map_mem1()
 #else
 	void* p = map_exact(want, port_mem1_size);
 	if (p != want) {
-		port_log("[port] cannot map MEM1 at 0x80000000; searching low 4 GiB space\n");
-		for (uintptr_t try_addr = 0x80000000u; try_addr + port_mem1_size <= 0xF0000000u; try_addr += 0x10000000u) {
-			p = map_exact((void*)try_addr, port_mem1_size);
-			if (p == (void*)try_addr) break;
+#ifdef __ANDROID__
+		port_log("[port] MEM1 address 0x80000000 unavailable; reserving another compatibility range\n");
+		p = port_low_alloc(port_mem1_size);
+		// Stacks prefer the low half, but MEM1 already normally lives at
+		// 0x80000000. If that half is fragmented, its relocated arena may use
+		// another complete range in the upper half of the 32-bit window.
+		for (uint64_t at = 0x84000000ULL; !p && at + port_mem1_size < 0x100000000ULL; at += 0x100000u) {
+			void* q = map_exact((void*)(uintptr_t)at, port_mem1_size);
+			if (q != MAP_FAILED) p = q;
 		}
+		// The game's raw u32 pointer fields and rounding helpers cannot use a
+		// high malloc/mmap block even though the host process is 64-bit.
+		if (!p || (uint64_t)(uintptr_t)p + port_mem1_size >= 0x100000000ULL) {
+			port_log("[port] could not reserve pointer-compatible MEM1; refusing an unsafe heap fallback\n");
+			exit(1);
+		}
+#else
+		port_log("[port] cannot map MEM1 at 0x80000000; falling back to a heap block\n");
+		p = mmap(NULL, port_mem1_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		if (p == MAP_FAILED) {
-			for (uintptr_t try_addr = 0x20000000u; try_addr + port_mem1_size <= 0x80000000u; try_addr += 0x10000000u) {
-				p = map_exact((void*)try_addr, port_mem1_size);
-				if (p == (void*)try_addr) break;
-			}
+			port_log("[port] out of memory for MEM1\n");
+			exit(1);
 		}
-		if (p == MAP_FAILED) {
-			p = mmap(NULL, port_mem1_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-			if (p == MAP_FAILED) {
-				port_log("[port] out of memory for MEM1\n");
-				exit(1);
-			}
-		}
+#endif
+	}
+#endif
+	// ArenaHi itself is also rounded/stored through u32 by the game, so an
+	// exclusive end exactly at 4 GiB is incompatible even if all bytes fit.
+#ifdef __ANDROID__
+	if (!port_mem1_size || (uint64_t)(uintptr_t)p + port_mem1_size >= 0x100000000ULL) {
+		port_log("[port] MEM1 arena endpoints do not fit the compatibility address window\n");
+		exit(1);
 	}
 #endif
 	port_mem1_base = (u8*)p;
-	// GX keeps texture, TLUT and copy addresses in 24-bit register fields
-	// (address >> 5, so offsets below 512 MiB): with MEM1 away from
-	// 0x80000000 they must be measured from where MEM1 really is, or every
-	// texture reads the wrong memory (garbage textures on Android).
-	if (p != (void*)(uintptr_t)0x80000000u && GXPC_SetMemoryWindow) {
-		GXPC_SetMemoryWindow(p, port_mem1_size);
-		port_log("[port] GX memory window moved to %p\n", p);
-	}
+#ifdef __ANDROID__
+	// FIFO/GD commands store MEM1-relative addresses. Relocation must change
+	// the renderer's default 0x80000000 window before the game emits any.
+	if (GXPC_SetMemoryWindow) GXPC_SetMemoryWindow(p, port_mem1_size);
+#endif
+	port_crash_set_mem1((uintptr_t)p, port_mem1_size);
 	port_log("[port] MEM1: %u MiB at %p\n", mb, p);
 }
 
@@ -516,41 +618,8 @@ static void map_mem1()
 // high. Fatal, since the pointer would be silently truncated.
 extern "C" void port_ptr32_trap(const void* p)
 {
-	void* ret0 = __builtin_return_address(0);
-	void* ret1 = __builtin_return_address(1);
-	void* ret2 = __builtin_return_address(2);
-#ifndef _WIN32
-	Dl_info info0 = {}, info1 = {}, info2 = {};
-	dladdr(ret0, &info0);
-	dladdr(ret1, &info1);
-	dladdr(ret2, &info2);
-	port_log("[port] PTR32: address %p does not fit a 32-bit slot\n"
-	         "  ret0: %p (%s in %s +0x%lx)\n"
-	         "  ret1: %p (%s in %s +0x%lx)\n"
-	         "  ret2: %p (%s in %s +0x%lx)\n",
-	         p,
-	         ret0, info0.dli_sname ? info0.dli_sname : "?", info0.dli_fname ? info0.dli_fname : "?",
-	         (unsigned long)((uintptr_t)ret0 - (uintptr_t)info0.dli_fbase),
-	         ret1, info1.dli_sname ? info1.dli_sname : "?", info1.dli_fname ? info1.dli_fname : "?",
-	         (unsigned long)((uintptr_t)ret1 - (uintptr_t)info1.dli_fbase),
-	         ret2, info2.dli_sname ? info2.dli_sname : "?", info2.dli_fname ? info2.dli_fname : "?",
-	         (unsigned long)((uintptr_t)ret2 - (uintptr_t)info2.dli_fbase));
-#else
-	port_log("[port] PTR32: address %p does not fit a 32-bit slot (ret0=%p ret1=%p ret2=%p)\n", p, ret0, ret1, ret2);
-#endif
+	port_log("[port] PTR32: address %p does not fit a 32-bit slot\n", p);
 	abort();
-}
-
-extern "C" void* port_resolve_code_ptr32(uint32_t p)
-{
-	if (!p)
-		return nullptr;
-#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8
-	static uintptr_t s_high = (uintptr_t)(void*)&port_resolve_code_ptr32 & 0xFFFFFFFF00000000ULL;
-	return (void*)(s_high | (uintptr_t)p);
-#else
-	return (void*)(uintptr_t)p;
-#endif
 }
 
 void* port_low_alloc(unsigned long size)
@@ -584,32 +653,29 @@ void* port_low_alloc(unsigned long size)
 	}
 	return NULL;
 #else
-#ifdef MAP_32BIT
+#if defined(MAP_32BIT) && !defined(__ANDROID__)
+	// MAP_32BIT is an x86 facility. ARM64 Android uses the non-clobbering
+	// address walk below (also exercised by the Android-configured host test).
 	void* p = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
 	if (p != MAP_FAILED)
 		return p;
 #endif
 	static uintptr_t next = 0x40000000u;
-	for (int tries = 0; tries < 256 && next + size <= 0x80000000u; tries++) {
+	for (int tries = 0; tries < 4096 && next + size <= 0x80000000u; tries++) {
 		void* want = (void*)next;
-		next += (size + 0xFFFFu) & ~(uintptr_t)0xFFFFu;
 		void* q = map_exact(want, size);
-		if (q == want)
+		if (q == want) {
+			next += (size + 0xFFFFu) & ~(uintptr_t)0xFFFFu;
 			return q;
+		}
+#ifdef __ANDROID__
+		// A large failed request must not skip a smaller aligned hole that
+		// still fits it between Android's existing mappings.
+		next += 0x100000u;
+#else
+		next += (size + 0xFFFFu) & ~(uintptr_t)0xFFFFu;
+#endif
 	}
-	for (uintptr_t at = 0x10000000u; at + size <= 0x80000000u; at += 0x100000u) {
-		void* q = map_exact((void*)at, size);
-		if (q == (void*)at)
-			return q;
-	}
-	for (uintptr_t at = 0x80000000u; at + size <= 0xE0000000u; at += 0x100000u) {
-		void* q = map_exact((void*)at, size);
-		if (q == (void*)at)
-			return q;
-	}
-	void* fallback = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (fallback != MAP_FAILED)
-		return fallback;
 	return NULL;
 #endif
 }
@@ -697,7 +763,6 @@ static void map_hw_sink()
 // Window/headless switches belong to the GX layer (weak: absent without it).
 extern "C" __attribute__((weak)) int GXPC_ParseArgs(int* argc, char** argv);
 extern "C" __attribute__((weak)) void GXPC_SetHeadless(int headless);
-extern "C" __attribute__((weak)) int GXPC_RunLauncher(const char* settingsPath, const char* bindingsPath, int force);
 
 // The 32-bit NVIDIA GLX library must match the kernel module's version
 // exactly, or context creation fails (X_GLXCreateContext BadValue). If this
@@ -738,232 +803,91 @@ static const struct {
 } kSettings[] = {
 	{ "texture_packs", "SMS_TEXTURE_PACKS" }, // on (mods/textures), off, or folders
 	{ "texture_pack_mb", "SMS_TEXTURE_PACK_MB" },
+	{ "texture_pack_preload", "SMS_TEXTURE_PACK_PRELOAD" },
+	{ "texture_pack_pending_mb", "SMS_TEXTURE_PACK_PENDING_MB" },
+	{ "texture_pack_upload_mb", "SMS_TEXTURE_PACK_UPLOAD_MB" },
+	{ "texture_pack_max_size", "SMS_TEXTURE_PACK_MAX_SIZE" },
+	{ "shader_warmup", "SMS_GX_SHADER_WARMUP" },
 	{ "hd_cutscenes", "SMS_HD_CUTSCENES" }, // follows HD textures; 0 disables
 	{ "widescreen", "SMS_WIDESCREEN" },
 	{ "widescreen_hud", "SMS_WIDESCREEN_HUD" }, // centre or edges
-	{ "frame_rate", "SMS_FRAME_RATE" },         // 30, 60 or 120
+	{ "frame_rate", "SMS_FRAME_RATE" },         // 30, 60 (default), or 120
 	{ "mod", "SMS_MOD" },
-	{ "language", "SMS_LANGUAGE" }, // en (default), or any pack in languages/<code>
+	{ "language", "SMS_LANGUAGE" }, // en (default), or any pack in mods/languages/<code>
 	{ "resolution", "SMS_GX_SCALE" },
-	{ "render_scale", "SMS_RENDER_SCALE" },
-	{ "draw_distance", "SMS_DRAW_DISTANCE" },
-	{ "far_plane", "SMS_FAR_PLANE" },
-	{ "fast_peek", "SMS_FAST_PEEK" },
+	{ "anisotropic", "SMS_ANISO" }, // 0, 2, 4, 8 or 16
+	{ "window_scale", "SMS_WINDOW_SCALE" },
+	{ "vsync", "SMS_VSYNC" },                     // on, off or adaptive
+	{ "fullscreen", "SMS_FULLSCREEN" },           // off, on (desktop) or exclusive
+	{ "fullscreen_mode", "SMS_FULLSCREEN_MODE" }, // WxH@Hz, for exclusive
+	{ "display", "SMS_DISPLAY" },                 // monitor, 0 = primary
+	{ "msaa", "SMS_MSAA" },                     // 0, 2, 4 or 8
+	{ "fxaa", "SMS_FXAA" },
+	{ "sharpen", "SMS_SHARPEN" },               // 0..100
+	{ "brightness", "SMS_GAMMA" },              // 1.0 = unchanged
+	{ "aspect", "SMS_ASPECT" },                 // keep, stretch or integer
+	{ "present_filter", "SMS_PRESENT_FILTER" }, // bilinear, sharp, nearest, fsr or nis
+	{ "fsr_mode", "SMS_FSR_MODE" }, // with fsr or nis: native, quality, balanced, performance or ultraperformance
+	{ "skip_movies", "SMS_SKIP_MOVIES" },
+	{ "heat_haze", "SMS_HEAT_HAZE" }, // the heat-wave shimmer, on by default
+	// Mareshine's (Android) names: its app writes these
+	{ "render_scale", "SMS_RENDER_SCALE" },     // as resolution
+	{ "disable_shimmer", "SMS_DISABLE_SHIMMER" }, // heat_haze, the other way round
+	{ "shader_cache", "SMS_SHADER_CACHE" },     // 0: no program cache
 	{ "copy_writeback", "SMS_GX_COPY_WRITEBACK" },
-	{ "disable_shimmer", "SMS_DISABLE_SHIMMER" },
+	{ "fast_peek", "SMS_FAST_PEEK" },
+	{ "draw_distance", "SMS_DRAW_DISTANCE" },
+	{ "actor_draw_distance", "SMS_ACTOR_DRAW_DISTANCE" },
+	{ "npc_draw_distance", "SMS_NPC_DRAW_DISTANCE" },
+	{ "mapobj_draw_distance", "SMS_MAPOBJ_DRAW_DISTANCE" },
+	{ "static_draw_distance", "SMS_STATIC_DRAW_DISTANCE" },
+	{ "far_plane", "SMS_FAR_PLANE" },
 	{ "disable_shadows", "SMS_DISABLE_SHADOWS" },
 	{ "disable_reflections", "SMS_DISABLE_REFLECTIONS" },
 	{ "disable_water_anim", "SMS_DISABLE_WATER_ANIM" },
-	{ "npc_draw_distance", "SMS_NPC_DRAW_DISTANCE" },
-	{ "actor_draw_distance", "SMS_ACTOR_DRAW_DISTANCE" },
-	{ "mapobj_draw_distance", "SMS_MAPOBJ_DRAW_DISTANCE" },
-	{ "static_draw_distance", "SMS_STATIC_DRAW_DISTANCE" },
-	{ "shader_cache", "SMS_SHADER_CACHE" },
-	{ "window_scale", "SMS_WINDOW_SCALE" },
-	{ "vsync", "SMS_VSYNC" },
-	{ "skip_movies", "SMS_SKIP_MOVIES" },
+	{ "music_volume", "SMS_MUSIC_VOLUME" },
+	{ "sfx_volume", "SMS_SFX_VOLUME" },
+	{ "update_check", "SMS_UPDATE_CHECK" },     // the app's own
+	{ "button_prompts", "SMS_BUTTON_PROMPTS" }, // gamecube, auto, xbox, playstation, steamdeck or keyboard
+	{ "button_prompt_pad", "SMS_BUTTON_PROMPT_PAD" }, // with auto: gamecube, xbox, playstation, steamdeck, or match the controller
+	{ "button_prompt_dir", "SMS_BUTTON_PROMPT_DIR" }, // the folder of prompt images (<style>.png)
+	{ "hdr", "SMS_HDR" }, // HDR output on Windows, while Windows HDR is on
+	{ "hdr_paper_white", "SMS_HDR_PAPER_WHITE" }, // nits, or auto (Windows' SDR content brightness)
+	{ "hdr_peak", "SMS_HDR_PEAK" }, // nits, or auto (the display's peak, as calibrated)
+	{ "hdr_contrast", "SMS_HDR_CONTRAST" }, // percent, 50 to 150
+	{ "hdr_saturation", "SMS_HDR_SATURATION" }, // percent, 0 to 200
+	{ "hdr_highlights", "SMS_HDR_HIGHLIGHTS" }, // 0 to 100: how far highlights reach toward the peak
+	{ "hdr_copy", "SMS_HDR_COPY" }, // 1: frames reach Direct3D through system memory, not a shared texture
 	{ "audio", "SMS_AUDIO" },
+	{ "volume", "SMS_VOLUME" }, // master volume, 0 to 100
+	{ "soft_trigger", "SMS_SOFT_TRIGGER" }, // L_SOFT / R_SOFT press depth, percent
 	{ "overlay", "SMS_OVERLAY" },
 	{ "save_dir", "SMS_SAVE_DIR" },
+	{ "save_state_dir", "SMS_SAVE_STATE_DIR" },
 	{ "disc_image", "SMS_DISC_IMAGE" },
-	// PC options (the launcher sets these; platform/gx reads them)
-	{ "window_mode", "SMS_WINDOW_MODE" },         // windowed, borderless or fullscreen
-	{ "display", "SMS_DISPLAY" },                 // monitor index, 0 = primary
-	{ "fullscreen_mode", "SMS_FULLSCREEN_MODE" }, // WxH@Hz or desktop
-	{ "aspect", "SMS_ASPECT" },                   // keep, stretch or integer
-	{ "present_filter", "SMS_PRESENT_FILTER" },   // bilinear, sharp or nearest
-	{ "msaa", "SMS_MSAA" },                       // 0, 2, 4 or 8
-	{ "fxaa", "SMS_FXAA" },
-	{ "anisotropic", "SMS_ANISO" },               // 0, 2, 4, 8 or 16
-	{ "sharpen", "SMS_SHARPEN" },                 // 0..100
-	{ "brightness", "SMS_GAMMA" },                // 1.0 = unchanged
-	{ "volume", "SMS_VOLUME" },                   // 0..100
-	{ "music_volume", "SMS_MUSIC_VOLUME" },       // music (BGM sequences, streams, movies), 0..100
-	{ "sfx_volume", "SMS_SFX_VOLUME" },           // sound effects and everything else, 0..100
 	{ "camera_invert_x", "SMS_CAMERA_INVERT_X" },
 	{ "camera_invert_y", "SMS_CAMERA_INVERT_Y" },
-	{ "camera_speed", "SMS_CAMERA_SPEED" },       // percent, 100 = retail
-	{ "free_camera", "SMS_FREE_CAMERA" },         // no automatic swing-back
-	{ "mouse_camera", "SMS_MOUSE_CAMERA" },       // mouse look
+	{ "camera_speed", "SMS_CAMERA_SPEED" },           // percent, 100 = the game's own
+	{ "free_camera", "SMS_FREE_CAMERA" },             // no automatic swing back
+	{ "mouse_camera", "SMS_MOUSE_CAMERA" },           // mouse look
 	{ "mouse_sensitivity", "SMS_MOUSE_SENSITIVITY" }, // percent
-	{ "hd_cutscenes", "SMS_HD_CUTSCENES" },       // on (mods/hd-cutscenes), off, or a folder
-	// online co-op (platform/netplay)
-	{ "net_mode", "SMS_NET_MODE" },               // off, host or join
-	{ "net_address", "SMS_NET_ADDRESS" },         // the host, for join
-	{ "net_port", "SMS_NET_PORT" },               // UDP, 27016
-	{ "net_name", "SMS_NET_NAME" },               // shown to other players
-	{ "launcher", "SMS_LAUNCHER" },               // show the launcher at start
-	{ "update_check", "SMS_UPDATE_CHECK" },       // the launcher looks for a new release
-	{ "sms_launcher_notice", "SMS_LAUNCHER_NOTICE" }, // "seen" hides the launcher's note
+	{ "background_input", "SMS_BACKGROUND_INPUT" },   // keep input while another window has focus
+	{ "rumble", "SMS_RUMBLE" },                       // controller rumble, on by default
+	{ "rumble_strength", "SMS_RUMBLE_STRENGTH" },     // percent
 };
-
-// The settings file in use: SMS_SETTINGS, ./settings.txt, or two levels up
-// when started from build/<os>-<arch>/. NULL when there is none yet.
-static const char* settings_path()
-{
-	if (const char* p = getenv("SMS_SETTINGS"))
-		return p;
-#ifdef __ANDROID__
-	static std::string s_android_settings = "/sdcard/Android/data/io.github.them3dium.mareshine/files/settings.txt";
-	if (access(s_android_settings.c_str(), R_OK) == 0)
-		return s_android_settings.c_str();
-#endif
-	for (const char* p : { "settings.txt", "../../settings.txt" })
-		if (access(p, R_OK) == 0)
-			return p;
-	return NULL;
-}
-
-// The one GameCube disc image in rom/ beside the settings file (where the
-// launcher's installer puts it), or "" when there is none or more than one.
-static std::string find_rom_image()
-{
-	std::string dir = settings_path() ? settings_path() : "settings.txt";
-	size_t slash    = dir.find_last_of("/\\");
-	dir             = (slash == std::string::npos ? std::string() : dir.substr(0, slash + 1)) + "rom";
-	std::vector<std::string> found;
-#ifdef _WIN32
-	WIN32_FIND_DATAA fd;
-	HANDLE h = FindFirstFileA((dir + "\\*").c_str(), &fd);
-	if (h != INVALID_HANDLE_VALUE) {
-		do
-			if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-				found.push_back(dir + "/" + fd.cFileName);
-		while (FindNextFileA(h, &fd));
-		FindClose(h);
-	}
-#else
-	if (DIR* d = opendir(dir.c_str())) {
-		while (dirent* e = readdir(d))
-			if (e->d_name[0] != '.')
-				found.push_back(dir + "/" + e->d_name);
-		closedir(d);
-	}
-#endif
-	std::string image;
-	int n = 0;
-	for (const std::string& f : found)
-		if (gcdisc_probe(f.c_str())) {
-			image = f;
-			n++;
-		}
-	return n == 1 ? image : std::string();
-}
-
-// The key bindings file platform/pad reads (the same search as settings.txt).
-static const char* bindings_path()
-{
-	if (const char* p = getenv("SMS_BINDINGS"))
-		return p;
-	for (const char* p : { "bindings.txt", "../../bindings.txt" })
-		if (access(p, R_OK) == 0)
-			return p;
-	const char* s = settings_path();
-	return s && !strncmp(s, "../../", 6) ? "../../bindings.txt" : "bindings.txt";
-}
-
-// The launcher runs in a child process: its window, OpenGL driver and SDL
-// claim address space anywhere, and the game needs MEM1, its image and its
-// stacks at fixed addresses below 4 GiB. The child exits with 0 to play.
-static int launcher_in_child(char* argv0, int force)
-{
-	(void)argv0;
-	const char* path = settings_path();
-#ifdef _WIN32
-	wchar_t exe[MAX_PATH * 2];
-	if (!GetModuleFileNameW(NULL, exe, sizeof exe / sizeof exe[0]))
-		return GXPC_RunLauncher(path ? path : "settings.txt", bindings_path(), force);
-	wchar_t cmd[MAX_PATH * 2 + 64];
-	_snwprintf(cmd, sizeof cmd / sizeof cmd[0], L"\"%ls\" --launcher-child%ls", exe, force ? L" --launcher" : L"");
-	cmd[sizeof cmd / sizeof cmd[0] - 1] = 0;
-	STARTUPINFOW si;
-	PROCESS_INFORMATION pi;
-	memset(&si, 0, sizeof si);
-	si.cb = sizeof si;
-	if (!CreateProcessW(exe, cmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
-		port_log("[port] launcher: cannot start (error %lu); starting the game\n", GetLastError());
-		return 1;
-	}
-	WaitForSingleObject(pi.hProcess, INFINITE);
-	DWORD code = 1;
-	GetExitCodeProcess(pi.hProcess, &code);
-	CloseHandle(pi.hThread);
-	CloseHandle(pi.hProcess);
-	return code == 0;
-#elif defined(__ANDROID__)
-	(void)path; (void)argv0; (void)force;
-	return true;
-#else
-	// a fresh process (not fork): AppKit cannot be used in a forked child
-	char child[] = "--launcher-child", forced[] = "--launcher";
-	static char self[4096];
-	if (!gcdisc_self_path(self, sizeof self)) // argv[0] may be a bare name found on PATH
-		snprintf(self, sizeof self, "%s", argv0);
-	char* args[] = { self, child, force ? forced : NULL, NULL };
-	pid_t pid    = 0;
-	fflush(NULL);
-	if (posix_spawn(&pid, self, NULL, NULL, args, environ) != 0) {
-		port_log("[port] launcher: cannot start %s; showing it in this process\n", argv0);
-		return GXPC_RunLauncher(path ? path : "settings.txt", bindings_path(), force);
-	}
-	int status = 0;
-	while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
-	}
-	return WIFEXITED(status) && WEXITSTATUS(status) == 0;
-#endif
-}
-
-// Shows the launcher before anything reads the settings, unless the game runs
-// headless or --no-launcher / SMS_LAUNCHER=0 asks to skip it (--launcher
-// shows it even when settings.txt turns it off). Quitting there exits.
-static void run_launcher(int argc, char** argv)
-{
-	if (!GXPC_RunLauncher)
-		return;
-	int force = 0;
-	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "--headless") || !strcmp(argv[i], "--no-launcher"))
-			return;
-		if (!strcmp(argv[i], "--launcher"))
-			force = 1;
-	}
-	for (int i = 1; i < argc; i++)
-		if (!strcmp(argv[i], "--launcher-child")) {
-			const char* path = settings_path();
-			exit(GXPC_RunLauncher(path ? path : "settings.txt", bindings_path(), force) ? 0 : 1);
-		}
-	if (const char* h = getenv("SMS_HEADLESS"))
-		if (*h && strcmp(h, "0"))
-			return;
-	if (const char* l = getenv("SMS_LAUNCHER"))
-		if (!strcmp(l, "0") || !strcmp(l, "off"))
-			return;
-	// Tell the launcher where the game comes from when it is not its business
-	// (a disc argument, the environment, or an image bundled into the
-	// executable); otherwise its installer looks after rom/ itself.
-	const char* source = NULL;
-	for (int i = 1; i < argc && !source; i++)
-		if (argv[i][0] != '-')
-			source = argv[i];
-	if (!source)
-		source = getenv("SMS_DISC_IMAGE") ? getenv("SMS_DISC_IMAGE") : getenv("SMS_DISC_ROOT");
-	if (!source)
-		if (GCDisc* e = gcdisc_open_embedded(0)) {
-			gcdisc_close(e);
-			source = "bundled";
-		}
-	if (source)
-		port_setenv("SMS_LAUNCHER_DISC", source, 1);
-	if (!launcher_in_child(argv[0], force)) {
-		port_log("[port] launcher: quit\n");
-		exit(0);
-	}
-}
 
 static void load_settings()
 {
-	const char* path = settings_path();
+	const char* path = getenv("SMS_SETTINGS");
 	FILE* f          = path ? fopen(path, "r") : NULL;
+	if (!path) {
+		path = "settings.txt";
+		f    = fopen(path, "r");
+		if (!f) {
+			path = "../../settings.txt"; // running from build/<os>-<arch>/
+			f    = fopen(path, "r");
+		}
+	}
 	if (!f)
 		return;
 	char line[1024];
@@ -1006,7 +930,7 @@ static void load_settings()
 			val = "1";
 		else if (!strcmp(v, "off") || !strcmp(v, "no") || !strcmp(v, "false"))
 			val = "0";
-		if ((!strcmp(env, "SMS_TEXTURE_PACKS") || !strcmp(env, "SMS_HD_CUTSCENES")) && !strcmp(val, "1"))
+		if (!strcmp(env, "SMS_TEXTURE_PACKS") && !strcmp(val, "1"))
 			continue; // on: the default folder
 		if (!*val || getenv(env))
 			continue;
@@ -1018,47 +942,76 @@ static void load_settings()
 		port_log("[port] %d settings from %s\n", n, path);
 }
 
+#ifdef __ANDROID__
+extern "C" void port_savestate_android_init(void); // savestate/savestate_android.cpp
+extern "C" void port_cheats_init(void);           // misc/port_cheats.cpp: the app's cheats
+#endif
+// Mareshine: the app's "Subtitles in cutscenes" (SMS_SUBTITLES, on unless 0)
+// and the game's own option are one setting (decomp-patches/zzzzzz-subtitles-01):
+// -1 leaves it to the game's option (no app), else 0 or 1.
+extern "C" {
+int port_subtitles_setting = -1;
+}
+#ifdef __ANDROID__
+extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(uint32_t command, int param);
+// The player changed it in the game's options: the app's setting follows.
+extern "C" void port_subtitles_option_changed(int on)
+{
+	if (port_subtitles_setting < 0 || port_subtitles_setting == (on != 0))
+		return;
+	port_subtitles_setting = on != 0;
+	port_setenv("SMS_SUBTITLES", on ? "1" : "0", 1);
+	port_log("[port] cutscene subtitles %s (the game's options)\n", on ? "on" : "off");
+	if (SDL_AndroidSendMessage)
+		SDL_AndroidSendMessage(0x8009, on != 0); // SunshineActivity.COMMAND_SUBTITLES
+}
+#endif
+#ifdef __ANDROID__
+extern "C" void port_android_register_natives(void); // android/mareshine_jni.cpp
+extern "C" void port_ach_init(void);                 // achievements/achievements.cpp
+extern "C" void port_warp_android_init(void);        // android/warp_android.cpp
+// Mareshine's settings that this port has under another name or meaning.
+static void mareshine_settings(void)
+{
+	if (const char* r = getenv("SMS_RENDER_SCALE"))
+		port_setenv("SMS_GX_SCALE", r, 0);
+	if (const char* d = getenv("SMS_DISABLE_SHIMMER"))
+		if (*d && strcmp(d, "0") != 0)
+			port_setenv("SMS_HEAT_HAZE", "0", 0);
+	if (const char* c = getenv("SMS_SHADER_CACHE"))
+		if (!strcmp(c, "0"))
+			port_setenv("SMS_GX_SHADER_CACHE", "0", 0);
+}
+#endif
 extern "C" void port_init(int argc, char** argv)
 {
-#ifdef __ANDROID__
-	log_fd(); // open game.log (and catch stderr) before anything logs
-#endif
-	run_launcher(argc, argv);
 	load_settings();
+#ifdef __ANDROID__
+	mareshine_settings();
+	port_crash_report_init();
+	{
+		const char* sub = getenv("SMS_SUBTITLES");
+		port_subtitles_setting = !(sub && !strcmp(sub, "0"));
+	}
+	port_android_register_natives();
+#endif
 	pick_glx_vendor();
 	if (const char* m = getenv("SMS_SKIP_MOVIES"))
 		port_skip_movies = *m && strcmp(m, "0") != 0;
+	if (const char* h = getenv("SMS_HEAT_HAZE"))
+		port_heat_haze = !*h || strcmp(h, "0") != 0;
+	if (!port_heat_haze)
+		port_log("[port] heat-wave shimmer off\n");
 	port_widescreen = parse_widescreen(getenv("SMS_WIDESCREEN"));
 	if (GXPC_SetWidescreen)
 		GXPC_SetWidescreen(port_widescreen);
 	if (port_widescreen > 1.0f)
 		port_log("[port] widescreen: %.3f times the 4:3 width\n", port_widescreen);
-	if (const char* r = getenv("SMS_FRAME_RATE")) {
-		port_frame_rate = (!strcmp(r, "60") || !strcmp(r, "120")) ? atoi(r) : 30;
-		if (strcmp(r, "30") && strcmp(r, "60") && strcmp(r, "120"))
-			port_log("[port] unsupported frame rate '%s'; using 30\n", r);
-	}
+	const char* frame_rate = getenv("SMS_FRAME_RATE");
+	port_frame_rate = port_parse_frame_rate(frame_rate);
+	if (frame_rate && strcmp(frame_rate, "30") && strcmp(frame_rate, "60") && strcmp(frame_rate, "120"))
+		port_log("[port] unsupported frame rate '%s'; using 60\n", frame_rate);
 	port_log("[port] frame rate: %d during gameplay\n", port_frame_rate);
-	port_cheats_init();
-	port_ach_init();
-#ifdef __ANDROID__
-	port_savestate_android_init();
-#endif
-	if (const char* sub = getenv("SMS_SUBTITLES"))
-		port_subtitles_always = strcmp(sub, "0") != 0;
-	port_log("[port] cutscene subtitles: %s\n", port_subtitles_always ? "always" : "game option");
-	if (const char* s = getenv("SMS_RENDER_SCALE"))
-		port_log("[port] render scale: %s\n", s);
-	if (const char* d = getenv("SMS_DRAW_DISTANCE"))
-		port_log("[port] draw distance: %s\n", d);
-	if (const char* f = getenv("SMS_FAR_PLANE"))
-		port_log("[port] far plane: %s\n", f);
-	if (const char* fp = getenv("SMS_FAST_PEEK"))
-		port_log("[port] fast peek: %s\n", fp);
-	if (const char* wb = getenv("SMS_GX_COPY_WRITEBACK"))
-		port_log("[port] copy writeback: %s\n", wb);
-	if (const char* sh = getenv("SMS_DISABLE_SHIMMER"))
-		port_log("[port] disable shimmer: %s\n", sh);
 	sms_mod_activate();
 	for (int i = 1; i < argc; i++)
 		if (strcmp(argv[i], "--headless") == 0) {
@@ -1077,28 +1030,6 @@ extern "C" void port_init(int argc, char** argv)
 			port_disc_root     = argv[i];
 			port_disc_explicit = 1;
 		}
-	// Started without a game source (a double-click, or the launcher): the
-	// image the installer put in rom/ beside settings.txt, unless one is
-	// bundled into the executable.
-	if (!port_disc_explicit && !getenv("SMS_DISC_IMAGE")) {
-		if (GCDisc* e = gcdisc_open_embedded(0))
-			gcdisc_close(e);
-		else if (!find_rom_image().empty()) {
-			port_setenv("SMS_DISC_IMAGE", find_rom_image().c_str(), 1);
-			port_log("[port] game: %s\n", find_rom_image().c_str());
-		}
-	}
-#ifdef _WIN32
-	for (int sig : {SIGSEGV, SIGFPE, SIGILL, SIGABRT})
-		signal(sig, crash_handler);
-#else
-	struct sigaction sa;
-	memset(&sa, 0, sizeof sa);
-	sa.sa_sigaction = crash_handler;
-	sa.sa_flags = SA_SIGINFO;
-	for (int sig : {SIGSEGV, SIGBUS, SIGFPE, SIGILL, SIGABRT})
-		sigaction(sig, &sa, nullptr);
-#endif
 	atexit(port_stub_report);
 	map_mem1();
 	if (sizeof(void*) == 4)
@@ -1108,5 +1039,11 @@ extern "C" void port_init(int argc, char** argv)
 	port_window_icon_init();
 	port_noaudio_init();
 	port_vi_init();
+#ifdef __ANDROID__
+	port_savestate_android_init();
+	port_cheats_init();
+	port_ach_init();
+	port_warp_android_init();
+#endif
 	port_log("[port] platform ready\n");
 }

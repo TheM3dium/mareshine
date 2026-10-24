@@ -22,6 +22,7 @@
 #include <float.h>
 #include <wchar.h>
 #ifdef __ANDROID__
+/* Bionic's BSD macros collide with the JASystem methods of these names. */
 #include <strings.h>
 #undef bcopy
 #undef bzero
@@ -61,7 +62,6 @@ extern "C" {
 #endif
 int sms_msl_rand(void);
 void sms_msl_srand(unsigned int seed);
-void* port_resolve_code_ptr32(uint32_t p);
 #ifdef __cplusplus
 }
 #endif

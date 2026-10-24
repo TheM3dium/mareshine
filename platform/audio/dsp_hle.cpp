@@ -26,17 +26,6 @@
 extern "C" u8* port_aram_ptr(u32 addr);
 extern "C" void __DSPHandler(int interrupt, void* context); // JSystem/osdsp_task.c
 
-namespace JASystem {
-namespace DSPInterface {
-	struct DSPBuffer;
-	struct FXBuffer;
-	DSPBuffer* getDSPHandle(u8 i);
-	FXBuffer* getFXHandle(u8 i);
-	extern u32 DSPADPCM_FILTER[];
-	extern u32 DSPRES_FILTER[];
-}
-}
-
 namespace {
 
 const u32 kPrefix = 0xF3550000u; // JASystem::DSPInterface::JAS_DSP_PREFIX << 16
@@ -124,15 +113,10 @@ void execute()
 	case 0x81: // DsetupTable(n, CH_BUF, DSPRES_FILTER, DSPADPCM_FILTER, FX_BUF)
 		if (w.size() >= 5) {
 			port_dspmix_set_aram(aram_lookup);
-			void* voices = (void*)JASystem::DSPInterface::getDSPHandle(0);
-			void* fx     = (void*)JASystem::DSPInterface::getFXHandle(0);
-			if (!voices) voices = (void*)(uintptr_t)w[1];
-			if (!fx) fx = (void*)(uintptr_t)w[4];
-			const uint32_t* res_filter   = JASystem::DSPInterface::DSPRES_FILTER;
-			const uint32_t* adpcm_filter = JASystem::DSPInterface::DSPADPCM_FILTER;
-			port_dspmix_setup(w[0] & 0xFFFF, voices, res_filter, adpcm_filter, fx);
-			port_log("[audio] DSP setup: %u voices at %p, FX lines at %p\n", (unsigned)(w[0] & 0xFFFF),
-			         voices, fx);
+			port_dspmix_setup(w[0] & 0xFFFF, (void*)(uintptr_t)w[1], (const uint32_t*)(uintptr_t)w[2],
+			                  (const uint32_t*)(uintptr_t)w[3], (void*)(uintptr_t)w[4]);
+			port_log("[audio] DSP setup: %u voices at 0x%08x, FX lines at 0x%08x\n", (unsigned)(w[0] & 0xFFFF),
+			         (unsigned)w[1], (unsigned)w[4]);
 		}
 		reply(w[0] >> 16);
 		break;

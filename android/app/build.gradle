@@ -12,20 +12,29 @@ android {
         minSdk 26
         targetSdk 35
         versionCode 18
-        versionName '1.5.0'
+        versionName '2.0-dev'
+        // the build's commit and time, shown under the version in the launcher,
+        // so a test device shows at a glance which build it has ("+" when the
+        // build had changes not yet committed)
+        def gitSha = ''
+        try {
+            gitSha = 'git rev-parse --short HEAD'.execute([], rootDir).text.trim()
+            if (!'git status --porcelain --untracked-files=no'.execute([], rootDir).text.trim().isEmpty()) gitSha += '+'
+        } catch (ignored) {}
+        resValue 'string', 'build_stamp', (gitSha ? gitSha + ' · ' : '') + new Date().format('dd.MM. HH:mm')
 
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_STL=c++_static',
                           '-DANDROID_PLATFORM=android-26',
-                          '-DCMAKE_BUILD_TYPE=RelWithDebInfo',
-                          '-DSMS_GLES=ON'
+                          '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
                 // Keep asserts/logs relative to the repository; anonymize external paths.
                 def home = System.getProperty('user.home')
                 def sourceRoot = rootProject.projectDir.parentFile.absolutePath
                 cFlags "-ffile-prefix-map=${home}=~", "-ffile-prefix-map=${sourceRoot}=."
                 cppFlags "-ffile-prefix-map=${home}=~", "-ffile-prefix-map=${sourceRoot}=."
-                targets 'sms', 'SDL2'
+                // the game, the loader that places it (android/bootstrap.cpp) and SDL
+                targets 'sms', 'smsbootstrap', 'SDL2'
             }
         }
 
@@ -72,6 +81,14 @@ android {
         main {
             // + the app's translations (lang/) and the HD cutscene catalog
             assets.srcDirs = ['../../assets', 'src/main/assets', "$buildDir/generated/cutscene-assets"]
+        }
+    }
+
+    // the loader opens libsms.so by path (android_dlopen_ext into a reserved
+    // range), so the libraries are unpacked at install
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
         }
     }
 

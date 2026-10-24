@@ -4,11 +4,11 @@ Mareshine combines work from several projects, each under its own terms.
 
 | Part | Origin | License |
 | --- | --- | --- |
-| Graphics layer, platform layer, port patches and tools that come from the PC port | [chasem-dev/sms-pc-port](https://github.com/chasem-dev/sms-pc-port) | MIT, see [below](#sms-pc-port) |
+| The game port itself since Mareshine 2.0: graphics layer, platform layer, Android loader, port patches and tools | [chasem-dev/sms-pc-port](https://github.com/chasem-dev/sms-pc-port) | MIT, see [below](#sms-pc-port) |
 | The decompilation (`decomp/` submodule) | [chasem-dev/sms-english](https://github.com/chasem-dev/sms-english), based on [doldecomp/sms](https://github.com/doldecomp/sms) | CC0 1.0 (public domain dedication) |
-| The original Android port | [jbcgames/sms-android](https://github.com/jbcgames/sms-android) | No license stated; all rights remain with its author. A license has been requested ([jbcgames/sms-android#6](https://github.com/jbcgames/sms-android/issues/6)). |
+| The Android port Mareshine 1.x was based on; the Android app (launcher and settings) started from its launcher | [jbcgames/sms-android](https://github.com/jbcgames/sms-android) | No license stated; all rights remain with its author. A license has been requested ([jbcgames/sms-android#6](https://github.com/jbcgames/sms-android/issues/6)). |
 | Mareshine's own changes and additions | this repository | MIT, see [below](#mareshine) |
-| Third-party libraries (SDL2, Dear ImGui, stb, bcdec, Khronos headers) | their projects | their own licenses, kept in their folders or in their files (for example `third_party/SDL2-android/LICENSE.txt`, `platform/gx/third_party/imgui/LICENSE.txt`, and the end of `platform/gx/src/third_party/stb_image.h` and `bcdec.h`) |
+| Third-party libraries (SDL2, stb, bcdec, Khronos headers) | their projects | their own licenses: SDL2 (zlib) is downloaded at build time and keeps its `LICENSE.txt`; stb and bcdec carry theirs at the end of `platform/gx/src/third_party/stb_image.h` and `bcdec.h`; the Khronos headers in `platform/gx/third_party/` in their files |
 
 *Super Mario Sunshine* and all related names, characters and assets belong to Nintendo. None of
 the game's data is part of this repository; the game is read from the player's own disc image.

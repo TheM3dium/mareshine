@@ -10,6 +10,9 @@
 // locking relies on.
 #include "port_compat.h"
 #include "port_win64_stack.h"
+#include "crash.h"
+#include "crash_line.h"
+#include "crash.h"
 #include "port_os.h"
 #include "port_platform.h"
 #include <dolphin/os.h>
@@ -22,6 +25,9 @@
 #include <map>
 #include <vector>
 #include <time.h>
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#endif
 
 namespace {
 
@@ -34,11 +40,14 @@ struct Host {
 	bool cancelled;
 	bool irq_enabled; // saved interrupt-enable state while switched out
 	u64 last_ran;
+	unsigned spin_misses; // switches in a row whose spin ran out before the turn came
+	unsigned spin_skips;  // switches that did not spin since the last that did
 };
 
 pthread_mutex_t g_cpu = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t g_idle_cv = PTHREAD_COND_INITIALIZER;
 OSThread* g_cur;
+std::atomic<OSThread*> g_cur_spin; // g_cur, for threads spinning without g_cpu
 OSThread g_default_thread;
 std::map<OSThread*, Host*> g_hosts;
 std::vector<OSThread*> g_threads;
@@ -50,6 +59,11 @@ int g_sched_disabled;
 std::atomic<int> g_irq_kicks(0);
 std::deque<std::function<void()> > g_deferred;
 std::vector<port_irq_poll_fn> g_sources;
+#ifdef __ANDROID__
+OSThread* g_background_waiter;
+u64 g_background_deadline, g_background_budget;
+bool g_background_started;
+#endif
 
 Host* host_of(OSThread* t)
 {
@@ -184,14 +198,88 @@ void* windows_host_entry(void* argument)
 #endif
 #endif
 
+// Monotonic nanoseconds, cheap enough to poll (macOS's clock_gettime is not,
+// least of all under Rosetta).
+u64 spin_clock_ns()
+{
+#ifdef __APPLE__
+	static mach_timebase_info_data_t tb;
+	if (!tb.denom)
+		mach_timebase_info(&tb);
+	return mach_absolute_time() * tb.numer / tb.denom;
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (u64)ts.tv_sec * 1000000000u + (u64)ts.tv_nsec;
+#endif
+}
+
+#ifdef __ANDROID__
+// The render thread temporarily blocks to let lower-priority work progress.
+// Resume it when that work becomes quiescent, or at a scheduling checkpoint
+// after its budget. Waiting for another VI interrupt would waste a field.
+bool wake_background_waiter(bool idle)
+{
+	if (!g_background_waiter || (!idle && (!g_background_started || spin_clock_ns() < g_background_deadline)))
+		return false;
+	OSThread* waiter = g_background_waiter;
+	g_background_waiter = NULL;
+	if (waiter->state != OS_THREAD_STATE_WAITING)
+		return false;
+	waiter->state = OS_THREAD_STATE_READY;
+	return true;
+}
+#endif
+
+static inline void cpu_relax()
+{
+#if defined(__x86_64__) || defined(__i386__)
+	__builtin_ia32_pause();
+#elif defined(__aarch64__)
+	__asm__ __volatile__("yield");
+#endif
+}
+
+// A thread that gives up the CPU usually gets it back within microseconds
+// (a message to a higher-priority thread that answers at once: the draw-sync
+// thread, several times a frame), and a host wake-up costs far more than that
+// (over 100 us under Rosetta). So the switched-out thread watches for its turn
+// for a while before it sleeps on its condition variable. A thread whose
+// last two spins ran out (it waits for a message a frame away, not for an
+// answer) goes straight to sleep, trying a spin again every 16th switch:
+// spinning there only burns power, which a handheld's GPU shares.
+const u64 kSpinNs = 100000;
+
+// True if the turn came while spinning.
+bool spin_for_turn(OSThread* self)
+{
+	const u64 until = spin_clock_ns() + kSpinNs;
+	for (int i = 1;; i++) {
+		if (g_cur_spin.load(std::memory_order_acquire) == self)
+			return true;
+		cpu_relax();
+		if ((i & 63) == 0 && spin_clock_ns() >= until)
+			return false;
+	}
+}
+
 // Hand the CPU to `next` (already chosen). Returns once `self` owns the CPU
 // again, or never if `self` is exiting.
 void switch_to(OSThread* self, OSThread* next, bool exiting)
 {
+#ifdef __ANDROID__
+	// Start the budget when selecting the first lower-priority worker, after
+	// any higher-priority work. It gets a turn even if the host wakes it late.
+	if (g_background_waiter && !g_background_started && next->priority > g_background_waiter->priority) {
+		g_background_deadline = spin_clock_ns() + g_background_budget;
+		g_background_started = true;
+	}
+#endif
 	Host* hs = self ? host_of(self) : NULL;
 	if (hs)
 		hs->irq_enabled = g_irq_enabled;
 	g_cur = next;
+	g_cur_spin.store(next, std::memory_order_release);
 	__gCurrentThread = next;
 	Host* hn = host_of(next);
 	next->state = OS_THREAD_STATE_RUNNING;
@@ -237,6 +325,14 @@ void switch_to(OSThread* self, OSThread* next, bool exiting)
 		pthread_exit(NULL);
 #endif
 	}
+	if (g_cur != self) {
+		pthread_mutex_unlock(&g_cpu);
+		if (hs->spin_misses < 2 || (++hs->spin_skips & 15) == 0) {
+			hs->spin_skips = 0;
+			hs->spin_misses = spin_for_turn(self) ? 0 : hs->spin_misses + 1;
+		}
+		pthread_mutex_lock(&g_cpu);
+	}
 	while (g_cur != self) {
 		pthread_cond_wait(&hs->cv, &g_cpu);
 		// A cancelled host never runs again, even when its OSThread object
@@ -274,6 +370,10 @@ void reschedule(bool yield)
 		next = pick(self, yield);
 		if (next)
 			break;
+#ifdef __ANDROID__
+		if (wake_background_waiter(true))
+			continue;
+#endif
 		// Idle: every thread is blocked. Wait for an interrupt source (or, with
 		// a deterministic clock, make the next retrace happen now).
 		if (port_vi_idle_advance())
@@ -325,11 +425,15 @@ void deliver_irqs()
 		g_deferred.pop_front();
 		fn();
 	}
+#ifdef __ANDROID__
+	wake_background_waiter(false);
+#endif
 	g_in_irq = false;
 }
 
 void* host_entry(void* p)
 {
+	port_crash_thread_init();
 	OSThread* self = (OSThread*)p;
 	pthread_mutex_lock(&g_cpu);
 	Host* h = host_of(self);
@@ -385,15 +489,76 @@ extern "C" void port_irq_check(void)
 {
 	if (!g_irq_enabled || g_in_irq)
 		return;
-	if (g_irq_kicks.load() == 0 && g_deferred.empty())
+	if (g_irq_kicks.load() == 0 && g_deferred.empty()) {
+#ifdef __ANDROID__
+		if (!g_background_waiter || !g_background_started || spin_clock_ns() < g_background_deadline)
+			return;
+#else
 		return;
+#endif
+	}
 	deliver_irqs();
 	if (g_need_resched || true)
 		preempt_check();
 }
 
+// For crash reports: every emulated thread, read without the CPU lock (the
+// crashed thread may hold it).
+static void describe_threads_for_crash()
+{
+	PortCrashLine line;
+	line.text("[port] emulated threads: "); line.number(g_threads.size(), 10);
+	line.text(", running OSThread "); line.hex((uintptr_t)g_cur);
+	line.text(g_in_irq ? ", in an interrupt" : ""); line.text("\n");
+	port_crash_emit(line);
+	for (size_t i = 0; i < g_threads.size() && i < 32; i++) {
+		OSThread* t = g_threads[i];
+		Host* h = host_of(t);
+		line.text("[port]   OSThread "); line.hex((uintptr_t)t);
+		line.text(" priority "); line.number(t->priority, 10);
+		const char* state = t->state == OS_THREAD_STATE_READY ? "ready" : t->state == OS_THREAD_STATE_RUNNING ? "running"
+		                  : t->state == OS_THREAD_STATE_WAITING ? "waiting" : t->state == OS_THREAD_STATE_MORIBUND ? "exited"
+		                  : "unused";
+		line.text(" "); line.text(state);
+		if (t->suspend > 0) { line.text(" suspended "); line.number(t->suspend, 10); }
+		if (h) {
+			uintptr_t entry = (uintptr_t)h->func, base;
+			const char* module;
+			if (entry) {
+				line.text(" entry "); line.hex(entry);
+				if (port_crash_module(entry, &base, &module)) {
+					line.text(" ("); line.text(module); line.text("+"); line.hex(entry - base); line.text(")");
+				}
+			}
+			if (!h->started) line.text(", not started");
+			if (h->cancelled) line.text(", cancelled");
+		}
+		if (t == g_cur) line.text(" <- owns the CPU");
+		line.text("\n");
+		port_crash_emit(line);
+	}
+}
+
+// Every thread the scheduler knows, and whether interrupt work is waiting,
+// for save states (platform/savestate): the thread records live in game
+// memory but belong to the scheduler, so a state puts back the ones it found.
+extern "C" int port_os_thread_list(OSThread** out, int max)
+{
+	int n = 0;
+	for (size_t i = 0; i < g_threads.size(); i++) {
+		if (host_of(g_threads[i])->cancelled)
+			continue;
+		if (n < max)
+			out[n] = g_threads[i];
+		n++;
+	}
+	return n;
+}
+extern "C" int port_os_irq_work_pending(void) { return !g_deferred.empty(); }
+
 extern "C" void port_os_threads_init(void)
 {
+	port_crash_set_thread_describer(describe_threads_for_crash);
 	pthread_mutex_lock(&g_cpu); // the boot thread owns the CPU from here on
 	OSThread* t = &g_default_thread;
 	memset(t, 0, sizeof(*t));
@@ -405,6 +570,7 @@ extern "C" void port_os_threads_init(void)
 	g_hosts[t]  = h;
 	g_threads.push_back(t);
 	g_cur            = t;
+	g_cur_spin.store(t);
 	__gCurrentThread = t;
 }
 
@@ -441,6 +607,33 @@ extern "C" BOOL OSRestoreInterrupts(BOOL level)
 extern "C" void OSInitThreadQueue(OSThreadQueue* queue) { queue->head = queue->tail = NULL; }
 
 extern "C" OSThread* OSGetCurrentThread(void) { return g_cur; }
+
+extern "C" int port_os_background_ready(void)
+{
+	if (!g_cur || g_sched_disabled || g_in_irq)
+		return 0;
+	for (OSThread* t : g_threads)
+		if (t != g_cur && runnable(t) && t->priority > g_cur->priority)
+			return 1;
+	return 0;
+}
+
+#ifdef __ANDROID__
+extern "C" int port_os_yield_background(u64 budget_ns)
+{
+	if (!budget_ns || g_background_waiter || !port_os_background_ready())
+		return 0;
+	const BOOL interrupts = OSDisableInterrupts();
+	OSThread* self = g_cur;
+	g_background_waiter = self;
+	g_background_budget = budget_ns;
+	g_background_started = false;
+	self->state = OS_THREAD_STATE_WAITING;
+	reschedule(false);
+	OSRestoreInterrupts(interrupts);
+	return 1;
+}
+#endif
 
 extern "C" BOOL OSIsThreadTerminated(OSThread* t)
 {
@@ -513,6 +706,10 @@ extern "C" void OSExitThread(OSThread* valArg)
 		next = pick(NULL, true);
 		if (next)
 			break;
+#ifdef __ANDROID__
+		if (wake_background_waiter(true))
+			continue;
+#endif
 		if (port_vi_idle_advance())
 			continue;
 		struct timespec ts;
@@ -525,6 +722,10 @@ extern "C" void OSExitThread(OSThread* valArg)
 
 extern "C" void OSCancelThread(OSThread* t)
 {
+#ifdef __ANDROID__
+	if (g_background_waiter == t)
+		g_background_waiter = NULL;
+#endif
 	if (t == g_cur) {
 		OSExitThread(NULL);
 		return;
@@ -748,19 +949,3 @@ extern "C" void OSWaitCond(OSCond* c, OSMutex* m)
 extern "C" void OSSignalCond(OSCond* c) { OSWakeupThread(&c->queue); }
 
 extern "C" double port_idle_seconds(void) { return g_idle_seconds; }
-
-// For save states (platform/savestate): the game's threads, and whether
-// interrupt work is waiting (a state is saved and loaded only without any).
-extern "C" int port_os_thread_list(OSThread** out, int max)
-{
-	int n = 0;
-	for (size_t i = 0; i < g_threads.size(); i++) {
-		if (host_of(g_threads[i])->cancelled)
-			continue;
-		if (n < max)
-			out[n] = g_threads[i];
-		n++;
-	}
-	return n;
-}
-extern "C" int port_os_irq_work_pending(void) { return !g_deferred.empty(); }

@@ -9,7 +9,6 @@
 
 #include <math.h>
 #include <string.h>
-#include <unordered_map>
 
 #include "port_fpu.h"  // port_cvt_fp2unsigned: MWCC's __cvt_fp2unsigned, as the SDK converts
 #include "gx_sdk_math.h"  // the SDK's float arithmetic, as the DOL computes it
@@ -82,7 +81,9 @@ namespace {
 struct TexObjInt {
     uint32_t mode0, mode1, image0, tlutName;
     uint8_t fmt, mipmap, isCI, pad;
-    const void* image;
+    // 4-byte slots on 64-bit hosts (PTR32), so the object fits GXTexObj
+    PTR32(const void) image;
+    PTR32(void) user;
 };
 struct TlutObjInt {
     uint32_t fmt;
@@ -1318,12 +1319,8 @@ void GXInitTexObjWrapMode(GXTexObj* obj, GXTexWrapMode s, GXTexWrapMode t) {
     o->mode0 = setField(setField(o->mode0, 2, 0, s), 2, 2, t);
 }
 void GXInitTexObjTlut(GXTexObj* obj, u32 tlut) { reinterpret_cast<TexObjInt*>(obj)->tlutName = uint32_t(tlut); }
-static std::unordered_map<const GXTexObj*, void*> s_texUserData;
-void GXInitTexObjUserData(GXTexObj* obj, void* user) { s_texUserData[obj] = user; }
-void* GXGetTexObjUserData(const GXTexObj* obj) {
-    auto it = s_texUserData.find(obj);
-    return it != s_texUserData.end() ? it->second : nullptr;
-}
+void GXInitTexObjUserData(GXTexObj* obj, void* user) { reinterpret_cast<TexObjInt*>(obj)->user = user; }
+void* GXGetTexObjUserData(const GXTexObj* obj) { return reinterpret_cast<const TexObjInt*>(obj)->user; }
 
 void GXLoadTexObjPreLoaded(GXTexObj* obj, GXTexRegion*, GXTexMapID id) {
     const TexObjInt* t = reinterpret_cast<const TexObjInt*>(obj);
@@ -1338,7 +1335,7 @@ void GXLoadTexObjPreLoaded(GXTexObj* obj, GXTexRegion*, GXTexMapID id) {
         uint32_t fmt = idx < 20 ? s_tlutLoaded[idx].fmt : 0;
         apiBP(bpTexReg(BP_TX_TLUT, map), ((r->tmemAddr - TMEM_TLUT_BASE) >> 9) | fmt << 10);
     }
-    if (!s_recording) g.texImage[map] = static_cast<const uint8_t*>(t->image);
+    if (!s_recording) g.texImage[map] = static_cast<const uint8_t*>(static_cast<const void*>(t->image));
 }
 void GXLoadTexObj(GXTexObj* obj, GXTexMapID id) {
     if (s_texRegionCb) s_texRegionCb(obj, id);
@@ -1428,7 +1425,7 @@ u16 GXGetTexObjWidth(const GXTexObj* o) { return u16(getField(reinterpret_cast<c
 u16 GXGetTexObjHeight(const GXTexObj* o) { return u16(getField(reinterpret_cast<const TexObjInt*>(o)->image0, 10, 10) + 1); }
 GXTexWrapMode GXGetTexObjWrapS(const GXTexObj* o) { return GXTexWrapMode(getField(reinterpret_cast<const TexObjInt*>(o)->mode0, 2, 0)); }
 GXTexWrapMode GXGetTexObjWrapT(const GXTexObj* o) { return GXTexWrapMode(getField(reinterpret_cast<const TexObjInt*>(o)->mode0, 2, 2)); }
-void* GXGetTexObjData(const GXTexObj* o) { return const_cast<void*>(reinterpret_cast<const TexObjInt*>(o)->image); }
+void* GXGetTexObjData(const GXTexObj* o) { return const_cast<void*>(static_cast<const void*>(reinterpret_cast<const TexObjInt*>(o)->image)); }
 void GXGetTexObjAll(const GXTexObj* o, void** image, u16* w, u16* h, GXTexFmt* fmt, GXTexWrapMode* ws, GXTexWrapMode* wt, u8* mip) {
     *image = GXGetTexObjData(o);
     *w = GXGetTexObjWidth(o);
@@ -1500,7 +1497,7 @@ void GXReadPixMetric(u32* topIn, u32* topOut, u32* botIn, u32* botOut, u32* clrI
     *topOut = *botOut = *copyClks = 0;
 }
 void GXClearPixMetric(void) { pixMetricClear(); }
-void GXPC_FinishPixMetric(void) { pixMetricFinish(); }
+void GXPC_EndPixMetric(void) { pixMetricEnd(); }
 void GXSetVCacheMetric(GXVCachePerf) {}
 void GXReadVCacheMetric(u32* a, u32* b, u32* c) { *a = *b = *c = 0; }
 void GXClearVCacheMetric(void) {}

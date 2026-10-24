@@ -8,9 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#if !defined(__ANDROID__) && !defined(_WIN32)
-#include <execinfo.h>
-#endif
+#include "../../../src/port_backtrace.h"
 
 namespace gx {
 
@@ -99,17 +97,14 @@ static float xfregf(int r) {
 static void* s_beginBt[12];
 static int s_beginBtN = 0;
 void traceNoteBegin() {
-#if !defined(__ANDROID__) && !defined(_WIN32)
     static int on = -1;
     if (on < 0) on = getenv("SMS_GX_TRACE_BT") != nullptr;
     if (!on || !s_file) return;
     s_beginBtN = backtrace(s_beginBt, 12);
-#endif
 }
 
 // With SMS_GX_TRACE_BT, projection loads are logged with their caller too.
 void traceNoteProjection(const float* p) {
-#if !defined(__ANDROID__) && !defined(_WIN32)
     static int on = -1;
     if (on < 0) on = getenv("SMS_GX_TRACE_BT") != nullptr;
     if (!on || !s_file) return;
@@ -124,7 +119,6 @@ void traceNoteProjection(const float* p) {
     }
     fprintf(s_file, "\n");
     free(names);
-#endif
 }
 
 void traceDraw(int prim, uint32_t nverts, uint32_t nidx, const HostVertex* v, int progId) {
@@ -132,7 +126,6 @@ void traceDraw(int prim, uint32_t nverts, uint32_t nidx, const HostVertex* v, in
     if (!f) return;
     static const char* kPrim[3] = {"TRIS", "LINES", "POINTS"};
     fprintf(f, "\n== draw %u: %s, %u vertices, %u indices, program %d\n", s_drawNo++, kPrim[prim], nverts, nidx, progId);
-#if !defined(__ANDROID__) && !defined(_WIN32)
     if (s_beginBtN > 0) {
         char** names = backtrace_symbols(s_beginBt, s_beginBtN);
         fprintf(f, "  caller:");
@@ -144,7 +137,6 @@ void traceDraw(int prim, uint32_t nverts, uint32_t nidx, const HostVertex* v, in
         free(names);
         s_beginBtN = 0;
     }
-#endif
     uint32_t gen = g.bp[BP_GENMODE];
     uint32_t nst = ((gen >> 10) & 15) + 1, nind = (gen >> 16) & 7;
     fprintf(f, "  genmode: texgens=%u chans=%u tevstages=%u indstages=%u cull=%u | xf texgens=%u chans=%u\n", gen & 15,
@@ -310,6 +302,10 @@ void traceCopy(bool disp, int x, int y, int w, int h, const void* dest, uint32_t
     fprintf(f, "\n== %s copy src %d,%d %dx%d -> %p ctrl=%06X (fmt %u%s%s%s)\n", disp ? "display" : "texture", x, y, w, h,
             dest, ctrl, ((ctrl >> 3) & 1) << 3 | ((ctrl >> 4) & 7), ((ctrl >> 15) & 3) == 3 ? " intensity" : "",
             (ctrl >> 9) & 1 ? " half" : "", (ctrl >> 11) & 1 ? " clear" : "");
+    if ((ctrl >> 11) & 1)
+        fprintf(f, "  clear writes: colour=%u alpha=%u depth=%u pixfmt=%u\n",
+                (g.bp[BP_CMODE0] >> 3) & 1, (g.bp[BP_CMODE0] >> 4) & 1,
+                (g.bp[BP_ZMODE] >> 4) & 1, g.bp[BP_PE_CONTROL] & 7);
     fflush(f);
 }
 

@@ -451,31 +451,6 @@ static void gMTXLightOrtho(Mtx m, f32 t, f32 b, f32 l, f32 r, f32 sS, f32 sT, f3
 // --- mtx44.c ---
 static void gMTXPerspective(Mtx44 m, f32 fovY, f32 aspect, f32 n, f32 f)
 {
-	static float s_mtxDrawDist = -1.0f;
-	static float s_mtxFarCap = -1.0f;
-	if (s_mtxDrawDist < 0.0f) {
-		if (const char* e = getenv("SMS_DRAW_DISTANCE")) {
-			float val = (float)atof(e);
-			s_mtxDrawDist = (val > 0.05f && val <= 3.0f) ? val : 1.0f;
-		} else {
-#if defined(__aarch64__) || defined(__arm__)
-			s_mtxDrawDist = 0.7f;
-#else
-			s_mtxDrawDist = 1.0f;
-#endif
-		}
-		if (const char* e = getenv("SMS_FAR_PLANE")) {
-			float val = (float)atof(e);
-			s_mtxFarCap = (val > 0.0f) ? val : 0.0f;
-		} else {
-			s_mtxFarCap = 0.0f;
-		}
-	}
-	if (f > 1000.0f) {
-		if (s_mtxDrawDist != 1.0f) f *= s_mtxDrawDist;
-		if (s_mtxFarCap > 0.0f && f > s_mtxFarCap) f = s_mtxFarCap;
-		if (f <= n + 10.0f) f = n + 10.0f;
-	}
 	f32 cot = 1.0f / sms_msl_tanf(half_fov_rad(fovY));
 	f32 fn  = 1.0f / (f - n);
 	m[0][0] = cot / aspect;

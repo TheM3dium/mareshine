@@ -22,92 +22,18 @@ import android.widget.TextView;
 import org.libsdl.app.SDLActivity;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 
 import static io.github.them3dium.mareshine.L.t;
 
 public class SunshineActivity extends SDLActivity {
-    private static final String TAG = "SunshineActivity";
-
-    private static String[] splitArgs(String raw) {
-        List<String> out = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        boolean inSingle = false;
-        boolean inDouble = false;
-        boolean escaped = false;
-
-        for (int i = 0; i < raw.length(); ++i) {
-            char c = raw.charAt(i);
-            if (escaped) {
-                current.append(c);
-                escaped = false;
-                continue;
-            }
-            if (c == '\\' && !inSingle) {
-                escaped = true;
-                continue;
-            }
-            if (c == '"' && !inSingle) {
-                inDouble = !inDouble;
-                continue;
-            }
-            if (c == '\'' && !inDouble) {
-                inSingle = !inSingle;
-                continue;
-            }
-            if (!inSingle && !inDouble && Character.isWhitespace(c)) {
-                if (current.length() > 0) {
-                    out.add(current.toString());
-                    current.setLength(0);
-                }
-                continue;
-            }
-            current.append(c);
-        }
-        if (current.length() > 0) {
-            out.add(current.toString());
-        }
-        return out.toArray(new String[0]);
-    }
-
-    private String findDefaultDiscPath() {
-        File rom = new File(DataDir.romDir(this), "GMSE01.iso");
-        if (rom.exists() && rom.canRead() && rom.length() > 10 * 1024 * 1024) return rom.getAbsolutePath();
-
-        File extFiles = getExternalFilesDir(null);
-        if (extFiles != null) {
-            File f = new File(extFiles, "GMSE01.iso");
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) return f.getAbsolutePath();
-            f = new File(extFiles, "disc.iso");
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) return f.getAbsolutePath();
-        }
-
-        File intFiles = getFilesDir();
-        if (intFiles != null) {
-            File f = new File(intFiles, "GMSE01.iso");
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) return f.getAbsolutePath();
-        }
-
-        String[] candidates = new String[] {
-            "/sdcard/Download/GMSE01.iso",
-            "/sdcard/Download/Super Mario Sunshine (USA).iso",
-            "/sdcard/Download/Super Mario Sunshine.iso",
-            "/sdcard/sms/GMSE01.iso",
-            "/sdcard/sms/Super Mario Sunshine.iso",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/GMSE01.iso",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/Super Mario Sunshine.iso",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/Super Mario Sunshine (USA).iso",
-        };
-
-        for (String path : candidates) {
-            File f = new File(path);
-            if (f.exists() && f.canRead() && f.length() > 1024 * 1024) {
-                return f.getAbsolutePath();
-            }
-        }
-
-        return null;
+    // The disc image to play: the launcher's choice (sms_disc), else the one
+    // the launcher would find in the data folder or Downloads.
+    private String discPath() {
+        Intent start = getIntent();
+        String picked = start != null ? start.getStringExtra("sms_disc") : null;
+        if (picked != null && !picked.trim().isEmpty()) return picked.trim();
+        File found = LauncherActivity.findIsoFile(this);
+        return found != null ? found.getAbsolutePath() : null;
     }
 
     @Override
@@ -116,20 +42,16 @@ public class SunshineActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
         mAchKnown = Achievements.unlockedIds(this); // what the banner does not announce again
 
-        String[] args = getArguments();
-        if (args.length == 0) {
+        if (discPath() == null) {
+            // nothing to play: say where the image goes, and close
             mBrokenLibraries = true;
-            DlDialog dlgAlert = new DlDialog(this);
-            dlgAlert.setMessage(t("Game disc image not found (GMSE01.iso).\n\nPlease copy the game ISO to your data folder (iso/) or to the Downloads folder of your device:\n/sdcard/Download/GMSE01.iso"));
-            dlgAlert.setTitle(t("Game not found"));
-            dlgAlert.setPositiveButton(t("Exit"), new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int id) {
-                    finish();
-                }
-            });
-            dlgAlert.setCancelable(false);
-            dlgAlert.create().show();
+            new DlDialog(this)
+                .setTitle(t("No disc image"))
+                .setMessage(t("Mareshine needs your own Super Mario Sunshine disc image (North American, GMSE01). "
+                    + "Put it into iso/ in your data folder, or pick it in the launcher."))
+                .setPositiveButton(t("Close"), (d, w) -> finish())
+                .setCancelable(false)
+                .show();
             return;
         }
 
@@ -140,6 +62,8 @@ public class SunshineActivity extends SDLActivity {
             nativeSetenv("SMS_SETTINGS", DataDir.settingsFile(this).getAbsolutePath());
             nativeSetenv("SMS_SAVE_DIR", DataDir.savesDir(this).getAbsolutePath());
             nativeSetenv("SMS_LANGUAGES_DIR", DataDir.languagesDir(this).getAbsolutePath());
+            // test builds (2.0-dev): the game shows test aids, such as "MP4" while an MP4 movie plays
+            if (Warp.available(this)) nativeSetenv("SMS_TEST_BUILD", "1");
             // Settings → VIDEO → HD textures (on unless turned off)
             boolean hd = !"0".equals(Settings.read(this).getOrDefault("SMS_HD_TEXTURES", "1"));
             // the enabled mods' textures after the pack's, so a mod's win (Mods)
@@ -157,7 +81,7 @@ public class SunshineActivity extends SDLActivity {
                 nativeSetenv("SMS_DEVICE_INFO", "app " + CrashLog.BuildConfigInfo.version(this)
                     + ", " + Build.MANUFACTURER + " " + Build.MODEL + " (" + Build.DEVICE + ")"
                     + ", Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")"
-                    + ", disc " + String.join(" ", getArguments()));
+                    + ", disc " + discPath());
             }
         }
 
@@ -238,8 +162,8 @@ public class SunshineActivity extends SDLActivity {
     // platform/savestate/savestate_android.cpp: a save state message (code << 8 | slot)
     private static final int COMMAND_SAVESTATE = 0x8002;
 
-    // the MovieDirector patch (zzzz-movieskip-01): 1 = START pressed once in a
-    // movie not seen yet, 0 = skipped
+    // the MovieDirector patch (zzzz-movieskip-01): 1 = START, 2 = A pressed once
+    // in a movie not seen yet, 0 = skipped
     private static final int COMMAND_MOVIE_SKIP = 0x8003;
 
     // platform/achievements: param = how many were just unlocked (the names
@@ -255,9 +179,22 @@ public class SunshineActivity extends SDLActivity {
     // and the phone's << 8)
     private static final int COMMAND_RUMBLE_OPTION = 0x8006;
 
-    // platform/pad/touch_controller.cpp: a touch button's feedback, param 1
+    // platform/pad's PADControlMotor: the controllers' vibration through
+    // Android (SDL rumbles only controllers its HIDAPI drivers run), param
+    // its strength 1..255, 0 stops it
+    private static final int COMMAND_PAD_RUMBLE = 0x800A;
+
+    // platform/pad/touch.cpp: a touch button's feedback, param 1
     // for a light tick, 2 for a click (the R slider reaching R+)
     private static final int COMMAND_HAPTIC = 0x8007;
+
+    // platform/pad/pad.cpp: a hint in the notice line, param 1 = the MENU
+    // button (Select) was tapped once, the menu wants two taps
+    private static final int COMMAND_HINT = 0x8008;
+
+    // platform/port_runtime.cpp: subtitles turned on (1) or off (0) in the
+    // game's own options; the app's "Subtitles in cutscenes" follows
+    private static final int COMMAND_SUBTITLES = 0x8009;
 
     // "Achievement unlocked" with its name, one after another, at the bottom
     private TextView mAchNotice;
@@ -348,7 +285,8 @@ public class SunshineActivity extends SDLActivity {
     private TextView mSkipNotice;
     private final Runnable mHideSkip = () -> { if (mSkipNotice != null) mSkipNotice.animate().alpha(0f).setDuration(200); };
 
-    private void showSkipNotice(boolean show) {
+    private void showSkipNotice(int button) {
+        boolean show = button != 0;
         if (mLayout == null) return;
         if (mSkipNotice == null) {
             if (!show) return;
@@ -369,7 +307,7 @@ public class SunshineActivity extends SDLActivity {
             mHideSkip.run();
             return;
         }
-        mSkipNotice.setText(t("Press START again to skip"));
+        mSkipNotice.setText(button == 2 ? t("Press A again to skip") : t("Press START again to skip"));
         mSkipNotice.setAlpha(1f);
         mSkipNotice.postDelayed(mHideSkip, 3000);
     }
@@ -403,6 +341,10 @@ public class SunshineActivity extends SDLActivity {
             rumble((Integer) param);
             return true;
         }
+        if (command == COMMAND_PAD_RUMBLE && param instanceof Integer) {
+            padRumble((Integer) param);
+            return true;
+        }
         if (command == COMMAND_HAPTIC && param instanceof Integer) {
             haptic((Integer) param);
             return true;
@@ -416,7 +358,17 @@ public class SunshineActivity extends SDLActivity {
             return true;
         }
         if (command == COMMAND_MOVIE_SKIP && param instanceof Integer) {
-            showSkipNotice((Integer) param != 0);
+            showSkipNotice((Integer) param);
+            return true;
+        }
+        if (command == COMMAND_SUBTITLES && param instanceof Integer) {
+            java.util.Map<String, String> m = Settings.read(this);
+            m.put("SMS_SUBTITLES", (Integer) param != 0 ? "1" : "0");
+            Settings.write(this, m);
+            return true;
+        }
+        if (command == COMMAND_HINT && param instanceof Integer) {
+            if ((Integer) param == 1) showStateNotice(t("Press SELECT twice to open the menu"));
             return true;
         }
         return super.onUnhandledMessage(command, param);
@@ -457,12 +409,51 @@ public class SunshineActivity extends SDLActivity {
             v.cancel();
             return;
         }
-        // platform/pad renews it while it lasts and stops it itself
-        if (Build.VERSION.SDK_INT >= 26)
-            v.vibrate(android.os.VibrationEffect.createOneShot(5000,
-                v.hasAmplitudeControl() ? Math.max(1, Math.min(255, strength)) : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
-        else
+        // platform/pad renews it while it lasts and stops it itself. Many motors
+        // barely change with the amplitude of a long buzz, so weaker strengths
+        // also pulse: on for a share of every 50 ms, as strong as asked.
+        if (Build.VERSION.SDK_INT >= 26) {
+            int amp = Math.max(1, Math.min(255, strength));
+            if (amp >= 200) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(5000,
+                    v.hasAmplitudeControl() ? amp : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                long on = Math.max(6, 50L * amp / 200), off = 50 - on;
+                int a = v.hasAmplitudeControl() ? Math.max(40, amp) : android.os.VibrationEffect.DEFAULT_AMPLITUDE;
+                v.vibrate(android.os.VibrationEffect.createWaveform(new long[] {on, off}, new int[] {a, 0}, 0));
+            }
+        } else {
             v.vibrate(5000);
+        }
+    }
+
+    // Every connected controller with a motor Android can drive, at one strength
+    // (renewed by platform/pad while it lasts, which also stops it).
+    private void padRumble(int strength) {
+        if (Build.VERSION.SDK_INT < 26) return;
+        int amp = Math.max(1, Math.min(255, strength));
+        for (int id : android.view.InputDevice.getDeviceIds()) {
+            android.view.InputDevice d = android.view.InputDevice.getDevice(id);
+            if (d == null || d.isVirtual()) continue;
+            int src = d.getSources();
+            if ((src & android.view.InputDevice.SOURCE_GAMEPAD) != android.view.InputDevice.SOURCE_GAMEPAD
+                && (src & android.view.InputDevice.SOURCE_JOYSTICK) != android.view.InputDevice.SOURCE_JOYSTICK) continue;
+            try {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    android.os.VibratorManager vm = d.getVibratorManager();
+                    if (vm.getVibratorIds().length == 0) continue;
+                    if (strength <= 0) vm.cancel();
+                    else vm.vibrate(android.os.CombinedVibration.createParallel(
+                        android.os.VibrationEffect.createOneShot(2500, amp)));
+                } else {
+                    android.os.Vibrator v = d.getVibrator();
+                    if (v == null || !v.hasVibrator()) continue;
+                    if (strength <= 0) v.cancel();
+                    else v.vibrate(android.os.VibrationEffect.createOneShot(2500,
+                        v.hasAmplitudeControl() ? amp : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                }
+            } catch (RuntimeException ignored) {}  // a controller gone meanwhile
+        }
     }
 
     // A short tick or click for the touch buttons, left out while the game
@@ -485,6 +476,7 @@ public class SunshineActivity extends SDLActivity {
     protected void onPause() {
         super.onPause();
         rumble(0);
+        padRumble(0);
     }
 
     // Touch: three fingers swiped down from the top of the screen open the
@@ -558,85 +550,60 @@ public class SunshineActivity extends SDLActivity {
         startActivity(new Intent(this, GameMenuActivity.class));
     }
 
+    // SDL asks for an orientation from the window's size: the game is always landscape.
     @Override
     public void setOrientationBis(int w, int h, boolean resizable, String hint) {
-        // Enforce sensor landscape regardless of window resizable flag
         setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
     }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {
-            hideSystemUI();
-        }
+        if (hasFocus) hideSystemUI();
     }
 
-    // As AppActivity.hideSystemBars: the window keeps the whole screen even
-    // while the bars show for a moment (returning from the in-game menu),
-    // so the game's surface never shrinks below the status bar.
+    // As AppActivity.hideSystemBars: the whole screen, cutout included, with
+    // the bars hidden (a swipe shows them for a moment), so the game's
+    // surface never shrinks under the status bar.
     private void hideSystemUI() {
+        android.view.Window w = getWindow();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
-            lp.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            getWindow().setAttributes(lp);
+            WindowManager.LayoutParams lp = w.getAttributes();
+            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            w.setAttributes(lp);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            getWindow().setDecorFitsSystemWindows(false);
-            WindowInsetsController controller = getWindow().getInsetsController();
-            if (controller != null) {
-                controller.hide(WindowInsets.Type.systemBars());
-                controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            }
-        } else {
-            View decorView = getWindow().getDecorView();
-            decorView.setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN);
-            ActionBar actionBar = getActionBar();
-            if (actionBar != null) {
-                actionBar.hide();
-            }
+            w.setDecorFitsSystemWindows(false);
+            WindowInsetsController bars = w.getInsetsController();
+            if (bars == null) return;
+            bars.hide(WindowInsets.Type.systemBars());
+            bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            return;
         }
+        int flags = View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN
+            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        w.getDecorView().setSystemUiVisibility(flags);
+        if (getActionBar() != null) getActionBar().hide();
     }
 
+    // SDL, then the loader, which places the game (libsms.so) where its 32-bit
+    // pointer fields work (android/bootstrap.cpp, docs/ANDROID.md)
     @Override
     protected String[] getLibraries() {
-        return new String[] {
-            "SDL2",
-            "main"
-        };
+        return new String[] {"SDL2", "smsbootstrap"};
     }
 
+    // The loader's arguments: the data folder (its working directory), where
+    // the game's library is, and the disc image.
     @Override
     protected String[] getArguments() {
-        Intent intent = getIntent();
-        if (intent != null) {
-            String[] argv = intent.getStringArrayExtra("sms_argv");
-            if (argv != null && argv.length > 0) {
-                return argv;
-            }
-
-            String rawArgs = intent.getStringExtra("sms_args");
-            if (rawArgs != null && !rawArgs.trim().isEmpty()) {
-                return splitArgs(rawArgs.trim());
-            }
-
-            String discExtra = intent.getStringExtra("sms_disc");
-            if (discExtra != null && !discExtra.trim().isEmpty()) {
-                return new String[] { discExtra.trim() };
-            }
-        }
-
-        String autoDisc = findDefaultDiscPath();
-        if (autoDisc != null) {
-            return new String[] { autoDisc };
-        }
-
-        return new String[0];
+        String disc = discPath();
+        if (disc == null) return new String[0];
+        return new String[] {
+            "--data", DataDir.get(this).getAbsolutePath(),
+            "--libraries", getApplicationInfo().nativeLibraryDir,
+            "--disc", disc,
+        };
     }
 }

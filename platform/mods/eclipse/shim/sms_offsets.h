@@ -23,7 +23,6 @@ inline constexpr sms_offset_entry sms_offset_table[] = {
     {"JDrama::TDisplay", 0x42, 0x42, 0x4e},  // unk10.vfilter.[0]
     {"JDrama::TDisplay", 0x43, 0x43, 0x4f},  // unk10.vfilter.[1]
     {"JPABaseEmitter", 0x110, 0x110, 0x1f8},  // unk110
-    {"JPABaseEmitter", 0x15c, 0x15c, 0x258},  // mGlobalDynamicsScale.Vec.z
     {"JUTTexture", 0x20, 0x20, 0x20},  // mTexInfo
     {"MActorAnmBck", 0x24, 0x24, 0x38},  // MActorAnmEach<J3DAnmTransformKey>.unk24
     {"MSBgm", 0x14, 0x14, 0x28},  // unk14
@@ -53,6 +52,7 @@ inline constexpr sms_offset_entry sms_offset_table[] = {
     {"TMarDirector", 0x50, 0x50, 0x9c},  // unk50
     {"TMarDirector", 0x68, 0x68, 0xb4},  // unk68
     {"TMarDirector", 0xe4, 0xe4, 0x198},  // unkE4
+    {"TMarioCap", 0x4, 0x4, 0x8},  // unk4
     {"TMarioEffect", 0x68, 0x68, 0x80},  // unk68
     {"TMarioEffect", 0x7c, 0x7c, 0xa0},  // unk7C
     {"TMarioEffect", 0x80, 0x80, 0xa8},  // unk80
@@ -64,22 +64,6 @@ inline constexpr sms_offset_entry sms_offset_table[] = {
     {"TPauseMenu2", 0xd4, 0xd4, 0x108},  // mStageName
     {"TPauseMenu2", 0x104, 0x104, 0x144},  // mNumItems
     {"TPauseMenu2", 0x118, 0x118, 0x168},  // mCardSave
-    {"TSelectMenu", 0x48, 0x48, 0x78},  // mScenarioImg1
-    {"TSelectMenu", 0x4c, 0x4c, 0x80},  // mScenarioShadow1
-    {"TSelectMenu", 0x70, 0x70, 0xb8},  // mScenarioImg2
-    {"TSelectMenu", 0x74, 0x74, 0xc0},  // mScenarioShadow2
-    {"TSelectMenu", 0xdc, 0xdc, 0x190},  // mShineMarks.[0]
-    {"TSelectMenu", 0xe0, 0xe0, 0x198},  // mShineMarks.[1]
-    {"TSelectMenu", 0xe4, 0xe4, 0x1a0},  // mShineMarks.[2]
-    {"TSelectMenu", 0xe8, 0xe8, 0x1a8},  // mShineMarks.[3]
-    {"TSelectMenu", 0xec, 0xec, 0x1b0},  // mShineMarks.[4]
-    {"TSelectMenu", 0x150, 0x150, 0x240},  // mShineUnlockStates.[0]
-    {"TSelectShine", 0x24, 0x24, 0x30},  // mSpinning
-    {"TSelectShine", 0x48, 0x48, 0x54},  // mAppearing
-    {"TSelectShine", 0x49, 0x49, 0x55},  // mDisappearing
-    {"TSelectShineManager", 0x10, 0x10, 0x18},  // mShines.[0]
-    {"TSelectShineManager", 0x8c, 0x8c, 0xbc},  // mIndex
-    {"TSelectShineManager", 0xa7, 0xa7, 0xd7},  // mClosed
     {"TWaterGun", 0x1cec, 0x1cec, 0x38d4},  // unk1CEC
     {"TYoshi", 0x38, 0x38, 0x48},  // mTongue
     {"TYoshi", 0x118, 0x118, 0x160},  // mBodyAnmSound

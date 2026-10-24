@@ -1,6 +1,7 @@
 package io.github.them3dium.mareshine;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Typeface;
@@ -151,8 +152,10 @@ public class LanguagePackActivity extends AppActivity {
 
     // iso/pal/ first (where picking puts it), then iso/ itself; any name, it
     // is recognised by its disc ID
-    private File europeanDisc() {
-        for (File dir : new File[] {DataDir.palDir(this), DataDir.romDir(this)}) {
+    private File europeanDisc() { return europeanDisc(this); }
+
+    static File europeanDisc(Context ctx) {
+        for (File dir : new File[] {DataDir.palDir(ctx), DataDir.romDir(ctx)}) {
             File[] fs = dir.listFiles();
             if (fs == null) continue;
             Arrays.sort(fs);
@@ -327,6 +330,16 @@ public class LanguagePackActivity extends AppActivity {
         }, "language-packs").start();
     }
 
+    // Deletes the European disc image; the reason when it could not be deleted
+    static String deleteDisc(File pal) {
+        try {
+            java.nio.file.Files.deleteIfExists(pal.toPath());
+            return null;
+        } catch (Exception e) {
+            return pal.getAbsolutePath() + "\n" + e;
+        }
+    }
+
     private void askDelete(File pal) {
         new DlDialog(this)
             .setTitle(t("Language packs ready"))
@@ -334,7 +347,8 @@ public class LanguagePackActivity extends AppActivity {
                 + "Language.\n\nThe packs do not need the European disc any more. Delete %s (%.2f GB) now?",
                 pal.getName(), pal.length() / 1e9))
             .setPositiveButton(t("Delete it"), (d, w) -> {
-                pal.delete();
+                String err = deleteDisc(pal);
+                if (err != null) message(t("The European disc could not be deleted"), err);
                 refresh();
             })
             .setNegativeButton(t("Keep it"), null)

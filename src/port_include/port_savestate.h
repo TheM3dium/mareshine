@@ -30,9 +30,6 @@ enum {
 	PORT_SAVESTATE_HOTKEY_LOAD_NEWEST, // LOAD_STATE pressed
 };
 void port_savestate_hotkey(int action);
-// A notice in the state message line (on Android a toast), as the state
-// messages themselves: the touch buttons' "hold to save/load" hints.
-void port_savestate_notice(const char* text);
 
 // Where Mario and the game were; all that a state from another build can use.
 // Little-endian on disk, field for field (savestate.cpp). Flag banks as
@@ -103,9 +100,14 @@ int port_savestate_take(char* path, int pathLen);
 // Whether a state can be saved or loaded right now (the game has to be in a
 // stage with nothing loading); the menu and the controls say so when not.
 void port_savestate_set_ready(int ready);
-// While a state load is still under way (fading, warping to its area): new
-// requests then say so instead of "not in a level".
-void port_savestate_set_loading(int loading);
+// While a state load is still under way, its phase (zzzz-savestate-03: 1
+// fading out, 2 closing the pause menu, 3 on the way to its area; 0 none):
+// new requests then say so instead of "not in a level".
+void port_savestate_set_loading(int phase);
+// How far a state load or save under way is, 1 to 100 (100 a moment after it
+// is done), for the touch controls' indicator; *kind 0 a load, 1 a save. -1:
+// none, or one too short to show.
+int port_savestate_progress(int* kind);
 // Saves the game as it is now; the portable part from the caller. 1 if written.
 int port_savestate_save(const PortSaveStatePortable* portable);
 // Whether `path` would load exactly now (reads only its small chunks): the
@@ -147,6 +149,9 @@ int port_savestate_delete(const char* path);
 // buttons, the controller's stick clicks) use the quick slot. The requests
 // are taken by the game at the top of its next frame, as the others are.
 #define PORT_SAVESTATE_SLOTS 5
+// A notice in the app's message box, as the state messages themselves: the
+// touch buttons' "hold to save/load" hints.
+void port_savestate_notice(const char* text);
 void port_savestate_set_quick_slot(int slot);
 int port_savestate_quick_slot(void);
 void port_savestate_request_save_slot(int slot);

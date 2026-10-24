@@ -18,30 +18,31 @@
 
 namespace {
 
-bool s_visible = false;
-
-bool detailedRequested() {
-    const char* e = getenv("SMS_GX_DETAILED_TIMERS");
-    return e && !strcmp(e, "1");
+bool timingLogEnabled() {
+    static const bool on = [] {
+        const char* e = getenv("SMS_TIMING_LOG");
+        return e && *e && strcmp(e, "0") != 0;
+    }();
+    return on;
 }
+bool s_visible = false;
+bool s_panelDirty = true;
 const int kSpeeds[] = {1, 2, 4, 10};
 std::atomic<int> s_speedIndex(0);
 
-double nowSeconds() {
-    timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return double(ts.tv_sec) + double(ts.tv_nsec) * 1e-9;
-}
+double nowSeconds() { return gx::monoSeconds(); }
 
 // Frame timing over a sliding one-second window, refreshed once a second so
-// the numbers are readable, with where the game thread's time went.
+// the numbers are readable, with where the game thread's time went. It counts
+// the game's frames (display copies); frames the VI layer does not present
+// (GXPC_SkipNextPresent) are counted apart as not shown.
 struct FrameClock {
     double start = 0, windowStart = 0, last = 0;
     GXPCTimes atWindow = {};
-    int frames = 0;
-    double worst = 0;
+    int frames = 0, shownFrames = 0;
+    double worst = 0, lastLog = 0;
     // shown values, ms per frame
-    double fps = 0, avgMs = 0, maxMs = 0;
+    double fps = 0, shownFps = 0, avgMs = 0, maxMs = 0;
     GXPCTimes per = {};
     double gameMs = 0;
     uint32_t total = 0;
@@ -74,13 +75,23 @@ struct FrameClock {
             per.swap = (now.swap - atWindow.swap) * k;
             per.idle = (now.idle - atWindow.idle) * k;
             fps = frames / span;
+            shownFps = shownFrames / span;
             avgMs = span * 1000.0 / frames;
             maxMs = worst * 1000.0;
             gameMs = avgMs - per.gx - per.present - per.swap - per.idle;
             if (gameMs < 0) gameMs = 0;
+            if (timingLogEnabled() && t - lastLog >= 2.0) {
+                gx::logmsg("timing: game %.2f FPS, shown %.2f FPS, frame %.2f ms avg/%.2f ms worst; "
+                           "game %.2f, GX %.2f, present %.2f, swap %.2f, idle %.2f, explicit GPU waits %.2f ms/frame",
+                           fps, shownFps, avgMs, maxMs, gameMs, per.gx, per.present, per.swap, per.idle, per.gpuWait);
+                gx::logmsg("GX breakdown: vertices %.2f, draws %.2f, textures %.2f, copies %.2f, peeks %.2f ms/frame",
+                           per.vertices, per.draws, per.textures, per.copies, per.peeks);
+                lastLog = t;
+            }
             atWindow = now;
             windowStart = t;
             frames = 0;
+            shownFrames = 0;
             worst = 0;
         }
     }
@@ -88,12 +99,15 @@ struct FrameClock {
 
 std::string s_renderer;
 
-// SMS_PERF_LOG: its own clock, so the overlay's does not double-count
-FrameClock s_perf;
-int s_perfOn = -1; // unknown until the first frame
-double s_perfLast = 0;
+}  // namespace
 
-void fillRect(std::vector<uint8_t>& px, int w, int h, int x0, int y0, int x1, int y1, const uint8_t c[4]) {
+namespace gx {
+void invalidateOverlay() {
+    s_panelDirty = true;
+    s_renderer.clear();
+}
+
+void overlayFillRect(std::vector<uint8_t>& px, int w, int h, int x0, int y0, int x1, int y1, const uint8_t c[4]) {
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
     if (x1 > w) x1 = w;
@@ -103,9 +117,9 @@ void fillRect(std::vector<uint8_t>& px, int w, int h, int x0, int y0, int x1, in
 }
 
 // stb_easy_font emits axis-aligned quads (4 vertices of x, y, z, rgba).
-void drawText(std::vector<uint8_t>& px, int w, int h, int x, int y, const char* text, const uint8_t c[4]) {
+void overlayText(std::vector<uint8_t>& px, int w, int h, int x, int y, const char* text, const uint8_t c[4], int scale) {
     static char buf[256 * 1024];  // 64 bytes per quad
-    int quads = stb_easy_font_print(float(x), float(y), const_cast<char*>(text), nullptr, buf, sizeof buf);
+    int quads = stb_easy_font_print(0, 0, const_cast<char*>(text), nullptr, buf, sizeof buf);
     for (int q = 0; q < quads; q++) {
         const float* v = reinterpret_cast<const float*>(buf + q * 64);
         float minX = v[0], maxX = v[0], minY = v[1], maxY = v[1];
@@ -116,92 +130,29 @@ void drawText(std::vector<uint8_t>& px, int w, int h, int x, int y, const char* 
             if (p[1] < minY) minY = p[1];
             if (p[1] > maxY) maxY = p[1];
         }
-        fillRect(px, w, h, int(minX + 0.5f), int(minY + 0.5f), int(maxX + 0.5f), int(maxY + 0.5f), c);
+        overlayFillRect(px, w, h, x + int(minX + 0.5f) * scale, y + int(minY + 0.5f) * scale,
+                        x + int(maxX + 0.5f) * scale, y + int(maxY + 0.5f) * scale, c);
     }
 }
 
-// Name tags over other players (GXPC_SetNameTags): set by the game each frame,
-// drawn once at present, then cleared so a paused or departed player's tag
-// does not linger.
-std::vector<GXPCNameTag> s_tags;
-
-void drawNameTags(int winW, int winH) {
-    if (s_tags.empty()) return;
-    // the picture's rectangle in the window, letterboxed as GXPC_PresentXFB does
-    const float wide = GXPC_GetWidescreen() > 1.0f ? GXPC_GetWidescreen() : 1.0f;
-    const float aspect = 4.0f / 3.0f * wide;
-    float vw = float(winW), vh = float(winH);
-    if (vw > vh * aspect) vw = vh * aspect;
-    else vh = vw / aspect;
-    const float ox = (float(winW) - vw) * 0.5f, oy = (float(winH) - vh) * 0.5f;
-    const int scale = winH >= 1400 ? 4 : winH >= 720 ? 3 : 2;
-    for (const GXPCNameTag& t : s_tags) {
-        char name[17];
-        memcpy(name, t.name, 16);
-        name[16] = 0;
-        const int pad = 3;
-        const int w = stb_easy_font_width(name) + pad * 2 + 1, h = stb_easy_font_height(name) + pad * 2;
-        std::vector<uint8_t> px(size_t(w) * h * 4);
-        const uint8_t bg[4] = {12, 30, 60, 170}, fg[4] = {255, 225, 120, 255};
-        fillRect(px, w, h, 0, 0, w, h, bg);
-        drawText(px, w, h, pad + 1, pad, name, fg);
-        // the 3D scene is widened by `wide`: a 4:3 coordinate lands nearer the centre
-        const float sx = ox + (t.x / wide * 0.5f + 0.5f) * vw;
-        const float sy = oy + (0.5f - t.y * 0.5f) * vh;
-        const int x = int(sx) - w * scale / 2, y = int(sy) - h * scale;
-        if (x < -w * scale || y < -h * scale || x > winW || y > winH) continue;
-        GXPC_DrawOverlay(px.data(), w, h, x, y, scale, winW, winH);
-    }
-    s_tags.clear();
+int overlayTextWidth(const char* text) { return stb_easy_font_width(const_cast<char*>(text)); }
 }
-
-}  // namespace
 
 extern "C" {
 
-void GXPC_SetNameTags(const GXPCNameTag* tags, int count) {
-    s_tags.assign(tags, tags + (count > 0 ? count : 0));
-}
-
 void GXPC_OverlayToggle(void) {
     s_visible = !s_visible;
-    GXPC_SetDetailedTimers(detailedRequested() && (s_visible || s_perfOn > 0));
+    s_panelDirty = true;
+    GXPC_SetDetailedTimers(s_visible || timingLogEnabled());
 }
 int GXPC_OverlayVisible(void) { return s_visible; }
 
 void GXPC_CycleSpeed(void) { s_speedIndex.store((s_speedIndex.load() + 1) % int(sizeof kSpeeds / sizeof kSpeeds[0])); }
 int GXPC_GetSpeed(void) { return kSpeeds[s_speedIndex.load()]; }
 
-void GXPC_PerfTick(void) {
-    if (s_perfOn < 0) {
-        // also with the overlay on (Settings → OTHER → Performance overlay), so the log has the numbers too
-        const char* e = getenv("SMS_PERF_LOG");
-        const char* o = getenv("SMS_OVERLAY");
-        s_perfOn = (e && *e && strcmp(e, "0") != 0) || (o && *o && strcmp(o, "0") != 0);
-        if (s_perfOn) GXPC_SetDetailedTimers(detailedRequested());
-    }
-    if (!s_perfOn) return;
-    s_perf.tick();
-    if (s_perf.windowStart - s_perfLast < 5.0 || s_perf.fps <= 0) return;
-    s_perfLast = s_perf.windowStart;
-    GXPCStats st;
-    GXPC_GetLastFrameStats(&st);
-    if (!gx::g_gxStats) {
-        gx::logmsg("[perf] %.1f fps, frame %.1f ms (worst %.1f), basic timing: "
-                   "present %.1f, swap %.1f, idle %.1f; %u draws, %u vertices, "
-                   "%u EFB copies, %u texture uploads, %u shader compiles",
-                   s_perf.fps, s_perf.avgMs, s_perf.maxMs, s_perf.per.present,
-                   s_perf.per.swap, s_perf.per.idle, st.draws, st.vertices,
-                   st.efbCopies, st.textureUploads, st.shaderCompiles);
-        return;
-    }
-    gx::logmsg("[perf] %.1f fps, frame %.1f ms (worst %.1f): game %.1f, GX %.1f (vertices %.1f, batches %.1f, "
-               "textures %.1f, copies %.1f, peeks %.1f, GPU wait %.1f), present %.1f, swap %.1f, idle %.1f; "
-               "%u draws, %u vertices, %u EFB copies, %u texture uploads, %u shader compiles",
-               s_perf.fps, s_perf.avgMs, s_perf.maxMs, s_perf.gameMs, s_perf.per.gx, s_perf.per.vertices,
-               s_perf.per.draws, s_perf.per.textures, s_perf.per.copies, s_perf.per.peeks, s_perf.per.gpuWait,
-               s_perf.per.present, s_perf.per.swap, s_perf.per.idle, st.draws, st.vertices, st.efbCopies,
-               st.textureUploads, st.shaderCompiles);
+void GXPC_OverlayFrame(void) {
+    if (timingLogEnabled()) GXPC_SetDetailedTimers(1);
+    s_clock.tick();
 }
 
 void GXPC_OverlayDraw(int winW, int winH) {
@@ -211,10 +162,7 @@ void GXPC_OverlayDraw(int winW, int winH) {
         const char* e = getenv("SMS_OVERLAY");
         if (e && *e && strcmp(e, "0") != 0 && !s_visible) GXPC_OverlayToggle();
     }
-    s_clock.tick();
-    drawNameTags(winW, winH);
-    extern void touch_controller_draw(int winW, int winH) __attribute__((weak));
-    if (touch_controller_draw) touch_controller_draw(winW, winH);
+    s_clock.shownFrames++;
     if (!s_visible) return;
     if (s_renderer.empty()) {
         const char* r = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
@@ -224,64 +172,78 @@ void GXPC_OverlayDraw(int winW, int winH) {
         if (s_renderer.size() > 44) s_renderer.resize(44);
         if (soft) s_renderer += "\nSOFTWARE RENDERING (no GPU driver): see README";
     }
-    GXPCStats st;
-    GXPC_GetLastFrameStats(&st);
-    double up = s_clock.last - s_clock.start;
+    // Keep drawing the cached panel every frame, but only rasterise and upload
+    // at 4 Hz. Rebuilding it at the game's frame rate can miss a retrace and
+    // makes the performance display itself distort the measurement.
+    static double lastUpdate = 0;
+    static int lastWinW = 0, lastWinH = 0, lastSpeed = 0;
+    static int w = 0, h = 0;
+    bool update = s_panelDirty || s_clock.last - lastUpdate >= 0.25 ||
+                  winW != lastWinW || winH != lastWinH || GXPC_GetSpeed() != lastSpeed;
+    const uint8_t* upload = nullptr;
+    static std::vector<uint8_t> px;
+    if (update) {
+        GXPCStats st;
+        GXPC_GetLastFrameStats(&st);
+        double up = s_clock.last - s_clock.start;
 
-    char timing[512] = {};
-    if (gx::g_gxStats) {
-        snprintf(timing, sizeof timing,
+        char text[2048];
+        snprintf(text, sizeof text,
+                 "FPS %.1f (%.1f shown)   frame %.1f ms avg, %.1f ms worst   speed x%d\n"
                  "ms/frame: game %.1f  GX %.1f  present %.1f  swap %.1f  idle %.1f\n"
                  "GX: vertices %.1f  batches %.1f  textures %.1f  copies %.1f  peeks %.1f\n"
-                 "    waiting for the GPU %.1f\n",
-                 s_clock.gameMs, s_clock.per.gx, s_clock.per.present, s_clock.per.swap,
-                 s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
-                 s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait);
-    }
-    char text[2048];
-    snprintf(text, sizeof text,
-             "FPS %.1f   frame %.1f ms avg, %.1f ms worst   speed x%d\n"
-             "%s"
-             "draws %u   vertices %u   EFB copies %u\n"
-             "texture uploads %u   shader compiles %u\n"
-             "frames %u   up %d:%02d\n"
-             "window %dx%d\n"
-             "GL %s"
-#ifndef __ANDROID__
-             "\n\n"
-             "KEYS (defaults, see bindings.txt)\n"
-             "Stick: arrows or WASD (hold LCtrl for half)\n"
-             "C-stick: I J K L\n"
-             "A: Space or X     B: Shift or C\n"
-             "X: V     Y: F     Z: Z\n"
-             "L: Q     R: E     Start: Enter\n"
-             "D-pad: 1 2 3 4\n"
-             "`: this overlay     F7: speed x1/x2/x4/x10\n"
-             "Esc: quit"
+                 "    waiting for the GPU %.1f\n"
+                 "draws %u   vertices %u   EFB copies %u\n"
+                 "texture uploads %u   shader compiles %u\n"
+                 "frames %u   up %d:%02d\n"
+                 "window %dx%d\n"
+                 "GL %s"
+#ifndef __ANDROID__  // a phone has no keyboard: the numbers only (Mareshine)
+                 "\n"
+                 "\n"
+                 "KEYS (defaults, see bindings.txt)\n"
+                 "Stick: arrows or WASD (hold LCtrl for half)\n"
+                 "C-stick: I J K L\n"
+                 "A: Space or X     B: Shift or C\n"
+                 "X: V     Y: F     Z: Z\n"
+                 "L: Q     R: E     Start: Enter\n"
+                 "D-pad: 1 2 3 4\n"
+                 "`: this overlay     F7: speed x1/x2/x4/x10\n"
+                 "F8 or Select: warp menu     F9: cheat menu\n"
+                 "Esc: quit"
 #endif
-             ,
-             s_clock.fps, s_clock.avgMs, s_clock.maxMs, GXPC_GetSpeed(), timing,
-             st.draws, st.vertices, st.efbCopies,
-             st.textureUploads, st.shaderCompiles, s_clock.total, int(up) / 60, int(up) % 60, winW, winH,
-             s_renderer.c_str());
+                 ,
+                 s_clock.fps, s_clock.shownFps, s_clock.avgMs, s_clock.maxMs, GXPC_GetSpeed(), s_clock.gameMs, s_clock.per.gx,
+                 s_clock.per.present, s_clock.per.swap, s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
+                 s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait, st.draws, st.vertices, st.efbCopies,
+                 st.textureUploads, st.shaderCompiles, s_clock.total, int(up) / 60, int(up) % 60, winW, winH,
+                 s_renderer.c_str());
 
-    const int pad = 4;
-    int w = stb_easy_font_width(text) + pad * 2;
-    int h = stb_easy_font_height(text) + pad * 2;
-    std::vector<uint8_t> px(size_t(w) * h * 4);
-    const uint8_t bg[4] = {16, 16, 24, 128};
-    const uint8_t fg[4] = {255, 255, 255, 255};
-    const uint8_t hi[4] = {255, 220, 64, 255};
-    fillRect(px, w, h, 0, 0, w, h, bg);
-    // first line (the frame rate) highlighted, the rest plain
-    const char* nl = strchr(text, '\n');
-    std::string first(text, nl ? size_t(nl - text) : strlen(text));
-    drawText(px, w, h, pad, pad, first.c_str(), hi);
-    if (nl) drawText(px, w, h, pad, pad + 12, nl + 1, fg);
+        const int pad = 4;
+        w = stb_easy_font_width(text) + pad * 2;
+        h = stb_easy_font_height(text) + pad * 2;
+        px.resize(size_t(w) * h * 4);
+        const uint8_t bg[4] = {16, 16, 24, 128};
+        const uint8_t fg[4] = {255, 255, 255, 255};
+        const uint8_t hi[4] = {255, 220, 64, 255};
+        gx::overlayFillRect(px, w, h, 0, 0, w, h, bg);
+        // first line (the frame rate) highlighted, the rest plain
+        const char* nl = strchr(text, '\n');
+        std::string first(text, nl ? size_t(nl - text) : strlen(text));
+        gx::overlayText(px, w, h, pad, pad, first.c_str(), hi);
+        if (nl) gx::overlayText(px, w, h, pad, pad + 12, nl + 1, fg);
+
+        upload = px.data();
+        lastUpdate = s_clock.last;
+        lastWinW = winW;
+        lastWinH = winH;
+        lastSpeed = GXPC_GetSpeed();
+        s_panelDirty = false;
+    }
 
     int scale = winH >= 720 ? 3 : 2;
     while (scale > 1 && (w * scale > winW || h * scale > winH)) scale--;
-    GXPC_DrawOverlay(px.data(), w, h, 8, 8, scale, winW, winH);
+    GXPC_DrawOverlay(upload, w, h, 8, 8, scale, winW, winH);
 }
 
 }  // extern "C"

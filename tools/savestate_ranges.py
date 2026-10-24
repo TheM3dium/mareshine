@@ -118,6 +118,17 @@ def ld64_ranges(lines, archives):
     return out
 
 
+def merge(ranges):
+    ranges = sorted(ranges)
+    merged = []
+    for start, end in ranges:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+
+
 def lld_ranges(lines, archives):
     """LLVM lld -Map (Android): "VMA LMA Size Align Out In Symbol" columns; an
     output section names itself after the four numbers, an input section is
@@ -141,17 +152,6 @@ def lld_ranges(lines, archives):
         if from_game(path + "(", archives) or from_game(path, archives):
             out.append([vma, vma + size])
     return out
-
-
-def merge(ranges):
-    ranges = sorted(ranges)
-    merged = []
-    for start, end in ranges:
-        if merged and start <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], end)
-        else:
-            merged.append([start, end])
-    return merged
 
 
 def main():

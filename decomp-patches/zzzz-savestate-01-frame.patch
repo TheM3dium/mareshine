@@ -1,96 +1,21 @@
-Reason: port: save states (port_savestate.h) are saved and loaded at the top of the frame loop, exactly or by warping and putting Mario back (from the PC port's zzzz-savestate-01 with the warp menu's name helpers; on Android without the in-game state menu: the app's pause menu has the slots)
+Reason: port: save states (port_savestate.h) are saved and loaded at the top of the frame loop, exactly or by warping and putting Mario back
 --- a/src/System/Application.cpp
 +++ b/src/System/Application.cpp
-@@ -804,6 +804,358 @@
- 	ApplicationCrTimeAry1(inst)[1].append(tick, param);
+@@ -994,6 +994,284 @@
  }
+ #endif
  
 +#ifdef TARGET_PC
 +#include "port_savestate.h"
-+#include <GC2D/MessageUtil.hpp>
-+#include <GC2D/ShineTable.hpp>
++#include "port_savestate_menu.h"
 +#include <Camera/Camera.hpp>
 +#include <GC2D/GCConsole2.hpp>
 +#include <Player/Mario.hpp>
 +#include <Player/WaterGun.hpp>
 +#include <string.h>
 +
-+// Android: no state menu in the game (the app's pause menu has the slots),
-+// so states are saved and loaded only while the stage plays, not from the
-+// game's own pause menu.
-+static void PauseMenuCloseForStateLoad() { }
-+
-+// Port (from the PC port's warp menu, for the save states' names). A message as the overlay's
-+// font can draw it: the bank's escape sequences (0x1A, then their length)
-+// left out, accented letters without their accents, one line.
-+static void ApplicationWarpText(char* out, size_t n, const char* msg)
-+{
-+	static const char kFold[] = "AAAAAAACEEEEIIIIDNOOOOO OUUUUY saaaaaaaceeeeiiiidnooooo ouuuuy y";
-+	size_t len = 0;
-+	const u8* p = (const u8*)msg;
-+	while (p && *p && len + 1 < n) {
-+		u8 c = *p;
-+		if (c == 0x1A) {
-+			const u8 size = p[1];
-+			if (size < 2)
-+				break;
-+			for (u8 i = 0; i < size && *p; i++)
-+				p++;
-+			continue;
-+		}
-+		p++;
-+		if (c == '\n' || c == '\r' || c == '\t')
-+			c = ' ';
-+		else if (c >= 0xC0)
-+			c = kFold[c - 0xC0];
-+		if (c < 0x20 || c >= 0x7F || (c == ' ' && (len == 0 || out[len - 1] == ' ')))
-+			continue;
-+		out[len++] = c;
-+	}
-+	while (len && out[len - 1] == ' ')
-+		len--;
-+	out[len] = 0;
-+}
-+
-+static bool ApplicationWarpMessage(char* out, size_t n, void* bmg, int index)
-+{
-+	out[0] = 0;
-+	if (bmg && index >= 0)
-+		ApplicationWarpText(out, n, SMSGetMessageData(bmg, index));
-+	return out[0] != 0;
-+}
-+
-+// The area's world: the game's shine stage. Retail's table has an entry for
-+// each of its areas only; a code mod that adds areas replaces the function.
-+static u8 ApplicationWarpWorld(int area)
-+{
-+	if (area >= 0x3D && !SMS_MOD_SITE(0x802A8AC8))
-+		return 0xFF;
-+	return SMS_getShineStage(area);
-+}
-+
-+// A secret course: one of retail's (dolpic_ex0 to coro_ex6) or a code mod's
-+// with a Shine of its own.
-+static bool ApplicationWarpIsEx(int area)
-+{
-+	return (area >= 0x14 && area <= 0x34) || SMS_getShineIDofExStage(area) != 0xFF;
-+}
-+
-+// The episode's name in scenarioname.bmg, as the pause menu finds it.
-+static int ApplicationWarpNameId(int area, int episode, u8 world)
-+{
-+	s16 shine = -1;
-+	if (ApplicationWarpIsEx(area)) {
-+		const u8 ex = SMS_getShineIDofExStage(area);
-+		shine       = ex == 0xFF ? -1 : ex;
-+	} else if (world <= 9 && episode < (world == 0 ? 1 : 8)) {
-+		shine = SMS_getShineID(world, episode, false);
-+	}
-+	if (shine < 0 || shine >= (s16)(sizeof scScenarioNameTable / sizeof scScenarioNameTable[0]))
-+		return -1;
-+	return SMS_getNormalStage(shine);
-+}
-+
++// patch zzzz-savestate-02: closes the pause menu as Continue does.
++void PauseMenuCloseForStateLoad();
 +
 +// Port: save states (port_savestate.h), saved and loaded here, at the top of
 +// the frame loop. Nothing of a frame is under way then, and this function's
@@ -289,7 +214,7 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
 +	const bool playing = dir && gpMarioOriginal && dir->mState == TMarDirector::STATE_UNK4
 +	                     && !dir->checkUnk4CFlag(TMarDirector::DIRECTOR_FLAG_STAGE_TRANSITION_PENDING);
 +	const bool paused = dir && dir->mState == TMarDirector::STATE_PAUSE_MENU;
-+	port_savestate_set_ready(playing && sStateLoadPhase == STATE_LOAD_IDLE);
++	port_savestate_set_ready((playing || paused) && sStateLoadPhase == STATE_LOAD_IDLE);
 +
 +	if (sStateLoadPhase == STATE_LOAD_FADE_OUT) {
 +		// black, or a second at most (a fade the game took over)
@@ -330,15 +255,16 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
 +			PortSaveStatePortable state;
 +			ApplicationStateCollect(app, &state);
 +			port_savestate_save(&state);
++		} else if (paused) {
++			// the pause menu's hint: SAVE_STATE there opens the state menu
++			SaveStateMenuOpen();
 +		} else {
 +			port_savestate_notify("Save states work in a level, once it has loaded");
 +		}
 +		break;
 +	case PORT_SAVESTATE_LOAD:
-+		if (!playing) {
-+			port_savestate_notify("Save states work in a level, once it has loaded");
++		if (!playing && !paused)
 +			break;
-+		}
 +		if (port_savestate_can_load_exact(path)) {
 +			// the screen fades to black, the state loads behind it, and it
 +			// fades back in (ApplicationStateLoad)
@@ -360,7 +286,7 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
  // TODO: frame 0x50 short (0x70 before the display's video was read through
  // getVideo()): retail's low region runs to 0xac (the TRect temp) where ours
  // ended at 0x38, i.e. inline temporaries from an expansion this body lacks;
-@@ -812,6 +1164,9 @@
+@@ -1002,6 +1280,9 @@
  {
  	u32 nextState = APP_STATE_DEFAULT;
  	while (nextState <= APP_STATE_DEFAULT) {
@@ -370,3 +296,14 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
  		mDisplay->startRendering();
  
  		ApplicationStartTimerTwice(mDisplay->getVideo()->mLastRetraceTime, 0);
+@@ -1071,6 +1352,10 @@
+ 			mFader->update();
+ 			mFader->draw(
+ 			    JDrama::TRect(0, 0, mode.fbWidth, mode.efbHeight));
++#ifdef TARGET_PC
++			// the save state menu over everything (port_savestate_menu.h)
++			SaveStateMenuDraw(JDrama::TRect(0, 0, mode.fbWidth, mode.efbHeight));
++#endif
+ 			// TODO: the ROM loads gpMSound twice here (once for the test,
+ 			// once for the call); neither this spelling nor SMSGetMSound()
+ 			// per use reproduces the reload.

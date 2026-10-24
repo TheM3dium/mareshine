@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Download and install optional mods, fresh each time.
 
-    python3 tools/mods/get.py textures    the Super Mario Sunshine UHD Texture Pack
+    python3 tools/mods/get.py textures    the Super Mario Sunshine UHD Texture Pack, and the extras
+    python3 tools/mods/get.py extras      only the extras: HD textures the UHD pack lacks
+                                          (--if-outdated: only if not the pinned release)
     python3 tools/mods/get.py eclipse     Super Mario Eclipse (patched from your disc)
-    python3 tools/mods/get.py all         both
+    python3 tools/mods/get.py language fr the game's text in French (de, es, it, pl: German,
+                                          Spanish, Italian, Polish); --if-outdated as for extras
+    python3 tools/mods/get.py all         textures and Eclipse
 
 Each mod's previous install is removed first, then its release is downloaded
 from where its authors publish it, checked against a known checksum, and
-installed under mods/. Nothing of either mod is part of this repository.
+installed under mods/. None of them is part of this repository.
 
 Options:
     --iso PATH        your Super Mario Sunshine image (North America, the
@@ -21,12 +25,15 @@ Needs Python 3 and 7-Zip (7z, 7zz or 7za on PATH).
 
 import argparse
 import hashlib
+import http.client
+import json
 import os
 import shutil
 import subprocess
 import sys
 import time
 import urllib.request
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -48,10 +55,28 @@ TEXTURES = {
     "unpacked": 3218563135,
     "install": os.path.join(MODS, "textures", "GMS"),
 }
+# HD textures the UHD pack lacks (the boot logo, GAME OVER, the pause guide's
+# pictures, HUD icons, Peach, stage textures, ...), made for this port with the
+# scripts in that repository. The release is pinned in texture-extras.json,
+# which SMS Launcher also reads: it installs the extras again whenever the
+# release recorded in the install's .release file is not that one.
+with open(os.path.join(HERE, "texture-extras.json"), encoding="utf-8") as f:
+    EXTRAS = dict(json.load(f), install=os.path.join(MODS, "textures", "sms-hd-texture-extras"))
+EXTRAS_RECORD = ".release"
+# The language packs `language = <code>` in settings.txt plays the game in
+# (platform/misc/language.cpp): the European release's four and community
+# translations, pinned in language-packs.json. "any_language" there tells SMS
+# Launcher that this game plays any installed pack, so the launcher can offer
+# languages released after it.
+with open(os.path.join(HERE, "language-packs.json"), encoding="utf-8") as f:
+    LANGUAGE_PACKS = json.load(f)
 ECLIPSE = {
     "name": "Super Mario Eclipse v1.1.0 (Eclipse Team)",
     "page": "https://gamebanana.com/mods/536309",
-    "url": "https://gamebanana.com/dl/1729332",
+    # The GameBanana release, mirrored for SMS Launcher; GameBanana itself is
+    # the fallback. Both must match md5.
+    "url": "https://sms-eclipse.tekrantgaming.com/files/super_mario_eclipse_v110.7z",
+    "fallback_urls": ["https://gamebanana.com/dl/1729332"],
     "file": "super_mario_eclipse_v110.7z",
     "md5": "37c1805ab88b2a3bb2a96bcdf6884433",
     "size": 892257115,
@@ -98,44 +123,69 @@ def md5_of(path):
     return h.hexdigest()
 
 
+# A download that stops short (a dropped connection, or the installer stopped)
+# is deleted, never kept: the next attempt starts it over.
 def download(url, dest):
     req = urllib.request.Request(url, headers={"User-Agent": "sms-pc-port mod installer"})
     part = dest + ".part"
-    with urllib.request.urlopen(req) as r, open(part, "wb") as f:
-        total = int(r.headers.get("Content-Length") or 0)
-        done, last = 0, 0.0
-        while True:
-            chunk = r.read(1 << 20)
-            if not chunk:
-                break
-            f.write(chunk)
-            done += len(chunk)
-            now = time.time()
-            if now - last > 1.0 and sys.stdout.isatty():
-                last = now
-                pct = " (%d%%)" % (100 * done // total) if total else ""
-                print("\r  %s%s   " % (mib(done), pct), end="", flush=True)
-    if sys.stdout.isatty():
-        print("\r" + " " * 30 + "\r", end="")
-    os.replace(part, dest)
+    try:
+        with urllib.request.urlopen(req) as r, open(part, "wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            done, last = 0, 0.0
+            while True:
+                chunk = r.read(1 << 20)
+                if not chunk:
+                    break
+                f.write(chunk)
+                done += len(chunk)
+                now = time.time()
+                if now - last > 1.0 and sys.stdout.isatty():
+                    last = now
+                    pct = " (%d%%)" % (100 * done // total) if total else ""
+                    print("\r  %s%s   " % (mib(done), pct), end="", flush=True)
+        if sys.stdout.isatty():
+            print("\r" + " " * 30 + "\r", end="")
+        if total and done != total:
+            raise OSError("the download stopped at %s of %s" % (mib(done), mib(total)))
+        os.replace(part, dest)
+    except BaseException:
+        remove(part)
+        raise
 
 
+# Downloads mod["url"], or each of mod["fallback_urls"] in turn when one
+# fails twice or sends a file whose MD5 is not the release's.
 def fetch(mod):
     os.makedirs(DOWNLOADS, exist_ok=True)
     dest = os.path.join(DOWNLOADS, mod["file"])
-    remove(dest)
-    say("Downloading %s\n  from %s" % (mod["name"], mod["url"]))
-    try:
-        download(mod["url"], dest)
-    except OSError as e:
-        raise Failure("download failed: %s" % e)
-    got = md5_of(dest)
-    if mod["md5"] and got != mod["md5"]:
+    failed, mismatch = [], None
+    for url in [mod["url"]] + mod.get("fallback_urls", []):
         remove(dest)
-        raise Failure("the download does not match the expected release (MD5 %s, expected %s);"
-                      " see %s" % (got, mod["md5"], mod["page"]))
-    say("  %s, MD5 %s" % (mib(os.path.getsize(dest)), got))
-    return dest
+        say("Downloading %s\n  from %s" % (mod["name"], url))
+        for attempt in (1, 2):
+            try:
+                download(url, dest)
+                break
+            except (OSError, http.client.HTTPException) as e:
+                say("  failed: %s%s" % (e, "; starting over" if attempt == 1 else ""))
+                error = e
+        else:
+            failed.append("%s: %s" % (url, error))
+            continue
+        got = md5_of(dest)
+        if mod["md5"] and got != mod["md5"]:
+            remove(dest)
+            say("  MD5 %s, expected %s" % (got, mod["md5"]))
+            mismatch = "MD5 %s, expected %s" % (got, mod["md5"])
+            failed.append("%s: %s" % (url, mismatch))
+            continue
+        say("  %s, MD5 %s" % (mib(os.path.getsize(dest)), got))
+        return dest
+    if mismatch and len(failed) == 1:
+        raise Failure("the download does not match the expected release (%s); see %s" % (mismatch, mod["page"]))
+    if mismatch:
+        raise Failure("no download matched the expected release (%s); see %s" % ("; ".join(failed), mod["page"]))
+    raise Failure("download failed: %s" % "; ".join(failed))
 
 
 def seven_zip():
@@ -217,8 +267,110 @@ def get_textures(keep):
         if not keep:
             remove(archive)
     say("Installed %d textures in %s." % (count, os.path.relpath(mod["install"], ROOT)))
+    try:
+        get_extras(keep)
+    except Failure as e:
+        say("warning: the UHD pack is installed, but not the extras (%s);"
+            " python3 tools/mods/get.py extras tries again" % e)
     say("The port uses them on its next start; see mods/README.md for the memory budget"
         " and SMS_GX_SCALE for a higher internal resolution.")
+
+
+def extras_current():
+    """Whether the installed extras are the pinned release."""
+    try:
+        with open(os.path.join(EXTRAS["install"], EXTRAS_RECORD), encoding="utf-8") as f:
+            return json.load(f).get("md5") == EXTRAS["md5"]
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def get_extras(keep, if_outdated=False):
+    mod = EXTRAS
+    if if_outdated and extras_current():
+        say("The texture extras are up to date (%s)." % mod["name"])
+        return
+    say("== Texture extras: %s" % mod["name"])
+    if os.path.isdir(mod["install"]):
+        say("Removing the previous install, %s" % os.path.relpath(mod["install"], ROOT))
+        remove(mod["install"])
+    need_space(MODS, 2 * mod["size"] + (16 << 20))
+    archive = fetch(mod)
+    tmp = mod["install"] + ".part"
+    remove(tmp)
+    try:
+        # the zip holds GMS/<folders of tex1_* files>, as Dolphin's Load/Textures/ takes it
+        with zipfile.ZipFile(archive) as z:
+            names = [n for n in z.namelist() if not n.endswith("/")]
+            if not names or any(not n.startswith("GMS/") or ".." in n.split("/") for n in names):
+                raise Failure("the archive is not laid out as expected (GMS/...)")
+            z.extractall(tmp)
+        os.replace(os.path.join(tmp, "GMS"), mod["install"])
+        count = sum(1 for _, _, files in os.walk(mod["install"])
+                    for n in files if n.startswith("tex1_"))
+        with open(os.path.join(mod["install"], EXTRAS_RECORD), "w", encoding="utf-8") as f:
+            json.dump({"name": mod["name"], "file": mod["file"], "md5": mod["md5"]}, f, indent=2)
+    except (OSError, zipfile.BadZipFile) as e:
+        remove(mod["install"])
+        raise Failure("could not unpack %s: %s" % (os.path.basename(archive), e))
+    finally:
+        remove(tmp)
+        if not keep:
+            remove(archive)
+    say("Installed %d textures in %s." % (count, os.path.relpath(mod["install"], ROOT)))
+
+
+def language_install(code):
+    return os.path.join(MODS, "languages", code)
+
+
+def language_current(code):
+    """Whether the installed pack for `code` is the pinned release."""
+    try:
+        with open(os.path.join(language_install(code), EXTRAS_RECORD), encoding="utf-8") as f:
+            return json.load(f).get("md5") == LANGUAGE_PACKS["languages"][code]["md5"]
+    except (OSError, ValueError, AttributeError, KeyError):
+        return False
+
+
+def get_language(code, keep, if_outdated=False):
+    langs = LANGUAGE_PACKS["languages"]
+    if code not in langs:
+        raise Failure("no language pack %s (there are %s)" % (code, ", ".join(sorted(langs))))
+    mod = dict(langs[code], page=LANGUAGE_PACKS["page"],
+               name="%s (%s)" % (LANGUAGE_PACKS["name"], langs[code]["name"]))
+    install = language_install(code)
+    if if_outdated and language_current(code):
+        say("The %s language pack is up to date (%s)." % (langs[code]["name"], LANGUAGE_PACKS["name"]))
+        return
+    say("== Language pack: %s" % mod["name"])
+    if os.path.isdir(install):
+        say("Removing the previous install, %s" % os.path.relpath(install, ROOT))
+        remove(install)
+    need_space(MODS, 3 * mod["size"] + (16 << 20))
+    archive = fetch(mod)
+    tmp = install + ".part"
+    remove(tmp)
+    try:
+        # the zip holds <code>/files/..., as the port reads mods/languages/<code>/files/
+        with zipfile.ZipFile(archive) as z:
+            names = [n for n in z.namelist() if not n.endswith("/")]
+            if not names or any(not n.startswith(code + "/files/") or ".." in n.split("/") for n in names):
+                raise Failure("the archive is not laid out as expected (%s/files/...)" % code)
+            z.extractall(tmp)
+        os.makedirs(os.path.dirname(install), exist_ok=True)
+        os.replace(os.path.join(tmp, code), install)
+        with open(os.path.join(install, EXTRAS_RECORD), "w", encoding="utf-8") as f:
+            json.dump({"name": mod["name"], "file": mod["file"], "md5": mod["md5"]}, f, indent=2)
+    except (OSError, zipfile.BadZipFile) as e:
+        remove(install)
+        raise Failure("could not unpack %s: %s" % (os.path.basename(archive), e))
+    finally:
+        remove(tmp)
+        if not keep:
+            remove(archive)
+    say("Installed %s in %s; `language = %s` in settings.txt plays the game in it."
+        % (langs[code]["name"], os.path.relpath(install, ROOT), code))
 
 
 def get_eclipse(keep, iso_arg):
@@ -254,6 +406,10 @@ def get_eclipse(keep, iso_arg):
             if sys.stdout.isatty() and now - last[0] > 1.0:
                 last[0] = now
                 print("\r  %d%%   " % (100 * done // total), end="", flush=True)
+            elif not sys.stdout.isatty() and now - last[0] > 5.0:
+                # A line now and then, so a log (SMS Launcher's) shows it is working.
+                last[0] = now
+                say("Patching your image: %d%%" % (100 * done // total))
 
         try:
             vcdiff.apply(iso, os.path.join(tmp, mod["patch"]), out + ".part", progress)
@@ -276,21 +432,34 @@ def get_eclipse(keep, iso_arg):
             remove(archive)
     say("Installed %s." % os.path.relpath(out, ROOT))
     say("It is the same image Eclipse's own patcher makes, for Dolphin or a console. The port"
-        " cannot run it yet: Eclipse also changes the game's code, which has to be ported first"
-        " (docs/ECLIPSE.md).")
+        " plays it with Eclipse's code built in: SMS_ECLIPSE=1 ./build.sh (docs/ECLIPSE.md).")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter,
                                  epilog="\n\n".join(__doc__.split("\n\n")[1:]))
-    ap.add_argument("what", choices=["textures", "eclipse", "all"])
+    ap.add_argument("what", choices=["textures", "extras", "eclipse", "language", "all"])
+    ap.add_argument("language", nargs="?", help="with language: fr, de, es, it or pl")
     ap.add_argument("--iso")
     ap.add_argument("--keep-download", action="store_true")
+    ap.add_argument("--if-outdated", action="store_true")
     args = ap.parse_args()
+    # A download left unfinished by an earlier run (stopped, or the computer
+    # turned off) is only in the way, and takes space need_space counts.
+    if os.path.isdir(DOWNLOADS):
+        for name in os.listdir(DOWNLOADS):
+            if name.endswith(".part"):
+                remove(os.path.join(DOWNLOADS, name))
     try:
         if args.what in ("textures", "all"):
             get_textures(args.keep_download)
+        if args.what == "extras":
+            get_extras(args.keep_download, args.if_outdated)
+        if args.what == "language":
+            if not args.language:
+                raise Failure("which language? fr, de, es, it or pl")
+            get_language(args.language, args.keep_download, args.if_outdated)
         if args.what in ("eclipse", "all"):
             get_eclipse(args.keep_download, args.iso)
     except Failure as e:

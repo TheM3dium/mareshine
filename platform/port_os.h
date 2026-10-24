@@ -21,6 +21,11 @@ extern int port_no_audio;
  * work runs at check points (OS calls, blocking, idle). */
 void port_irq_check(void);          /* deliver pending interrupts if enabled */
 void port_irq_kick(void);           /* wake an idle CPU (any host thread)    */
+/* Called by the running game thread while it owns the emulated CPU. */
+int port_os_background_ready(void); /* lower-priority runnable work exists */
+#ifdef __ANDROID__
+int port_os_yield_background(u64 budget_ns); /* bounded cooperative handoff */
+#endif
 typedef void (*port_irq_poll_fn)(void);
 void port_irq_add_source(port_irq_poll_fn fn); /* polled at each delivery   */
 s64 port_time_ticks(void);

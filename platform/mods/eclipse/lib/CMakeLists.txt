@@ -38,7 +38,12 @@ set(_defs NTSCU KURIBO_NO_TYPES "BETTER_SMS_VERSION=\"v2.0\"" BETTER_SMS_CUSTOM_
 if(NOT SMS_ARCH)
   set(SMS_ARCH 32)
 endif()
-set(_arch -m${SMS_ARCH})
+if(ANDROID)
+  # The toolchain file sets the target (aarch64), which takes no -m64.
+  set(_arch)
+else()
+  set(_arch -m${SMS_ARCH})
+endif()
 if(SMS_ARCH STREQUAL "32")
   # SSE float math, as the game is built (x87 would round differently)
   list(APPEND _arch -malign-double -msse2 -mfpmath=sse)
@@ -61,7 +66,6 @@ endif()
 # operator delete(void*, size_t) by default, which the game does not define and
 # the rename (game_new_syms.txt) does not cover, so it was the host's: free()
 # on a game-heap block aborted the game (saving BSE's settings, loading a stage).
-# (chasem-dev/sms-pc-port dc5e666)
 # -fstandalone-debug: every game class the mods use is described in their
 # debug info, which tools/mods/abi_check.py compares with the game's.
 # -funsigned-char: built for the PowerPC (powerpc-gecko-ibm-kuribo-eabi), the
@@ -93,6 +97,9 @@ target_compile_options(eclipse_objs PRIVATE ${_opts})
 # The partial links below run the compiler driver as a linker, for this target.
 if(APPLE AND CMAKE_OSX_ARCHITECTURES)
   set(_ld_arch -arch ${CMAKE_OSX_ARCHITECTURES})
+elseif(ANDROID)
+  # The driver alone links for the host: name the device's target.
+  set(_ld_arch --target=${CMAKE_CXX_COMPILER_TARGET})
 else()
   set(_ld_arch -m${SMS_ARCH})
 endif()
@@ -152,7 +159,8 @@ elseif(WIN32)
   set(_ctors COMMAND ${CMAKE_OBJCOPY} --rename-section .ctors=.data$sms_mod_ctors_m ${_obj})
 else()
   set(_ctors)
-  list(APPEND _ld_arch -Wl,-T,${CMAKE_CURRENT_SOURCE_DIR}/mod_ctors.ld)
+  # -Xlinker passes the path whole: -Wl, would split it at a comma.
+  list(APPEND _ld_arch -Xlinker -T -Xlinker ${CMAKE_CURRENT_SOURCE_DIR}/mod_ctors.ld)
 endif()
 add_custom_command(OUTPUT ${_obj}
   COMMAND ${CMAKE_CXX_COMPILER} ${_ld_arch} -r -nostdlib -o ${_obj}

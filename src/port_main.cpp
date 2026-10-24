@@ -4,8 +4,15 @@
 #include <cstdlib>
 #include "port_platform.h"
 #include "port_win64_stack.h"
+#include "os/crash.h"
 
 extern void SMS_main(void);
+
+#ifdef __ANDROID__
+// SDLActivity calls this symbol after the bootstrap loads the game library.
+#define main SDL_main
+extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** argv);
+#endif
 
 struct Args {
 	int argc;
@@ -14,6 +21,7 @@ struct Args {
 
 static void* run_game(void* p)
 {
+	port_crash_thread_init();
 	Args* a = (Args*)p;
 	port_init(a->argc, a->argv);
 	std::fprintf(stderr, "[port] entering SMS_main\n");
@@ -28,12 +36,9 @@ static void* run_game(void* p)
 // 64-bit hosts: the game keeps pointers to its locals in u32 slots, so the
 // boot thread (which becomes the default OSThread) runs on a stack below
 // 2 GiB instead of the process's main stack.
-#ifdef __ANDROID__
-extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** argv)
-#else
 int main(int argc, char** argv)
-#endif
 {
+	port_install_crash_handlers();
 	const unsigned long size = 8ul << 20;
 	void* stack = port_low_alloc(size);
 	if (!stack) {
@@ -84,6 +89,7 @@ int main(int argc, char** argv)
 #else
 int main(int argc, char** argv)
 {
+	port_install_crash_handlers();
 	Args a = {argc, argv};
 	run_game(&a);
 	return 0;

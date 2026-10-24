@@ -22,6 +22,7 @@
         android:name=".SunshineApp"
         android:allowBackup="true"
         android:hardwareAccelerated="true"
+        android:extractNativeLibs="true"
         android:appCategory="game"
         android:icon="@mipmap/icon"
         android:label="@string/app_name"

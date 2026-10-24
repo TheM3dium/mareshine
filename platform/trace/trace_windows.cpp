@@ -1,4 +1,4 @@
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__ANDROID__)
 // Full lockstep tracing (trace.cpp) needs Linux ELF helpers. Empty stubs keep
 // the weak call sites in vi.cpp / pad.cpp linking on Windows and macOS.
 #include "trace.h"

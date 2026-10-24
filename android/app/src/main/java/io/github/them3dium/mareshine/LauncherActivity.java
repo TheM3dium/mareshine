@@ -86,7 +86,8 @@ public class LauncherActivity extends AppActivity {
             float top = logo.getTop() - gap;  // never above the screen
             logo.setTranslationY(overlap > 0 ? -Math.min(overlap, Math.max(0, top)) : 0);
         });
-        ((TextView) findViewById(R.id.tvVersion)).setText(t("Version %s", CrashLog.BuildConfigInfo.version(this)));
+        ((TextView) findViewById(R.id.tvVersion)).setText(t("Version %s", CrashLog.BuildConfigInfo.version(this))
+            + "\n" + getString(R.string.build_stamp));
         findViewById(R.id.btnQuit).setOnClickListener(v -> { ShaderService.stop(this); finishAffinity(); });
 
         btnPlay.setOnClickListener(v -> launchGame());

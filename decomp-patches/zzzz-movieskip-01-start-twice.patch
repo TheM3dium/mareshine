@@ -1,45 +1,57 @@
-Reason: port (Mareshine): START pressed twice skips a movie not seen yet, with a hint from the app
+Reason: port (Mareshine): START or A pressed twice skips a movie not seen yet, with a hint from the app
 --- a/src/System/MovieDirector.cpp
 +++ b/src/System/MovieDirector.cpp
-@@ -473,6 +473,45 @@
+@@ -473,6 +473,57 @@
  
  // Exact with the binder-shaped TApplication::getFader() at the fader sites
  // and the BOOL TMarioGamePad::isSomethingPushed() (research c-r29).
 +#ifdef TARGET_PC
 +// Mareshine: a movie the player has not seen yet (which the game does not let
-+// them skip) is skipped with START pressed twice. The first press asks the app
-+// to show "Press START again to skip" for a few seconds; a second press while
-+// it shows skips the movie. Seen movies keep the game's own single press.
++// them skip) is skipped with START or A pressed twice. The first press asks
++// the app to show "Press START again to skip" (or A) for a few seconds; the
++// same button again while it shows skips the movie. Seen movies keep the
++// game's own single press.
 +extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(u32 command, int param);
 +extern "C" u32 SDL_GetTicks(void);
-+extern "C" void port_ach_unlock_id(const char* id); // platform/achievements
++extern "C" void port_log(const char* fmt, ...);
++extern "C" __attribute__((weak)) void port_ach_unlock_id(const char* id); // platform/achievements
 +static const u32 kMovieSkipCommand = 0x8003; // SunshineActivity.COMMAND_MOVIE_SKIP
 +static const u32 kMovieSkipWindowMs = 3000;
 +static int sMovieSkipMovie = -1;
++static int sMovieSkipButton; // 1 START, 2 A: the first press's, also the hint's
 +static u32 sMovieSkipAskedAt;
 +
-+static void movieSkipHint(bool show)
++static void movieSkipHint(int button)
 +{
 +	if (SDL_AndroidSendMessage)
-+		SDL_AndroidSendMessage(kMovieSkipCommand, show ? 1 : 0);
++		SDL_AndroidSendMessage(kMovieSkipCommand, button);
 +}
 +
 +static bool movieSkipPressedTwice(const TMarioGamePad* pad)
 +{
 +	int movie = gpApplication.getMovie();
-+	if (!pad->checkFrameMeaning(0x1)
-+	    || TFlagManager::getInstance()->getBool(movie + 0x10391))
++	int button = pad->checkFrameMeaning(0x1) ? 1 : pad->checkFrameMeaning(0x20) ? 2 : 0;
++	if (!button)
 +		return false;
++	if (TFlagManager::getInstance()->getBool(movie + 0x10391)) {
++		port_log("[movie] %s in movie %d, seen before: the game's own skip\n", button == 1 ? "START" : "A", movie);
++		return false;
++	}
 +	u32 now = SDL_GetTicks();
-+	if (sMovieSkipMovie == movie && now - sMovieSkipAskedAt < kMovieSkipWindowMs) {
++	if (sMovieSkipMovie == movie && sMovieSkipButton == button
++	    && now - sMovieSkipAskedAt < kMovieSkipWindowMs) {
 +		sMovieSkipMovie = -1;
-+		movieSkipHint(false);
-+		port_ach_unlock_id("sms.fun.impatient");
++		port_log("[movie] %s twice: movie %d skipped\n", button == 1 ? "START" : "A", movie);
++		movieSkipHint(0);
++		if (port_ach_unlock_id)
++			port_ach_unlock_id("sms.fun.impatient");
 +		return true;
 +	}
 +	sMovieSkipMovie   = movie;
++	sMovieSkipButton  = button;
 +	sMovieSkipAskedAt = now;
-+	movieSkipHint(true);
++	port_log("[movie] %s in movie %d, not seen yet: asking for a second press\n", button == 1 ? "START" : "A", movie);
++	movieSkipHint(button);
 +	return false;
 +}
 +#endif
@@ -47,7 +59,7 @@ Reason: port (Mareshine): START pressed twice skips a movie not seen yet, with a
  int TMovieDirector::direct()
  {
  	if (!unk30.check(0x1)) {
-@@ -605,6 +644,13 @@
+@@ -605,6 +656,13 @@
  		break;
  	}
  

@@ -123,6 +123,28 @@ extern "C" int sms_mod_register(int kind, uint32_t addr, uintptr_t value, int en
 extern "C" void sms_mod_code_write(uint32_t addr, uint32_t value, int size)
 {
 	const char* what = size == 1 ? "PowerPC::writeU8" : size == 2 ? "PowerPC::writeU16" : "PowerPC::writeU32";
+	// Mods rewrite some words over and over: BetterSunshineEngine's debug UI
+	// writes 0x80299CF0 on every frame. A new patch per write made that
+	// address's chain grow for as long as the game ran, so every lookup there
+	// walked more entries (the game slowed down until it was restarted), and
+	// each write's bump() made every hook site look up its answer again. When
+	// the newest patch at the address is already such a write, change its
+	// value instead: it is the one find() returns either way.
+	auto range = byAddr().equal_range(addr);
+	int newest = -1;
+	for (auto it = range.first; it != range.second; ++it)
+		if (it->second > newest)
+			newest = it->second;
+	if (newest >= 0) {
+		Patch& p = patches()[newest];
+		if (p.kind == SMS_MOD_WORD && p.enabled && p.file == what) {
+			if (p.value != value) {
+				p.value = value;
+				bump();
+			}
+			return;
+		}
+	}
 	sms_mod_register(SMS_MOD_WORD, addr, value, 1, what, 0);
 }
 
@@ -226,6 +248,9 @@ extern "C" void sms_mod_activate(void)
 
 extern "C" uint32_t __OSBusClock;
 extern "C" uint32_t __OSCoreClock;
+#ifdef __ANDROID__
+extern "C" uint8_t* port_mem1_base;
+#endif
 extern "C" unsigned long OSGetConsoleType(void);
 extern "C" void* DVDGetCurrentDiskID(void);
 
@@ -237,6 +262,9 @@ namespace {
 void fill_boot_info()
 {
 	uint8_t* low = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(0x80000000u));
+#ifdef __ANDROID__
+	low = port_mem1_base;
+#endif
 	memcpy(low, DVDGetCurrentDiskID(), 0x20);
 	const uint32_t words[][2] = {
 		{0x28, 0x01800000u},               // physical memory size

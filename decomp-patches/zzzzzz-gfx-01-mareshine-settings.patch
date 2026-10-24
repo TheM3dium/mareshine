@@ -1,0 +1,168 @@
+Reason: port (Mareshine): the app's graphics settings for slower phones (src/port_include/port_gfx.h): draw distance and far plane scale the view frustum the game clips actors and objects with; shadows off skips blob, bound and Shine volume shadows; reflections off skips screen after-effects and mirror copies; water animation 1 holds the sea still, 2 hides its waves.
+--- a/src/MarioUtil/DrawUtil.cpp
++++ b/src/MarioUtil/DrawUtil.cpp
+@@ -692,9 +692,18 @@
+ static f32 sKeepViewClipNear;
+ static f32 sKeepViewClipFar;
+ 
++#ifdef TARGET_PC
++#include <port_gfx.h> // Mareshine's graphics settings
++#endif
+ void SetViewFrustumClipCheckPerspective(f32 fovy, f32 aspect, f32 clip_near,
+                                         f32 clip_far)
+ {
++#ifdef TARGET_PC
++	// Mareshine's draw distance: how far actors and objects stay in view
++	clip_far *= port_gfx_draw_distance();
++	if (port_gfx_far_plane() > 0.0f && clip_far > port_gfx_far_plane())
++		clip_far = port_gfx_far_plane();
++#endif
+ 	if (fovy != sKeepViewClipFovy || aspect != sKeepViewClipAspect
+ 	    || clip_near != sKeepViewClipNear || clip_far != sKeepViewClipFar) {
+ 		sKeepViewClipFovy   = fovy;
+--- a/src/MarioUtil/ShadowUtil.cpp
++++ b/src/MarioUtil/ShadowUtil.cpp
+@@ -270,8 +270,15 @@
+ 	return false;
+ }
+ 
++#ifdef TARGET_PC
++#include <port_gfx.h> // Mareshine's graphics settings
++#endif
+ void TMBindShadowBody::entryDrawShadow()
+ {
++#ifdef TARGET_PC
++	if (port_gfx_shadows_off())
++		return;
++#endif
+ 	f32 eps = JGeometry::TUtil<f32>::epsilon();
+ 
+ 	// TODO: instruction-identical and frame-exact at 0x98 after calc() reads
+@@ -484,6 +491,13 @@
+ 
+ void TMBindShadowManager::perform(u32 cue, JDrama::TGraphics* graphics)
+ {
++#ifdef TARGET_PC
++	if (port_gfx_shadows_off()) { // nothing drawn; the list still empties each frame
++		if ((cue & CUE_DRAW) && (cue & 0x20000000))
++			reset();
++		return;
++	}
++#endif
+ 	if (cue & CUE_CALC_VIEW) {
+ 		unk49 = 0;
+ 		({ typedef __typeof__(VECNormalize(gpLightManager->getLightPos(), &mLightDir)) sms_mod_r_; void* sms_mod_t_ = SMS_MOD_SITE(0x80231148); if (sms_mod_t_) ((__typeof__(&PSVECNormalize))sms_mod_t_)(gpLightManager->getLightPos(), &mLightDir); else VECNormalize(gpLightManager->getLightPos(), &mLightDir); });
+--- a/src/Strategic/liveactor.cpp
++++ b/src/Strategic/liveactor.cpp
+@@ -341,8 +341,15 @@
+ 	calcRidePos();
+ }
+ 
++#ifdef TARGET_PC
++#include <port_gfx.h> // Mareshine's graphics settings
++#endif
+ void TLiveActor::requestShadow()
+ {
++#ifdef TARGET_PC
++	if (port_gfx_shadows_off())
++		return;
++#endif
+ 	if (mLiveFlag & (LIVE_FLAG_DEAD | LIVE_FLAG_HIDDEN | LIVE_FLAG_UNK8))
+ 		return;
+ 
+--- a/src/Player/ModelWaterManager.cpp
++++ b/src/Player/ModelWaterManager.cpp
+@@ -1826,8 +1826,15 @@
+ // A dead 8-byte probe before local_2C fixes the frame and the named slots but
+ // leaves the low temps 4 short, so there are two causes. Inert: calling the
+ // UNUSED init_sphere_glist(), a TVec3 shinePos, the quads as an inline helper.
++#ifdef TARGET_PC
++#include <port_gfx.h> // Mareshine's graphics settings
++#endif
+ void TModelWaterManager::drawShineShadowVolume(MtxPtr param_1)
+ {
++#ifdef TARGET_PC
++	if (port_gfx_shadows_off())
++		return;
++#endif
+ 
+ 	if ((
+ #ifdef TARGET_PC
+--- a/src/MarioUtil/ScreenUtil.cpp
++++ b/src/MarioUtil/ScreenUtil.cpp
+@@ -113,8 +113,15 @@
+ // the first site's flag, which also holds the colour's constant 0: an inlined
+ // return value is created before the optimiser splits `rect`, so it is
+ // coloured first. The ternary spelling left `rect` in r31 and the flag in r30.
++#ifdef TARGET_PC
++#include <port_gfx.h> // Mareshine's graphics settings
++#endif
+ void TAfterEffect::perform(u32 cue, JDrama::TGraphics* graphics)
+ {
++#ifdef TARGET_PC
++	if (port_gfx_reflections_off())
++		return;
++#endif
+ 	if (!(unk14 & 1))
+ 		return;
+ 
+--- a/libs/JSystem/src/JDrama/JDREfbCtrl.cpp
++++ b/libs/JSystem/src/JDrama/JDREfbCtrl.cpp
+@@ -83,6 +83,18 @@
+ 	setDstSize(TSize(width, height));
+ }
+ 
++#ifdef TARGET_PC
++#include <port_gfx.h> // Mareshine's graphics settings
++#include <string.h>
++
++// A mirror's copy of the screen, by its name: "\x8B\xBE" is Shift-JIS for the
++// kanji "mirror".
++static bool isMirrorCopy(const char* name)
++{
++	return name && (strstr(name, "\x8B\xBE") || strstr(name, "mir") || strstr(name, "Mir"));
++}
++#endif
++
+ void TEfbCtrlTex::perform(u32 cue, TGraphics* graphics)
+ {
+ 	if (cue & CUE_DRAW_INIT) {
+@@ -97,6 +109,10 @@
+ 		IssueGXSetCopyFilter(unk20.check(0x800), mSamplePattern,
+ 		                     unk20.check(0x20), mVFilter);
+ 
++#ifdef TARGET_PC
++		if (mImagePtr != nullptr && port_gfx_reflections_off() && isMirrorCopy(getName()))
++			return;
++#endif
+ 		if (mImagePtr != nullptr) {
+ 			bool doClear
+ 			    = IssueGXSetCopyClear(mClearColor, mClearZ, unk20.get());
+--- a/src/MoveBG/MapObjWave.cpp
++++ b/src/MoveBG/MapObjWave.cpp
+@@ -293,11 +293,25 @@
+ // two bools together add nothing more, so which block retail named is not
+ // decidable from the asm. Earlier trial table: docs/catalog/frame-gaps.md,
+ // "The two closure cases".
++#ifdef TARGET_PC
++#include <port_gfx.h> // Mareshine's graphics settings
++#endif
+ void TMapObjWave::perform(u32 cue, JDrama::TGraphics* graphics)
+ {
+ 	if (getTexture() == nullptr)
+ 		return;
+ 
++#ifdef TARGET_PC
++	// Mareshine's water animation setting: 1 the sea stands still, 2 none
++	const int water = port_gfx_water_anim();
++	if (water >= 2)
++		return;
++	if (water == 1 && (cue & CUE_MOVE)) {
++		noWave();
++		updateTime();
++		cue &= ~CUE_MOVE;
++	}
++#endif
+ 	bool move = (cue & CUE_MOVE) != 0;
+ 	if (move)
+ 		movement();

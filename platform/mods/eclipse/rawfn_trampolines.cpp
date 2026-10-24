@@ -62,6 +62,7 @@
 #include <System/MSoundMainSide.hpp>
 #include <System/MarDirector.hpp>
 #include <System/MarioGamePad.hpp>
+#include <System/Resolution.hpp>
 #include <System/StageUtil.hpp>
 #include <THPPlayer/THPPlayer.h>
 
@@ -155,6 +156,11 @@ extern "C" intptr_t sms_rawfn_Retry()
 extern "C" double sms_rawfn_SMSGetAnmFrameRate__Fv()
 {
 	return (double)(SMSGetAnmFrameRate());
+}
+
+extern "C" intptr_t sms_rawfn_SMSGetGameRenderHeight__Fv()
+{
+	return rawfn_int([&]() -> decltype(SMSGetGameRenderHeight()) { return SMSGetGameRenderHeight(); });
 }
 
 extern "C" intptr_t sms_rawfn_SMSGetMessageData__FPvUl(void* p0, u32 p1)
@@ -318,6 +324,11 @@ extern "C" intptr_t sms_rawfn_isMarioClimb__16TCameraMarioDataCFUl(void* self, u
 	return rawfn_int([&]() -> decltype(((const TCameraMarioData*)self)->TCameraMarioData::isMarioClimb(p0)) { return ((const TCameraMarioData*)self)->TCameraMarioData::isMarioClimb(p0); });
 }
 
+extern "C" intptr_t sms_rawfn_isMarioIndoor__16TCameraMarioDataCFv(void* self)
+{
+	return rawfn_int([&]() -> decltype(((const TCameraMarioData*)self)->TCameraMarioData::isMarioIndoor()) { return ((const TCameraMarioData*)self)->TCameraMarioData::isMarioIndoor(); });
+}
+
 extern "C" intptr_t sms_rawfn_isNowCanTaken__8TBaseNPCCFv(void* self)
 {
 	return rawfn_int([&]() -> decltype(((const TBaseNPC*)self)->TBaseNPC::isNowCanTaken()) { return ((const TBaseNPC*)self)->TBaseNPC::isNowCanTaken(); });
@@ -421,6 +432,11 @@ extern "C" intptr_t sms_rawfn_setWaterCameraFir__12MSSeCallBackFb(int p0)
 extern "C" intptr_t sms_rawfn_startAppearBalloon__11TGCConsole2FUlb(void* self, u32 p0, int p1)
 {
 	return rawfn_int([&]() -> decltype(((TGCConsole2*)self)->TGCConsole2::startAppearBalloon(p0, (bool)p1)) { return ((TGCConsole2*)self)->TGCConsole2::startAppearBalloon(p0, (bool)p1); });
+}
+
+extern "C" intptr_t sms_rawfn_startAppearJetBalloon__11TGCConsole2Fii(void* self, int p0, int p1)
+{
+	return rawfn_int([&]() -> decltype(((TGCConsole2*)self)->TGCConsole2::startAppearJetBalloon(p0, p1)) { return ((TGCConsole2*)self)->TGCConsole2::startAppearJetBalloon(p0, p1); });
 }
 
 extern "C" intptr_t sms_rawfn_startAppearRedCoin__11TGCConsole2Fv(void* self)

@@ -1,21 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
-project(sms_android C CXX)
+project(mareshine_native C CXX)
 
-set(SMS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../..")
-get_filename_component(SMS_ROOT "${SMS_ROOT}" ABSOLUTE)
-
-# Build SDL2 from bundled source
-set(SDL_SHARED ON CACHE BOOL "" FORCE)
-set(SDL_STATIC OFF CACHE BOOL "" FORCE)
-set(SDL_TEST OFF CACHE BOOL "" FORCE)
-add_subdirectory("${SMS_ROOT}/third_party/SDL2-android" SDL2)
-
-set(SMS_GLES ON CACHE BOOL "" FORCE)
-set(SMS_ARCH "64" CACHE STRING "" FORCE)
-
-# Point to real python executable for code generator scripts
-if(EXISTS "C:/Users/migue/AppData/Local/Programs/Python/Python313/python.exe")
-  set(Python3_EXECUTABLE "C:/Users/migue/AppData/Local/Programs/Python/Python313/python.exe" CACHE FILEPATH "" FORCE)
-endif()
-
+# The game (libsms.so), its loader (libsmsbootstrap.so) and SDL2 come from the
+# repository's own CMakeLists.txt, as chasem-dev/sms-pc-port builds them for
+# Android (docs/ANDROID.md); SDL's source is the 2.32.10 release in build/deps.
+get_filename_component(SMS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.." ABSOLUTE)
+set(SMS_GX_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SMS_SDL2_SOURCE "${SMS_ROOT}/build/deps/SDL2-2.32.10" CACHE PATH "" FORCE)
 add_subdirectory("${SMS_ROOT}" sms_core)

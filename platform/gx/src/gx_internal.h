@@ -16,6 +16,10 @@
 
 namespace gx {
 
+// Monotonic seconds. macOS's clock_gettime is slow (more so under Rosetta),
+// and the overlay's timers read the clock around every batch and primitive.
+double monoSeconds();
+
 // ---------------------------------------------------------------- registers
 enum : uint32_t {
     XF_MEM_WORDS   = 0x680,   // 0x000-0x67F: matrices, normal matrices, post matrices, lights
@@ -143,7 +147,8 @@ struct HostVertex {
 enum PrimClass { PRIM_TRIS, PRIM_LINES, PRIM_POINTS };
 
 // ---------------------------------------------------------------- renderer (gx_render.cpp)
-void rendererInit(int efbScale);
+void rendererInit(float efbScale);
+float efbScale();  // the internal resolution over the GameCube's
 void flushBatch();
 // adds a primitive; vertices already decoded
 // Packed vertex formats: a vertex holds only the attributes its GX vertex
@@ -199,16 +204,19 @@ void markXfMemDirty();
 uint32_t peekColor(int x, int y);  // A<<24|R<<16|G<<8|B
 uint32_t peekZ(int x, int y);      // 24-bit
 void pixMetricClear();
-void pixMetricFinish();
 uint32_t pixMetricRead();
+void pixMetricEnd();
 
 // ---------------------------------------------------------------- textures (gx_texture.cpp)
 struct TexKey;
 unsigned bindTextureMap(int map, float* outW, float* outH);  // returns GL name
-// The LOD bias of the sampler bindTextureMap last bound to `map`. GLES has no
-// sampler LOD bias, so its fragment shaders add it (u_lodbias).
-float textureLodBias(int map);
-float efbScale();  // the internal resolution over the GameCube's
+// HDR output (gx_hdr.cpp). Presenting draws into g_presentFbo: 0 (the window),
+// or, while HDR is on, the texture Direct3D turns into the HDR picture.
+extern unsigned g_presentFbo;
+bool hdrActive();
+bool hdrInit(void* window);  // the window's native handle (an HWND on Windows)
+bool hdrFrameBegin(int w, int h);
+void hdrFramePresent(int vsync);
 void textureInvalidateAll();
 void textureInvalidateRange(const void* p, uint32_t size);
 void textureShutdown();
@@ -219,20 +227,44 @@ void textureCpuWrote(const void* p, uint32_t size);
 uint32_t copyLayout(uint32_t copyFmt, bool z);
 uint32_t encodeTexture(const uint8_t* rgba, uint32_t fmt, uint32_t w, uint32_t h, uint8_t* dst);
 uint32_t texLevelBytes(uint32_t fmt, uint32_t w, uint32_t h);
+void decodeTexture(const uint8_t* src, uint32_t fmt, uint32_t w, uint32_t h, const uint8_t* tlut, uint32_t tlutFmt,
+                   uint8_t* out);
 // Texture packs (gx_hires.cpp)
 bool hiresEnabled();
 bool hiresLog();
 std::string hiresName(const uint8_t* data, uint32_t fmt, uint32_t w, uint32_t h, bool mipmapped, const uint8_t* tlut,
                       uint32_t tlutBytes, bool onlyIfPresent);
 unsigned hiresTexture(const std::string& name, int unit, uint32_t gxW, uint32_t gxH, int* scale);
+// The share of a decoded level's texels (RGBA8) at or above alpha 128.
+float alphaCoverage(const uint8_t* rgba, size_t texels);
+// Before a replacement is asked for: alphaCoverage of each of its original's
+// levels, level 0 first, which the levels made for it follow (completeChain).
+void hiresNoteOriginal(const std::string& name, std::vector<float> coverage);
 void hiresShutdown();
 const char* hiresDumpDir();  // SMS_TEXTURE_DUMP, or null
 void hiresDump(const std::string& name, const uint8_t* rgba, uint32_t w, uint32_t h);
-// An image file as RGBA8, top row first (the cutscene frame); false if unreadable.
-bool loadImageRgba(const char* path, std::vector<uint8_t>& rgba, int& w, int& h);
 void hiresEndFrame();  // once per display copy
+void hiresPreload();   // drain resource requests on the GL thread before gameplay
+void hiresPrefetchResource(const void* data, uint32_t size, const char* name);
 uint32_t hiresUploadedCount();
+// pendingCount: replacements still to read; completing: those whose missing
+// compressed levels are still being made.
+struct HiresStats { size_t residentBytes, decodedBytes, pendingCount; uint32_t uploaded; size_t completing; };
+HiresStats hiresStats();
+extern uint64_t g_statHiresBytes;  // texture pack bytes sent to GL
+// The folder for the port's caches (shader programs, texture levels):
+// $XDG_CACHE_HOME/sms-port, ~/Library/Caches/sms-port, %LOCALAPPDATA%\sms-port
+// (made if missing), or empty.
+std::string userCacheDir();
 uint64_t xxh64(const void* data, size_t len, uint64_t seed);
+// Block compression (gx_bcenc.cpp) for the mip levels a texture pack leaves
+// out: one 4x4 block of RGBA pixels, row by row, into 8 bytes (BC1) or 16.
+enum { BLOCK_BC1 = 1, BLOCK_BC2, BLOCK_BC3, BLOCK_BC7 };
+void encodeBlock(int format, const uint8_t* rgba, uint8_t* out);
+// Button prompts (gx_prompts.cpp): the 64x64 RGBA image of button glyph
+// (0 A, 1 B, 2 X, 3 Y, 4 Z, 5 L, 6 R, 7 C-stick) in the style shown now, with
+// that style's id in *style; null to keep the game's own picture.
+const uint8_t* promptImage(int glyph, int* style);
 
 // ---------------------------------------------------------------- shaders (gx_shader.cpp)
 // The uniform values a program was last given (uploadUniforms skips the ones
@@ -241,23 +273,43 @@ struct UniformCache {
     bool init;
     int tevreg[16], konst[16], alpharef[2];
     float texscale[16], texsize[16], fog[4], fogcolor[4], indmtx[24], efb[2], proj[8], vp[8], ambmat[16];
-    float lodbias[8], linewidth[1];
+    float linewidth[1];
 };
 struct ShaderProgram {
     unsigned prog;
     int id;  // creation order; SMS_GX_DUMP_SHADERS=dir writes dir/prog<id>.vs/.fs
     int uTevReg, uKonst, uTexScale, uAlphaRef, uFog, uFogColor, uIndMtx, uTexSize, uEfb,
-        uProj, uViewport, uAmbMat, uDstAlpha, uLodBias, uLineWidth;
+        uProj, uViewport, uAmbMat, uDstAlpha, uLineWidth;
     mutable UniformCache uc;
 };
-bool pixelMetricShader();
-bool pixelMetricCoverage();
+bool shaderHasEarlyFragmentTests();
+bool earlyZWritesRejected();
 // `lines`: the program for a line batch, which draws each line as a quad
-// GXSetLineWidth wide (a geometry shader, where there is one)
-const ShaderProgram* shaderForCurrentState(bool lines = false);
-void shaderInit();
+// GXSetLineWidth wide (a geometry shader); `metric`: Android's pixel-metric
+// variant, which counts into a storage buffer
+const ShaderProgram* shaderForCurrentState(bool depthOnly = false, bool lines = false, bool metric = false);
 void shaderPrepareStage(int stage);  // while a stage loads: its programs (the warm-up)
-void shaderShutdown();
+
+// ---------------------------------------------------------------- overlay panels
+// Each slot keeps its own texture, so panels drawn in the same frame keep their
+// cached bitmaps. GXPC_DrawOverlay draws the debug overlay's slot.
+enum OverlaySlot {
+    OVERLAY_DEBUG,
+    OVERLAY_CHEAT_MENU,
+    OVERLAY_WARP_MENU,
+    OVERLAY_STATE_MENU,
+    OVERLAY_STATE_TOAST,
+    OVERLAY_SLOTS
+};
+void drawOverlayPanel(OverlaySlot slot, const uint8_t* rgba, int w, int h, int x, int y, int scale, int winW, int winH);
+// SMS_WINDOW_SHOTS: the window as shown, menus included, at GX frame `frame` (GL thread, before the swap).
+void captureWindow(uint32_t frame, int w, int h);
+// Panel bitmaps (gx_overlay.cpp): RGBA8, w x h, row 0 at the top. Text shares
+// one scratch buffer, so panels are rasterised on the GL thread only.
+void overlayFillRect(std::vector<uint8_t>& px, int w, int h, int x0, int y0, int x1, int y1, const uint8_t c[4]);
+// stb_easy_font with its top-left at (x, y), each font pixel scale x scale.
+void overlayText(std::vector<uint8_t>& px, int w, int h, int x, int y, const char* text, const uint8_t c[4], int scale = 1);
+int overlayTextWidth(const char* text);  // in font pixels
 
 // ---------------------------------------------------------------- util
 uint64_t hashBytes(const void* data, size_t n, uint64_t seed = 0);

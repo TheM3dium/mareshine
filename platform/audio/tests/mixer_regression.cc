@@ -197,42 +197,6 @@ int main()
 		assert(++frames <= 16);
 	} while (!get<uint16_t>(voices, 2));
 	assert(get<uint16_t>(voices, 0xA) == 0); // stopped, not run out
-	// Music and SFX volume (dsp_mixer.h): the class byte at 0x006 picks the gain that scales a
-	// voice's samples before its sends; a class at 100 percent leaves them alone.
-	port_dspmix_set_class_percent(PORT_DSPMIX_CLASS_MUSIC, 50);
-	reset();
-	voice(false);
-	render(); // the music gain ramps down in this subframe; this voice is SFX (byte 0)
-	for (int i = 0; i < 80; i++)
-		assert(left[i] == 16383);
-	reset();
-	voice(false);
-	put<uint8_t>(voices, 6, PORT_DSPMIX_CLASS_MUSIC);
-	render(); // steady at 50 percent: 16383 * 0.5, rounded down
-	for (int i = 0; i < 80; i++)
-		assert(left[i] == 8191 && right[i] == 0);
-	port_dspmix_set_class_percent(PORT_DSPMIX_CLASS_MUSIC, 100);
-	reset();
-	voice(false);
-	put<uint8_t>(voices, 6, PORT_DSPMIX_CLASS_MUSIC);
-	render(); // a change ramps up within the subframe, with no step at its start
-	assert(left[0] > 8191 && left[0] < left[1] && left[78] < left[79] && left[79] == 16383);
-	port_dspmix_set_class_percent(PORT_DSPMIX_CLASS_SFX, 0);
-	reset();
-	voice(false);
-	render();
-	render(); // SFX at 0 percent: silent after the ramp
-	for (int i = 0; i < 80; i++)
-		assert(left[i] == 0 && right[i] == 0);
-	reset();
-	voice(false);
-	put<uint8_t>(voices, 6, PORT_DSPMIX_CLASS_MUSIC);
-	render(); // the music voice is untouched by the SFX setting
-	assert(left[79] == 16383);
-	assert(port_dspmix_class_percent(PORT_DSPMIX_CLASS_SFX) == 0 && port_dspmix_class_gain(PORT_DSPMIX_CLASS_SFX) == 0);
-	assert(port_dspmix_class_gain(PORT_DSPMIX_CLASS_MUSIC) == 32768);
-	port_dspmix_set_class_percent(PORT_DSPMIX_CLASS_SFX, 250); // clamped
-	assert(port_dspmix_class_percent(PORT_DSPMIX_CLASS_SFX) == 100);
 	puts("PASS: Q15 returns, filter modes/history, RAM clears, cross-bus feedback, "
-	     "Q16 footstep sends, unchanged dry levels, smooth release and silence, oscillators, music/SFX class gains");
+	     "Q16 footstep sends, unchanged dry levels, smooth release and silence, oscillators");
 }

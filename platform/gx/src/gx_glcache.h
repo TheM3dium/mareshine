@@ -22,7 +22,7 @@ namespace gx {
 struct GlCache {
     GLuint fbo, prog;
     GLint vp[4], sc[4];
-    int scissor, cull, depth, blend, logic, clip0, clip1;
+    int scissor, cull, depth, blend, logic, clip0, clip1, depthClamp;
     GLenum frontFace, cullFace, depthFunc, logicOp;
     GLenum beq[2], bf[4];
     GLboolean depthMask, cmask[4];
@@ -39,9 +39,6 @@ void glcForgetTexture(GLuint tex);  // a texture name was deleted
 inline void glcCap(GLenum cap, int& shadow, bool on) {
     if (shadow == int(on)) return;
     shadow = on;
-#ifdef SMS_GLES
-    if (cap == GL_COLOR_LOGIC_OP || cap == GL_CLIP_DISTANCE0 || cap == GL_CLIP_DISTANCE1) return;
-#endif
     if (on) glEnable(cap);
     else glDisable(cap);
 }

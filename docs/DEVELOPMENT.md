@@ -26,6 +26,12 @@ How the port is put together and where changes go. To build and play, see the [R
 - `-DSMS_ARCH=32` compiles with `-m32` (Linux: `gcc-multilib g++-multilib`; Windows: MINGW32).
   `-DSMS_ARCH=64` is a native 64-bit build that keeps game memory, static data and thread stacks below 4 GiB ([64-BIT.md](64-BIT.md)); it is what macOS builds.
 - Default build type `RelWithDebInfo` = `-O2 -g` for all targets (the fall-off-the-end functions got explicit returns, `ret-*` patches).
+- `SMS_COMPILER_CACHE=/absolute/path/to/sccache` (or `-DSMS_COMPILER_CACHE=...`)
+  enables compiler caching without changing the selected compiler or build flags.
+  Windows CI uses sccache's GitHub Actions backend and reports cache statistics.
+  The private 32-bit Windows cross compiler uses relative paths that both native
+  sccache and MSYS GCC can read; response-file compilations and paths on another
+  drive bypass caching. Link commands keep their existing path conversion.
 - The 32-bit Linux build compiles against the amd64 SDL2/EGL headers and links the i386 runtime libraries (`/usr/lib/i386-linux-gnu/libSDL2-2.0.so.0`, `libEGL.so.1`) directly, so no `:i386` `-dev` packages are needed.
 - The decomp keeps the game in `src/` and `include/`, and each library in `libs/<name>/src` and `libs/<name>/include` (`dolphin`, `JSystem`, `THPPlayer`, `PowerPC_EABI_Support`, `TRK_MINNOW_DOLPHIN`, `OdemuExi2`), as upstream `doldecomp/sms` does.
   The game sees the headers through the same roots in `configure.py`'s order (`include`, then each `libs/<name>/include`), except MSL's C and C++ headers: the port uses the host's.
@@ -48,6 +54,8 @@ How the port is put together and where changes go. To build and play, see the [R
 | `tools/bundle_disc.py` | packs the disc's files into `sms-standalone` (or `SMS.app`'s `disc.gcm`) |
 | `tools/make_mac_app.sh`, `tools/extract_icon.py` | assemble and sign `SMS.app`; the app / `.exe` icon from the disc's memory-card icon |
 | `tools/regress/regress.py [--record] CHECK...` | the regression checks (below): scripted headless runs hashed against `tools/regress/baseline.txt` and between the 32 and 64-bit builds |
+| `python3 tools/regress/popo.py --disc PATH` | Puffer launch, self-hit rejection and Petey impact at 30/60/120 fps in both word sizes; [fixture and findings](PUFFER-FRAMERATE.md) |
+| `python3 tools/regress/self_damage.py --disc PATH` | diagnostic stage samples that report self-directed damage and observed collision coverage; [scope and limitations](PUFFER-FRAMERATE.md#broader-self-collision-audit) |
 | `tools/run_capture.sh SECS FIELDS` | headless run + captures + retail comparison |
 | `tools/shots.py`, `tools/contact.py OUT.png FIELDS...` | convert captures to PNG in `build/shots/` and compare with retail; contact sheet of captures |
 | `tools/gdbrun.sh` | backtrace at the first fatal signal |
@@ -68,18 +76,43 @@ Tools that compare with retail read the Dolphin captures from `$DOLPHIN_ORACLE`.
   Patches name files by their path in the decomp, so a decomp change that moves files (as the upstream merge that moved the libraries to `libs/` did) needs their `--- a/`/`+++ b/` lines rewritten, and the include roots in `CMakeLists.txt` and the source roots in `tools/gen_sources.py` updated with it.
   The submodule is always pinned to an exact decomp commit.
 - **Regression checks:** `tools/regress/regress.py CHECK...` makes the scripted runs every port change is verified with, in both word sizes, and prints PASS or FAIL for each run against the baseline and for each pair of 32 and 64-bit runs, which must be identical.
-  These are the runs this page, [64-BIT.md](64-BIT.md) and [ECLIPSE.md](ECLIPSE.md) mean by the scripted title and plaza frames, the plaza audio, the 60 fps plaza gate run and the Eclipse runs.
-  The checks are `title` (captures at fields 300 to 1500), `plaza` (a new game into Delfino Plaza with `SMS_WARP=1,0,1` and scripted input, captures at fields 3700 to 5400, and the same run with audio, whose first 88 s of `SMS_AUDIO_WAV` are hashed), `fps60` (the plaza gate at `SMS_WARP=1,5,0` under gdb, `tools/regress/gate.py`: at `SMS_FRAME_RATE=60` Mario must be captured after 100 frames, with the `setNextStage` of the 30 fps run) and `eclipse` (BSE's first boot, whose saved card the others start from and whose card files are hashed too, the Tutorial, the Tutorial as Luigi and as Piantissimo under gdb (`tools/regress/character.py`, which also reports their movement parameters and jumps), and the Fire Petey and Dark Zhine warps `SMS_WARP=72,0` and `79,0`); `vanilla` is the first three and `all` everything, and `--list` names the single runs, which can be given on their own.
+  These are the runs this page, [64-BIT.md](64-BIT.md) and [ECLIPSE.md](ECLIPSE.md) mean by the scripted title and plaza frames, the plaza audio, the 30/60/120 fps plaza gate runs and the Eclipse runs.
+  The checks are `title` (captures at fields 300 to 1500), `plaza` (a new game into Delfino Plaza with `SMS_WARP=1,0,1` and scripted input, captures at fields 3700 to 5400, and the same run with audio, whose first 88 s of `SMS_AUDIO_WAV` are hashed), `fps60` (the plaza gate at `SMS_WARP=1,5,0` under gdb, `tools/regress/gate.py`: at `SMS_FRAME_RATE=60` Mario must be captured after 100 frames, with the `setNextStage` of the 30 fps run), `fps120` (the same gate check at 30, 60 and 120 fps; 120 captures Mario within one frame of the native elapsed time), and `eclipse` (BSE's first boot, whose saved card the others start from and whose card files are hashed too, the Tutorial, the Tutorial as Luigi and as Piantissimo under gdb (`tools/regress/character.py`, which also reports their movement parameters and jumps), and the Fire Petey and Dark Zhine warps `SMS_WARP=72,0` and `79,0`); `vanilla` combines `title`, `plaza` and `fps120` and `all` everything, and `--list` names the single runs, which can be given on their own.
   Every run uses the deterministic clock, no settings file, no texture packs and skipped movies, so two runs give the same bytes; only hashes are kept (`baseline.txt` records the commit each run was recorded from), and the captures are deleted unless `--keep` is given.
   Nothing is built: the tool runs `build/linux-32` and `build/linux-64`, and `build-ecl` and `build-ecl64` for Eclipse ([ECLIPSE.md](ECLIPSE.md#building-it)), so build them first, or name other folders with `--build32`, `--build64`, `--ecl32` and `--ecl64`.
   It takes the disc from `rom/` as `run.sh` does, else from `decomp/orig/GMSE01/` or a neighbouring `sms-english` clone's, or `--disc`, and the Eclipse disc from where `tools/mods/get.py` puts it.
   `all` takes about 23 minutes on four cores with llvmpipe, two runs at a time (`--jobs`).
   A change that is meant to change what the runs show is recorded with `--record` (which refuses when 32 and 64-bit differ) and the new `baseline.txt` committed with it, saying why the frames changed.
 
+The plaza interior regression is `python3 tools/regress/interiors.py --disc /path/to/GMSE01.iso`.
+It uses gdb to place Mario on the real doorway triangles, lets the game perform the warps, and checks two entries and exits each for the boathouse and lighthouse at 30 and 60 fps in both word sizes.
+It checks the active map model, Mario's height and the ground plane, so a return warp that strands Mario in the interior fails even before he walks off its floor.
+
+The Turbo Nozzle pickup reproducer is `tools/regress/nozzle.py`, run under gdb on regular Sunshine.
+It breaks an enabled nozzle box through its trample message, moves Mario into the released nozzle, and checks that Turbo is equipped, its stage unlock flag is set, and the Turbo save prompt opens during ten seconds of gameplay.
+It also runs the Turbo controller in the two affected ground/swim statuses with nonzero dash speed and checks that the former out-of-bounds target stays unchanged.
+Use a fresh temporary card directory; existing unlock flags deliberately fail the test.
+Set `SMS_WARP=2,7,1` for Bianco Hills or `3,7,1` for Ricco Harbor, and vary `SMS_FRAME_RATE` and the executable to check other frame rates and word sizes.
+The script reads the frame rate from the game and continues an already attached inferior, so it can also be used with a Windows GDB remote target.
+Windows needs an SDL window, Windows paths for the disc and save directory, and a debugger built for the Windows target ABI.
+
+```sh
+nozzle_save=$(mktemp -d)
+SMS_SAVE_DIR="$nozzle_save" SMS_SETTINGS=/dev/null SMS_TEXTURE_PACKS=0 \
+SMS_HEADLESS=1 SMS_AUDIO=0 SMS_SKIP_MOVIES=1 SMS_VI_DETERMINISTIC=1 \
+SMS_FRAME_RATE=60 SMS_WARP=2,7,1 \
+SMS_AUTOPRESS='START@1400,STICK_LEFT@2000,A@2400,STICK_LEFT@3100,A@3250,A@3450,A@3800' \
+gdb -q -batch -nx -ex 'set debuginfod enabled off' \
+    -ex 'handle SIG34 nostop noprint' -x tools/regress/nozzle.py \
+    --args build/linux-64/sms /path/to/GMSE01.iso
+```
+
 ## Platform layer
+
 
 | Module | What it does |
 | --- | --- |
+| `platform/savestate/` | Save states ([SAVE-STATES.md](SAVE-STATES.md)): the state file and its compression (`state_file.cpp`, tested by `tests/`), saving and loading the game's memory, and the requests between the controls, the state menu the game draws in its pause menu (`src/savestate_menu.cpp`) and the game (patches `zzzz-savestate-*`); `platform/gx/src/gx_savestate_overlay.cpp` shows the saved/loaded messages and takes the pictures. |
 | `platform/sdk_stubs.cpp` | Generated: a weak, logging stub for all 321 SDK functions in `api-surface.tsv` that are not header inlines/macros; real implementations override them. |
 | `platform/port_runtime.cpp` | Boot: emulated MEM1 (24 MiB) mapped at `0x80000000`, game source selection, GLX vendor choice, crash handler. |
 | `platform/os/` | One emulated CPU: every `OSThread` is a host thread, only the CPU owner runs, strict priorities; message queues, mutexes, conds; interrupts delivered at OS-call check points and on idle; arena, clocks, OSAlloc, stopwatches, cache ops (→ `GXPC_InvalidateRange`). |
@@ -122,14 +155,20 @@ Each file in `decomp-patches/` starts with a `Reason:` line; they are applied in
 | 0021–0022 | Host integer types for clang (g++ `-fpermissive` only warns): `ARQCallback` takes `uintptr_t` like the callbacks passed to it (`JKRAramPiece::doneDMA`, JASystem's `aramDmaFinish`), and the four `fireStartDemoCamera` callbacks still spelled with `u32` take `uintptr_t` as `MarDirector.hpp` declares. |
 | `endian-01..16` | Loader-site byte-order fixes (JPA, J2D BLO, BMG, JUTColor, PRM, SPC, streams, DL vertex counts, sequences, card saves, THP headers, J3DSkinDeform/J3DCluster display lists, the plaza shine-shadow sphere, the HUD/map 2D archive swap); see `platform/endian/README.md`. |
 | `port-02` | `SMS_WARP` / `SMS_WARP_MOVIE`: debug warp or movie from a file-select load. |
+| `port-09` | Hides the small grey placeholder cubes in coro_ex0, the Bianco Hills secret course ("The Secret of the Dirty Lake"): `TMapModel::initJointModel` sets the skip flag on the map's `_o17` shape, found by its material and `B_CoronaEX0_1` texture names, so Super Mario Eclipse's copy of the course loses them too. |
+| `zzz-warp-01` | The warp menu (F8 or a controller's Back/Select with the debug overlay open, `platform/gx/src/gx_warp_menu.cpp`): `TApplication::gameLoop` lists every episode whose scene is on the disc, named from `stagename.bmg` and `scenarioname.bmg` as the pause menu names them (a code mod may name them its own way, `port_warp_scenario_name_id`), and starts the warp picked with `TMarDirector::setNextStage`. |
+| `zzz-presence-01` | `SMS_PRESENCE`: `TApplication::gameLoop` hands the area, episode, Shine and blue coin counts, lives and pause state to `platform/presence` once a frame, for the launcher's Discord Rich Presence. |
 | `audio-01..02` | JAudio bitfield/byte-order fixes (`TChannel` mix config, BMS note-on flags); see `platform/audio/README.md`. |
 | `ret-02..03` | Explicit returns for the 34 functions that fall off the end of a non-void body and whose value nothing reads (undefined behaviour under g++, harmless under MWCC). |
 | `thp-01..02` | Host THP decoder (portable bit reader and IDCT, big-endian audio header); see `platform/thp/README.md`. |
 | `endian-18` | `JSUInputStream`'s typed reads keep the value when a read fails at the end of the stream, as the console does, instead of byte-swapping it (see [Memory and undefined-behaviour checks](#memory-and-undefined-behaviour-checks)). |
+| `endian-19` | Bowser's bath water reads its height map from a Z24X8 EFB copy as big-endian u16 texels, as the console stores it; see `platform/endian/README.md`. |
 | `fpu-02..04` | MWCC's float-to-unsigned conversions at every site where the DOL makes them, with the runtime's result (`port_cvt_fp2unsigned` and `port_cvt_dbl_usll` in `port_fpu.h`: 0 below zero and for NaN, 0xFFFFFFFF from 2^32 up): the hit-check table index and the iris wipe's first row (`fpu-02..03`), and the 37 other source sites (`fpu-04`; `TMarDirector`'s wipe fade is in `framerate-35`). See [Float-to-integer conversions](#float-to-integer-conversions). |
 | `fpu-07` | `OSf32tos8` (`JASTrack`'s two calls) stores through GQR4 as the Gekko does, saturated to -128..127 and converted towards zero (`port_gekko_quantize` in `port_fpu.h`); the inline had no host body. See [64-BIT.md](64-BIT.md), item 18. |
-| `bounds-01..03` | Retail out-of-bounds accesses whose result depends on byte order or data layout, given the console's result: `TGCConsole2`'s unset pane index, the two 16-byte null textures read as 32, NPC colour indices past their tables. |
-| `uninit-01..03` | Retail reads of uninitialised stack values made deterministic: the stack light objects' direction, the logo wipe's pen vector z, the plaza tightrope colour. |
+| `bounds-01..04` | Retail out-of-bounds accesses whose result depends on byte order or data layout, given the console's result: `TGCConsole2`'s unset pane index, the two 16-byte null textures read as 32, NPC colour indices past their tables, an archive root's `..` (`JKRArchive` lookups find nothing, as the console's reading of the bytes before the directory table does). |
+| `bounds-07` | The event watcher's `*4LiveActor` commands set or read `TLiveActor` fields only on real `TLiveActor`s: Super Mario Eclipse's Red Lily switch script names map statics, and the live-flag write past them hit the next object's model pointer. |
+| `perf-01` | The wipe that opens and closes the map (`Hx_Test5`) copied the frame in 64x64 cells, about 80 EFB copies a frame, each a render-pass switch and a write-back on the PC; it copies all its cells at once and draws each cell's fan from its part of that copy, the same picture (at 4:3, within a level of rounding; in widescreen the cells no longer round their stretched edges one by one). |
+| `uninit-01..03`, `uninit-05` | Retail reads of uninitialised stack values made deterministic: the stack light objects' direction, the logo wipe's pen vector z, the plaza tightrope colour, the split Phantamanta's heading. |
 
 ## Memory and undefined-behaviour checks
 
@@ -156,6 +195,7 @@ Last audit 2026-09-30, on the scripted title and plaza runs (no stage sweep).
   - Scene data can give an NPC a body or cloth colour index past the end of its `NpcInitData` table, and `SMS_InitChangeNpcColor` reads the entry regardless: the console reads the next bytes of that file's `.rodata`, the port whatever its own layout puts there, which differs between the word sizes.
     `SMSPortNpcColorEntry` returns retail's bytes for every such entry a scene uses (`bounds-03`): Super Mario Eclipse's Yoshi village Yoshis and other Piantas (see [ECLIPSE.md](ECLIPSE.md)), and Nintendo's `test11`, the only one on the retail disc.
   - `Hxs_PenDraw` normalises a vector with an unset z (`-2e-19` and similar in the 32-bit build, 0 in the 64-bit one); it is now 0 (`uninit-02`).
+  - `TBossMantaManager::spawn` adds a matrix's unset translation column to each new Phantamanta's heading. Retail reads a saved FPR (`f26`) that no game code on that call path writes. On macOS that stack slot held a NaN at the Phantamanta's first split in Sirena Beach, which sent the new mantas to NaN positions. `TMapCollisionData::checkGround` then turned those into `INT_MIN` grid indices and faulted on a 64-bit host. The translation is now zero, so the heading is the rotation alone (`uninit-05`).
 - **Real, left as they are** (the port reads what the console reads, or the value does not matter):
   - Uninitialised members read from never-written arena memory, 0 on both the console (MEM1 is zeroed at boot) and the port: `JUTGamePad::CRumble` reads the pad's port number before the constructor sets it; `MSModBgm::unk0`, `TOptionControl::mSelectedOption`, `TMario::mFreezeImmunityTimer`, `TSpcInterp`'s lock flag, `TConsoleStr::unk2A5`, `J3DMatPacket::mpShapePacket` and joints' scale flags that `J3DModel::calcNrmMtx` reads before anything computes them.
   - `TMarDirector::direct`'s movement-pass `JDrama::TGraphics` is never initialised, so `setViewport` tests garbage `field_rendering`; the draw pass sets the viewport again.
@@ -163,7 +203,7 @@ Last audit 2026-09-30, on the scripted title and plaza runs (no stage sweep).
   - `J2DPicture::insert` reads `unk104[i + 3]` and `J3DTevBlock4`'s display list reads `mTevKColorSel`/`mTevKAlphaSel` up to index 15 of 4-entry arrays: the neighbouring members, at the same offsets as on the console.
   - `JDrama` stores -1 in `VITVMode` as a sentinel; the `JPA`, camera and matrix code converts out-of-range floats to `s16`/`u8`/`u16`, which both MWCC (`fctiwz`, then a halfword or byte store) and g++ truncate to the low bits of the 32-bit result; `RumbleChannelMgr::start` and the `pointer-overflow` reports are pointer arithmetic that is never dereferenced.
 - **Benign reports**: UBSan's misaligned-access reports (JKR heaps align to 4, the host ABI wants 8 for classes with `double` or `long long`; x86 does not care), its downcast and member-call type reports on the decomp's approximate class hierarchies (`TBGCheckList` arrays that are never constructed, name-searched objects cast to the searched type), memcheck's reports inside Mesa, and `gx::resolveWriteBack` hashing game memory that holds struct padding copied from the DVD layer.
-- **Result**: the scripted title and plaza frames are unchanged against `3676789` and byte-identical between 32 and 64-bit (the tightropes and the iris ring are not in those frames), and the 60 fps plaza gate run still captures Mario after 100 frames with the same `setNextStage`.
+- **Result**: the scripted title and plaza frames are unchanged against `3676789` and byte-identical between 32 and 64-bit (the tightropes and the iris ring are not in those frames), and the 30/60/120 fps plaza gate runs still captures Mario after 100 frames with the same `setNextStage`.
 - **Not covered**: stale data in reused JKR heap blocks (memcheck would need the heaps' frees marked undefined), and anything past the plaza runs.
 
 ## Float-to-integer conversions
@@ -194,7 +234,7 @@ Audited 2026-09-30 from the DOL's disassembly (the decomp's `build/GMSE01/asm`),
   `GCConsole2`'s one `__cvt_sll_flt` (a signed 64-bit integer to float, rounded to double first) is the host's single rounding; the two differ only past 2^53.
   The `fctiwz` paths (`u8`, `u16`, signed types) match the console except from 2^31 up and +inf, where the console gives 0x7FFFFFFF and x86 0x80000000 (so `u8` 0xFF against 0); the port does not change them.
 - **Result.**
-  The scripted title and plaza frames are unchanged against `6fc6838` and byte-identical between 32 and 64-bit (the previous audit's UBSan run saw an out-of-range value at none of the `fpu-04` sites on these runs), and the 60 fps plaza gate run still captures Mario after 100 frames with the same `setNextStage` in both builds.
+  The scripted title and plaza frames are unchanged against `6fc6838` and byte-identical between 32 and 64-bit (the previous audit's UBSan run saw an out-of-range value at none of the `fpu-04` sites on these runs), and the 30/60/120 fps plaza gate runs still captures Mario after 100 frames with the same `setNextStage` in both builds.
   A 32-bit build with `-fsanitize=float-cast-overflow` (`-O1 -g1`, a separate build folder) reports no conversion to a 32 or 64-bit unsigned type on the same runs; its 25 remaining reports (the first at each source line) are `s16`, `u8` and `u16` conversions of values between -3150 and 48789, where the console and both builds keep the same low bits of the truncated `s32`.
 
 ## Environment variables
@@ -206,30 +246,37 @@ The everyday options are in the [README](../README.md#options); this is the full
 | `SMS_ARCH=32\|64` | which build `build.sh` and `run.sh` use (see [BUILD.md](../BUILD.md)) |
 | `SMS_DISC_IMAGE`, `SMS_DISC_ROOT` | game source (image file, or extracted `files/` folder); either, or a disc argument, overrides files bundled into the executable |
 | `SMS_SAVE_DIR` | memory card directory |
+| `SMS_SAVE_STATE_DIR` | save state directory (default: `savestates` beside the memory card directory; [SAVE-STATES.md](SAVE-STATES.md)) |
 | `SMS_HEADLESS=1` / `--headless` | no window (offscreen EGL; Linux only) |
 | `SMS_BINDINGS` | key bindings file (default `./bindings.txt`, then `../../bindings.txt` when started from `build/<os>-<arch>/`) |
 | `SMS_AUDIO=0` | no sound output; the game's audio (JAudio's thread and sequencer, the software DSP) still runs, paced as with no output device ([64-BIT.md](64-BIT.md), item 19) |
 | `SMS_NO_AUDIO=1` | run with an empty JAudio configuration and an idle AI DMA; THP movies stall (their video waits for audio), so combine with `SMS_SKIP_MOVIES=1` |
-| `SMS_SKIP_MOVIES=1` | report every THP movie as finished at once |
+| `SMS_SKIP_MOVIES=1` | skip cutscenes; keep the plaza portals' looping movies |
 | `SMS_WARP=stage,scenario[,shines]` | debugging: loading a file goes to that area instead (`1,0,1` is Delfino Plaza right after the airstrip), optionally with that Shine count |
+| `SMS_WARP_LIST=1` | print the warp menu's list (`area,episode` as `SMS_WARP` takes them, the stage, the episode and its scene) when the menu first opens |
 | `SMS_WARP_MOVIE=n` | debugging: loading a file plays streaming movie `n` (0–19, `TMovieDirector::getStreamMovieName`) |
 | `SMS_SHOTS=f,f,...`, `SMS_SHOT_DIR` | capture the XFB at these fields (retail numbering) as PPM; `tools/shots.py` converts them into `build/shots/` and compares with retail |
+| `SMS_WINDOW_SHOTS=n,n,...` | capture the window as shown, with the port's menus over the game, at these GX frames (`GXPC_FrameCount`) as `SMS_SHOT_DIR/window<n>.ppm` (needs a window, not `SMS_HEADLESS`) |
 | `SMS_AUTOPRESS=control@field[+hold],...` | scripted input (e.g. `start@1400+20,stick_left@3300+40,a@3500+30`); in a window it is injected as SDL key events, i.e. through the keyboard path |
 | `SMS_FIELD_CLOCK=retrace` | shots/autopress count VI retraces (wall clock) instead of game fields (2 per display copy, the default) |
 | `SMS_VI_DETERMINISTIC=1` | virtual VI/OS clock: retraces fire when the game idles (or spins on `OSGetTick` for a whole field), `OSGetTime` follows them from a fixed date, AI DMA is paced by retraces (no output device); two runs with the same input give identical frames |
 | `SMS_VI_HZ=<rate>` | retrace rate override (benchmarking) |
+| `SMS_PRESENT_HZ=<rate>` | each swap also waits for the next refresh of a display at that rate, as a compositor that forces vsync does (frame pacing tests) |
 | `SMS_VI_FIELD_BASE=<n>` | the retrace counter starts at `n` (retail spends about 240 fields in IPL/apploader/DOL load before the game's first frame; 240 puts the Nintendo logo on retail's field 300) and selects game-frame parity |
 | `SMS_DVD_BPS`, `SMS_DVD_SEEK_MS`, `SMS_DVD_LOG=1` | drive timing model (reads occupy the drive for bytes/rate + seek, counted in fields; off by default) and a per-read log |
 | `SMS_MOVIE`, `SMS_TRACE_OUT` | `.dtm` movie input and retail-format field traces (`platform/trace`) |
 | `SMS_MEM_MB`, `SMS_QUIET_STUBS=1` | emulated MEM1 size; silence first-call stub logs |
+| `SMS_PRESENCE=1` | print a `[presence] {...}` JSON line to stdout whenever the area, episode, Shine or blue coin count, lives, pause or demo state changes (`platform/presence`); SMS Launcher sets it and shows the line as Discord Rich Presence |
 | `SMS_OVERLAY=1` | open the debug overlay (frame rate and where the frame's time goes) at start |
 | `SMS_SETTINGS=file` | settings file to read instead of `settings.txt` (working directory, then `../../`); its names map to the variables in `kSettings` (`platform/port_runtime.cpp`), and any `SMS_*` name can be used as is |
-| `SMS_TEXTURE_PACKS`, `SMS_TEXTURE_PACK_MB`, `SMS_TEXTURE_PACK_LOG`, `SMS_TEXTURE_PACK_SYNC` | texture packs (see [mods/README.md](../mods/README.md)); `_SYNC=1` decodes on first use instead of on the worker thread, for repeatable captures |
+| `SMS_TEXTURE_PACKS`, `SMS_TEXTURE_PACK_MB`, `SMS_TEXTURE_PACK_LOG`, `SMS_TEXTURE_PACK_SYNC`, `SMS_TEXTURE_PACK_PRELOAD`, `SMS_TEXTURE_PACK_PENDING_MB`, `SMS_TEXTURE_PACK_UPLOAD_MB`, `SMS_TEXTURE_PACK_MAX_SIZE`, `SMS_TEXTURE_PACK_CACHE` | texture packs (see [mods/README.md](../mods/README.md)); preloading prepares loaded level resources before gameplay (`=all`: the whole pack, kept; `=0`: at first draw), `_PENDING_MB` bounds decoded backlog, `_UPLOAD_MB` the data sent to the GPU per frame, `_MAX_SIZE` the largest image held as RGBA (larger ones halved), `_CACHE` where made mip levels are kept, `_SYNC=1` restores first-use loading for repeatable captures |
+| `SMS_GX_SHADER_WARMUP`, `SMS_GX_SHADER_KEYS`, `SMS_GX_HITCH_MS` | the shader warm-up (`0` off), recording the program keys stages draw with, and logging slow frames with their causes (see [platform/gx/README.md](../platform/gx/README.md)) |
 | `SMS_GX_*` | graphics switches (`platform/gx/README.md`) |
 
 ## Progress log
 
 With the disc image, the 32-bit Linux build boots through the Nintendo logo, the Dolby screen, the opening THP movie and the title, creates a save file on the host memory card, shows file select, and on a scripted run (`SMS_AUTOPRESS=start@1400+20,a@3000+30,stick_left@3300+40,a@3500+30,stick_right@3700+60,a@3900+30`) walks Mario to block A, opens the file menu, starts a new game and plays the airstrip opening cutscene.
+Frames from that run are in [`shots/`](shots/) (`title-*`, `filesel-*`, `airstrip-*`, and `compare-*` next to retail).
 Since then the scripted plaza and beach reference runs have become the regression checks, and warps reach episode 0 of the airstrip and of each stage from Bianco Hills to Pianta Village; [64-BIT.md](64-BIT.md) records those runs.
 
 ## Performance
@@ -272,19 +319,77 @@ Measured headless on the 32-bit Linux build (Mesa llvmpipe software GL), 2026-09
   The GL state is shadowed and only changes are sent, samplers and uniforms are cached, each batch's vertices, indices and XF block go into one streamed buffer through one map, and the loader keeps packed per-format vertices and per-VAT readers.
   What is left on the game thread is mostly the game itself, the vertex loader and the EFB-copy write-back (`encodeTexture`, `hashBytes`); on llvmpipe the rest is rasterisation.
   The overlay's frame breakdown (README, "Frame rate") shows the same split on any machine.
+- **Delfino Plaza, 2026-10-09** (the heavy scripted plaza view at 120 fps, headless, i5-6600K + GTX 1060, 64-bit; `platform/gx/README.md`, "Performance"):
+
+  | | before | after |
+  | --- | --- | --- |
+  | game thread, 4:3 1x | 9.5 ms/frame | 3.6 ms/frame |
+  | game thread, 16:9 2x with 4x MSAA | 11.6 ms/frame | 4.0 ms/frame |
+  | game thread, 32-bit build, 4:3 1x | 13.1 ms/frame | 5.1 ms/frame |
+  | vertex loading | 2.4 ms/frame | 0.07 ms/frame |
+  | texture data hashed | 1,290 KiB/frame | 200 KiB/frame |
+  | `glMapBufferRange` + `glUnmapBuffer` | ~1,470/frame | ~8/frame |
+
+  Display lists are decoded once and drawn from a GPU buffer, sources are re-hashed only after a reported write (or every few frames), copy write-backs are encoded on the GPU, and the GL driver's work runs on a thread of its own.
+  The deterministic title, plaza, gate and Eclipse captures are unchanged on NVIDIA and llvmpipe, in a window and headless.
 - **Widescreen** (`SMS_WIDESCREEN`): the game camera is widened by a port patch and sms_gx maps each draw into the wider EFB (`drawXMap` in `gx_render.cpp`).
   The HUD stays 4:3 in the middle by default.
+  Full-screen overlays the game draws with a texture are stretched across the frame like the faders (`GXPC_SetStretch2D`): the blue wall screen `TMapDrawWall` shows while the camera is inside a wall (`widescreen-06`).
+  The faders' EFB copies (the wipes copy pieces of the frame, clear them and draw them back) take the scaled EFB columns their stretched quads cover, not whole widened pixels, so a cleared column isn't left showing past the quad (`copyEfb`).
   With `SMS_WIDESCREEN_HUD=edges` the gameplay HUD is anchored to the screen edges per piece, not per 2D batch (which pulls composite panes apart): `TGCConsole2::perform` marks its HUD drawing (`GXPC_SetHud`), and `J2DPane::draw` brackets each pane with its extent (`GXPC_HudPaneBegin`/`End`, patch `widescreen-03`).
+  The 2D particles the HUD emits at its panes (the coin counter's sparkle, the GO! trails) are drawn by the director's 2D emitter manager, which is drawn as HUD too, so each moves with the third of the screen it is in (`widescreen-04`).
   A piece is the outermost pane narrower than three quarters of the screen (the HUD's containers are 600 wide), and moves by which third of the 4:3 frame its centre is in; draws outside any piece (the water tank, drawn in 3D) move by their own extent.
-- **60 frames per second** (`SMS_FRAME_RATE=60`, patches `framerate-*`): while `TMarDirector` runs, the display waits one retrace per frame instead of two and `SMSGetVSyncTimesPerSec` reports 60 instead of 30.
-  The game is built for this: `TMarDirector::direct` runs the movement pass in ticks of 1/120 s (it adds `600 / SMSGetVSyncTimesPerSec()` per frame and spends 5 per tick: four ticks a frame at 30, two at 60), animations advance `SMSGetAnmFrameRate()` per frame, and `TEmitterViewObj` runs particles that many times per frame, so gameplay keeps its speed; at 60 every other frame matches the 30 fps frame at the same moment.
-  What counts rendered frames instead is fixed where it shows: the root fader takes the rate in force, and the stage-entry wipe keeps its one-second lead (`TConsoleStr::getWipeCloseTime`).
-  Gameplay state that an object steps on its calc-anim pass (`CUE_CALC_ANIM`, once per frame) runs twice as often per second at 60 while movement ticks keep their rate, so a balance between the two passes breaks: the plaza gates (`TModelGate`) open by gaining per movement tick and closing per calc pass, and at 60 an already-opened gate never reopened; `framerate-03` steps the gate's calc-pass state once per 1/30 s.
-  Two classes of step go wrong at 60: a per-frame step with an unscaled constant (a timer or amount stepped on the calc-anim pass, or on every `perform` call) runs twice as fast, and a per-tick step at `SMSGetAnmFrameRate() / 4` (one frame's animation spread over four ticks) runs at half speed, since that rate halves while the tick rate does not.
-  `framerate-04` to `framerate-15` fix the known instances by stepping the first once per 1/30 s and running the second at its 30 fps rate, each only while `port_fps60_active` is set.
-  `framerate-16` to `framerate-35` cover the rest of the calc-anim audit: purely visual steps (flocks, grass, flags, spins, blends, chases) take half a step at 60 so the motion stays smooth, while whole-number counters step once per 1/30 s.
-  Where a counted step emits a keep-alive particle (a type 1 or 3 request, which `TMarioParticleManager` kills on the first pass it is not repeated), the request is repeated on the next frame so the emitter lives its 30 fps time.
-  The menu auto-repeat (counted in pad reads, one per displayed frame) is recomputed from the rate in force when it changes, and `MSound::mainLoop` (JAI's frame work: fades, volume moves, sound lifetimes) runs every other frame at 60, so a sound length given in frames is in 30 fps frames.
-  The check is to run the same scripted input at 30 and at 60 and compare the frames captured at the same fields; random choices (particle scatter, idle NPCs) diverge, since the random numbers are drawn per frame.
+  The map screen (`TGuide`, patch `widescreen-05`) fills the wide frame, as the 16:9 map of later releases does, instead of a 4:3 sheet over the live game.
+  As `guide_1.blo` loads, the paper, the top and bottom bands and the grid rows run on to the screen edges, the vertical grid lines past the 4:3 frame are copies of the layout's first full-height line, and the drawings beside the island (palm trees, sunflowers, fish, compass, title, sun, Totals, ship and the two texts) move out by half the extra width on their side; the island, its places and the panels stay put, and the cursor reaches the new edges.
+  It draws through `GXPC_SetWide2D`: 2D at the 4:3 scale, centred, and past the 4:3 edges, with none of it stretched.
+- **30, 60 and 120 frames per second** (`SMS_FRAME_RATE`, patches `framerate-*`): 60 is the port default, 30 is native, and 120 is optional.
+  `port_active_frame_rate` is the gameplay rate while `TMarDirector` runs, and 30 for logos, menus and movies.
+  `SMSGetVSyncTimesPerSec` reports that rate, so animations and fades keep their real-time duration.
+  The VI timer runs at 59.94 Hz for 30/60 configurations and 119.88 Hz for 120; the display waits two/one retraces at 30/60 and four/one for menus/gameplay with 120 configured.
+  This clock is independent of monitor refresh rate.
+  Frames keep to a fixed schedule of retraces (`framerate-37`, `port_vi_frame_wait`): retail waits for one more retrace after a frame that ends past its own, which halves the game's speed wherever the host's present waits for the display (vsync, macOS, the Steam Deck's compositor), so a late frame starts the next at once instead, and one a whole frame behind is not presented (but one is at least every 0.05 s) when that lets the game keep time, i.e. presenting is slow (2 ms or more on average, `sms_gx`) and the frames' other work fits in their time, so a host too slow for the frame rate still shows every frame; a frame more than 0.1 s late starts a new schedule, and the deterministic clock keeps retail's wait.
+  `SMS_PRESENT_HZ=<rate>` makes each swap wait for a display at that rate, to try this without such a display.
+  Movement keeps its 120 Hz ticks: `TMarDirector::direct` adds `600 / SMSGetVSyncTimesPerSec()` per frame and spends 5 per tick (four, two or one ticks per frame).
+  A bird's flight, take-off and landing (`TAnimalBird`) run on every movement tick but scaled their speeds by `SMSGetAnmFrameRate()`, so birds flew at half speed at 60 and a quarter at 120; `framerate-44` uses its 30 fps value there.
+  The shared helpers in `src/port_include/port_framerate.h` scale visual steps by 30 / active rate, run native integer counters once per four movement ticks, and compensate tick animations by active rate / 30.
+  Exponential chases use square roots at 60 and fourth roots at 120 to preserve their decay per second.
+  `framerate-02` to `framerate-35` apply those helpers to wipes, gates, timers, flocks, effects, movement animations and sound.
+  Keep-alive ripple and smoke requests repeat across all intervening displayed frames, preserving their 1/30 s lifetime.
+  Menu button repeats are recomputed when entering or leaving gameplay; JAI sound frame work runs once per two frames at 60 or four at 120.
+  A held sound effect (one the game requests every frame to keep playing, such as the Rocket and Turbo charge sound) is requested again on the frames in between; `framerate-38` keeps it playing where retail would restart it, which also stops the restarts' track interrupts from requeueing an SE port command and dropping the BGM volume updates queued after it (Shadow Mario's distance fade).
+  JPA particles use whole 1/60 s steps; `framerate-36` runs their simulation on alternate frames at 120 while drawing every frame, avoiding truncation of the 0.5 animation rate to zero.
+  `framerate-40` scales custom display-frame animation rates for Petey, Mecha Bowser, Hinokuri, Blooper, Wiggler and actor scripts; see [the animation timing audit](ANIMATION-TIMING.md) for the update-clock distinction and gameplay checks.
+  A nerve that ends with its animation hands over to the next nerve one movement tick later, and the next nerve changes the animation. At 30 fps that happens before the animation pass. At 120 the pass would see the finished looping animation wrap to frame 0 first and replay its frame 0 animation sound (the gatekeeper's hit voice, again when its damage animation ends). `framerate-41` holds an actor's animation sound back at 60/120 while its spine is between nerves.
+  Hit checks run on one movement tick in four, once a frame at 30 fps but every other or every fourth frame at 60/120, so a contact attack that tests its animation's next step (a Blooper's punch, `checkPass(10)`) saw only part of the animation between two checks; `framerate-43` tests the whole native step there.
+  VI captures, scripted input, deterministic audio DMA, tracing, virtual OS time and optional DVD timing retain native time units when the retrace rate doubles.
+  `tools/framerate/check.sh` checks configuration and equal elapsed-time movement, integer counts and visual chases in both word sizes without requiring a GPU or high-refresh monitor.
+  `tools/regress/regress.py fps120` checks the plaza gate at all three rates against its baseline and between word sizes.
+  Retail capture/audio baselines explicitly use 30 fps; random choices can diverge at higher rates because random numbers are drawn per frame.
 - **Software GL.**
   The 32-bit Linux build without the GPU driver's `:i386` libraries renders with llvmpipe and cannot hold 30 fps in the plaza; the port logs a warning and the overlay says so.
+
+## Crash diagnostics
+
+The launcher captures stdout and stderr separately, keeps a full session log on disk, and reports a game's actual exit code or signal. Windows game executables run directly rather than through MSYS bash, which can translate native exception statuses to 127. Ordinary resource warnings and stage context are never used as a game crash explanation.
+
+The port installs crash reporting before boot and before switching onto its low stack. Every report is written to stderr without allocating or taking a lock the crashed thread may hold, the most important lines first, and has the same sections on every platform:
+
+- **What happened:** the signal and its code (Linux, macOS) or the Windows exception code, the faulting and instruction addresses, the thread, and the module and offset of the instruction.
+- **The fault address explained:** in the null page (a null pointer plus an offset), in emulated MEM1 with its GameCube address, a GameCube address past the end of MEM1, a MEM1 address with its upper 32 bits set (a pointer stored in a `u32`), or the module it falls in. Linux adds the `/proc/self/maps` lines of the fault address and the instruction (the mapping and its permissions).
+- **Registers:** every general register (x86-64, x86, arm64), and whether the fault was a read, a write or an instruction fetch, from the page-fault error code (x86), the ESR (macOS arm64) or the access-violation parameters (Windows).
+- **Backtrace:** raw frames, then the executable's frames symbolised to function, file and line, inlined calls included: `addr2line` on Linux and Windows (MSYS2's, found on `PATH`, or `SMS_ADDR2LINE`), `atos` on macOS. On Windows it runs from a thread made at start-up, and the report goes on after 10 s if it cannot finish (a crash holding the heap or loader lock).
+- **Memory:** the instruction bytes around the faulting instruction (` | ` before it) and the top 24 words of the stack.
+- **Game context:** every emulated `OSThread` (priority, state, entry function, the one owning the emulated CPU), the last eight disc files the game asked for (which show the stage being loaded), the build (compiler, architecture, Eclipse), the system (OS version, Wine if present, processors), the executable, and how long the game had run.
+
+On Linux and macOS, game threads get an alternate signal stack, so stack exhaustion can still produce a report. A fault while reporting ends the process with the original signal; a second thread crashing meanwhile waits for the first report. Linux retains signal termination; macOS keeps the existing `128 + signal` exit to avoid the Rosetta termination hang.
+
+Windows uses a vectored exception logger, which runs before the stack is unwound. It reports every error-severity exception (`0xC…`: hardware faults, heap corruption, and unwinding failures such as `0xC00000FF` `STATUS_BAD_FUNCTION_TABLE`) and C++ throws, each with a budget so exceptions a driver raises and handles itself cannot flood the log. An exception raised while another was being handled names the one it interrupted. On 64-bit Windows the backtrace unwinds with the modules' own unwind data (frame pointers do not chain there) inside the thread's stack bounds; it stops rather than guesses at a frame without unwind data, and on a game thread it ends at the entry to the low stack (`port_win64_stack_call`'s thunk). 32-bit follows the `ebp` chain. To resolve a frame by hand, run `addr2line -f -C -e <exe>` on the executable's image base (`objdump -p <exe> | grep ImageBase`) plus the printed offset. `abort()` gets the same report from the `SIGABRT` handler. A last-chance filter adds `unhandled exception …: the process ends` when nothing handled an exception; on a 64-bit game thread dispatch cannot walk past the low-stack thunk to reach it, so its absence after a game-thread report does not mean the exception was handled. The logger returns `EXCEPTION_CONTINUE_SEARCH` and does not turn hardware exceptions into CRT signals, preserving their exit statuses. A first-chance report can be followed by successful handling; it is not proof of a fatal crash. Fast-fail and some heap-corruption termination paths can bypass in-process handlers, so the direct process exit code and Windows Event Viewer remain useful. Fully exhausted custom Windows stacks may also prevent an in-process report.
+
+ROM-free Linux verification uses a configured game build's compilation settings and deliberate access violations, aborts, worker-thread faults and stack exhaustion:
+
+```sh
+python3 tools/test_crash_logging.py --build-directory build/linux-64 --arch 64
+python3 tools/test_crash_logging.py --build-directory build/linux-32 --arch 32
+```
+
+For native Windows verification, compile `platform/os/tests/crash_probe.cpp` with `platform/os/windows_crash.cpp`, `platform/os/crash_info.cpp`, the `src/` include directory, and (for 64-bit) `platform/os/windows_stack.cpp`. Then run `python tools/test_crash_logging.py PATH_TO_PROBE.exe --arch 64` or `--arch 32` from native Python. The 64-bit probe includes a fault on the custom low stack. The unwind probe raises `0xC00000FF` to check the logger reports unwinding failures. The report probe checks the `abort()` report without ending the process. The probe also builds with MinGW on Linux and runs under Wine (with MSYS2's `addr2line.exe` on `WINEPATH` for symbols). The heap probe explicitly raises that status to test the logger; it does not guarantee the logger sees real heap corruption or fast-fail.

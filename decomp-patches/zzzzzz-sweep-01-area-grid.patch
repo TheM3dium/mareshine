@@ -1,8 +1,8 @@
 Reason: port: SMS_SWEEP walks areas on a grid for crashes, hangs, slow places and graphics errors (debugging aid, off unless set)
 --- a/src/System/Application.cpp
 +++ b/src/System/Application.cpp
-@@ -1181,6 +1181,491 @@
- extern "C" void port_ach_game_frame(void);
+@@ -1297,6 +1297,491 @@
+ extern "C" __attribute__((weak)) void port_ach_game_frame(void); // Android only
  #endif
  
 +#ifdef TARGET_PC
@@ -493,11 +493,11 @@ Reason: port: SMS_SWEEP walks areas on a grid for crashes, hangs, slow places an
  // TODO: frame 0x50 short (0x70 before the display's video was read through
  // getVideo()): retail's low region runs to 0xac (the TRect temp) where ours
  // ended at 0x38, i.e. inline temporaries from an expansion this body lacks;
-@@ -1191,6 +1676,7 @@
+@@ -1307,6 +1792,7 @@
  	while (nextState <= APP_STATE_DEFAULT) {
  #ifdef TARGET_PC
  		ApplicationSaveStateFrame(this);
 +		ApplicationSweepFrame(this);
- 		port_ach_game_frame();
+ 		if (port_ach_game_frame)
+ 			port_ach_game_frame();
  #endif
- 		mDisplay->startRendering();

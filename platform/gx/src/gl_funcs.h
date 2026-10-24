@@ -1,134 +1,9 @@
-// Minimal OpenGL 3.3 core / OpenGL ES 3.0 loader: every entry point used by
-// the backend is fetched through the host's get-proc function
-// (SDL_GL_GetProcAddress, eglGetProcAddress, ...), so the library links against
-// no GL library itself.
+// Minimal OpenGL 3.3 core loader: every entry point used by the backend is
+// fetched through the host's get-proc function (SDL_GL_GetProcAddress,
+// eglGetProcAddress, ...), so the library links against no GL library itself.
 #ifndef SMS_GX_GL_FUNCS_H
 #define SMS_GX_GL_FUNCS_H
 
-#ifdef SMS_GLES
-#include <GLES3/gl3.h>
-#include <GLES2/gl2ext.h>
-
-#ifndef GL_DOUBLE
-#define GL_DOUBLE 0x140A
-#endif
-#ifndef GL_COLOR_LOGIC_OP
-#define GL_COLOR_LOGIC_OP 0x0BF2
-#endif
-#ifndef GL_CLIP_DISTANCE0
-#define GL_CLIP_DISTANCE0 0x3000
-#define GL_CLIP_DISTANCE1 0x3001
-#endif
-#ifndef GL_SAMPLES_PASSED
-#define GL_SAMPLES_PASSED GL_ANY_SAMPLES_PASSED
-#endif
-#ifndef GL_TEXTURE_LOD_BIAS
-#define GL_TEXTURE_LOD_BIAS 0x8501
-#endif
-#ifndef GL_CLEAR
-#define GL_CLEAR                          0x1500
-#define GL_AND                            0x1501
-#define GL_AND_REVERSE                    0x1502
-#define GL_COPY                           0x1503
-#define GL_AND_INVERTED                   0x1504
-#define GL_NOOP                           0x1505
-#define GL_XOR                            0x1506
-#define GL_OR                             0x1507
-#define GL_NOR                            0x1508
-#define GL_EQUIV                          0x1509
-#define GL_INVERT                         0x150A
-#define GL_OR_REVERSE                     0x150B
-#define GL_COPY_INVERTED                  0x150C
-#define GL_OR_INVERTED                    0x150D
-#define GL_NAND                           0x150E
-#define GL_SET                            0x150F
-#endif
-
-typedef void (*PFNGLDRAWELEMENTSBASEVERTEXPROC)(GLenum mode, GLsizei count, GLenum type, const void *indices, GLint basevertex);
-#ifndef GL_PROGRAM_BINARY_LENGTH
-#define GL_PROGRAM_BINARY_LENGTH 0x8741
-#endif
-#ifndef GL_NUM_PROGRAM_BINARY_FORMATS
-#define GL_NUM_PROGRAM_BINARY_FORMATS 0x87FE
-#endif
-typedef void (*PFNGLGETPROGRAMBINARYPROC)(GLuint program, GLsizei bufSize, GLsizei *length, GLenum *binaryFormat, void *binary);
-typedef void (*PFNGLPROGRAMBINARYPROC)(GLuint program, GLenum binaryFormat, const void *binary, GLsizei length);
-
-inline void gx_glPointSize(GLfloat) {}
-inline void gx_glLogicOp(GLenum) {}
-inline void gx_glBindFragDataLocation(GLuint, GLuint, const GLchar*) {}
-
-#define SMS_GX_GL_FUNCS(X)                                                         \
-    X(PFNGLGETERRORPROC, glGetError) X(PFNGLGETSTRINGPROC, glGetString)             \
-    X(PFNGLGETINTEGERVPROC, glGetIntegerv) X(PFNGLENABLEPROC, glEnable)             \
-    X(PFNGLDISABLEPROC, glDisable) X(PFNGLVIEWPORTPROC, glViewport)                 \
-    X(PFNGLSCISSORPROC, glScissor) X(PFNGLBLENDFUNCSEPARATEPROC, glBlendFuncSeparate) \
-    X(PFNGLBLENDEQUATIONSEPARATEPROC, glBlendEquationSeparate)                      \
-    X(PFNGLBLENDCOLORPROC, glBlendColor)                                            \
-    X(PFNGLDEPTHFUNCPROC, glDepthFunc) X(PFNGLDEPTHMASKPROC, glDepthMask)           \
-    X(PFNGLCOLORMASKPROC, glColorMask) X(PFNGLCULLFACEPROC, glCullFace)             \
-    X(PFNGLFRONTFACEPROC, glFrontFace) X(PFNGLCLEARCOLORPROC, glClearColor)         \
-    X(PFNGLCLEARDEPTHFPROC, glClearDepthf) X(PFNGLCLEARPROC, glClear)               \
-    X(PFNGLDEPTHRANGEFPROC, glDepthRangef) X(PFNGLLINEWIDTHPROC, glLineWidth)       \
-    X(PFNGLFINISHPROC, glFinish)                                                    \
-    X(PFNGLGENBUFFERSPROC, glGenBuffers) X(PFNGLBINDBUFFERPROC, glBindBuffer)       \
-    X(PFNGLBUFFERDATAPROC, glBufferData) X(PFNGLBUFFERSUBDATAPROC, glBufferSubData) \
-    X(PFNGLBINDBUFFERBASEPROC, glBindBufferBase)                                    \
-    X(PFNGLGENVERTEXARRAYSPROC, glGenVertexArrays)                                  \
-    X(PFNGLBINDVERTEXARRAYPROC, glBindVertexArray)                                  \
-    X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer)                          \
-    X(PFNGLVERTEXATTRIBIPOINTERPROC, glVertexAttribIPointer)                        \
-    X(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray)                  \
-    X(PFNGLDRAWELEMENTSPROC, glDrawElements) X(PFNGLDRAWARRAYSPROC, glDrawArrays)   \
-    X(PFNGLCREATESHADERPROC, glCreateShader) X(PFNGLSHADERSOURCEPROC, glShaderSource) \
-    X(PFNGLCOMPILESHADERPROC, glCompileShader) X(PFNGLGETSHADERIVPROC, glGetShaderiv) \
-    X(PFNGLGETSHADERINFOLOGPROC, glGetShaderInfoLog)                                \
-    X(PFNGLDELETESHADERPROC, glDeleteShader) X(PFNGLCREATEPROGRAMPROC, glCreateProgram) \
-    X(PFNGLATTACHSHADERPROC, glAttachShader) X(PFNGLLINKPROGRAMPROC, glLinkProgram) \
-    X(PFNGLGETPROGRAMIVPROC, glGetProgramiv)                                        \
-    X(PFNGLGETPROGRAMINFOLOGPROC, glGetProgramInfoLog)                              \
-    X(PFNGLUSEPROGRAMPROC, glUseProgram) X(PFNGLDELETEPROGRAMPROC, glDeleteProgram) \
-    X(PFNGLBINDATTRIBLOCATIONPROC, glBindAttribLocation)                            \
-    X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation)                            \
-    X(PFNGLGETUNIFORMBLOCKINDEXPROC, glGetUniformBlockIndex)                        \
-    X(PFNGLUNIFORMBLOCKBINDINGPROC, glUniformBlockBinding)                          \
-    X(PFNGLUNIFORM1IPROC, glUniform1i) X(PFNGLUNIFORM1IVPROC, glUniform1iv)         \
-    X(PFNGLUNIFORM4IVPROC, glUniform4iv) X(PFNGLUNIFORM2IVPROC, glUniform2iv) X(PFNGLUNIFORM2FVPROC, glUniform2fv)       \
-    X(PFNGLUNIFORM4FVPROC, glUniform4fv) X(PFNGLUNIFORM1FVPROC, glUniform1fv)       \
-    X(PFNGLGENTEXTURESPROC, glGenTextures) X(PFNGLDELETETEXTURESPROC, glDeleteTextures) \
-    X(PFNGLBINDTEXTUREPROC, glBindTexture) X(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
-    X(PFNGLTEXIMAGE2DPROC, glTexImage2D) X(PFNGLTEXSUBIMAGE2DPROC, glTexSubImage2D) \
-    X(PFNGLTEXPARAMETERIPROC, glTexParameteri) X(PFNGLTEXPARAMETERFPROC, glTexParameterf) \
-    X(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers)                                  \
-    X(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer)                                  \
-    X(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D)                        \
-    X(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus)                    \
-    X(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers)                            \
-    X(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer) X(PFNGLREADPIXELSPROC, glReadPixels) \
-    X(PFNGLPIXELSTOREIPROC, glPixelStorei)                                          \
-    X(PFNGLGENQUERIESPROC, glGenQueries) X(PFNGLBEGINQUERYPROC, glBeginQuery)       \
-    X(PFNGLENDQUERYPROC, glEndQuery) X(PFNGLGETQUERYOBJECTUIVPROC, glGetQueryObjectuiv) \
-    X(PFNGLDELETEQUERIESPROC, glDeleteQueries) X(PFNGLDELETEBUFFERSPROC, glDeleteBuffers) \
-    X(PFNGLMAPBUFFERRANGEPROC, glMapBufferRange) X(PFNGLUNMAPBUFFERPROC, glUnmapBuffer) \
-    X(PFNGLFENCESYNCPROC, glFenceSync) X(PFNGLCLIENTWAITSYNCPROC, glClientWaitSync) X(PFNGLDELETESYNCPROC, glDeleteSync) \
-    X(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers) X(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer) \
-    X(PFNGLRENDERBUFFERSTORAGEPROC, glRenderbufferStorage)                          \
-    X(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer)                  \
-    X(PFNGLGENSAMPLERSPROC, glGenSamplers) X(PFNGLBINDSAMPLERPROC, glBindSampler)   \
-    X(PFNGLSAMPLERPARAMETERIPROC, glSamplerParameteri)                              \
-    X(PFNGLSAMPLERPARAMETERFPROC, glSamplerParameterf)                              \
-    X(PFNGLDELETESAMPLERSPROC, glDeleteSamplers)                                    \
-    X(PFNGLBINDBUFFERRANGEPROC, glBindBufferRange)                                  \
-    X(PFNGLVERTEXATTRIB4FPROC, glVertexAttrib4f)                                    \
-    X(PFNGLVERTEXATTRIBI4UIPROC, glVertexAttribI4ui)                                \
-    X(PFNGLDISABLEVERTEXATTRIBARRAYPROC, glDisableVertexAttribArray)                \
-    X(PFNGLGENERATEMIPMAPPROC, glGenerateMipmap)                                    \
-    X(PFNGLCOMPRESSEDTEXIMAGE2DPROC, glCompressedTexImage2D)                        \
-    X(PFNGLGETSTRINGIPROC, glGetStringi)                                            \
-    X(PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC, glRenderbufferStorageMultisample)    \
-    X(PFNGLUNIFORM1FPROC, glUniform1f) X(PFNGLUNIFORM2FPROC, glUniform2f)
-
-#else
 #include <GL/glcorearb.h>
 
 #define SMS_GX_GL_FUNCS(X)                                                         \
@@ -149,6 +24,7 @@ inline void gx_glBindFragDataLocation(GLuint, GLuint, const GLchar*) {}
     X(PFNGLBINDBUFFERBASEPROC, glBindBufferBase)                                    \
     X(PFNGLGENVERTEXARRAYSPROC, glGenVertexArrays)                                  \
     X(PFNGLBINDVERTEXARRAYPROC, glBindVertexArray)                                  \
+    X(PFNGLDELETEVERTEXARRAYSPROC, glDeleteVertexArrays)                            \
     X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer)                          \
     X(PFNGLVERTEXATTRIBIPOINTERPROC, glVertexAttribIPointer)                        \
     X(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray)                  \
@@ -193,29 +69,29 @@ inline void gx_glBindFragDataLocation(GLuint, GLuint, const GLchar*) {}
     X(PFNGLSAMPLERPARAMETERFPROC, glSamplerParameterf)                              \
     X(PFNGLDELETESAMPLERSPROC, glDeleteSamplers)                                    \
     X(PFNGLDRAWELEMENTSBASEVERTEXPROC, glDrawElementsBaseVertex)                    \
+    X(PFNGLMULTIDRAWELEMENTSBASEVERTEXPROC, glMultiDrawElementsBaseVertex)          \
     X(PFNGLBINDBUFFERRANGEPROC, glBindBufferRange)                                  \
     X(PFNGLVERTEXATTRIB4FPROC, glVertexAttrib4f)                                    \
     X(PFNGLVERTEXATTRIBI4UIPROC, glVertexAttribI4ui)                                \
     X(PFNGLDISABLEVERTEXATTRIBARRAYPROC, glDisableVertexAttribArray)                \
     X(PFNGLGENERATEMIPMAPPROC, glGenerateMipmap)                                    \
     X(PFNGLCOMPRESSEDTEXIMAGE2DPROC, glCompressedTexImage2D)                        \
+    X(PFNGLCOMPRESSEDTEXSUBIMAGE2DPROC, glCompressedTexSubImage2D)                  \
     X(PFNGLGETSTRINGIPROC, glGetStringi)                                            \
     X(PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC, glRenderbufferStorageMultisample)    \
     X(PFNGLUNIFORM1FPROC, glUniform1f) X(PFNGLUNIFORM2FPROC, glUniform2f)
 
-#endif
+// Entry points newer than GL 3.3, loaded when the driver has them (null
+// otherwise; macOS stops at 4.1): check before calling.
+#define SMS_GX_GL_OPTIONAL_FUNCS(X) X(PFNGLBUFFERSTORAGEPROC, glBufferStorage)                \
+    X(PFNGLGETPROGRAMBINARYPROC, glGetProgramBinary) X(PFNGLPROGRAMBINARYPROC, glProgramBinary) \
+    X(PFNGLPROGRAMPARAMETERIPROC, glProgramParameteri) X(PFNGLMAXSHADERCOMPILERTHREADSKHRPROC, glMaxShaderCompilerThreadsKHR)
 
 #define SMS_GX_DECLARE(type, name) extern type gx_##name;
 extern "C++" {
 namespace gx { namespace gl {
 SMS_GX_GL_FUNCS(SMS_GX_DECLARE)
-extern PFNGLGETPROGRAMBINARYPROC gx_glGetProgramBinary;
-extern PFNGLPROGRAMBINARYPROC gx_glProgramBinary;
-#ifdef SMS_GLES
-extern PFNGLDRAWELEMENTSBASEVERTEXPROC gx_glDrawElementsBaseVertex;
-inline void gx_glClearDepth(double depth) { if (gx_glClearDepthf) gx_glClearDepthf((GLfloat)depth); }
-inline void gx_glDepthRange(double n, double f) { if (gx_glDepthRangef) gx_glDepthRangef((GLfloat)n, (GLfloat)f); }
-#endif
+SMS_GX_GL_OPTIONAL_FUNCS(SMS_GX_DECLARE)
 bool load(void* (*getProc)(const char*));
 }}  // namespace gx::gl
 }
@@ -223,13 +99,7 @@ bool load(void* (*getProc)(const char*));
 
 #define SMS_GX_ALIAS(type, name) using gx::gl::gx_##name;
 SMS_GX_GL_FUNCS(SMS_GX_ALIAS)
-using gx::gl::gx_glGetProgramBinary;
-using gx::gl::gx_glProgramBinary;
-#ifdef SMS_GLES
-using gx::gl::gx_glDrawElementsBaseVertex;
-using gx::gl::gx_glClearDepth;
-using gx::gl::gx_glDepthRange;
-#endif
+SMS_GX_GL_OPTIONAL_FUNCS(SMS_GX_ALIAS)
 #undef SMS_GX_ALIAS
 
 // call sites use the plain GL names
@@ -266,6 +136,7 @@ using gx::gl::gx_glDepthRange;
 #define glBindBufferBase gx_glBindBufferBase
 #define glGenVertexArrays gx_glGenVertexArrays
 #define glBindVertexArray gx_glBindVertexArray
+#define glDeleteVertexArrays gx_glDeleteVertexArrays
 #define glVertexAttribPointer gx_glVertexAttribPointer
 #define glVertexAttribIPointer gx_glVertexAttribIPointer
 #define glEnableVertexAttribArray gx_glEnableVertexAttribArray
@@ -333,14 +204,19 @@ using gx::gl::gx_glDepthRange;
 #define glSamplerParameterf gx_glSamplerParameterf
 #define glDeleteSamplers gx_glDeleteSamplers
 #define glDrawElementsBaseVertex gx_glDrawElementsBaseVertex
+#define glMultiDrawElementsBaseVertex gx_glMultiDrawElementsBaseVertex
 #define glBindBufferRange gx_glBindBufferRange
 #define glVertexAttrib4f gx_glVertexAttrib4f
 #define glVertexAttribI4ui gx_glVertexAttribI4ui
 #define glDisableVertexAttribArray gx_glDisableVertexAttribArray
 #define glGenerateMipmap gx_glGenerateMipmap
 #define glCompressedTexImage2D gx_glCompressedTexImage2D
+#define glCompressedTexSubImage2D gx_glCompressedTexSubImage2D
 #define glGetStringi gx_glGetStringi
+#define glBufferStorage gx_glBufferStorage
 #define glGetProgramBinary gx_glGetProgramBinary
 #define glProgramBinary gx_glProgramBinary
+#define glProgramParameteri gx_glProgramParameteri
+#define glMaxShaderCompilerThreadsKHR gx_glMaxShaderCompilerThreadsKHR
 
 #endif

@@ -31,10 +31,23 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g" CACHE STRING "" FORCE)
 # to -m64 so compile work can proceed.
 set(SMS_ARCH "auto" CACHE STRING "auto, 32 or 64")
 if(ANDROID)
+  if(NOT CMAKE_ANDROID_ARCH_ABI STREQUAL "arm64-v8a")
+    message(FATAL_ERROR "Android releases support arm64-v8a only")
+  endif()
   set(SMS_ARCH 64)
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
-  set(SMS_ARCH 64)
-elseif(SMS_ARCH STREQUAL "auto")
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  # AGP invokes Ninja directly, whose default parallelism follows CPU count.
+  # Bound native compilation independently of Gradle workers so the game,
+  # Java compiler and emulator do not exhaust memory on development hosts.
+  set(SMS_ANDROID_COMPILE_JOBS 2 CACHE STRING "Maximum concurrent Android native compiles")
+  set_property(GLOBAL PROPERTY JOB_POOLS sms_android_compile=${SMS_ANDROID_COMPILE_JOBS} sms_android_link=1)
+  set(CMAKE_JOB_POOL_COMPILE sms_android_compile)
+  set(CMAKE_JOB_POOL_LINK sms_android_link)
+  # Debug APKs keep Java debugging and native symbols, but the game's DSP,
+  # decoder and renderer need optimization just as desktop builds do.
+  add_compile_options(-O2)
+endif()
+if(SMS_ARCH STREQUAL "auto")
   include(CheckCXXSourceCompiles)
   set(CMAKE_REQUIRED_FLAGS "-m32")
   set(CMAKE_REQUIRED_LINK_OPTIONS "-m32")
@@ -48,24 +61,35 @@ elseif(SMS_ARCH STREQUAL "auto")
     message(WARNING "-m32 does not link here (install gcc-multilib g++-multilib); building -m64")
   endif()
 endif()
-if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$" AND NOT ANDROID)
+if(NOT ANDROID)
   add_compile_options(-m${SMS_ARCH})
   add_link_options(-m${SMS_ARCH})
 endif()
-message(STATUS "SMS port: building -m${SMS_ARCH}")
-
-option(SMS_GLES "Build with OpenGL ES 3.0 backend" OFF)
-if(SMS_GLES)
-  add_compile_definitions(SMS_GLES=1)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # RUNPATH, not RPATH: a toolchain's library directory (the launcher's conda
+  # tools add one to every link) then finds only the game's own libraries.
+  # An RPATH would also be searched for the system GL driver's libraries, and
+  # an older libdrm there stops a newer Mesa loading: no window and no EGL.
+  add_link_options("LINKER:--enable-new-dtags")
 endif()
-
+message(STATUS "SMS port: building -m${SMS_ARCH}")
 
 # --- Decomp translation units -----------------------------------------------
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(SMS_COMPILER_CACHE "$ENV{SMS_COMPILER_CACHE}" CACHE FILEPATH
+    "Optional compiler cache executable (for example sccache)")
+if(SMS_COMPILER_CACHE)
+  set(CMAKE_C_COMPILER_LAUNCHER "${SMS_COMPILER_CACHE}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${SMS_COMPILER_CACHE}")
+endif()
 if(WIN32 AND SMS_ARCH STREQUAL "32" AND "$ENV{SMS_WINDOWS_32_CROSS}" STREQUAL "1")
   set(_msys_launcher "${Python3_EXECUTABLE};${CMAKE_CURRENT_SOURCE_DIR}/tools/msys_cross_compile.py")
-  set(CMAKE_C_COMPILER_LAUNCHER "${_msys_launcher}")
-  set(CMAKE_CXX_COMPILER_LAUNCHER "${_msys_launcher}")
+  set(_msys_compile_launcher "${_msys_launcher}")
+  if(SMS_COMPILER_CACHE)
+    list(APPEND _msys_compile_launcher --cache "${SMS_COMPILER_CACHE}")
+  endif()
+  set(CMAKE_C_COMPILER_LAUNCHER "${_msys_compile_launcher}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${_msys_compile_launcher}")
   set(CMAKE_C_LINKER_LAUNCHER "${_msys_launcher}")
   set(CMAKE_CXX_LINKER_LAUNCHER "${_msys_launcher}")
 endif()
@@ -100,8 +124,6 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|i.86)$" OR CMAKE_OSX_ARCHITECT
   # Closer to Gekko single/double results than x87 extended precision
   # (measured on the play5 lockstep trace).
   list(APPEND SMS_GAME_FLAGS -msse2 -mfpmath=sse)
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
-  list(APPEND SMS_GAME_FLAGS -march=armv8-a+simd)
 endif()
 # String literals are Shift-JIS on disc and in the MWCC build (sjiswrap).
 # GCC normally uses -fexec-charset=CP932. Some portable compiler builds lack
@@ -115,7 +137,11 @@ check_cxx_compiler_flag("-fno-unreachable-traps" SMS_HAVE_NO_UNREACHABLE_TRAPS)
 if(SMS_HAVE_NO_UNREACHABLE_TRAPS)
   list(APPEND SMS_GAME_FLAGS -fno-unreachable-traps)
 endif()
-if(SMS_ARCH STREQUAL "64" AND NOT ANDROID)
+# Non-PIE: the game's code and data sit at the same addresses every run, which
+# 64-bit builds need for pointers in u32 slots and save states need everywhere
+# (a state holds pointers to the game's vtables and globals). Android loads the
+# game as a shared library into an address range it reserves (android/bootstrap.cpp).
+if((SMS_ARCH STREQUAL "64" OR CMAKE_SYSTEM_NAME STREQUAL "Linux") AND NOT ANDROID)
   list(APPEND SMS_GAME_FLAGS -fno-pie)
 endif()
 # Clang rejects the game's pointer-to-int truncations ((int)ptr, (u32)ptr) as
@@ -185,6 +211,20 @@ set_source_files_properties(${SMS_DECOMP_PCH_SOURCES} PROPERTIES
   COMPILE_OPTIONS "-include;${_sms_pch}")
 
 option(SMS_WITH_GX "Build and link platform/gx (the graphics layer)" ON)
+if(ANDROID)
+  set(SMS_SDL2_SOURCE "" CACHE PATH "SDL2 source directory for Android")
+  # default: the release tools/build use, unpacked in build/deps/
+  if(NOT SMS_SDL2_SOURCE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/SDL2-2.32.10/CMakeLists.txt")
+    set(SMS_SDL2_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/SDL2-2.32.10" CACHE PATH "" FORCE)
+  endif()
+  if(NOT EXISTS "${SMS_SDL2_SOURCE}/CMakeLists.txt")
+    message(FATAL_ERROR "Set SMS_SDL2_SOURCE to an SDL2 source checkout")
+  endif()
+  set(SDL_SHARED ON CACHE BOOL "" FORCE)
+  set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+  set(SDL_TEST OFF CACHE BOOL "" FORCE)
+  add_subdirectory("${SMS_SDL2_SOURCE}" "${CMAKE_BINARY_DIR}/SDL2")
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SMS_WITH_GX AND SMS_ARCH STREQUAL "32" AND DEFINED ENV{SMS_LINUX32_ROOT})
   set(_graphics "$ENV{SMS_LINUX32_ROOT}/graphics/usr")
   add_library(SDL2::SDL2 SHARED IMPORTED GLOBAL)
@@ -234,17 +274,19 @@ if(SMS_WITH_GX AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/platform/gx/CMakeLists.txt
 endif()
 
 add_library(sms_game STATIC ${SMS_DECOMP_CXX_SOURCES} ${SMS_DECOMP_C_SOURCES})
-set_target_properties(sms_game PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Host THP decoders (the decomp's SDK decoder, patched; platform/thp).
 include(${CMAKE_CURRENT_SOURCE_DIR}/platform/thp/thp.cmake)
 # The SDK's PADClamp (dead zone / octagon), built from the decomp as C.
 target_sources(sms_game PRIVATE ${SMS_DECOMP}/libs/dolphin/src/pad/Padclamp.c)
-# Online co-op, game side (it uses the decomp's classes): platform/netplay.
-target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/netplay/net_game.cpp)
-# Achievements, game side (it reads the game's flags and Mario): platform/achievements.
-target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_game.cpp)
-# The game's rumble option kept equal to the app's: platform/pad/rumble_game.cpp.
-target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/pad/rumble_game.cpp)
+# The save state menu, drawn by the game in its pause menu with the game's
+# own font and art, so it is built as game code (port_savestate_menu.h).
+target_sources(sms_game PRIVATE ${SMS_PORT_SRC}/savestate_menu.cpp)
+if(ANDROID)
+  # Mareshine: the achievements' game side (it reads the game's flags and
+  # Mario), and the game's rumble option kept equal to the app's vibration.
+  target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_game.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform/pad/rumble_game.cpp)
+endif()
 # port_include must stay ahead of the game headers: its dolphin/types.h
 # overrides the decomp's (LP64 integer widths, weak AT_ADDRESS globals).
 if(DEFINED SMS_CP932_ROOT)
@@ -277,7 +319,10 @@ elseif(WIN32)
 else()
   set(_sz m)
 endif()
-if(APPLE)
+if(ANDROID)
+  set(_object_prefix "")
+  set(SMS_OBJCOPY "${CMAKE_OBJCOPY}")
+elseif(APPLE)
   # Mach-O adds an extra leading underscore; GNU binutils objcopy does not
   # rewrite Mach-O archives — use llvm-objcopy (Homebrew llvm).
   set(_object_prefix "_")
@@ -300,11 +345,7 @@ elseif(WIN32)
   set(SMS_OBJCOPY objcopy)
 else()
   set(_object_prefix "")
-  if(CMAKE_OBJCOPY)
-    set(SMS_OBJCOPY ${CMAKE_OBJCOPY})
-  else()
-    find_program(SMS_OBJCOPY NAMES aarch64-linux-gnu-objcopy objcopy)
-  endif()
+  set(SMS_OBJCOPY objcopy)
 endif()
 file(WRITE ${CMAKE_BINARY_DIR}/game_new_syms.txt
   "${_object_prefix}_Znw${_sz} __sms_game_new\n${_object_prefix}_Zna${_sz} __sms_game_new_array\n${_object_prefix}_ZdlPv __sms_game_delete\n${_object_prefix}_ZdaPv __sms_game_delete_array\n")
@@ -322,17 +363,22 @@ file(GLOB_RECURSE SMS_PLATFORM_SOURCES CONFIGURE_DEPENDS
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/gx/")
 # platform/mods/eclipse is built by cmake/eclipse.cmake, and only with SMS_ECLIPSE.
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/eclipse/")
-# net_game.cpp is built into the game library (above).
-list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/netplay/net_game\\.cpp$")
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/tests/")
+# game code (sms_game, above), and Mareshine's achievements are Android's
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/ach_game\\.cpp$")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/pad/rumble_game\\.cpp$")
-list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/tests/")
-if(WIN32 OR APPLE)
+if(NOT ANDROID)
+  list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/")
+endif()
+if(WIN32 OR APPLE OR ANDROID)
   list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/trace/trace\\.cpp$")
 endif()
 if(ANDROID)
   add_library(sms SHARED ${SMS_PORT_SRC}/port_main.cpp ${SMS_PLATFORM_SOURCES})
-  set_target_properties(sms PROPERTIES OUTPUT_NAME "main")
+  target_link_libraries(sms PRIVATE log mediandk) # mediandk: platform/thp/mp4_movies.cpp (Mareshine)
+  add_library(smsbootstrap SHARED android/bootstrap.cpp)
+  target_link_libraries(smsbootstrap PRIVATE SDL2::SDL2 log dl)
+  target_compile_features(smsbootstrap PRIVATE cxx_std_17)
 else()
   add_executable(sms ${SMS_PORT_SRC}/port_main.cpp ${SMS_PLATFORM_SOURCES})
 endif()
@@ -366,15 +412,7 @@ if(APPLE AND SMS_SDL2_FRAMEWORK_DIR)
   # that lacks the framework fails here as it would on another Mac.
   set_target_properties(sms PROPERTIES BUILD_RPATH "@executable_path;@executable_path/../Frameworks")
 endif()
-# The HD cutscene catalog, embedded as a string for the launcher's installer
-# (platform/thp/hd_install.cpp); rewritten only when it changes.
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-  ${CMAKE_CURRENT_SOURCE_DIR}/tools/media/cutscene-release.json)
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/tools/media/cutscene-release.json _sms_hd_catalog)
-file(WRITE ${CMAKE_BINARY_DIR}/generated/hd_catalog.inc.new "R\"sms_json(${_sms_hd_catalog})sms_json\"\n")
-configure_file(${CMAKE_BINARY_DIR}/generated/hd_catalog.inc.new ${CMAKE_BINARY_DIR}/generated/hd_catalog.inc COPYONLY)
 target_include_directories(sms PRIVATE
-  ${CMAKE_BINARY_DIR}/generated
   ${CMAKE_CURRENT_SOURCE_DIR}/platform ${CMAKE_CURRENT_SOURCE_DIR}/platform/mods/include ${SMS_PORT_SRC}
   ${SMS_PORT_SRC}/port_include ${SMS_DECOMP_INCLUDE_DIRS})
 target_compile_definitions(sms PRIVATE ${SMS_COMMON_DEFS} SMS_AUDIO_DSP_HLE=1)
@@ -384,7 +422,8 @@ target_compile_options(sms PRIVATE -fno-strict-aliasing -Wno-unused-parameter -U
 if(WIN32)
   target_link_options(sms PRIVATE "-Wl,--defsym=${_object_prefix}lbl_80004600=0x80004600")
   if(SMS_ARCH STREQUAL "32")
-    target_link_options(sms PRIVATE -Wl,--large-address-aware)
+    # At its preferred address every run, for save states (see -fno-pie above).
+    target_link_options(sms PRIVATE -Wl,--large-address-aware -Wl,--disable-dynamicbase)
   endif()
   if(SMS_ARCH STREQUAL "64")
     # Game pointers pass through u32 slots, including addresses of static
@@ -397,7 +436,7 @@ elseif(APPLE)
 else()
   target_link_options(sms PRIVATE -Wl,--defsym=lbl_80004600=0x80004600)
 endif()
-if(SMS_ARCH STREQUAL "64" AND NOT ANDROID)
+if((SMS_ARCH STREQUAL "64" OR CMAKE_SYSTEM_NAME STREQUAL "Linux") AND NOT ANDROID)
   target_compile_options(sms PRIVATE -fno-pie)
   if(NOT APPLE AND NOT WIN32)
     target_link_options(sms PRIVATE -no-pie)
@@ -406,7 +445,26 @@ endif()
 if(APPLE)
   # Shrink PAGEZERO so MAP_32BIT / low stacks work (x86_64 / Rosetta only).
   target_link_options(sms PRIVATE "LINKER:-pagezero_size,0x1000")
+  # At the same address every run, as on Linux and Windows, so save states
+  # load exactly in a later run (where the linker still accepts it).
+  include(CheckLinkerFlag)
+  check_linker_flag(CXX "LINKER:-no_pie" SMS_HAVE_NO_PIE)
+  if(SMS_HAVE_NO_PIE)
+    target_link_options(sms PRIVATE "LINKER:-no_pie")
+  endif()
 endif()
+# Save states copy the game's own global variables: the link map says where
+# they are, and tools/savestate_ranges.py writes that into the executable.
+if(APPLE)
+  target_link_options(sms PRIVATE "LINKER:-map,${CMAKE_BINARY_DIR}/sms.map")
+else()
+  target_link_options(sms PRIVATE "LINKER:-Map=${CMAKE_BINARY_DIR}/sms.map")
+endif()
+add_custom_command(TARGET sms POST_BUILD
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/savestate_ranges.py
+    --map ${CMAKE_BINARY_DIR}/sms.map --exe $<TARGET_FILE:sms>
+    --archive libsms_game.a --archive libsms_eclipse.a
+  COMMENT "Recording the game's data for save states")
 find_package(Threads REQUIRED)
 if(WIN32 AND SMS_ARCH STREQUAL "64")
   add_executable(sms_windows_stack_test EXCLUDE_FROM_ALL
@@ -437,20 +495,6 @@ if(APPLE)
   endif()
 else()
   target_link_libraries(sms PRIVATE -Wl,--whole-archive sms_game -Wl,--no-whole-archive Threads::Threads m ${CMAKE_DL_LIBS})
-  if(WIN32)
-    target_link_libraries(sms PRIVATE ws2_32) # platform/netplay
-  endif()
-  if(ANDROID)
-    target_link_libraries(sms PRIVATE log android GLESv3 EGL SDL2 mediandk) # mediandk: platform/thp/mp4_movies.cpp
-    # Save states copy the game's own global variables: the link map says
-    # where they are, and tools/savestate_ranges.py writes that into the
-    # library (as offsets from its load address; platform/savestate).
-    target_link_options(sms PRIVATE "LINKER:-Map=${CMAKE_BINARY_DIR}/sms.map")
-    add_custom_command(TARGET sms POST_BUILD
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/savestate_ranges.py
-        --map ${CMAKE_BINARY_DIR}/sms.map --exe $<TARGET_FILE:sms> --archive libsms_game.a
-      COMMENT "Recording the game's data for save states")
-  endif()
   if(TARGET sms_gx)
     target_link_libraries(sms PRIVATE -Wl,--whole-archive sms_gx -Wl,--no-whole-archive)
   endif()
@@ -525,9 +569,23 @@ elseif(SMS_BUNDLE_DISC)
               ${CMAKE_CURRENT_SOURCE_DIR}/tools/bundle_disc.py "${SMS_BUNDLE_DISC}"
       COMMENT "Extracting the sms.exe icon"
       VERBATIM)
+    set(_res ${CMAKE_BINARY_DIR}/sms_icon.res.obj)
     file(CONFIGURE OUTPUT ${_rc} CONTENT "1 ICON \"${_ico}\"\n")
-    set_source_files_properties(${_rc} PROPERTIES OBJECT_DEPENDS ${_ico})
-    target_sources(sms PRIVATE ${_rc})
+    # Not a source of sms: windres runs gcc to preprocess the .rc, and cannot
+    # when a path has a space in it (C:\Users\First Last\...). Through popen,
+    # cmd.exe drops the quotes around gcc's path; with --use-temp-file windres
+    # runs gcc itself but splits quoted -I"..." options at their spaces, and
+    # misreads a command that ends in a quoted .rc path. So windres runs here,
+    # with --use-temp-file, without sms's include directories, and from the
+    # build directory so the .rc path has no spaces.
+    add_custom_command(OUTPUT ${_res}
+      COMMAND ${CMAKE_RC_COMPILER} --use-temp-file -O coff -i sms_icon.rc -o ${_res}
+      DEPENDS ${_rc} ${_ico}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      COMMENT "Compiling the sms.exe icon resource"
+      VERBATIM)
+    set_source_files_properties(${_res} PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
+    target_sources(sms PRIVATE ${_res})
   endif()
   set(_standalone ${CMAKE_BINARY_DIR}/sms-standalone${CMAKE_EXECUTABLE_SUFFIX})
   add_custom_command(OUTPUT ${_standalone}

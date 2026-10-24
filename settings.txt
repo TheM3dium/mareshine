@@ -1,27 +1,144 @@
-# Super Mario Sunshine settings for RK3326 / Mali-G31
-launcher = 0
-window_mode = fullscreen
-render_scale = 0.5
-draw_distance = 0.7
-far_plane = 25000
-fast_peek = 1
-copy_writeback = 0
-disable_shimmer = 1
-disable_shadows = 1
-disable_reflections = 1
-disable_water_anim = 1
-npc_draw_distance = 2500
-actor_draw_distance = 3500
-mapobj_draw_distance = 4000
-static_draw_distance = 6000
-shader_cache = 1
-msaa = 0
-fxaa = 0
-anisotropic = 0
-frame_rate = 30
-vsync = 0
-aspect = keep
-disc_image = GMSE01.iso
-save_dir = save
-volume = 100
-texture_pack_mb = 700
+# Game options, one per line: name = value (on/off for switches).
+# Remove the leading # to use a line. An environment variable of the same
+# meaning (listed in README.md) wins over this file.
+
+# HD texture packs from mods/textures/ (see mods/README.md): on, off, or
+# folders separated by ';'.
+texture_packs = on
+# Video memory for texture pack images before the least used are freed, in MiB.
+# texture_pack_mb = 1536
+# When HD textures load: on (default) prepares each level's while it loads;
+# all also loads the rest of the pack during the first loading screens and
+# keeps it all (needs about 4 GB of video memory); off loads each texture when
+# it is first drawn, showing the original until it is ready.
+# texture_pack_preload = on
+# Decoded images waiting for GPU upload, in MiB (plus one in-flight image).
+# texture_pack_pending_mb = 256
+# Texture pack data sent to the GPU per frame during play, in MiB (0: no limit).
+# texture_pack_upload_mb = 8
+# Largest texture pack image held as RGBA (PNGs, and DDS blocks the GPU cannot
+# take), as the side of a square of as many texels: larger ones are halved
+# until they fit, saving video memory (0, the default: no limit).
+# texture_pack_max_size = 0
+
+# Compile the shaders each level is known to use while it loads (and others
+# while time allows), instead of when they are first drawn (default on).
+# shader_warmup = on
+
+# Widescreen: off, 16:9, 21:9, 16:10 (or on for 16:9). The game sees a wider
+# view; the HUD and menus stay at 4:3 in the middle.
+widescreen = on
+# With widescreen, where the gameplay HUD goes: centre (with the menus), or
+# edges (counters to the left edge, the water gauge to the right one).
+# widescreen_hud = centre
+
+# Frame rate during gameplay: 30 (GameCube native), 60 (port default), or 120.
+# Logos, menus and movies stay at 30. Higher rates need more GPU performance;
+# a 120 Hz or faster display shows the full benefit of 120 fps.
+frame_rate = 60
+
+# Game file mods from mods/<name>/files/ (see mods/README.md), as name or a;b.
+# mod = none
+
+# Internal resolution: 1 is the GameCube's 640x528, 2 twice that, and so on.
+# resolution = 1
+# Anisotropic filtering: keeps textures sharp at glancing angles. 0 (off), 2,
+# 4, 8 or 16, up to what the GPU supports.
+# anisotropic = 0
+# Window size, in multiples of 640x480.
+# window_scale = 1
+# Wait for the display's refresh when presenting: off, on, or adaptive (waits
+# too, but shows a late frame at once instead of holding it a whole refresh).
+# vsync = off
+# Fullscreen: off, on (borderless at the desktop's resolution) or exclusive
+# (the display switches to fullscreen_mode, WxH@Hz, else the desktop's mode;
+# with Windows HDR on, exclusive stays borderless: a mode switch can leave
+# HDR's colours wrong).
+# F11 or Alt+Enter switches between the window and fullscreen while playing.
+# fullscreen = off
+# fullscreen_mode = 1920x1080@144
+# Monitor to open on (0 is the primary one); by default, the one under the mouse.
+# display = 0
+
+# Anti-aliasing: MSAA smooths the edges of 3D shapes (0, 2, 4 or 8 samples);
+# FXAA also smooths the rest, at almost no cost.
+# msaa = 0
+# fxaa = off
+# Sharpening of the final picture, 0 to 100, and brightness (1.0 unchanged,
+# above 1 brighter).
+# sharpen = 0
+# brightness = 1.0
+# How the picture fits the window: keep (its shape, letterboxed), stretch
+# (fill the window) or integer (whole multiples of the GameCube's size), and
+# how it is scaled: bilinear (smooth), sharp (crisp pixels), nearest, fsr
+# (AMD FSR 1: upscales a low internal resolution with sharp edges; sharpen
+# sets how much it sharpens) or nis (NVIDIA Image Scaling: the same job its own
+# way, sharpening as NVIDIA's default plus sharpen).
+# With fsr or nis, fsr_mode sets the internal resolution from the picture's size on
+# screen, in place of resolution: native renders at that size, quality at 67%,
+# balanced 59%, performance 50%, ultraperformance 33%.
+# fsr_mode = quality
+# aspect = keep
+# present_filter = bilinear
+
+# skip_movies = off
+# The heat-wave shimmer that distorts the picture in sunny areas.
+# heat_haze = on
+# The buttons shown in the game's text and on the FLUDD gauge: gamecube (the
+# game's own), xbox, playstation, steamdeck, keyboard, or auto (keyboard and
+# mouse, or the controller in use). Other than gamecube, they need the images
+# in button_prompt_dir (<style>.png: eight 64x64 icons in a row, A B X Y Z L R
+# C-stick), which SMS Launcher draws from your bindings.
+# button_prompts = gamecube
+# With auto, how every controller's prompts look: xbox, playstation, steamdeck
+# or gamecube; match follows the controller.
+# button_prompt_pad = match
+# button_prompt_dir =
+# HDR output on Windows (while Windows HDR is on): the game's SDR picture is
+# expanded to HDR. hdr_paper_white is how bright ordinary whites are, hdr_peak
+# the brightest a highlight gets, in nits, or auto: Windows' SDR content
+# brightness and the display's peak (as the Windows HDR Calibration app set
+# it). hdr_contrast and hdr_saturation are percent (100 unchanged);
+# hdr_highlights (0 to 100) is how far the brightest parts reach toward the
+# peak, in stops.
+# hdr = off
+# hdr_paper_white = auto
+# hdr_peak = auto
+# hdr_contrast = 100
+# hdr_saturation = 100
+# hdr_highlights = 40
+# audio = on
+# Master volume, 0 (silent) to 100 (full).
+# volume = 100
+# How far the L_SOFT / R_SOFT bindings press L or R, in percent (5 to 95), as a
+# light trigger press without the click.
+# soft_trigger = 40
+# Open the debug overlay (frame rate, where the time goes) at start.
+# overlay = off
+
+# Camera: invert either axis (C-stick, camera keys and mouse), a free camera
+# that stays where you point it (L recentres it), rotation speed in percent,
+# and mouse look (F10 releases the mouse) with its sensitivity in percent.
+# camera_invert_x = off
+# camera_invert_y = off
+# free_camera = off
+# camera_speed = 100
+# mouse_camera = off
+# mouse_sensitivity = 100
+
+# Keep reading the keyboard and controllers while another window has focus
+# (normally the game ignores them until it has focus again).
+# background_input = off
+
+# Controller rumble (on by default; the game's own Rumble option still applies)
+# and its strength in percent, up to 200. Below 100 is gentler (except on the
+# GameCube adapter, whose motors are on or off); above 100 the game runs the
+# motor more often, so light rumbles feel stronger. The GameCube adapter
+# rumbles with its second (power) cable plugged in.
+# rumble = on
+# rumble_strength = 100
+
+# save_dir = /path/to/memory/card/folder
+# Save states (README.md, Save states); default: savestates beside save_dir
+# save_state_dir = /path/to/save/states/folder
+# disc_image = /path/to/GMSE01.iso

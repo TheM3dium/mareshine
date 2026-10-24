@@ -41,6 +41,13 @@ extern "C" u32 ARInit(u32*, u32)
 	return kAramBase;
 }
 extern "C" int ARCheckInit(void) { return g_aram != NULL; }
+// ARAM and its allocation mark, for save states (platform/savestate).
+extern "C" u8* port_ar_memory(u32* size, u32** alloc)
+{
+	*size  = kAramSize;
+	*alloc = &g_alloc;
+	return g_aram;
+}
 extern "C" u32 ARAlloc(u32 length)
 {
 	u32 p = g_alloc;
@@ -76,11 +83,3 @@ extern "C" void ARQPostRequest(ARQRequest* req, u32 owner, u32 type, u32 prio, u
 		port_irq_run_now([req, callback]() { callback((u32)(uintptr_t)req); });
 }
 extern "C" u8* port_aram_ptr(u32 addr) { return g_aram ? g_aram + addr : NULL; }
-
-// For save states: ARAM and its allocation mark
-extern "C" u8* port_ar_memory(u32* size, u32** alloc)
-{
-	*size  = kAramSize;
-	*alloc = &g_alloc;
-	return g_aram;
-}

@@ -28,13 +28,16 @@ Reason: port: code mods (Super Mario Eclipse) reach these file-local tables by t
  	/* 0x00 */ { 0x00, 0x00C8, 0x00, 0x01, 0x04, 0x16 }, // hgup
 --- a/src/Player/Yoshi.cpp
 +++ b/src/Player/Yoshi.cpp
-@@ -37,12 +37,26 @@
+@@ -37,12 +37,29 @@
  
  #include <Player/MarioDirtyStrings.hpp>
  
 +#ifdef TARGET_PC
 +// Writable: code mods recolour Yoshi through it (retail map name bodyColor).
-+static GXColor bodyColor[4] = {
++// used: on macOS it is exported by an assembler alias the compiler cannot see,
++// so without this the compiler treats it as never written and moves it to
++// read-only memory, where the mods' first write crashes the game.
++__attribute__((used)) static GXColor bodyColor[4] = {
 +	{ 0x40, 0xA1, 0x24, 0xFF },
 +	{ 0xFF, 0x8C, 0x1C, 0xFF },
 +	{ 0xAA, 0x4C, 0xFF, 0xFF },

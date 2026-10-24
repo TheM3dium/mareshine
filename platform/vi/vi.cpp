@@ -13,8 +13,12 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
+#include <string.h>
 #include <sys/stat.h>
 #include "port_host.h"
+#ifdef __ANDROID__
+#include "port_android_performance.h"
+#endif
 
 // Frame capture (SMS_SHOTS=field,field,... SMS_SHOT_DIR=dir): the XFB handed to
 // VISetNextFrameBuffer is read back through the GX layer at the first VIFlush
@@ -125,37 +129,6 @@ void shots_poll(u32 field, void* xfb)
 	}
 	while (g_next_shot < g_shots.size() && g_shots[g_next_shot] <= field)
 		g_next_shot++;
-}
-
-// SMS_SWEEP's pictures (decomp patch zzzzzz-sweep-01): the next shown frame,
-// at most 640 pixels wide, as a JPEG at `path` (its folder is made).
-extern "C" int GXPC_WriteJpeg(const char* path, const uint8_t* rgba, int w, int h, int quality) __attribute__((weak));
-std::string g_shot_request;
-extern "C" void port_shot_request(const char* path) { g_shot_request = path ? path : ""; }
-
-void shot_request_poll(void* xfb)
-{
-	if (g_shot_request.empty() || !xfb || !GXPC_ReadXFB || !GXPC_WriteJpeg)
-		return;
-	if (!pthread_equal(pthread_self(), g_gx_thread))
-		return;
-	std::string path;
-	path.swap(g_shot_request);
-	int w = 0, h = 0;
-	if (!GXPC_ReadXFB(xfb, NULL, &w, &h) || w <= 0 || h <= 0)
-		return;
-	std::vector<u8> px((size_t)w * h * 4);
-	GXPC_ReadXFB(xfb, px.data(), &w, &h);
-	const int step = (w + 639) / 640;
-	const int ow = w / step, oh = h / step;
-	std::vector<u8> small((size_t)ow * oh * 4);
-	for (int y = 0; y < oh; y++)
-		for (int x = 0; x < ow; x++)
-			memcpy(&small[((size_t)y * ow + x) * 4], &px[((size_t)y * step * w + (size_t)x * step) * 4], 4);
-	const size_t slash = path.rfind('/');
-	if (slash != std::string::npos)
-		port_mkdir(path.substr(0, slash).c_str(), 0777);
-	GXPC_WriteJpeg(path.c_str(), small.data(), ow, oh, 80);
 }
 
 // The debug overlay's speed multiplier (sms_gx; absent in builds without it).
@@ -273,6 +246,37 @@ extern "C" s64 port_vi_virtual_ticks(void)
 extern "C" void VIInit(void) {}
 extern "C" void VIConfigure(GXRenderModeObj* rm) {}
 extern "C" void VIConfigurePan(u16, u16, u16, u16) {}
+// Mareshine: SMS_SWEEP's pictures (decomp patch zzzzzz-sweep-01): the next
+// shown frame, at most 640 pixels wide, as a JPEG at `path` (its folder is made).
+extern "C" int GXPC_WriteJpeg(const char* path, const uint8_t* rgba, int w, int h, int quality) __attribute__((weak));
+static std::string g_shot_request;
+extern "C" void port_shot_request(const char* path) { g_shot_request = path ? path : ""; }
+
+static void shot_request_poll(void* xfb)
+{
+	if (g_shot_request.empty() || !xfb || !GXPC_ReadXFB || !GXPC_WriteJpeg)
+		return;
+	if (!pthread_equal(pthread_self(), g_gx_thread))
+		return;
+	std::string path;
+	path.swap(g_shot_request);
+	int w = 0, h = 0;
+	if (!GXPC_ReadXFB(xfb, NULL, &w, &h) || w <= 0 || h <= 0)
+		return;
+	std::vector<u8> px((size_t)w * h * 4);
+	GXPC_ReadXFB(xfb, px.data(), &w, &h);
+	const int step = (w + 639) / 640;
+	const int ow = w / step, oh = h / step;
+	std::vector<u8> small((size_t)ow * oh * 4);
+	for (int y = 0; y < oh; y++)
+		for (int x = 0; x < ow; x++)
+			memcpy(&small[((size_t)y * ow + x) * 4], &px[((size_t)y * step * w + (size_t)x * step) * 4], 4);
+	const size_t slash = path.rfind('/');
+	if (slash != std::string::npos)
+		port_mkdir(path.substr(0, slash).c_str(), 0777);
+	GXPC_WriteJpeg(path.c_str(), small.data(), ow, oh, 80);
+}
+
 extern "C" void VIFlush(void)
 {
 	shots_poll(game_field(), g_next_fb);
@@ -342,22 +346,75 @@ extern "C" s32 port_vi_frame_wait(s32 due, u16 frames)
 		VIWaitForRetrace();
 		return (s32)VIGetRetraceCount() + frames;
 	}
+#ifdef __ANDROID__
+    // Finish work before the SDK's pacing wait, then begin the next cycle
+    // after that wait. Do not report the intentional retrace sleep as work.
+    port_android_performance_frame_end();
+#endif
 	const double entry = seconds_now();
 	if (ready > 0)
 		work += (entry - ready - (GXPC_LastPresentSeconds ? GXPC_LastPresentSeconds() : 0) - work) * 0.1;
-	while ((s32)(VIGetRetraceCount() - due) < 0)
+#ifdef __ANDROID__
+    static const bool logTiming = [] {
+        const char* e = getenv("SMS_TIMING_LOG");
+        return e && *e && strcmp(e, "0") != 0;
+    }();
+    bool backgroundYield = false;
+    double backgroundSeconds = 0;
+#endif
+	bool waited = false;
+	while ((s32)(VIGetRetraceCount() - due) < 0) {
 		VIWaitForRetrace();
+		waited = true;
+	}
+#ifdef __ANDROID__
+	// Android presentation can consume the whole retrace interval. Skipping
+	// the SDK wait then keeps the main thread runnable forever, starving the
+	// lower-priority stage loader. Give that work a short cooperative turn,
+	// returning as soon as it blocks; do not add an idle retrace to a late frame.
+	if (!waited && port_os_background_ready()) {
+        const double start = logTiming ? seconds_now() : 0;
+        backgroundYield = port_os_yield_background(1000000); // 1 ms at SDK checkpoints
+        if (logTiming) backgroundSeconds = seconds_now() - start;
+    }
+#else
+	(void)waited;
+#endif
 	const s32 now = (s32)VIGetRetraceCount();
 	if (now - due > max_behind)
 		due = now;
 	const int speed = GXPC_GetSpeed ? GXPC_GetSpeed() : 1;
 	const double period = frames * g_period_ns * 1e-9 / (speed > 0 ? speed : 1);
+#ifdef __ANDROID__
+    if (logTiming) {
+        static unsigned samples = 0, yields = 0;
+        static double totalWait = 0, maxWait = 0, budget = 0;
+        static double totalBackground = 0, maxBackground = 0;
+        if (budget != period) {
+            samples = yields = 0; totalWait = maxWait = totalBackground = maxBackground = 0; budget = period;
+        }
+        const double wait = seconds_now() - entry;
+        totalWait += wait; maxWait = std::max(maxWait, wait);
+        yields += backgroundYield;
+        totalBackground += backgroundSeconds; maxBackground = std::max(maxBackground, backgroundSeconds);
+        if (++samples == 120) {
+            fprintf(stderr, "[android] SDK pacing: %u frames, budget %.2f ms, wait avg %.2f/max %.2f ms, "
+                            "background yields %u, background avg %.2f/max %.2f ms\n",
+                    samples, period * 1000, totalWait / samples * 1000, maxWait * 1000, yields,
+                    totalBackground / samples * 1000, maxBackground * 1000);
+            samples = yields = 0; totalWait = maxWait = totalBackground = maxBackground = 0;
+        }
+    }
+#endif
 	const bool skip = now - due >= frames && now - shown < max_unshown && work < period;
 	if (!skip)
 		shown = now;
 	if (GXPC_SkipNextPresent)
 		GXPC_SkipNextPresent(skip);
 	ready = seconds_now();
+#ifdef __ANDROID__
+    port_android_performance_frame_begin(int64_t(period * 1000000000));
+#endif
 	return due + frames;
 }
 

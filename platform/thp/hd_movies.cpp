@@ -49,6 +49,14 @@ extern "C" u8* port_hd_movie_pool(void)
 
 extern "C" const char* port_thp_movie_stem(void);
 extern "C" int port_thp_movie_fills(void);
+
+// Wide movies across the widened frame (SMS_MOVIE_FILL, on unless 0): read by
+// the movie sizing (decomp-patches/zzzzzz-movies-01) and by mp4_movies.cpp.
+extern "C" int port_movie_fill(void)
+{
+    const char* e = std::getenv("SMS_MOVIE_FILL");
+    return !(e && !std::strcmp(e, "0"));
+}
 extern "C" float port_widescreen;
 
 namespace {
@@ -74,7 +82,13 @@ bool crop_rect(s16& x, s16& y, s16& w, s16& h)
 {
     bool changed = false;
     if (port_thp_movie_fills()) {
-        const float k = 640.0f * port_widescreen / w;
+        // The game's 2D is stretched across the widened frame (sms_gx), so 640
+        // game units are the whole width: evenly larger to that, keeping the
+        // movie's shape, and no taller than the picture (448) on very wide
+        // screens (20:9), where it fits the height instead.
+        float k = 640.0f / w;
+        if (h * k > 448.0f)
+            k = 448.0f / h;
         const float cx = x + w * 0.5f, cy = y + h * 0.5f;
         w = static_cast<s16>(w * k + 0.5f);
         h = static_cast<s16>(h * k + 0.5f);

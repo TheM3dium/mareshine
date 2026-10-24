@@ -5,27 +5,28 @@ project(sms_gx C CXX)
 set(SMS_DECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../decomp" CACHE PATH "Path to the decompilation")
 # The decomp's game headers and the SDK's (libs/dolphin/include).
 set(SMS_GX_DECOMP_INCLUDE ${SMS_DECOMP_DIR}/include ${SMS_DECOMP_DIR}/libs/dolphin/include)
-if(CMAKE_CROSSCOMPILING)
-    option(SMS_GX_BUILD_TESTS "Build the headless self-test" OFF)
-else()
-    option(SMS_GX_BUILD_TESTS "Build the headless self-test" ON)
-endif()
+option(SMS_GX_BUILD_TESTS "Build the headless self-test" ON)
 
 set(SMS_GX_SOURCES
     src/gl_loader.cpp
     src/gx_api.cpp
+    src/gx_bcenc.cpp
     src/gx_fifo.cpp
+    src/gx_glthread.cpp
+    src/gx_hdr.cpp
     src/gx_hires.cpp
-    src/gx_launcher.cpp
     src/gx_overlay.cpp
     src/gx_platform.cpp
-    src/gx_precompile.cpp
+    src/gx_prompts.cpp
     src/gx_render.cpp
-    src/gx_savestate.cpp
     src/gx_shader.cpp
     src/gx_texture.cpp
     src/gx_trace.cpp
     src/gx_vert.cpp)
+if(ANDROID)
+    # gx_backdrop.cpp: Mareshine's cutscene frame
+    list(APPEND SMS_GX_SOURCES src/gx_android.cpp src/gx_backdrop.cpp)
+endif()
 
 # GD is compiled from the decompiled SDK sources: it only emits command bytes.
 set(SMS_GX_GD_SOURCES
@@ -50,16 +51,6 @@ if(DEFINED SMS_PORT_SRC)
     set(SMS_GX_TYPES_INCLUDE ${SMS_PORT_SRC}/port_include)
 endif()
 
-# Dear ImGui (third_party/imgui, MIT) draws the pre-game launcher.
-set(SMS_GX_IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
-set(SMS_GX_IMGUI_SOURCES
-    ${SMS_GX_IMGUI_DIR}/imgui.cpp
-    ${SMS_GX_IMGUI_DIR}/imgui_draw.cpp
-    ${SMS_GX_IMGUI_DIR}/imgui_tables.cpp
-    ${SMS_GX_IMGUI_DIR}/imgui_widgets.cpp
-    ${SMS_GX_IMGUI_DIR}/imgui_impl_sdl2.cpp
-    ${SMS_GX_IMGUI_DIR}/imgui_impl_opengl3.cpp)
-
 add_library(sms_gx STATIC ${SMS_GX_SOURCES} ${SMS_GX_GD_SOURCES})
 target_include_directories(sms_gx
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -67,8 +58,12 @@ target_include_directories(sms_gx
     # port_fpu.h (the SDK's float-to-unsigned conversion, port_cvt_fp2unsigned)
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src)
 # macOS has no system GL/glcorearb.h; ship Khronos headers under third_party/.
-if(APPLE)
+# The GL thread's waits run the main run loop there (CoreFoundation).
+if(APPLE OR ANDROID)
     target_include_directories(sms_gx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+endif()
+if(APPLE)
+    target_link_libraries(sms_gx PUBLIC "-framework CoreFoundation")
 endif()
 target_compile_features(sms_gx PRIVATE cxx_std_17)
 # The SDK functions here that compute in floats round every operation as the
@@ -105,57 +100,23 @@ if(APPLE)
     set(SMS_SDL2_FRAMEWORK_DIR "${_sms_sdl2_fw_dir}" PARENT_SCOPE)
   endif()
 endif()
-if(TARGET SDL2 AND NOT TARGET SDL2::SDL2)
-  add_library(SDL2::SDL2 ALIAS SDL2)
-endif()
 if(NOT TARGET SDL2::SDL2)
   find_package(SDL2 CONFIG QUIET)
-  if(NOT TARGET SDL2::SDL2)
-    find_package(PkgConfig QUIET)
-    if(PKG_CONFIG_FOUND)
-      pkg_check_modules(SDL2_PKG QUIET sdl2)
-      if(SDL2_PKG_FOUND)
-        add_library(SDL2::SDL2 INTERFACE IMPORTED GLOBAL)
-        target_include_directories(SDL2::SDL2 INTERFACE ${SDL2_PKG_INCLUDE_DIRS})
-        target_link_libraries(SDL2::SDL2 INTERFACE ${SDL2_PKG_LIBRARIES})
-      endif()
-    endif()
-  endif()
-endif()
-option(SMS_GLES "Build with OpenGL ES 3.0 backend" OFF)
-if(SMS_GLES)
-    target_compile_definitions(sms_gx PUBLIC SMS_GLES=1)
-    target_compile_definitions(sms_gx PRIVATE IMGUI_IMPL_OPENGL_ES3=1)
-    find_library(SMS_GX_GLESV2_LIB GLESv2)
-    if(SMS_GX_GLESV2_LIB)
-        target_link_libraries(sms_gx PUBLIC ${SMS_GX_GLESV2_LIB})
-    else()
-        target_link_libraries(sms_gx PUBLIC GLESv2)
-    endif()
-    message(STATUS "sms_gx: OpenGL ES 3.0 backend enabled")
 endif()
 find_library(SMS_GX_EGL_LIB EGL)
 find_path(SMS_GX_EGL_INCLUDE EGL/egl.h)
 if(TARGET SDL2::SDL2)
     target_compile_definitions(sms_gx PRIVATE SMS_GX_HAVE_SDL2=1)
-    # the launcher's update check compares this with the latest release
-    find_package(Git QUIET)
-    if(GIT_FOUND AND NOT SMS_PORT_VERSION)
-        execute_process(COMMAND ${GIT_EXECUTABLE} describe --tags --always
-                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                        OUTPUT_VARIABLE SMS_PORT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-    endif()
-    if(SMS_PORT_VERSION)
-        set_source_files_properties(src/gx_launcher.cpp PROPERTIES
-                                    COMPILE_DEFINITIONS "SMS_PORT_VERSION=\"${SMS_PORT_VERSION}\"")
-    endif()
     target_link_libraries(sms_gx PUBLIC SDL2::SDL2)
-    target_sources(sms_gx PRIVATE ${SMS_GX_IMGUI_SOURCES})
-    target_include_directories(sms_gx PRIVATE ${SMS_GX_IMGUI_DIR})
-    set_source_files_properties(${SMS_GX_IMGUI_SOURCES} PROPERTIES COMPILE_OPTIONS "-w")
     message(STATUS "sms_gx: SDL2 window support")
+    # The cheat menu (F9), the warp menu (F8) and the save state messages in the window.
+    target_sources(sms_gx PRIVATE src/gx_cheat_menu.cpp src/gx_warp_menu.cpp src/gx_savestate_overlay.cpp)
 else()
     message(STATUS "sms_gx: SDL2 not found - no window support")
+endif()
+if(WIN32)
+    # HDR output: a Direct3D 11 swap chain shares the frame with OpenGL (gx_hdr.cpp)
+    target_link_libraries(sms_gx PUBLIC d3d11 dxgi)
 endif()
 if(SMS_GX_EGL_LIB AND SMS_GX_EGL_INCLUDE)
     target_compile_definitions(sms_gx PRIVATE SMS_GX_HAVE_EGL=1)
@@ -170,12 +131,25 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 if(SMS_GX_BUILD_TESTS)
+    if(NOT ANDROID)
+        add_executable(gx_extent_test tests/gx_extent_test.cpp)
+        target_include_directories(gx_extent_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_features(gx_extent_test PRIVATE cxx_std_17)
+        target_compile_options(gx_extent_test PRIVATE -ffp-contract=off)
+        add_test(NAME gx_extent_test COMMAND gx_extent_test)
+    endif()
     # GXDrawSphere calls MSL's sinf and cosf, which the port links from
     # platform/misc/msl_math.c; the standalone tests link it themselves.
     # Built as the port builds it (the top-level CMakeLists.txt): SSE maths on
     # x86, never x87 extended precision, and no contraction. Source file
     # properties are per directory, so the tests' copy needs its own.
     set(SMS_GX_MSL_MATH ${CMAKE_CURRENT_SOURCE_DIR}/../misc/msl_math.c)
+    # The cheat menu reads the port_cheat_* flags and the warp menu the warp
+    # list, which the port defines (platform/misc).
+    set(SMS_GX_PORT_CHEATS ${CMAKE_CURRENT_SOURCE_DIR}/../misc/port_cheats.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../misc/port_warp.cpp)
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/../misc/port_warp.cpp PROPERTIES
+        INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/../../src/port_include)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|i.86)$" OR CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
         set(_sms_gx_msl_opts "-msse2;-mfpmath=sse;-ffp-contract=off")
     else()
@@ -183,49 +157,52 @@ if(SMS_GX_BUILD_TESTS)
     endif()
     set_source_files_properties(${SMS_GX_MSL_MATH} PROPERTIES COMPILE_OPTIONS "${_sms_gx_msl_opts}"
         INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/../../src)
-    add_executable(gx_selftest tests/gx_selftest.cpp ${SMS_GX_MSL_MATH})
-    target_include_directories(gx_selftest PRIVATE ${SMS_GX_DECOMP_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(ANDROID)
+        add_library(gx_selftest SHARED tests/gx_selftest.cpp ${SMS_GX_MSL_MATH} ${SMS_GX_PORT_CHEATS})
+    else()
+        add_executable(gx_selftest tests/gx_selftest.cpp ${SMS_GX_MSL_MATH} ${SMS_GX_PORT_CHEATS})
+    endif()
+    target_include_directories(gx_selftest PRIVATE ${SMS_GX_TYPES_INCLUDE} ${SMS_GX_DECOMP_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(APPLE OR ANDROID)
+        target_include_directories(gx_selftest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+    endif()
     target_link_libraries(gx_selftest PRIVATE sms_gx)
     target_compile_features(gx_selftest PRIVATE cxx_std_17)
     enable_testing()
     add_test(NAME gx_selftest COMMAND gx_selftest --headless)
     set_tests_properties(gx_selftest PROPERTIES SKIP_RETURN_CODE 77)
-    if(SMS_GLES AND SMS_GX_EGL_LIB AND SMS_GX_EGL_INCLUDE)
-        foreach(test gx_gles_regressions gx_copy_feedback_test)
-            add_executable(${test} tests/${test}.cpp ${SMS_GX_MSL_MATH})
-            target_include_directories(${test} PRIVATE ${SMS_GX_DECOMP_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src ${SMS_GX_EGL_INCLUDE})
-            target_link_libraries(${test} PRIVATE sms_gx)
-            target_compile_features(${test} PRIVATE cxx_std_17)
-        endforeach()
-        foreach(msaa 0 4)
-            add_test(NAME gx_gles_regressions_msaa${msaa} COMMAND gx_gles_regressions --headless)
-            set_tests_properties(gx_gles_regressions_msaa${msaa} PROPERTIES SKIP_RETURN_CODE 77
-                ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SMS_GX_SYNC_READS=1;SMS_FAST_PEEK=0;SMS_GX_COPY_WRITEBACK=0;SMS_RENDER_SCALE=1.5;SMS_MSAA=${msaa};SMS_SHADER_CACHE=0")
-        endforeach()
-        foreach(profile native fractional msaa wide)
-            add_test(NAME gx_copy_feedback_${profile} COMMAND gx_copy_feedback_test)
-            set(scale 1.5)
-            set(samples 0)
-            set(wide 1.333333333)
-            if(profile STREQUAL "native")
-                set(scale 1.0)
-            elseif(profile STREQUAL "fractional")
-                set(scale 1.25)
-            elseif(profile STREQUAL "msaa")
-                set(samples 4)
-            elseif(profile STREQUAL "wide")
-                set(wide 2.222222222)
-            endif()
-            set_tests_properties(gx_copy_feedback_${profile} PROPERTIES SKIP_RETURN_CODE 77
-                ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SMS_GX_SYNC_READS=1;SMS_FAST_PEEK=0;SMS_GX_COPY_WRITEBACK=0;SMS_RENDER_SCALE=${scale};SMS_MSAA=${samples};SMS_TEST_WIDE=${wide};SMS_SHADER_CACHE=0")
-        endforeach()
+    if(NOT ANDROID AND NOT WIN32)
+        add_executable(gx_widescreen_test tests/gx_widescreen_test.cpp ${SMS_GX_MSL_MATH} ${SMS_GX_PORT_CHEATS})
+        target_include_directories(gx_widescreen_test PRIVATE ${SMS_GX_TYPES_INCLUDE} ${SMS_GX_DECOMP_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_libraries(gx_widescreen_test PRIVATE sms_gx)
+        target_compile_features(gx_widescreen_test PRIVATE cxx_std_17)
+        add_test(NAME gx_widescreen_1x_test COMMAND gx_widescreen_test 1)
+        add_test(NAME gx_widescreen_2x_test COMMAND gx_widescreen_test 2)
+        set_tests_properties(gx_widescreen_1x_test gx_widescreen_2x_test PROPERTIES SKIP_RETURN_CODE 77)
     endif()
+    add_executable(gx_hires_test tests/gx_hires_test.cpp ${SMS_GX_MSL_MATH} ${SMS_GX_PORT_CHEATS})
+    target_include_directories(gx_hires_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(gx_hires_test PRIVATE sms_gx)
+    target_compile_features(gx_hires_test PRIVATE cxx_std_17)
+    add_test(NAME gx_hires_test COMMAND gx_hires_test)
+    add_test(NAME gx_hires_fallback_test COMMAND gx_hires_test --fallback)
+    add_test(NAME gx_hires_sync_test COMMAND gx_hires_test --sync)
+    add_test(NAME gx_hires_no_preload_test COMMAND gx_hires_test --no-preload)
+    add_test(NAME gx_hires_all_test COMMAND gx_hires_test --all)
+    add_test(NAME gx_hires_max_size_test COMMAND gx_hires_test --max-size)
+    add_test(NAME gx_hires_max_size_blocks_test COMMAND gx_hires_test --max-size-blocks)
+    set_tests_properties(gx_hires_test gx_hires_fallback_test gx_hires_sync_test gx_hires_no_preload_test
+        gx_hires_all_test gx_hires_max_size_test gx_hires_max_size_blocks_test PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(gx_windowtest tests/gx_windowtest.cpp)
     target_include_directories(gx_windowtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_features(gx_windowtest PRIVATE cxx_std_17)
     add_test(NAME gx_windowtest COMMAND gx_windowtest)
     if(TARGET SDL2::SDL2)
-        add_executable(gx_windowsmoke tests/gx_windowtest.cpp ${SMS_GX_MSL_MATH})
+        add_executable(gx_borderlesstest tests/gx_borderlesstest.cpp)
+        target_include_directories(gx_borderlesstest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_features(gx_borderlesstest PRIVATE cxx_std_17)
+        target_link_libraries(gx_borderlesstest PRIVATE SDL2::SDL2)
+        add_executable(gx_windowsmoke tests/gx_windowtest.cpp ${SMS_GX_MSL_MATH} ${SMS_GX_PORT_CHEATS})
         target_include_directories(gx_windowsmoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
         target_compile_features(gx_windowsmoke PRIVATE cxx_std_17)
         target_compile_definitions(gx_windowsmoke PRIVATE SMS_GX_HAVE_SDL2=1)

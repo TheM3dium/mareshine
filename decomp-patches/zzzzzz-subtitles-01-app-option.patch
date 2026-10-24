@@ -1,0 +1,87 @@
+Reason: port (Mareshine): the app's Subtitles in cutscenes (SMS_SUBTITLES) and the game's own subtitle option are one setting: the app's goes into the game's option when the options load from the card (so the options menu shows it), a change in the options menu goes back to the app, and movies follow it. Without the app (-1) the game's option alone decides, as on the GameCube.
+--- a/src/GC2D/MovieSubtitle.cpp
++++ b/src/GC2D/MovieSubtitle.cpp
+@@ -158,13 +158,26 @@
+ 	unk14->hide();
+ }
+ 
++#ifdef TARGET_PC
++// Mareshine: the app's "Subtitles in cutscenes" (SMS_SUBTITLES) and the game's
++// own option are one setting: -1 leaves it to the game's option, 0 or 1 is the
++// app's, put into the game's option when the options load and taken back when
++// the player changes them (platform/port_runtime.cpp).
++extern "C" int port_subtitles_setting;
++extern "C" __attribute__((weak)) void port_subtitles_option_changed(int on);
++#endif
++
+ const JMSMesgEntry* TMovieSubTitle::getCurEntry() const
+ {
+ #if defined(VERSION_GMSP01) || defined(VERSION_GMSE01)
+ 	// 0x90001 is the subtitle option flag (TOptionControl::writeValue writes
+ 	// the subtitle unit's value there), so subtitles off means no entry.
+ 	if (unk20->getMessageNum() <= unk24
++#ifdef TARGET_PC
++	    || !(port_subtitles_setting >= 0 ? port_subtitles_setting : TFlagManager::getInstance()->getFlag(0x90001)))
++#else
+ 	    || !TFlagManager::getInstance()->getFlag(0x90001))
++#endif
+ 		return nullptr;
+ #else
+ 	if (unk20->getMessageNum() <= unk24)
+--- a/src/System/FlagManager.cpp
++++ b/src/System/FlagManager.cpp
+@@ -793,6 +793,15 @@
+ // The option flags live twice: 0x7xxxx/0x8xxxx are the memory-card copy and
+ // 0x9xxxx/0xAxxxx the live copy, so this and saveOption() are exact mirrors of
+ // each other -- 0x70000<->0x90000, 0x80000<->0xA0001, 0x70002<->0x90001.
++#ifdef TARGET_PC
++// Mareshine: the app's "Subtitles in cutscenes" (SMS_SUBTITLES) and the game's
++// own option are one setting: -1 leaves it to the game's option, 0 or 1 is the
++// app's, put into the game's option when the options load and taken back when
++// the player changes them (platform/port_runtime.cpp).
++extern "C" int port_subtitles_setting;
++extern "C" __attribute__((weak)) void port_subtitles_option_changed(int on);
++#endif
++
+ void TFlagManager::correctOptFlag()
+ {
+ 	setBool(!getBool(0x70000), 0x90000);
+@@ -805,6 +814,10 @@
+ 
+ 	setFlag(0xA0001, getFlag(0x80000));
+ 	setBool(getBool(0x70002), 0x90001);
++#ifdef TARGET_PC
++	if (port_subtitles_setting >= 0) // the app's setting, as the options menu then shows
++		setBool(port_subtitles_setting != 0, 0x90001);
++#endif
+ }
+ 
+ void TFlagManager::loadOption(JSUMemoryInputStream& in)
+--- a/src/GC2D/Option.cpp
++++ b/src/GC2D/Option.cpp
+@@ -1141,12 +1141,25 @@
+ 	mWasJumping = jumping;
+ }
+ 
++#ifdef TARGET_PC
++// Mareshine: the app's "Subtitles in cutscenes" (SMS_SUBTITLES) and the game's
++// own option are one setting: -1 leaves it to the game's option, 0 or 1 is the
++// app's, put into the game's option when the options load and taken back when
++// the player changes them (platform/port_runtime.cpp).
++extern "C" int port_subtitles_setting;
++extern "C" __attribute__((weak)) void port_subtitles_option_changed(int on);
++#endif
++
+ void TOptionControl::writeValue()
+ {
+ 	TFlagManager::getInstance()->setFlag(0x90000, mRumbleOption->getValue());
+ 	TFlagManager::getInstance()->setFlag(0xA0000, mSoundOption->getValue());
+ 	TFlagManager::getInstance()->setFlag(0x90001,
+ 	                                     mSubtitleOption->getValue());
++#ifdef TARGET_PC
++	if (port_subtitles_option_changed) // the app's setting follows the game's
++		port_subtitles_option_changed(mSubtitleOption->getValue() != 0);
++#endif
+ }
+ 
+ bool TOptionControl::isChangedSetting() const

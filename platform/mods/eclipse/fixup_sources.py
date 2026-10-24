@@ -31,9 +31,30 @@ RAWADDR_FIX = ("src/**/*.cpp", r"(\(\s*\([^;{}()]*\(\s*\*\s*\)\s*\([^;{}()]*\)\s
 
 # Game data by retail address, *(u32 **)0x8040E0BC: the port's object at that
 # address instead (platform/mods/eclipse/rawdata.cpp lists them).
-RAWDATA = "0x803ACA68|0x803ACAB0|0x803AFB48|0x803DFA00|0x8040DAB4|0x8040DABC|0x8040DFD4|0x8040DFE4|0x8040DFF4|0x8040E03C|0x8040E0BC|0x8040FA90"
+RAWDATA = "0x803ACA68|0x803ACAB0|0x803AFB48|0x803C0CC8|0x803C0CF0|0x803C0D18|0x803C0E30|0x803DF498|0x803DF4D8|0x803DFA00|0x8040DAB4|0x8040DABC|0x8040DFD4|0x8040DFE4|0x8040DFF4|0x8040E03C|0x8040E0BC|0x8040FA90|0x80412548|0x80415F4C|0x80415F68"
 RAWDATA_FIX = ("src/**/*.cpp", r"(\(\s*(?:const\s+)?[A-Za-z_][\w:<> ]*?\s*\*+\s*\))\s*(?i:(" + RAWDATA + r"))\b",
                lambda m: "%ssms_mod_rawdata(%s)" % (m.group(1), m.group(2)), "retail data addresses go to the port's objects")
+# The same through SMS_PORT_REGION(ntscu, pal, ntscj, ntsck), as BSE's
+# initAreaInfo names the game's shine and stage tables (area.cpp), BSE's boot
+# callback the glare's shine count and Eclipse's green Yoshi the tongue's
+# reach: unrouted, they read and wrote the game's heap, which the port keeps
+# where those are on the console (every area of the base game had no
+# scenarios and no shine select panes).
+RAWDATA_REGION_FIX = ("src/**/*.cpp", r"SMS_PORT_REGION\(\s*(?i:(" + RAWDATA + r"))\s*,[^()]*\)",
+                      lambda m: "sms_mod_rawdata(%s)" % m.group(1), "retail data addresses go to the port's objects")
+
+# The OS globals at the bottom of MEM1 (0x80000000..0x800030FF): the disc ID
+# and its music streaming flag, Junior's Toolbox's request words. Android may
+# put MEM1 elsewhere, and the literal address then reads or writes whatever
+# the system mapped there (BSE saw streaming off and panicked at the first
+# stage's music), so they go to the port's MEM1 wherever it is.
+LOWMEM = r"0x8000(?:[0-2][0-9A-Fa-f]{3}|30[0-9A-Fa-f]{2})"
+LOWMEM_FIXES = [
+    ("src/**/*.cpp", r"(\(\s*(?:const\s+)?[A-Za-z_][\w:<> ]*?\s*\*+\s*\))\s*(" + LOWMEM + r")\b",
+     r"\1sms_mod_lowmem(\2)", "the OS globals are in the port's MEM1"),
+    ("src/**/*.cpp", r"(reinterpret_cast<[^<>;]*\*\s*>\(\s*)(" + LOWMEM + r")\b",
+     r"\1sms_mod_lowmem(\2)", "the OS globals are in the port's MEM1"),
+]
 
 # Textures built into the code as byte arrays are converted to host byte
 # order in place when the game first stores them (JUTTexture::storeTIMG), so
@@ -166,8 +187,13 @@ SHI_GAME_TYPES = [
     game_types("include/JSystem/JKernel/JKRHeap.hxx", r"\bvirtual u32(\s+dump_sort\s*\()", r"virtual bool\1"),
     game_types("include/JSystem/JKernel/JKRHeap.hxx", r"\bvirtual u8(\s+changeGroupID\s*\()", r"virtual s32\1"),
     game_types("include/JSystem/JStage/JSGCamera.hxx", r"\bvirtual s32(\s+JSGGetViewType\s*\(\s*\)\s*const)", r"virtual bool\1"),
-    # The game's axis is a (signed) char; the mods pass 'x', 'y' or 'z'.
-    game_types("include/Dolphin/MTX.h", r"(PSMTXRotRad\(Mtx \w+, )u8(\s+axis)", r"\1signed char\2"),
+    # The game's axis is a plain char: signed on x86, unsigned on ARM (the
+    # mods' char is unsigned everywhere); the mods pass 'x', 'y' or 'z'.
+    game_types("include/Dolphin/MTX.h", r"(PSMTXRotRad\(Mtx \w+, )u8(\s+axis)", r"\1sms_game_char\2"),
+    # TSmallEnemy's virtual functions, which no mod calls or overrides.
+    game_types("include/SMS/Enemy/SmallEnemy.hxx",
+               r"\bvirtual u32(\s+(?:changeByJuice|doKeepDistance|isFindMario)\s*\()", r"virtual bool\1"),
+    game_types("include/SMS/Enemy/SmallEnemy.hxx", r"\bvirtual bool(\s+isInhibitedForceMove\s*\()", r"virtual int\1"),
 ]
 
 # The mods' patch targets as the game calls them.
@@ -209,6 +235,8 @@ def be_reads(path, rx, repl):
 
 
 ECLIPSE_BE_FIXES = [
+    be_reads("src/object/star_bit.cpp", r"in\.read\(&colorIdx, sizeof\(int\)\)",
+             r"in.readBE(&colorIdx, sizeof(int))"),
     be_reads("src/object/tornado_obj.cpp", r"stream\.read\(&mBlowStrength, 4\)", r"stream.readBE(&mBlowStrength, 4)"),
     be_reads("src/object/blow_wind_obj.cpp",
              r"stream\.read\(&(mStrength|mMode), (sizeof\((?:f32|TBlowWindMapObj::GradientMode)\))\)",
@@ -229,25 +257,76 @@ BSE_BE_FIXES = [
              r"in\.readData\(&(mBaseRotation\.[xyz]|mFrameRate|mSoundID|mSoundSpeed|mSoundStrength), 4\)",
              r"in.readDataBE(&\1, 4)"),
     be_reads("src/objects/sound.cpp", r"in\.readData\(&(mID|mVolume|mPitch|mSpawnRate), 4\)", r"in.readDataBE(&\1, 4)"),
-    # customScenes.bin (not on the Eclipse disc), read field by field.
-    be_reads("src/area.cpp", r"(#define READ_ATTR\(in, var\) \(\(in\)\.)readData(\(&\(var\), )",
-             r"\1readDataBE\2"),
     be_reads("include/BetterSMS/settings.hxx", r"in\.read\(&(x|f), 4\);", r"in.readBE(&\1, 4);"),
     be_reads("include/BetterSMS/settings.hxx", r"out\.write\(mValuePtr, 4\);", r"out.writeBE(mValuePtr, 4);"),
-    # The level select's arrow is a texture built into the code, which the
-    # game converts when it first stores it (modhook-14); its size is read
-    # before that, so convert it first, and in writable memory.
-    be_reads("src/level_select/level_select.cpp", r"static const u8 SMS_ALIGN\(32\) sTinyArrowResTIMG\[\]",
-             r"static u8 SMS_ALIGN(32) sTinyArrowResTIMG[]"),
-    be_reads("src/level_select/level_select.cpp",
-             r"static const ResTIMG \*GetArrowResTIMG\(\) \{ return GetResourceTextureHeader\(sTinyArrowResTIMG\); \}",
-             'extern "C" int port_endian_bti_embedded(void *);\n'
-             r"static const ResTIMG *GetArrowResTIMG() {\n"
-             r"    port_endian_bti_embedded(sTinyArrowResTIMG);\n"
-             r"    return GetResourceTextureHeader(sTinyArrowResTIMG);\n}"),
 ]
 
-ECLIPSE_FIXES = optional(TEXTURE_FIXES) + CARD_IMAGE_FIXES + PARTICLE_FIXES + DEBS_FIXES + [RAWDATA_FIX] + BOOL_RET_FIXES + ECLIPSE_BE_FIXES + ECLIPSE_PATCH_TYPE_FIXES + [
+# The frame rate is the port's (frame_rate setting), as for the plain game.
+# BetterSunshineEngine replaces TApplication::proc with its own loop, so the
+# port's switch to the gameplay rate there never ran and stages stayed at 30;
+# the loop now switches it where proc does (sms_port_set_gameplay_frame_rate,
+# decomp-patches/modhook-41). BSE's own Frame Rate setting paced the game
+# instead: every frame its updateFPS set the display's retrace count (2, or 1
+# at 60 FPS, which ran the game at twice its speed while the port stepped it
+# for 30) and stored into two retail .sdata2 constants by address, which in
+# the port are inside the game's heap. Its patches are waived
+# (tools/mods/not_ported.txt) and updateFPS is not run; the setting stays in
+# the save, so the card files keep their layout, but is hidden from the menu,
+# and getFrameRate reports the port's rate.
+FRAME_RATE_FIXES = [
+    ("src/application.cpp",
+     r"(BETTER_SMS_FOR_CALLBACK bool BetterAppContextDirectStage\(TApplication \*app\) \{\n"
+     r"\s*sIsAdditionalMovie = app->checkAdditionalMovie\(\);\n\s*if \(!sIsAdditionalMovie\) \{\n)",
+     r'extern "C" void sms_port_set_gameplay_frame_rate(TApplication *app, int gameplay);\n\n'
+     r"\1        sms_port_set_gameplay_frame_rate(app, 1);\n",
+     "the port's frame rate in stages"),
+    ("src/application.cpp", r"\n(\s*)(Application::ContextCallback cb = sContextCBs\[app->mContext\];)",
+     r"\n\1sms_port_set_gameplay_frame_rate(app, 0);\n\1\2", "the port's frame rate between stages"),
+    ("src/module.cpp", r"\n\s*Game::addLoopCallback\(updateFPS\);", "",
+     "BSE's frame rate setting does not pace the port"),
+    ("src/p_settings.hxx", r"(\n(\s*)~FPSSetting\(\) override \{\}\n)",
+     r"\1\2bool isUnlocked() const override { return false; }\n",
+     "BSE's frame rate setting is hidden"),
+    ("src/globals.cpp", r"(f32 BetterSMS::getFrameRate\(\) \{\n\s*const f32 FPS = )static_cast<f32>\(30 << gFPSSetting\.getInt\(\)\);",
+     r'extern "C" int port_active_frame_rate;\n\1static_cast<f32>(port_active_frame_rate);',
+     "BSE reports the port's frame rate"),
+]
+
+# The widescreen is the port's (widescreen setting): it widens the frame and
+# maps the game's 4:3 coordinates into it, with the area beside them visible.
+# BSE's own Aspect Ratio setting widened its menus' and overlays' projections
+# and moved their contents out by getScreenRatioAdjustX for its widescreen
+# patches, which the port waives (tools/mods/not_ported.txt): any value but
+# 4:3 squeezed BSE's and Eclipse's menus into the 4:3 area and pushed their
+# HUD-side text (Eclipse's pause menu Shine and blue coin counts) off the
+# left of the frame. BSE now always lays out for 4:3, as with its setting at
+# 4:3; the setting stays in the save, so the card files keep their layout,
+# but is hidden from the menu.
+ASPECT_RATIO_FIXES = [
+    ("src/globals.cpp", r"(int BetterSMS::getScreenRenderWidth\(\) \{\n)\s*switch \(gAspectRatioSetting\.getInt\(\)\) \{",
+     r"\1    return 600;\n    switch (gAspectRatioSetting.getInt()) {", "BSE lays out for 4:3"),
+    ("src/globals.cpp", r"(int BetterSMS::getScreenOrthoWidth\(\) \{\n)\s*switch \(gAspectRatioSetting\.getInt\(\)\) \{",
+     r"\1    return 640;\n    switch (gAspectRatioSetting.getInt()) {", "BSE lays out for 4:3"),
+    ("src/p_settings.hxx", r"(\n(\s*)~AspectRatioSetting\(\) override \{\}\n)",
+     r"\1\2bool isUnlocked() const override { return false; }\n",
+     "BSE's aspect ratio setting is hidden"),
+]
+
+ECLIPSE_FIXES = optional(TEXTURE_FIXES) + CARD_IMAGE_FIXES + PARTICLE_FIXES + DEBS_FIXES + [RAWDATA_FIX, RAWDATA_REGION_FIX] + BOOL_RET_FIXES + ECLIPSE_BE_FIXES + ECLIPSE_PATCH_TYPE_FIXES + [
+    # Six four-byte colours are six entries, not 24. Clamp's upper bound
+    # is inclusive, so it must name the last colour rather than the count.
+    ("src/object/star_bit.cpp", r"rand\(\) % sizeof\(sStarBitColorArray\)",
+     "rand() % (sizeof(sStarBitColorArray) / sizeof(sStarBitColorArray[0]))",
+     "Star Bits choose among colour entries, not bytes"),
+    ("include/object/star_bit.hxx", r"Clamp\(index, 0, sizeof\(sStarBitColorArray\)\)",
+     "Clamp(index, 0, static_cast<int>(sizeof(sStarBitColorArray) / sizeof(sStarBitColorArray[0])) - 1)",
+     "Star Bit colour indices stop at the last entry"),
+    # The final Bowser arena's iron crates create an intact and a broken
+    # model. A one-entry keeper writes both its actor pointer and model index
+    # past their arrays, corrupting the neighbouring model before calc().
+    ("src/object/iron_crate.cpp", r"new TMActorKeeper\(mLiveManager, 1\)",
+     "new TMActorKeeper(mLiveManager, 2)",
+     "iron crates reserve both intact and broken model slots"),
     # A retail function taking TVec3f references, called through a (...) cast:
     # on the GameCube an aggregate in a variable argument list is passed by
     # address, so the callee's references see the objects. Pass the addresses.
@@ -259,12 +338,65 @@ ECLIPSE_FIXES = optional(TEXTURE_FIXES) + CARD_IMAGE_FIXES + PARTICLE_FIXES + DE
      "aggregates go by address through (...)"),
     RAWADDR_FIX,
 
-    # SunshineHeaderInterface named obj_hit_info's third field (May 2026);
-    # Eclipse still initialises it by its old placeholder name.
-    ("src/*/*.cpp", r"(obj_hit_info\s+\w+\s*=?\s*\{[^}]*?)\._08(\s*=)", r"\1.mVisualOfsY\2",
-     "obj_hit_info._08 is mVisualOfsY"),
+    # Eclipse's ModuleInfo (main.cpp) links its settings group to the module,
+    # but the group is defined in settings.cpp, whose constructor ran after
+    # main.cpp's here and cleared the link. The group then took the game's
+    # name, "Super Mario Sunshine", in the settings menu and as the name of its
+    # card file, which is Eclipse's game save: the game found a one-sector file
+    # there and could not save. Made on first use, in initModule, the
+    # ModuleInfo comes after the group, and the file is super_mario_eclipse
+    # (platform/card/card.cpp moves the old one).
+    ("src/main.cpp", r"static BetterSMS::ModuleInfo sModuleInfo\((\"Super Mario Eclipse\", \d+, \d+, &gSettingsGroup)\);",
+     r"static BetterSMS::ModuleInfo &moduleInfo() {\n    static BetterSMS::ModuleInfo info(\1);\n    return info;\n}",
+     "Eclipse's settings group knows its module"),
+    ("src/main.cpp", r"(static void initModule\(\) \{\n)", r"\1    moduleInfo();\n",
+     "Eclipse's settings group knows its module"),
+    ("src/main.cpp", r"BetterSMS::registerModule\(sModuleInfo\);", r"BetterSMS::registerModule(moduleInfo());",
+     "Eclipse's settings group knows its module"),
 ]
-BSE_FIXES = TEXTURE_FIXES + CARD_IMAGE_FIXES + optional([RAWADDR_FIX]) + [RAWDATA_FIX] + BSE_BE_FIXES + PATCH_TYPE_FIXES + [
+BSE_FIXES = TEXTURE_FIXES + CARD_IMAGE_FIXES + optional([RAWADDR_FIX]) + [RAWDATA_FIX, RAWDATA_REGION_FIX] + LOWMEM_FIXES + BSE_BE_FIXES + PATCH_TYPE_FIXES + [
+    # J2DTextBox owns and deletes its string. The setting label and shadow
+    # cannot share a heap buffer; keep independent 100-byte allocations and
+    # mirror edits into the shadow so it still displays the current value.
+    ("src/settings.cpp", r"settingText->mStrPtr\s*= settingTextBuf;",
+     "delete[] settingText->mStrPtr;\n                settingText->mStrPtr = settingTextBuf;",
+     "settings labels release their initial owned string"),
+    ("src/settings.cpp", r"settingTextBehind->mStrPtr\s*= settingTextBuf;",
+     "delete[] settingTextBehind->mStrPtr;\n"
+     "                settingTextBehind->mStrPtr = new char[100];\n"
+     "                memcpy(settingTextBehind->mStrPtr, settingTextBuf, 100);",
+     "settings shadows own a separate string"),
+    ("src/p_settings.hxx",
+     r"(?m)^([ \t]*)(snprintf\(mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100, \"%s: %s\",\s*"
+     r"mCurrentSettingInfo->mSettingData->getName\(\), valueTextBuf\);)",
+     lambda m: m.group(1) + m.group(2) + "\n" + m.group(1)
+     + "memcpy(mCurrentSettingInfo->mSettingTextBoxBack->mStrPtr,\n" + m.group(1)
+     + "       mCurrentSettingInfo->mSettingTextBox->mStrPtr, 100);",
+     "settings edits update the independently owned shadow string"),
+    # BSE's free-fly camera, in place of CPolarSubCamera::perform's test of
+    # TGraphics' first-tick flag (bit 0 of the u16 at 0, `lhz`), reads the
+    # word's low byte, the GameCube's second; natively that is the high byte,
+    # always 0, so the camera never kept its previous frame or reset its up
+    # vector after a cutscene (Delfino Plaza's opening ended rolled).
+    ("src/debug/freeflycam.cpp", r"return \(graphics->_00\[1\] & 1\);", r"return (*(u16 *)graphics->_00 & 1);",
+     "TGraphics' first-tick flag is the game's u16"),
+    # BSE only commits pending scenes after its built-in contexts. Eclipse's
+    # character select is a custom context (11); when an additional movie
+    # defers a scene change, leaving that menu must commit the destination
+    # before the stage handler reads mCurrentScene.
+    ("src/application.cpp",
+     r"if \(!sIsAdditionalMovie && app->mContext <= TApplication::CONTEXT_DIRECT_LEVEL_SELECT\) \{",
+     "if ((!sIsAdditionalMovie && app->mContext <= TApplication::CONTEXT_DIRECT_LEVEL_SELECT) ||\n"
+     "            (app->mContext > TApplication::CONTEXT_DIRECT_LEVEL_SELECT &&\n"
+     "             delayContext == TApplication::CONTEXT_DIRECT_STAGE)) {",
+     "custom menus commit the pending scene before entering gameplay"),
+    # getStageName explicitly returns nullptr for an absent archive entry.
+    # Loading optional stage parameters must keep defaults in that case,
+    # rather than feeding nullptr to the path builder (unlock crash log).
+    ("src/stage.cpp",
+     r"(void BetterSMS::Stage::TStageParams::load\(const char \*stageName\) \{\n)",
+     r"\1    if (!stageName) {\n        reset();\n        return;\n    }\n\n",
+     "missing stage names retain default parameters"),
     # The object table holds pointers, not words.
     ("src/object.cpp", r"sizeof\(u32\) \* ObjDataTableSize\);", r"sizeof(ObjData *) * ObjDataTableSize);",
      "the object table is copied a pointer per entry"),
@@ -296,9 +428,36 @@ BSE_FIXES = TEXTURE_FIXES + CARD_IMAGE_FIXES + optional([RAWADDR_FIX]) + [RAWDAT
      r'extern "C" void sms_mod_code_write(uint32_t, uint32_t, int);\n'
      r'\1    sms_mod_code_write((uint32_t)(uintptr_t)ptr, value, \2 / 8);',
      "code writes go to the patch registry"),
-]
+    # shadowMarioInitHandler stands in for TEMario::loadAfter's
+    # SMS_isMultiPlayerMap call and loads Shadow Mario with PowerPC assembly
+    # from the TEMario in r31 (its mEnemyMario, retail offset 0x150); the
+    # shim's SMS_ASM_BLOCK is empty, so the player was never set and every
+    # stage with Shadow Mario crashed loading (Red Lily). The hook passes the
+    # TEMario, and port_shims.cpp reads the member.
+    ("src/player.cpp", r'SMS_ASM_BLOCK\("lwz %0, 0x150 \(31\)" : "=r"\(player\)\);',
+     'void *emario;\n    SMS_FROM_GPR(31, emario);\n    player = (TMario *)sms_mod_emario_mario(emario);',
+     "Shadow Mario's player comes from the TEMario"),
+    ("src/player.cpp", r"\n(static bool shadowMarioInitHandler\(\) \{)",
+     '\nextern "C" void *sms_mod_emario_mario(void *emario);\n\n\\1',
+     "Shadow Mario's player comes from the TEMario"),
+    # Console::log and its kin pass their va_list to OSReport as a single
+    # argument (as on the console, where the values are garbage too); the
+    # port's sms_mod_vreport (sdk_extras.cpp) formats with it.
+    ("src/logging.cpp", r'(#include "module.hxx"\n)', r'\1\nextern "C" void sms_mod_vreport(const char *, va_list);\n',
+     "BSE's console log formats its arguments"),
+    ("src/logging.cpp", r"\bOSReport\(msg, vargs\);", r"sms_mod_vreport(msg, vargs);",
+     "BSE's console log formats its arguments"),
+] + FRAME_RATE_FIXES + ASPECT_RATIO_FIXES
 MOVESET_FIXES = optional(TEXTURE_FIXES + [RAWADDR_FIX]) + CARD_IMAGE_FIXES
 SHI_FIXES = BOOL_RET_FIXES + SHI_WORD_FIXES + SHI_GAME_TYPES + [
+    # The SDK's OSMessage is a void *, as the port's OS keeps it; declared u32,
+    # it was half the size in the 64-bit build. BSE's music streamer queues 16
+    # of them in a u32 array, which the port wrote 8 bytes apiece, over the
+    # streamer's file handle after it (a crash stopping the music on a stage
+    # change), and OSReceiveMessage wrote 8 bytes into a 4-byte local. An
+    # integer the size of a pointer keeps the mods' integer messages.
+    ("include/Dolphin/OS.h", r"\btypedef u32 OSMessage;", "typedef __UINTPTR_TYPE__ OSMessage;",
+     "OSMessage is pointer-sized"),
     # MWCC's u32/s32 are (unsigned) long, 64 bits on LP64 hosts: the port
     # spells them int there (src/port_include/dolphin/types.h), and so must
     # the mods, or every u32 field and u32-typed call disagrees with the game.
@@ -425,6 +584,68 @@ SHI_FIXES = BOOL_RET_FIXES + SHI_WORD_FIXES + SHI_GAME_TYPES + [
      + "".join("extern template void TParamT<%s>::load(JSUMemoryInputStream &);\n" % t
                for t in ("u8", "s16", "u16", "s32", "f32", "JGeometry::TVec3<f32>")),
      "the game's TParamT loads convert .prm values"),
+    # A bool .prm value is a byte the mods' code tests against zero on the
+    # console (BSE's canCollectFluddItem_: lbz, cmplwi 0), and Eclipse's
+    # luigi.szs better_sms.prm stores mCanUseFludd as 2. Read raw into a
+    # bool, clang on x86 takes 2 for neither true nor false: !mCanUseFludd
+    # came out true, so Luigi could not take a nozzle from a box. Stored as
+    # 0 or 1 here, every reader sees what the console's code did.
+    ("include/SMS/System/Params.hxx",
+     r"(\nextern template void TParamT<JGeometry::TVec3<f32>>::load\(JSUMemoryInputStream &\);\n)",
+     r"\1template <> inline void TParamT<bool>::load(JSUMemoryInputStream &stream) {\n"
+     r"    u32 buffer;\n"
+     r"    stream.read(&buffer, 4);\n"
+     r"    u8 value;\n"
+     r"    stream.read(&value, 1);\n"
+     r"    mValue = value != 0;\n"
+     r"}\n",
+     ".prm bools are any nonzero byte, as the console's code tests them"),
+]
+
+
+def native_flags(storage):
+    """Keep the game's numeric flag masks on little-endian native hosts."""
+    def fix(match):
+        fields = match.group("fields").strip("\n").splitlines()
+        # SHI declares these from the word's top bit down for the GameCube.
+        # Native compilers allocate from bit 0 up: keeping that order gives
+        # mHasFludd 0x10000 instead of the game's MARIO_FLAG_HAS_FLUDD (0x8000).
+        # Use the game word's type for every field too: MS bitfield layout
+        # separates bool, u8 and u32 allocation units, whereas the game stores
+        # all flags in one u32 or u16.
+        fields = [re.sub(r"\b(?:bool|u8|u16|u32)\b", storage, field) for field in reversed(fields)]
+        return "struct {\n" + "\n".join(fields) + "\n    } " + match.group("name") + ";"
+    return fix
+
+
+# A run of bitfield declarations, as SHI writes them.
+FLAG_FIELDS = r"(?P<fields>(?:\s*(?:u8|u16|u32|bool) \w+\s*: \d+;\n)+)\s*"
+
+# Run after shi-layout.patch, which duplicates some of these for the two host
+# widths. Keeping this separate also preserves the fix when layouts regenerate.
+SHI_NATIVE_FLAG_FIXES = [
+    ("include/SMS/Player/Mario.hxx",
+     r"struct \{\n(?P<fields>\s*u32 _04\s*: 10;\n(?:\s*(?:u32|bool) \w+\s*: \d+;\n)+)\s*\} (?P<name>mAttributes|mPrevAttributes);",
+     native_flags("u32"), "Mario's current and previous flags use the game's numeric masks"),
+    # TLiveActor::mLiveFlag: BetterSunshineEngine's and Eclipse's NPC carry
+    # tests read mCanBeTaken, the game's LIVE_FLAG_UNK100000 (0x100000), which
+    # Shadow Mario sets on Peach before he takes her; natively it was 0x800,
+    # so Peach refused him and he tried to take her forever.
+    ("include/SMS/Strategic/LiveActor.hxx", r"struct \{\n" + FLAG_FIELDS + r"\} (?P<name>asFlags);",
+     native_flags("u32"), "live actors' flags use the game's numeric masks"),
+    # TModelWaterManager's u16 at 0x5D60 (mShowShadow 0x100, as the game's
+    # unk5D60 &= ~0x100), which Eclipse's darkness sets.
+    ("include/SMS/Manager/ModelWaterManager.hxx", r"struct \{\n" + FLAG_FIELDS + r"\} (?P<name>LightType);",
+     native_flags("u16"), "the water manager's light flags use the game's numeric masks"),
+    # TMarioGamePad::mFlags (u16): mDisable 0x400, mReadInput 0x2, which
+    # BetterSunshineEngine sets around its warps and menus.
+    ("include/SMS/Player/MarioGamePad.hxx", r"struct \{\n" + FLAG_FIELDS + r"\} (?P<name>mState);",
+     native_flags("u16"), "the game pad's flags use the game's numeric masks"),
+    # J3DFrameCtrl's u8 at 0x5 (mIsAnmDead 0x1, the game's
+    # STATE_COMPLETED_ONCE), which ends Eclipse's portal cast animation;
+    # natively it was 0x80, a bit the game never sets.
+    ("include/JSystem/J3D/J3DAnimation.hxx", r"struct \{\n" + FLAG_FIELDS + r"\} (?P<name>mAnimFlags);",
+     native_flags("u8"), "animation frame controls' flags use the game's numeric masks"),
 ]
 
 
@@ -516,6 +737,7 @@ if __name__ == "__main__":
     # SunshineHeaderInterface's classes laid out as the port lays out the game's
     # (tools/mods/shi_layout, which also explains how to regenerate the patch).
     n += apply_patch(roots[2], patches[0])
+    n += apply(roots[2], SHI_NATIVE_FLAG_FIXES, True)
     # The mods' own sources where they need more than a pattern: members they
     # address by retail offset (SMS_OFFSET, tools/mods/shi_layout/offsets.py).
     if len(roots) == 4 and os.path.exists(patches[1]):
