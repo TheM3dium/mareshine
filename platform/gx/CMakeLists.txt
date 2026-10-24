@@ -24,7 +24,8 @@ set(SMS_GX_SOURCES
     src/gx_trace.cpp
     src/gx_vert.cpp)
 if(ANDROID)
-    list(APPEND SMS_GX_SOURCES src/gx_android.cpp)
+    # gx_backdrop.cpp: Mareshine's cutscene frame
+    list(APPEND SMS_GX_SOURCES src/gx_android.cpp src/gx_backdrop.cpp)
 endif()
 
 # GD is compiled from the decompiled SDK sources: it only emits command bytes.

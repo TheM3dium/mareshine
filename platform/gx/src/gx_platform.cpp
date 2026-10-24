@@ -53,6 +53,7 @@ extern "C" void port_android_performance_shutdown(void) __attribute__((weak));
 extern "C" __attribute__((weak)) const char* port_gc_adapter_sdl_ignore(void) { return nullptr; }
 
 extern "C" void touch_controls_draw(int winW, int winH) __attribute__((weak));
+extern "C" void GXPC_DrawBackdrop(int winW, int winH) __attribute__((weak)); // gx_backdrop.cpp (Android)
 
 namespace gx {
 extern void (*g_displayCopyHook)(const void* xfb);
@@ -808,6 +809,7 @@ void GXPC_Present(const void* xfb) {
             warpMenuRender(w, h);
             savestateOverlayRender(w, h);
             // Mareshine's touch controls (platform/pad/touch.cpp), over everything else
+            if (GXPC_DrawBackdrop) GXPC_DrawBackdrop(w, h);
             if (touch_controls_draw) touch_controls_draw(w, h);
             captureWindow(s_frame, w, h);
             t1 = nowSeconds();

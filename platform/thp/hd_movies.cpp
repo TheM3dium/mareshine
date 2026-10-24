@@ -49,6 +49,14 @@ extern "C" u8* port_hd_movie_pool(void)
 
 extern "C" const char* port_thp_movie_stem(void);
 extern "C" int port_thp_movie_fills(void);
+
+// Wide movies across the widened frame (SMS_MOVIE_FILL, on unless 0): read by
+// the movie sizing (decomp-patches/zzzzzz-movies-01) and by mp4_movies.cpp.
+extern "C" int port_movie_fill(void)
+{
+    const char* e = std::getenv("SMS_MOVIE_FILL");
+    return !(e && !std::strcmp(e, "0"));
+}
 extern "C" float port_widescreen;
 
 namespace {

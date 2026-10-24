@@ -3589,8 +3589,40 @@ extern "C" void GXPC_SpriteAtlas(const uint8_t* rgba, int w, int h) {
     glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlign);
 }
 
+// A texture of the caller's (GXPC_UploadTexture: the cutscene frame) or the
+// sprite atlas, drawn in rectangles over the presented frame.
+extern "C" unsigned GXPC_UploadTexture(const uint8_t* rgba, int w, int h) {
+    if (!s_ready || !rgba || w <= 0 || h <= 0) return 0;
+    GLint boundTex = 0, activeUnit = 0, rowLength = 0, unpackAlign = 4;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &activeUnit);
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTex);
+    glGetIntegerv(GL_UNPACK_ROW_LENGTH, &rowLength);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlign);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glBindTexture(GL_TEXTURE_2D, GLuint(boundTex));
+    glActiveTexture(GLenum(activeUnit));
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLength);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlign);
+    return tex;
+}
+
 extern "C" void GXPC_DrawSprites(const GXPCSprite* sprites, int count, float alpha, int winW, int winH) {
-    if (!s_ready || !s_spriteTex || !sprites || count <= 0 || alpha <= 0.0f) return;
+    GXPC_DrawTexture(s_spriteTex, s_spriteW, s_spriteH, sprites, count, alpha, winW, winH);
+}
+
+extern "C" void GXPC_DrawTexture(unsigned texture, int texW, int texH, const GXPCSprite* sprites, int count,
+                                 float alpha, int winW, int winH) {
+    if (!s_ready || !texture || texW <= 0 || texH <= 0 || !sprites || count <= 0 || alpha <= 0.0f) return;
     flushBatch();
     glcInvalidate();
     if (!s_spriteProg) {
@@ -3652,7 +3684,7 @@ void main() { vec4 c = texture(u_color, v_uv); o_color = vec4(c.rgb, c.a * u_alp
     glViewport(0, 0, winW, winH);
     glUseProgram(s_spriteProg);
     glUniform1i(glGetUniformLocation(s_spriteProg, "u_color"), 0);
-    glBindTexture(GL_TEXTURE_2D, s_spriteTex);
+    glBindTexture(GL_TEXTURE_2D, GLuint(texture));
     glBindVertexArray(s_copyVao);
     const float window[2] = {float(winW), float(winH)};
     glUniform2fv(s_spriteWindow, 1, window);
@@ -3661,8 +3693,7 @@ void main() { vec4 c = texture(u_color, v_uv); o_color = vec4(c.rgb, c.a * u_alp
         const GXPCSprite& sp = sprites[i];
         // x, y from the window's top left; GL's y goes up
         const float rect[4] = {sp.x, float(winH) - sp.y - sp.h, sp.w, sp.h};
-        const float uv[4] = {float(sp.u) / s_spriteW, float(sp.v) / s_spriteH, float(sp.uw) / s_spriteW,
-                             float(sp.vh) / s_spriteH};
+        const float uv[4] = {float(sp.u) / texW, float(sp.v) / texH, float(sp.uw) / texW, float(sp.vh) / texH};
         glUniform4fv(s_spriteRect, 1, rect);
         glUniform4fv(s_spriteUv, 1, uv);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

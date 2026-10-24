@@ -1,0 +1,23 @@
+Reason: port (Mareshine): the app's "Wide movies across the screen" (SMS_MOVIE_FILL, on by default): off keeps a wide movie at the original 4:3 width in the widened frame instead of growing it across it
+--- a/src/System/MovieDirector.cpp
++++ b/src/System/MovieDirector.cpp
+@@ -198,6 +198,8 @@
+ // when off. Movies fill that frame (rsetup); TTHPRender has sms_gx stretch
+ // them.
+ extern "C" float port_widescreen;
++// Mareshine: wide movies across the widened frame, unless SMS_MOVIE_FILL=0
++extern "C" int port_movie_fill(void);
+ #endif
+ 
+ void* TMovieDirector::setupThreadFunc(void* self)
+@@ -369,7 +371,9 @@
+ 		double scale = 1.0;
+ 		if (videoInfo.xSize >= SMSGetGameRenderWidth()
+ 		    || videoInfo.ySize > SMSGetGameRenderHeight()) {
+-			scale = SMSGetGameRenderWidth() * wide / videoInfo.xSize;
++			// Mareshine: SMS_MOVIE_FILL=0 keeps a wide movie at the original
++			// 4:3 width instead (port_movie_fill, platform/thp/hd_movies.cpp)
++			scale = SMSGetGameRenderWidth() * (port_movie_fill() ? wide : 1.0) / videoInfo.xSize;
+ 			if ((double)SMSGetGameRenderHeight() / videoInfo.ySize < scale)
+ 				scale = (double)SMSGetGameRenderHeight() / videoInfo.ySize;
+ 		}

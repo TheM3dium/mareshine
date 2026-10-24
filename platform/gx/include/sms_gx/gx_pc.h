@@ -232,6 +232,11 @@ typedef struct GXPCSprite {
 } GXPCSprite;
 void GXPC_SpriteAtlas(const uint8_t* rgba, int w, int h);
 void GXPC_DrawSprites(const GXPCSprite* sprites, int count, float alpha, int winW, int winH);
+// Any texture the same way (the cutscene frame, gx_backdrop.cpp): made with
+// GXPC_UploadTexture (RGBA8, w x h), drawn in rectangles cut from it.
+unsigned GXPC_UploadTexture(const uint8_t* rgba, int w, int h);
+void GXPC_DrawTexture(unsigned texture, int texW, int texH, const GXPCSprite* sprites, int count, float alpha,
+                      int winW, int winH);
 /* Debug overlay (backtick in the window): toggle, and draw it before a swap. */
 void GXPC_OverlayToggle(void);
 void GXPC_OverlayDraw(int winW, int winH);
