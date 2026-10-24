@@ -946,11 +946,26 @@ static void load_settings()
 extern "C" void port_savestate_android_init(void); // savestate/savestate_android.cpp
 extern "C" void port_cheats_init(void);           // misc/port_cheats.cpp: the app's cheats
 #endif
-// Mareshine: cutscene subtitles even with the game's own option off
-// (SMS_SUBTITLES, decomp-patches/zzz-subtitles-01; on by default).
+// Mareshine: the app's "Subtitles in cutscenes" (SMS_SUBTITLES, on unless 0)
+// and the game's own option are one setting (decomp-patches/zzzzzz-subtitles-01):
+// -1 leaves it to the game's option (no app), else 0 or 1.
 extern "C" {
-int port_subtitles_always = 1;
+int port_subtitles_setting = -1;
 }
+#ifdef __ANDROID__
+extern "C" __attribute__((weak)) int SDL_AndroidSendMessage(uint32_t command, int param);
+// The player changed it in the game's options: the app's setting follows.
+extern "C" void port_subtitles_option_changed(int on)
+{
+	if (port_subtitles_setting < 0 || port_subtitles_setting == (on != 0))
+		return;
+	port_subtitles_setting = on != 0;
+	port_setenv("SMS_SUBTITLES", on ? "1" : "0", 1);
+	port_log("[port] cutscene subtitles %s (the game's options)\n", on ? "on" : "off");
+	if (SDL_AndroidSendMessage)
+		SDL_AndroidSendMessage(0x8009, on != 0); // SunshineActivity.COMMAND_SUBTITLES
+}
+#endif
 #ifdef __ANDROID__
 extern "C" void port_android_register_natives(void); // android/mareshine_jni.cpp
 extern "C" void port_ach_init(void);                 // achievements/achievements.cpp
@@ -973,8 +988,10 @@ extern "C" void port_init(int argc, char** argv)
 #ifdef __ANDROID__
 	mareshine_settings();
 	port_crash_report_init();
-	if (const char* sub = getenv("SMS_SUBTITLES"))
-		port_subtitles_always = strcmp(sub, "0") != 0;
+	{
+		const char* sub = getenv("SMS_SUBTITLES");
+		port_subtitles_setting = !(sub && !strcmp(sub, "0"));
+	}
 	port_android_register_natives();
 #endif
 	pick_glx_vendor();

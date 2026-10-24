@@ -185,6 +185,10 @@ public class SunshineActivity extends SDLActivity {
     // button (Select) was tapped once, the menu wants two taps
     private static final int COMMAND_HINT = 0x8008;
 
+    // platform/port_runtime.cpp: subtitles turned on (1) or off (0) in the
+    // game's own options; the app's "Subtitles in cutscenes" follows
+    private static final int COMMAND_SUBTITLES = 0x8009;
+
     // "Achievement unlocked" with its name, one after another, at the bottom
     private TextView mAchNotice;
     private java.util.Set<String> mAchKnown;
@@ -344,6 +348,12 @@ public class SunshineActivity extends SDLActivity {
         }
         if (command == COMMAND_MOVIE_SKIP && param instanceof Integer) {
             showSkipNotice((Integer) param);
+            return true;
+        }
+        if (command == COMMAND_SUBTITLES && param instanceof Integer) {
+            java.util.Map<String, String> m = Settings.read(this);
+            m.put("SMS_SUBTITLES", (Integer) param != 0 ? "1" : "0");
+            Settings.write(this, m);
             return true;
         }
         if (command == COMMAND_HINT && param instanceof Integer) {
