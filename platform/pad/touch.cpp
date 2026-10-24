@@ -39,6 +39,7 @@ extern "C" __attribute__((weak)) void GXPC_DrawSprites(const GXPCSprite* sprites
                                                         int winH);
 extern "C" __attribute__((weak)) void port_savestate_notice(const char* text);
 extern "C" __attribute__((weak)) int port_savestate_progress(int* kind);
+extern "C" __attribute__((weak)) int port_mp4_showing(void); // platform/thp/mp4_movies.cpp
 
 namespace {
 
@@ -523,13 +524,13 @@ void makeGlyph(Image& im, int dot, char ch)
 // like the SAVE and LOAD buttons, a ring of dots filling up around it, the
 // percentage beside it.
 const int kIndicatorDots = 16;
-const char kIndicatorChars[] = "0123456789%";
+const char kIndicatorChars[] = "0123456789%MP";
 float indicatorSize() { return g_h * 0.10f; }
 
 // The atlas: every picture side by side in rows.
 enum Pic { PIC_STICK_BASE, PIC_STICK_KNOB, PIC_STICK_KNOB_HELD, PIC_C_BASE, PIC_C_KNOB, PIC_C_KNOB_HELD, PIC_SHOW,
            PIC_R_DEEP, PIC_IND_SAVE, PIC_IND_LOAD, PIC_IND_DOT, PIC_IND_DOT_LIT, PIC_IND_CHAR,
-           PIC_BUTTON = PIC_IND_CHAR + 11 };  // then two per button (up, down)
+           PIC_BUTTON = PIC_IND_CHAR + 13 };  // then two per button (up, down)
 struct Cut {
 	int u, v, w, h;
 };
@@ -695,6 +696,20 @@ extern "C" void touch_controls_pad(PADStatus* s)
 
 namespace {
 
+// Characters of kIndicatorChars from x on, centred on y.
+void putText(std::vector<GXPCSprite>& out, const char* text, float x, float y)
+{
+	for (const char* ch = text; *ch; ch++) {
+		const char* at = strchr(kIndicatorChars, *ch);
+		if (!at)
+			continue;
+		const int pic = PIC_IND_CHAR + (int)(at - kIndicatorChars);
+		const Cut& c = g_cuts[pic];
+		put(out, pic, x + c.w * 0.5f, y);
+		x += c.w + c.w / 5;
+	}
+}
+
 void drawIndicator(int kind, int percent, int winW, int winH)
 {
 	std::vector<GXPCSprite> out;
@@ -709,14 +724,17 @@ void drawIndicator(int kind, int percent, int winW, int winH)
 	}
 	char text[8];
 	snprintf(text, sizeof text, "%d%%", percent);
-	float x = cx + size * 0.85f;
-	for (const char* ch = text; *ch; ch++) {
-		const int pic = PIC_IND_CHAR + (int)(strchr(kIndicatorChars, *ch) - kIndicatorChars);
-		const Cut& c = g_cuts[pic];
-		put(out, pic, x + c.w * 0.5f, cy);
-		x += c.w + c.w / 5;
-	}
+	putText(out, text, cx + size * 0.85f, cy);
 	GXPC_DrawSprites(out.data(), (int)out.size(), 0.95f, winW, winH);
+}
+
+// "MP4" in the top left while an MP4 replaces a movie's picture, with the
+// performance overlay on (SMS_OVERLAY): to see that the hardware decoder plays
+void drawMp4Mark(int winW, int winH)
+{
+	std::vector<GXPCSprite> out;
+	putText(out, "MP4", fmaxf(g_w * 0.04f, indicatorSize() * 0.9f), indicatorSize() * 0.6f);
+	GXPC_DrawSprites(out.data(), (int)out.size(), 0.9f, winW, winH);
 }
 
 } // namespace
@@ -734,7 +752,13 @@ extern "C" void touch_controls_draw(int winW, int winH)
 	}
 	int kind = 0;
 	const int percent = port_savestate_progress ? port_savestate_progress(&kind) : -1;
-	if (!visible() && percent < 0)
+	static int s_overlay = -1;
+	if (s_overlay < 0) {
+		const char* o = getenv("SMS_OVERLAY");
+		s_overlay = o && *o && strcmp(o, "0") != 0;
+	}
+	const bool mp4 = s_overlay && port_mp4_showing && port_mp4_showing();
+	if (!visible() && percent < 0 && !mp4)
 		return;
 	if (g_spritesDirty) {
 		g_spritesDirty = false;
@@ -748,6 +772,8 @@ extern "C" void touch_controls_draw(int winW, int winH)
 	}
 	if (percent >= 0)
 		drawIndicator(kind, percent, winW, winH);
+	if (mp4)
+		drawMp4Mark(winW, winH);
 	if (!visible())
 		return;
 	// faded out after SMS_TOUCH_AUTOHIDE seconds without a touch (not while held)

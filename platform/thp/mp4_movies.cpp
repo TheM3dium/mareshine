@@ -18,6 +18,7 @@
 #include "port_platform.h"
 
 #include <algorithm>
+#include <time.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -529,6 +530,20 @@ extern "C" void port_thp_closed(void)
 
 extern "C" void port_thp_draw_frame(s32 frame) { g_frame = frame; }
 
+// when an MP4 picture was last drawn (CLOCK_MONOTONIC seconds), for the
+// "MP4" mark the touch layer shows with the performance overlay
+static std::atomic<double> g_lastDrawn{-10.0};
+
+static double mp4_seconds()
+{
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
+
+// Whether an MP4 replaces the movie's picture right now (drawn in the last half second).
+extern "C" int port_mp4_showing(void) { return mp4_seconds() - g_lastDrawn.load() < 0.5; }
+
 extern "C" BOOL port_mp4_draw(s16 x, s16 y, s16 draw_width, s16 draw_height)
 {
     if (!g_movie || g_frame < 0 || g_movie->failed())
@@ -562,6 +577,7 @@ extern "C" BOOL port_mp4_draw(s16 x, s16 y, s16 draw_width, s16 draw_height)
             THPGXYuv2RgbDraw(ty, tu, tv, x0, y0, w, h, x1 - x0, y1 - y0);
         }
     }
+    g_lastDrawn = mp4_seconds();
     return TRUE;
 }
 
