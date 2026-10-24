@@ -689,5 +689,8 @@
     "Enter numbers…": "Inserisci numeri…",
     "Area and episode, for example 2,0 for Bianco Hills' first episode.": "Area ed episodio, per esempio 2,0 per il primo episodio di Bianco Hills.",
     "Warp": "Salta",
-    "Type two numbers, for example 2,0.": "Scrivi due numeri, per esempio 2,0."
+    "Type two numbers, for example 2,0.": "Scrivi due numeri, per esempio 2,0.",
+    "Game language": "Lingua del gioco",
+    "The language of the game's text and menus. English is built in; French, German, Spanish and Italian can be made from your own European disc image (below the languages).\n\nSubtitles in cutscenes is the same setting as the subtitle option in the game's own options.\n\nThe language applies the next time the game starts.": "La lingua dei testi e dei menu del gioco. L'inglese è incluso; francese, tedesco, spagnolo e italiano si possono creare dalla tua immagine disco europea (sotto le lingue).\n\nSottotitoli nei filmati è la stessa impostazione dell'opzione sottotitoli nelle opzioni del gioco.\n\nLa lingua si applica al prossimo avvio del gioco.",
+    "Only in the main menu, not while the game runs.": "Solo nel menu principale, non mentre il gioco è in corso."
 }

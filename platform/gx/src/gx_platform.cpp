@@ -1100,6 +1100,11 @@ void sms_gx_pump_events(void) {
 int sms_gx_rumble(unsigned short strength) {
 #ifdef SMS_GX_HAVE_SDL2
     SDL_GameController* c = s_rumblePad >= 0 ? SDL_GameControllerFromInstanceID(s_rumblePad) : nullptr;
+#ifdef __ANDROID__
+    // none pressed yet since it was connected (Android reports no event for a
+    // controller already in use when the game starts): the first one
+    if (!c && !s_pads.empty()) c = s_pads[0];
+#endif
     if (s_rumbling >= 0 && s_rumbling != s_rumblePad) {  // the player picked up another controller
         if (SDL_GameController* old = SDL_GameControllerFromInstanceID(s_rumbling))
             SDL_GameControllerRumble(old, 0, 0, 0);

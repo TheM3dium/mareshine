@@ -105,6 +105,11 @@ public class SettingsActivity extends AppActivity {
 
         // OK / tap: the choices open in the panel on the right
         @Override void click() { openOptions(this); }
+
+        // actions listed under the choices in the panel (the game language's
+        // extra entries); none by default
+        String[] extras() { return null; }
+        void extra(int i) {}
     }
 
     // On/off settings; `inverted` for the disable_* keys ("Shadows: On" = 0).
@@ -214,6 +219,8 @@ public class SettingsActivity extends AppActivity {
         mSettings.clear();
         mSettings.putAll(Settings.read(this));
         refreshValues();
+        // back from making language packs: the open list shows the new ones
+        if (mOpen instanceof Choice) openOptions((Choice) mOpen);
     }
 
     // the slider changed last: dragging it or stepping it on counts once
@@ -543,6 +550,27 @@ public class SettingsActivity extends AppActivity {
             mOptList.addView(o, lp);
             if (i == cur) focus = o;
         }
+        String[] extras = c.extras();
+        for (int i = 0; extras != null && i < extras.length; i++) {
+            final int idx = i;
+            TextView o = new TextView(this);
+            o.setText("›  " + extras[i]);
+            o.setTextColor(DIM);
+            o.setTypeface(condensed(false));
+            o.setTextSize(17);
+            o.setBackgroundResource(R.drawable.dl_row);
+            o.setPadding(dp(18), dp(12), dp(18), dp(12));
+            o.setFocusable(true);
+            o.setClickable(true);
+            o.setOnClickListener(v -> {
+                c.extra(idx);
+                if (mOpen == c) openOptions(c); // its label may have changed (an on/off entry)
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(i == 0 ? 18 : 6);
+            mOptList.addView(o, lp);
+        }
         mOptList.setVisibility(View.VISIBLE);
         if (focus != null) focus.requestFocus();
     }
@@ -840,10 +868,13 @@ public class SettingsActivity extends AppActivity {
         add(verify);
 
         section("LANGUAGE");
-        add(new Choice("language", "Language",
+        // the game's language, with the language packs' maker and the cutscene
+        // subtitles (one setting with the game's own option) under its choices
+        add(new Choice("language", "Game language",
             "The language of the game's text and menus. English is built in; French, German, Spanish and Italian "
-                + "can be made from your own European disc image (the entry below).\n\nApplies the next time the game "
-                + "starts.",
+                + "can be made from your own European disc image (below the languages).\n\nSubtitles in cutscenes "
+                + "is the same setting as the subtitle option in the game's own options.\n\nThe language applies "
+                + "the next time the game starts.",
             "en", new String[] {"en"}, new String[] {"English"}) {
             @Override void reload() {
                 List<String> v = new ArrayList<>(), l = new ArrayList<>();
@@ -866,16 +897,27 @@ public class SettingsActivity extends AppActivity {
                 values = v.toArray(new String[0]);
                 labels = l.toArray(new String[0]);
             }
+
+            boolean subtitles() { return !"0".equals(mSettings.getOrDefault("SMS_SUBTITLES", "1")); }
+
+            @Override String[] extras() {
+                return new String[] {t("Extract languages from your own EU .iso file"),
+                    t("Subtitles in cutscenes") + ": " + t(subtitles() ? "On" : "Off")};
+            }
+
+            @Override void extra(int i) {
+                if (i == 0) {
+                    if (mInGame)
+                        android.widget.Toast.makeText(ctx(), t("Only in the main menu, not while the game runs."),
+                            android.widget.Toast.LENGTH_SHORT).show();
+                    else
+                        startActivity(new Intent(SettingsActivity.this, LanguagePackActivity.class));
+                } else {
+                    mSettings.put("SMS_SUBTITLES", subtitles() ? "0" : "1");
+                    saved();
+                }
+            }
         });
-        Row langs = new Action("Extract languages from your own EU .iso file",
-            t("Makes French, German, Spanish and Italian from your own European disc image. Nothing is "
-                + "downloaded, and the European image can be deleted afterwards.") + (mInGame ? inGameNote : ""),
-            null, () -> startActivity(new Intent(this, LanguagePackActivity.class)));
-        langs.enabled = !mInGame;
-        add(langs);
-        add(new Toggle("SMS_SUBTITLES", "Subtitles in cutscenes",
-            "Shows subtitles in the cutscenes, in the game's language, even when they are off in the game's own "
-                + "options.\n\nApplies the next time the game starts.", true, false));
 
         // the mixer's music and sound effect gains (platform/audio, decomp-patches/audio-05)
         section("SOUND");

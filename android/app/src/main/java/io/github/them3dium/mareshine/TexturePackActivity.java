@@ -196,6 +196,8 @@ public class TexturePackActivity extends AppActivity {
             if (ok) {
                 bar.setProgress(1000);
                 setResult(RESULT_OK);
+                // installed: the message shows a moment, then back on its own
+                tvStatus.postDelayed(() -> { if (!isFinishing()) finish(); }, 1500);
             }
         });
     }

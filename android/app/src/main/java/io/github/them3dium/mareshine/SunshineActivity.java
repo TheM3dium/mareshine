@@ -398,12 +398,22 @@ public class SunshineActivity extends SDLActivity {
             v.cancel();
             return;
         }
-        // platform/pad renews it while it lasts and stops it itself
-        if (Build.VERSION.SDK_INT >= 26)
-            v.vibrate(android.os.VibrationEffect.createOneShot(5000,
-                v.hasAmplitudeControl() ? Math.max(1, Math.min(255, strength)) : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
-        else
+        // platform/pad renews it while it lasts and stops it itself. Many motors
+        // barely change with the amplitude of a long buzz, so weaker strengths
+        // also pulse: on for a share of every 50 ms, as strong as asked.
+        if (Build.VERSION.SDK_INT >= 26) {
+            int amp = Math.max(1, Math.min(255, strength));
+            if (amp >= 200) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(5000,
+                    v.hasAmplitudeControl() ? amp : android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                long on = Math.max(6, 50L * amp / 200), off = 50 - on;
+                int a = v.hasAmplitudeControl() ? Math.max(40, amp) : android.os.VibrationEffect.DEFAULT_AMPLITUDE;
+                v.vibrate(android.os.VibrationEffect.createWaveform(new long[] {on, off}, new int[] {a, 0}, 0));
+            }
+        } else {
             v.vibrate(5000);
+        }
     }
 
     // A short tick or click for the touch buttons, left out while the game

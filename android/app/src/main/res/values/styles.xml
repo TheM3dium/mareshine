@@ -35,7 +35,7 @@
         <item name="android:paddingBottom">10dp</item>
         <item name="android:fontFamily">sans-serif-condensed</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">22sp</item>
+        <item name="android:textSize">26sp</item>
         <item name="android:textColor">@color/dl_menu_text</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:minWidth">0dp</item>

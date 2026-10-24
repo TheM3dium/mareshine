@@ -302,6 +302,12 @@ public class GameMenuActivity extends AppActivity {
 
     private static final String[] TOUCH_KEYS = {
         "SMS_TOUCH_CONTROLS", "SMS_TOUCH_OPACITY", "SMS_TOUCH_AUTOHIDE", "SMS_TOUCH_LAYOUT"};
+    // the controller's (platform/pad/pad.cpp reads them again on SMS_PAD_REV);
+    // a key not set goes as "", which the game takes as its default
+    private static final String[] PAD_KEYS = {
+        "SMS_PAD_MAP", "SMS_R1_SOFT_SPRAY", "SMS_STICK_DEADZONE", "SMS_CSTICK_DEADZONE", "SMS_STICK_SENSITIVITY",
+        "SMS_CSTICK_SENSITIVITY", "SMS_CAL_LEFT", "SMS_CAL_RIGHT", "SMS_FLUDD_INVERT_X", "SMS_FLUDD_INVERT_Y",
+        "SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y"};
     private static int sTouchRev;
 
     // The game is paused while this menu shows, so its environment can be
@@ -317,7 +323,11 @@ public class GameMenuActivity extends AppActivity {
             }
             for (String k : new String[] {"SMS_VIBRATION_CONTROLLER", "SMS_VIBRATION_PHONE"})
                 SDLActivity.nativeSetenv(k, m.getOrDefault(k, "80"));
-            SDLActivity.nativeSetenv("SMS_TOUCH_REV", Integer.toString(++sTouchRev) + "-" + System.nanoTime());
+            for (String k : PAD_KEYS)
+                SDLActivity.nativeSetenv(k, m.getOrDefault(k, ""));
+            String rev = Integer.toString(++sTouchRev) + "-" + System.nanoTime();
+            SDLActivity.nativeSetenv("SMS_PAD_REV", rev);
+            SDLActivity.nativeSetenv("SMS_TOUCH_REV", rev);
         } catch (Throwable ignored) {}
     }
 

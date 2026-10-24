@@ -22,6 +22,7 @@
 #include <math.h>
 #include <time.h>
 #include <algorithm>
+#include <string>
 #include <vector>
 
 // --- SDL2 event ABI (SDL_events.h, SDL_scancode.h, SDL_gamecontroller.h) ---
@@ -582,11 +583,11 @@ void stick_init()
 	const char* dz[2] = { "SMS_STICK_DEADZONE", "SMS_CSTICK_DEADZONE" };
 	const char* se[2] = { "SMS_STICK_SENSITIVITY", "SMS_CSTICK_SENSITIVITY" };
 	for (int i = 0; i < 2; i++) {
-		if (const char* e = getenv(dz[i])) {
+		if (const char* e = getenv(dz[i]); e && *e) {
 			float v = (float)atof(e) / 100.0f;
 			g_dz[i] = v < 0 ? 0 : v > 0.6f ? 0.6f : v;
 		}
-		if (const char* e = getenv(se[i])) {
+		if (const char* e = getenv(se[i]); e && *e) {
 			float v = (float)atof(e) / 100.0f;
 			g_sens[i] = v < 0.25f ? 0.25f : v > 3.0f ? 3.0f : v;
 		}
@@ -841,6 +842,46 @@ void init()
 		port_log("[pad] no GX/SDL event source linked: controller 1 stays idle\n");
 }
 
+#ifdef __ANDROID__
+// The app changed the controller settings while the game ran (its quick
+// menu, SMS_PAD_REV): the controller's bindings, sticks and inversions are
+// read again, from the built-in layout up.
+void reload_pad_settings()
+{
+	memset(g_npbind, 0, sizeof g_npbind);
+	for (size_t i = 0; i < sizeof kDefaultPad / sizeof kDefaultPad[0]; i++)
+		g_pbind[kDefaultPad[i].control][g_npbind[kDefaultPad[i].control]++] = kDefaultPad[i].source;
+	g_stickBase[0] = 0;
+	g_stickBase[1] = 2;
+	for (auto& role : g_stickAxis)
+		for (auto& a : role)
+			a = { -1, 1 };
+	g_dz[0] = g_dz[1] = 0.08f;
+	g_sens[0] = g_sens[1] = 1.0f;
+	apply_pad_map();
+	stick_init();
+	g_invert_cx    = env_on("SMS_CAMERA_INVERT_X");
+	g_invert_cy    = env_on("SMS_CAMERA_INVERT_Y");
+	g_invert_aim_x = env_on("SMS_FLUDD_INVERT_X");
+	g_invert_aim_y = env_on("SMS_FLUDD_INVERT_Y");
+	port_log("[pad] controller settings changed in the app: applied\n");
+}
+
+void check_pad_settings()
+{
+	static int s_poll;
+	static std::string s_rev;
+	if (++s_poll < 30)
+		return;
+	s_poll = 0;
+	const char* rev = getenv("SMS_PAD_REV");
+	if (!rev || s_rev == rev)
+		return;
+	s_rev = rev;
+	reload_pad_settings();
+}
+#endif
+
 // --- Test input: SMS_AUTOPRESS=control@field[+hold],... ------------------------
 // e.g. SMS_AUTOPRESS=start@600,a@900+20 presses Start at retrace 600 and A at
 // 900 (held for 20 retraces; default 8). With the GX layer's SDL window the
@@ -1021,7 +1062,7 @@ extern "C" void PADControlMotor(s32 chan, u32 command)
 	if (level > 4)
 		level = 4;
 	g_motor = level > 0;
-	if (level == s_level && (level == 0 || ++s_refresh < 120))
+	if (level == s_level && (level == 0 || ++s_refresh < 30)) // renewed about once a second
 		return;
 	s_refresh = 0;
 	s_level   = level;
@@ -1072,6 +1113,7 @@ extern "C" u32 PADRead(PADStatus* status)
 		status[i].err = i == 0 ? PAD_ERR_NONE : PAD_ERR_NO_CONTROLLER;
 	}
 #ifdef __ANDROID__
+	check_pad_settings();
 	// The in-game menu: MENU (Select by default) tapped twice, or the
 	// Home/Guide button, which then does not reach the game. One tap alone
 	// asks the app to say so ("Press SELECT twice"); a tap is a press let go
