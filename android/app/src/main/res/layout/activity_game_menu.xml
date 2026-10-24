@@ -62,6 +62,11 @@
                 android:text="MODS" />
 
             <Button
+                android:id="@+id/btnWarp"
+                style="@style/DlBarItem"
+                android:text="WARP" />
+
+            <Button
                 android:id="@+id/btnGraphics"
                 style="@style/DlBarItem"
                 android:text="SETTINGS" />

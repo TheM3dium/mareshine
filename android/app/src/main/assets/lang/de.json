@@ -682,5 +682,12 @@
     "No disc image": "Kein Disc-Image",
     "Mareshine needs your own Super Mario Sunshine disc image (North American, GMSE01). Put it into iso/ in your data folder, or pick it in the launcher.": "Mareshine braucht dein eigenes Disc-Image von Super Mario Sunshine (nordamerikanisch, GMSE01). Lege es in den Ordner iso/ in deinem Datenordner oder wähle es im Launcher aus.",
     "Press A again to skip": "A erneut drücken zum Überspringen",
-    "Press SELECT twice to open the menu": "SELECT zweimal drücken für das Menü"
+    "Press SELECT twice to open the menu": "SELECT zweimal drücken für das Menü",
+    "WARP": "WARP",
+    "The level list is not ready yet. Try again in a moment.": "Die Levelliste ist noch nicht fertig. Versuch es gleich noch einmal.",
+    "Warps work in a level, once it has loaded.": "Warps gehen in einem Level, sobald es geladen ist.",
+    "Enter numbers…": "Nummern eingeben…",
+    "Area and episode, for example 2,0 for Bianco Hills' first episode.": "Bereich und Episode, zum Beispiel 2,0 für die erste Episode von Bianco Hills.",
+    "Warp": "Warpen",
+    "Type two numbers, for example 2,0.": "Gib zwei Zahlen ein, zum Beispiel 2,0."
 }

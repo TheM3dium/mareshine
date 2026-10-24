@@ -1,4 +1,4 @@
-// Mareshine's JNI functions (SaveStates, GameAudio) live in the game library,
+// Mareshine's JNI functions (SaveStates, GameAudio, Warp) live in the game library,
 // which android/bootstrap.cpp loads itself (android_dlopen_ext), so Java's
 // lookup of native methods, which searches only the libraries System.loadLibrary
 // loaded, does not find them. They are registered here when the game starts,
@@ -24,6 +24,9 @@ __attribute__((weak)) void SAVESTATES(nativeSetDelay)(JNIEnv*, jclass, jboolean)
 __attribute__((weak)) jint SAVESTATES(nativeQuickSlot)(JNIEnv*, jclass);
 __attribute__((weak)) jint SAVESTATES(nativeReady)(JNIEnv*, jclass);
 __attribute__((weak)) void Java_io_github_them3dium_mareshine_GameAudio_nativeSetVolume(JNIEnv*, jclass, jint, jint);
+__attribute__((weak)) jobjectArray Java_io_github_them3dium_mareshine_Warp_nativeList(JNIEnv*, jclass);
+__attribute__((weak)) jint Java_io_github_them3dium_mareshine_Warp_nativeReady(JNIEnv*, jclass);
+__attribute__((weak)) void Java_io_github_them3dium_mareshine_Warp_nativeGo(JNIEnv*, jclass, jint, jint);
 }
 
 namespace {
@@ -44,6 +47,9 @@ const Native kNatives[] = {
 	{ "SaveStates", { "nativeQuickSlot", "()I", (void*)SAVESTATES(nativeQuickSlot) } },
 	{ "SaveStates", { "nativeReady", "()I", (void*)SAVESTATES(nativeReady) } },
 	{ "GameAudio", { "nativeSetVolume", "(II)V", (void*)Java_io_github_them3dium_mareshine_GameAudio_nativeSetVolume } },
+	{ "Warp", { "nativeList", "()[Ljava/lang/String;", (void*)Java_io_github_them3dium_mareshine_Warp_nativeList } },
+	{ "Warp", { "nativeReady", "()I", (void*)Java_io_github_them3dium_mareshine_Warp_nativeReady } },
+	{ "Warp", { "nativeGo", "(II)V", (void*)Java_io_github_them3dium_mareshine_Warp_nativeGo } },
 };
 
 // The app's class `name` (in io.github.them3dium.mareshine), or null.

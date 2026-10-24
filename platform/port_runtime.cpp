@@ -969,6 +969,7 @@ extern "C" void port_subtitles_option_changed(int on)
 #ifdef __ANDROID__
 extern "C" void port_android_register_natives(void); // android/mareshine_jni.cpp
 extern "C" void port_ach_init(void);                 // achievements/achievements.cpp
+extern "C" void port_warp_android_init(void);        // android/warp_android.cpp
 // Mareshine's settings that this port has under another name or meaning.
 static void mareshine_settings(void)
 {
@@ -1042,6 +1043,7 @@ extern "C" void port_init(int argc, char** argv)
 	port_savestate_android_init();
 	port_cheats_init();
 	port_ach_init();
+	port_warp_android_init();
 #endif
 	port_log("[port] platform ready\n");
 }

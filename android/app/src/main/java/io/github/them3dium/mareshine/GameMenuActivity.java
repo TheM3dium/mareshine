@@ -76,6 +76,9 @@ public class GameMenuActivity extends AppActivity {
         findViewById(R.id.btnMods).setVisibility(Mods.MENU ? View.VISIBLE : View.GONE);
         findViewById(R.id.btnMods).setOnClickListener(v -> startActivityForResult(
             new Intent(this, ModsActivity.class).putExtra(ModsActivity.EXTRA_IN_GAME, true), REQUEST_MODS));
+        // test builds: straight to any episode (Warp.java)
+        findViewById(R.id.btnWarp).setVisibility(Warp.available(this) ? View.VISIBLE : View.GONE);
+        findViewById(R.id.btnWarp).setOnClickListener(v -> showWarpWorlds());
         findViewById(R.id.btnGraphics).setOnClickListener(v -> {
             mSettingsChanged = true;
             startActivity(new Intent(this, SettingsActivity.class).putExtra(SettingsActivity.EXTRA_IN_GAME, true));
@@ -88,6 +91,80 @@ public class GameMenuActivity extends AppActivity {
 
     // Music and sound effect volumes, applied while the panel is open (the
     // mixer ramps to a new value, so dragging does not click) and kept.
+    // WARP: the worlds, then a world's episodes; the game warps once the menu
+    // closes (at the top of its next frame in a stage)
+    private void showWarpWorlds() {
+        java.util.List<Warp.Entry> all = Warp.list();
+        if (all == null || all.isEmpty()) {
+            android.widget.Toast.makeText(this, t("The level list is not ready yet. Try again in a moment."),
+                android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        java.util.List<String> worlds = new java.util.ArrayList<>();
+        for (Warp.Entry e : all) if (!worlds.contains(e.world)) worlds.add(e.world);
+        java.util.List<String> items = new java.util.ArrayList<>(worlds);
+        items.add(0, t("Enter numbers…"));
+        new DlDialog(this).setTitle(t("WARP"))
+            .setItems(items.toArray(new String[0]), (d, w) -> {
+                if (w == 0) showWarpNumbers();
+                else showWarpEpisodes(all, worlds.get(w - 1));
+            })
+            .show();
+    }
+
+    // area,episode typed in (as settings.txt's SMS_WARP takes them)
+    private void showWarpNumbers() {
+        android.widget.EditText field = new android.widget.EditText(this);
+        field.setHint("2,0");
+        field.setSingleLine(true);
+        field.setInputType(android.text.InputType.TYPE_CLASS_PHONE); // digits and a comma
+        new DlDialog(this).setTitle(t("WARP"))
+            .setMessage(t("Area and episode, for example 2,0 for Bianco Hills' first episode."))
+            .setView(field)
+            .setNegativeButton(t("Cancel"), null)
+            .setPositiveButton(t("Warp"), (d, w) -> {
+                String[] f = field.getText().toString().trim().split("[,; ]+");
+                Warp.Entry e = new Warp.Entry();
+                try {
+                    e.area = Integer.parseInt(f[0]);
+                    e.episode = f.length > 1 ? Integer.parseInt(f[1]) : 0;
+                } catch (NumberFormatException | ArrayIndexOutOfBoundsException ex) {
+                    android.widget.Toast.makeText(this, t("Type two numbers, for example 2,0."),
+                        android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (!Warp.ready()) {
+                    android.widget.Toast.makeText(this, t("Warps work in a level, once it has loaded."),
+                        android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                Warp.go(e);
+                finish();
+            })
+            .show();
+    }
+
+    private void showWarpEpisodes(java.util.List<Warp.Entry> all, String world) {
+        java.util.List<Warp.Entry> eps = new java.util.ArrayList<>();
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (Warp.Entry e : all)
+            if (e.world.equals(world)) {
+                eps.add(e);
+                names.add(e.name);
+            }
+        new DlDialog(this).setTitle(world)
+            .setItems(names.toArray(new String[0]), (d, w) -> {
+                if (!Warp.ready()) {
+                    android.widget.Toast.makeText(this, t("Warps work in a level, once it has loaded."),
+                        android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                Warp.go(eps.get(w));
+                finish();
+            })
+            .show();
+    }
+
     private void showSound() {
         final float d = getResources().getDisplayMetrics().density;
         final android.app.Dialog dlg = new android.app.Dialog(this);
@@ -274,7 +351,7 @@ public class GameMenuActivity extends AppActivity {
     @Override protected boolean usesPadNav() { return true; }
 
     private static final int[] BAR = {R.id.btnResume, R.id.btnSaveStates, R.id.btnAchievements, R.id.btnSync,
-        R.id.btnSound, R.id.btnMods, R.id.btnGraphics, R.id.btnRestart, R.id.btnQuit};
+        R.id.btnSound, R.id.btnMods, R.id.btnWarp, R.id.btnGraphics, R.id.btnRestart, R.id.btnQuit};
 
     @Override
     protected boolean onPadTab(int dir, boolean shoulder) {
