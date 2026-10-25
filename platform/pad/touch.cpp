@@ -7,7 +7,8 @@
 // changes):
 //   SMS_TOUCH_CONTROLS    auto (hidden after a controller is used, until the
 //                         screen is touched), on, off
-//   SMS_TOUCH_LAYOUT      "NAME=x,y,size,shown;..." for the names in kDefs,
+//   SMS_TOUCH_LAYOUT      "NAME=x,y,size,shown;..." for the names in kDefs
+//                         (SMS_TOUCH_LAYOUT_GAMECUBE for SMS_TOUCH_STYLE=gamecube),
 //                         x and y fractions of the screen, size of its height
 //   SMS_TOUCH_OPACITY     percent; SMS_TOUCH_AUTOHIDE: seconds without a touch
 //                         after which they fade out (0 never)
@@ -136,7 +137,8 @@ void readConfig(Config& c)
 	if (c.style == 1)  // the GameCube style: the buttons where the controller has them
 		for (const GcPlace& g : kGcPlaces)
 			c.place[g.id] = { g.x, g.y, g.r, true };
-	const char* layout = getenv("SMS_TOUCH_LAYOUT");
+	// each style has its own layout (the app's layout editor switches them)
+	const char* layout = getenv(c.style == 1 ? "SMS_TOUCH_LAYOUT_GAMECUBE" : "SMS_TOUCH_LAYOUT");
 	for (const char* p = layout; p && *p;) {
 		const char* end = strchr(p, ';');
 		std::string item(p, end ? (size_t)(end - p) : strlen(p));
@@ -153,14 +155,7 @@ void readConfig(Config& c)
 				x = x < 0 ? 0 : x > 1 ? 1 : x;
 				y = y < 0 ? 0 : y > 1 ? 1 : y;
 				r = r < 0.02f ? 0.02f : r > 0.4f ? 0.4f : r;
-				// a button still where the classic layout has it keeps its
-				// GameCube place (only whether it is shown is taken)
-				const bool untouched = fabsf(x - kDefs[i].x) < 0.002f && fabsf(y - kDefs[i].y) < 0.002f
-				                       && fabsf(r - kDefs[i].r) < 0.002f;
-				if (c.style == 1 && untouched)
-					c.place[i].shown = shown != 0;
-				else
-					c.place[i] = { x, y, r, shown != 0 };
+				c.place[i] = { x, y, r, shown != 0 };
 			}
 	}
 }

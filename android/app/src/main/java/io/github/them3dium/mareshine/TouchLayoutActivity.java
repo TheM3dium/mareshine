@@ -41,6 +41,7 @@ public class TouchLayoutActivity extends AppActivity {
         final int color;
         final boolean stick;
         final float dx, dy, dr; // defaults (touch_controller.cpp)
+        float gx, gy, gr;       // the GameCube style's (kGcPlaces), else the same
         float x, y, r;
         boolean shown = true;
 
@@ -52,13 +53,23 @@ public class TouchLayoutActivity extends AppActivity {
             this.dx = x;
             this.dy = y;
             this.dr = r;
-            reset();
+            gx = x;
+            gy = y;
+            gr = r;
+            reset(false);
         }
 
-        void reset() {
-            x = dx;
-            y = dy;
-            r = dr;
+        Elem gc(float x, float y, float r) {
+            gx = x;
+            gy = y;
+            gr = r;
+            return this;
+        }
+
+        void reset(boolean gamecube) {
+            x = gamecube ? gx : dx;
+            y = gamecube ? gy : dy;
+            r = gamecube ? gr : dr;
             shown = true;
         }
     }
@@ -77,6 +88,10 @@ public class TouchLayoutActivity extends AppActivity {
     private boolean mSlider;
     private float mSlide = SLIDE_DEFAULT;
     private boolean mSlideSel; // the mark is selected
+    // SMS_TOUCH_STYLE: the button style; each has its own layout
+    // (SMS_TOUCH_LAYOUT, SMS_TOUCH_LAYOUT_GAMECUBE), switched in the toolbar
+    private boolean mGc;
+    private String mLayoutClassic, mLayoutGc;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,14 +100,15 @@ public class TouchLayoutActivity extends AppActivity {
         // the defaults of touch_controller.cpp
         mElems.add(new Elem("STICK", "STICK", 0xFFBFC9D4, true, 0.16f, 0.72f, 0.14f));
         mElems.add(new Elem("CSTICK", "C", 0xFFF1C40F, true, 0.61f, 0.76f, 0.11f));
-        mElems.add(new Elem("A", "A", 0xFF2ECC71, false, 0.90f, 0.74f, 0.082f));
-        mElems.add(new Elem("B", "B", 0xFFE74C3C, false, 0.80f, 0.82f, 0.072f));
-        mElems.add(new Elem("X", "X", 0xFFF1C40F, false, 0.82f, 0.62f, 0.062f));
-        mElems.add(new Elem("Y", "Y", 0xFF3498DB, false, 0.73f, 0.70f, 0.062f));
+        // and the GameCube style's places (kGcPlaces in touch.cpp)
+        mElems.add(new Elem("A", "A", 0xFF2ECC71, false, 0.90f, 0.74f, 0.082f).gc(0.86f, 0.70f, 0.090f));
+        mElems.add(new Elem("B", "B", 0xFFE74C3C, false, 0.80f, 0.82f, 0.072f).gc(0.775f, 0.80f, 0.060f));
+        mElems.add(new Elem("X", "X", 0xFFF1C40F, false, 0.82f, 0.62f, 0.062f).gc(0.945f, 0.62f, 0.068f));
+        mElems.add(new Elem("Y", "Y", 0xFF3498DB, false, 0.73f, 0.70f, 0.062f).gc(0.85f, 0.52f, 0.068f));
         mElems.add(new Elem("L", "L", 0xFF95A5A6, false, 0.08f, 0.16f, 0.072f));
-        mElems.add(new Elem("R", "R", 0xFF2980B9, false, 0.91f, 0.52f, 0.072f));
-        mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f));
-        mElems.add(new Elem("Z", "Z", 0xFF9B59B6, false, 0.90f, 0.30f, 0.062f));
+        mElems.add(new Elem("R", "R", 0xFF2980B9, false, 0.91f, 0.52f, 0.072f).gc(0.885f, 0.35f, 0.075f));
+        mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f).gc(0.80f, 0.38f, 0.062f));
+        mElems.add(new Elem("Z", "Z", 0xFF9B59B6, false, 0.90f, 0.30f, 0.062f).gc(0.95f, 0.45f, 0.055f));
         mElems.add(new Elem("START", "START", 0xFFE67E22, false, 0.50f, 0.08f, 0.050f));
         mElems.add(new Elem("HUD", "HIDE", 0xFF7F8C8D, false, 0.40f, 0.08f, 0.045f)); // hides the other controls
         mElems.add(new Elem("MENU", "MENU", 0xFF455A64, false, 0.60f, 0.08f, 0.050f));
@@ -138,7 +154,15 @@ public class TouchLayoutActivity extends AppActivity {
         try {
             mSlide = clamp(Float.parseFloat(m.getOrDefault("SMS_TOUCH_R_SLIDE", Float.toString(SLIDE_DEFAULT))), 0.02f, 0.4f);
         } catch (NumberFormatException ignored) {}
-        String layout = m.get("SMS_TOUCH_LAYOUT");
+        mGc = "gamecube".equals(m.get("SMS_TOUCH_STYLE"));
+        mLayoutClassic = m.get("SMS_TOUCH_LAYOUT");
+        mLayoutGc = m.get("SMS_TOUCH_LAYOUT_GAMECUBE");
+        apply(mGc ? mLayoutGc : mLayoutClassic);
+    }
+
+    // The style's defaults, then the layout over them
+    private void apply(String layout) {
+        for (Elem e : mElems) e.reset(mGc);
         if (layout == null) return;
         for (String item : layout.split(";")) {
             int eq = item.indexOf('=');
@@ -158,14 +182,23 @@ public class TouchLayoutActivity extends AppActivity {
         }
     }
 
-    private void save() {
+    private String layoutString() {
         StringBuilder sb = new StringBuilder();
         for (Elem e : mElems) {
             if (sb.length() > 0) sb.append(';');
             sb.append(String.format(Locale.ROOT, "%s=%.3f,%.3f,%.3f,%d", e.name, e.x, e.y, e.r, e.shown ? 1 : 0));
         }
+        return sb.toString();
+    }
+
+    // Each style keeps its own layout; the one shown is saved, and its style chosen
+    private void save() {
+        if (mGc) mLayoutGc = layoutString();
+        else mLayoutClassic = layoutString();
         Map<String, String> m = Settings.read(this);
-        m.put("SMS_TOUCH_LAYOUT", sb.toString());
+        if (mLayoutClassic != null) m.put("SMS_TOUCH_LAYOUT", mLayoutClassic);
+        if (mLayoutGc != null) m.put("SMS_TOUCH_LAYOUT_GAMECUBE", mLayoutGc);
+        m.put("SMS_TOUCH_STYLE", mGc ? "gamecube" : "classic");
         m.put("SMS_TOUCH_OPACITY", Integer.toString(Math.round(mOpacity * 100)));
         m.put("SMS_TOUCH_R_SLIDER", mSlider ? "1" : "0");
         m.put("SMS_TOUCH_R_SLIDE", String.format(Locale.ROOT, "%.3f", mSlide));
@@ -228,10 +261,11 @@ public class TouchLayoutActivity extends AppActivity {
         Button bigger = tool("Size +", false);
         btnShow = tool("Hide", false);
         Button slider = tool(mSlider ? "R+ slider: On" : "R+ slider: Off", false);
+        Button style = tool(mGc ? "GCube" : "Classic", false);
         Button reset = tool("Reset all", false);
         Button cancel = tool("Cancel", false);
         Button save = tool("Save", true);
-        for (Button b : new Button[] {smaller, bigger, btnShow, slider, reset, cancel, save}) {
+        for (Button b : new Button[] {style, smaller, bigger, btnShow, slider, reset, cancel, save}) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.setMargins(dp(4), 0, dp(4), 0);
@@ -256,8 +290,17 @@ public class TouchLayoutActivity extends AppActivity {
             updateToolbar();
             mView.invalidate();
         });
+        style.setOnClickListener(v -> {  // the other style, with its own layout
+            if (mGc) mLayoutGc = layoutString();
+            else mLayoutClassic = layoutString();
+            mGc = !mGc;
+            apply(mGc ? mLayoutGc : mLayoutClassic);
+            style.setText(t(mGc ? "GCube" : "Classic"));
+            updateToolbar();
+            mView.invalidate();
+        });
         reset.setOnClickListener(v -> {
-            for (Elem e : mElems) e.reset();
+            for (Elem e : mElems) e.reset(mGc);
             mSlide = SLIDE_DEFAULT;
             updateToolbar();
             mView.invalidate();

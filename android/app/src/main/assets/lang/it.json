@@ -708,5 +708,6 @@
     "Classic": "Classico",
     "GameCube": "GameCube",
     "GameCube button shapes": "Forme dei pulsanti GameCube",
-    "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license).": "Le forme dello stile pulsanti GameCube, ricalcate dalle immagini del controller di m-overlay (licenza MIT)."
+    "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license).": "Le forme dello stile pulsanti GameCube, ricalcate dalle immagini del controller di m-overlay (licenza MIT).",
+    "GCube": "GCube"
 }
