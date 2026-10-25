@@ -47,6 +47,7 @@ public class ModPageActivity extends AppActivity {
     private final List<View> mRowViews = new ArrayList<>();
     private ScrollView mScroll;
     private TextView mScore;
+    private ModViews.Suns mSuns;
     private View mRating;
     private TextView mTranslator;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -168,7 +169,7 @@ public class ModPageActivity extends AppActivity {
         rating.setOrientation(LinearLayout.VERTICAL);
         rating.setGravity(Gravity.CENTER_HORIZONTAL);
         ModViews.Suns suns = new ModViews.Suns(this);
-        suns.setRating(mMod.rating);
+        mSuns = suns;
         rating.addView(suns, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)));
         mScore = text("", GOLD, 14, false);
         TextView score = mScore;
@@ -259,6 +260,7 @@ public class ModPageActivity extends AppActivity {
 
         setContentView(root);
         refresh();
+        Ratings.refresh(this, this::showScore);
         mOnOff.requestFocus();
     }
 
@@ -379,7 +381,11 @@ public class ModPageActivity extends AppActivity {
 
     // the suns' line: the rating, and the player's own
     private void showScore() {
-        String s = mMod.rating >= 0 ? String.format(Locale.ROOT, "%.2f/5", mMod.rating) : t("Not rated yet");
+        float shown = Ratings.shown(mMod);
+        int votes = Ratings.votes(mMod.id);
+        mSuns.setRating(shown);
+        String s = shown >= 0 ? String.format(Locale.ROOT, "%.2f/5", shown) : t("Not rated yet");
+        if (votes > 0) s += "  ·  " + t(votes == 1 ? "%d vote" : "%d votes", votes);
         int mine = Mods.myRating(this, mMod.id);
         if (mine > 0) s += "  ·  " + t("yours: %d", mine);
         mScore.setText(s);
@@ -387,6 +393,14 @@ public class ModPageActivity extends AppActivity {
 
     private void rate() {
         int mine = Mods.myRating(this, mMod.id);
+        long wait = Ratings.waitLeft(this, mMod.id);
+        if (mine > 0 && wait > 0) {
+            int min = (int) Math.max(1, (wait + 59_999) / 60_000);
+            choice(t("Rate %s", mMod.name), t(min == 1 ? "You gave it %d suns. You can change your rating again in "
+                    + "%d minute." : "You gave it %d suns. You can change your rating again in %d minutes.", mine, min),
+                new String[] {t("OK")}, new Runnable[] {null});
+            return;
+        }
         String[] labels = new String[5];
         Runnable[] acts = new Runnable[5];
         for (int i = 0; i < 5; i++) {
@@ -395,7 +409,7 @@ public class ModPageActivity extends AppActivity {
             for (int k = 0; k < 5; k++) l.append(k < suns ? "☀" : "·");
             labels[i] = (suns == mine ? "✓  " : "") + l + "   " + suns;
             acts[i] = () -> {
-                Mods.setMyRating(this, mMod.id, suns);
+                Ratings.rate(this, mMod.id, suns, this::showScore);
                 showScore();
             };
         }

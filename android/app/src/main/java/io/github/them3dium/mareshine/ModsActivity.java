@@ -49,6 +49,7 @@ public class ModsActivity extends AppActivity {
         EclipseMod.migrate(this);  // its languages as mods of their own before
         buildUi();
         reload();
+        Ratings.refresh(this, () -> { if (!mBusy) showList(); });
     }
 
     private TextView text(String s, int color, int size, boolean bold) {
@@ -358,7 +359,7 @@ public class ModsActivity extends AppActivity {
         if (!missing.isEmpty())
             sub.append("\n⚠  ").append(t("Needs %s, switched on and above it.", String.join(", ", missing)));
         String title = (i + 1) + ".  " + m.name + (m.version.isEmpty() ? "" : "  " + m.version);
-        LinearLayout row = row(m.picture(m.icon), title, sub.toString(), m.rating,
+        LinearLayout row = row(m.picture(m.icon), title, sub.toString(), Ratings.shown(m),
             t(m.enabled ? "On" : "Off"), m.enabled ? GOLD : DIM);
         row.setOnClickListener(v -> ModPageActivity.start(this, m.id, "", REQUEST_PAGE));
         row.setOnLongClickListener(v -> {
@@ -371,7 +372,8 @@ public class ModsActivity extends AppActivity {
         boolean have = Mods.installed(this, r);
         String sub = t("by %s", r.author) + "  ·  " + t(r.description) + (r.tested ? "" : "  ·  " + t("untested"));
         Mods.Mod m = have ? Mods.find(this, r.id) : null;
-        LinearLayout row = row(m != null ? m.picture(m.icon) : r.icon, r.name + "  " + r.version, sub, r.rating,
+        float suns = m != null ? Ratings.shown(m) : r.rating;
+        LinearLayout row = row(m != null ? m.picture(m.icon) : r.icon, r.name + "  " + r.version, sub, suns,
             have ? t("Installed") : "⬇  " + t("%.1f GB", r.size / 1e9), have ? DIM : GOLD);
         row.setOnClickListener(v -> {
             if (have) {

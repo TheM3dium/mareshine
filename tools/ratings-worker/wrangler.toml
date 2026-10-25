@@ -1,0 +1,8 @@
+name = "mareshine-ratings"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# filled in by `npx wrangler kv namespace create RATINGS` (README.md)
+[[kv_namespaces]]
+binding = "RATINGS"
+id = "b111a5212a92434290d9fc9053f1f75d"
