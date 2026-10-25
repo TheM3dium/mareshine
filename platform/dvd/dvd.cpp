@@ -26,6 +26,7 @@
 #include <sms_language.h>
 #include <deque>
 #include <map>
+#include <set>
 #include <mutex>
 
 namespace {
@@ -581,6 +582,21 @@ static void list_files(const std::string& host, const std::string& prefix, std::
 	closedir(dp);
 }
 
+// pack files to leave out (SMS_LANGUAGE_SKIP: a mod's own game keeps its own
+// text where it changed the disc's), by their path below files/, lower case
+static std::set<std::string> g_skip;
+static int g_skip_count;
+
+static bool skipped(const std::string& rel)
+{
+	if (g_skip.empty())
+		return false;
+	std::string low = rel;
+	for (char& c : low)
+		c = (char)tolower((unsigned char)c);
+	return g_skip.count(low) != 0;
+}
+
 static void overlay_dir(const std::string& host, const std::string& rel, int* replaced, int* added, int* inside)
 {
 	DIR* dp = opendir(host.c_str());
@@ -602,16 +618,26 @@ static void overlay_dir(const std::string& host, const std::string& rel, int* re
 				std::vector<std::pair<std::string, std::string>> files;
 				list_files(h, std::string(), files);
 				ArchivePatch& p = g_patches[(u32)a];
+				int taken = 0;
 				for (auto& f : files) {
+					if (skipped(r + f.first)) {  // f.first starts with /
+						g_skip_count++;
+						continue;
+					}
+					taken++;
 					std::string low = f.first;
 					for (char& c : low)
 						c = (char)tolower((unsigned char)c);
 					p.files[low] = f.second;
 				}
-				(*inside) += (int)files.size();
+				(*inside) += taken;
 				continue;
 			}
 			overlay_dir(h, r, replaced, added, inside);
+			continue;
+		}
+		if (skipped(r)) {
+			g_skip_count++;
 			continue;
 		}
 		s32 e = lookup_disc(("/" + r).c_str());
@@ -676,9 +702,25 @@ static void apply_mods()
 	// The language pack, before explicit mods so that a mod's own files win.
 	if (const char* pack = port_language_pack_dir()) {
 		int replaced = 0, added = 0, inside = 0;
+		if (const char* skip = getenv("SMS_LANGUAGE_SKIP"))
+			if (FILE* f = fopen(skip, "r")) {
+				char line[512];
+				while (fgets(line, sizeof line, f)) {
+					std::string l = line;
+					while (!l.empty() && (l.back() == '\n' || l.back() == '\r'))
+						l.pop_back();
+					if (l.empty() || l[0] == '#')
+						continue;
+					for (char& c : l)
+						c = (char)tolower((unsigned char)c);
+					g_skip.insert(l);
+				}
+				fclose(f);
+			}
 		overlay_dir(std::string(pack) + "/files", std::string(), &replaced, &added, &inside);
-		port_log("[dvd] language %s: %d disc files replaced, %d inside archives (%s)\n", port_language_code(),
-		         replaced, inside, pack);
+		port_log("[dvd] language %s: %d disc files replaced, %d inside archives, %d left to the mod (%s)\n",
+		         port_language_code(), replaced, inside, g_skip_count, pack);
+		g_skip.clear();
 	}
 	// Explicit mods may provide their own story movies or other assets.
 	apply_user_mods();

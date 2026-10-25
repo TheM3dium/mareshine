@@ -862,7 +862,31 @@ public class LauncherActivity extends AppActivity {
         }); }, 1500); // the game's process needs a moment to go away
     }
 
+    private boolean mModLanguageReady;
+
     private void startSunshineNow() {
+        // a mod's own game in a pack's language: which pack files fit, worked
+        // out once (ModLanguage), and a word that not all of it is translated
+        Mods.Mod mod = mFoundIsoFile != null && !gameRunning() ? Mods.activeImage(this) : null;
+        String code = ModLanguage.applies(mod) ? ModLanguage.packCode(this) : null;
+        if (code != null && !mModLanguageReady) {
+            final File us = mFoundIsoFile;
+            if (!ModLanguage.ready(this, mod, code, us))
+                Toast.makeText(this, t("Preparing the language for %s…", mod.name), Toast.LENGTH_SHORT).show();
+            new Thread(() -> {
+                File skip = ModLanguage.prepare(this, mod, code, us);
+                runOnUiThread(() -> {
+                    int pct = skip != null ? ModLanguage.percent(skip) : -1;
+                    if (pct >= 0 && pct < 100)
+                        Toast.makeText(this, t("%1$s: %2$d%% translated. Texts the mod changed stay in English.",
+                            mod.name, pct), Toast.LENGTH_LONG).show();
+                    mModLanguageReady = true;
+                    startSunshineNow();
+                    mModLanguageReady = false;
+                });
+            }, "ModLanguage").start();
+            return;
+        }
         if (mFoundIsoFile != null && mFoundIsoFile.exists()) {
             DataDir.ensureLayout(this);
             CrashLog.markGameStarted(this);

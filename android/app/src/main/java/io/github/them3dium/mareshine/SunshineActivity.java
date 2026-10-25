@@ -101,9 +101,19 @@ public class SunshineActivity extends SDLActivity {
             // a mod's own game (a pack would replace the mod's own text)
             if (image != null) {
                 nativeSetenv("SMS_ACHIEVEMENTS", "0");
-                nativeSetenv("SMS_LANGUAGE", "en");
+                // a pack only where the mod left the disc's text (ModLanguage; the launcher made the list)
+                String code = ModLanguage.applies(image) ? ModLanguage.packCode(this) : null;
+                File skip = code != null ? ModLanguage.skipFile(image, code) : null;
+                if (skip != null && skip.isFile()) nativeSetenv("SMS_LANGUAGE_SKIP", skip.getAbsolutePath());
+                else nativeSetenv("SMS_LANGUAGE", "en");
             }
             String mods = Mods.discFolders(this), own = Settings.read(this).getOrDefault("mod", "").trim();
+            // the pack's text merged into what the mod changed, over the mod's files
+            if (image != null && ModLanguage.applies(image) && ModLanguage.packCode(this) != null) {
+                File merged = ModLanguage.mergedDir(image, ModLanguage.packCode(this));
+                if (new File(merged, "files").isDirectory())
+                    mods = mods.isEmpty() ? merged.getAbsolutePath() : mods + ";" + merged.getAbsolutePath();
+            }
             if (!mods.isEmpty()) nativeSetenv("SMS_MOD", own.isEmpty() ? mods : own + ";" + mods);
             nativeSetenv("SMS_MOD_OPTIONS", Mods.optionsForGame(this));
             // the cutscene frames the app ships (frames added by an update too)
