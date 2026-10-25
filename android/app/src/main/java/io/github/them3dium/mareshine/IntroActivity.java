@@ -372,7 +372,12 @@ public class IntroActivity extends AppActivity {
         b.setMinimumWidth(0);
         b.setPadding(Math.round(dp(18)), Math.round(dp(8)), Math.round(dp(18)), Math.round(dp(8)));
         if (main) {
-            b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFFFB020));
+            // solid orange (dl_row is see-through), a light rim while focused
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setCornerRadius(dp(10));
+            bg.setColor(MAIN);
+            b.setBackground(bg);
+            b.setOnFocusChangeListener((v, has) -> bg.setStroke(has ? Math.round(dp(2)) : 0, 0xFFFFF3C4));
             b.setTextColor(0xFF0A1B30);
         } else {
             b.setTextColor(0xFFF4F8FF);
@@ -471,13 +476,16 @@ public class IntroActivity extends AppActivity {
         if (mMain != null) mButtons.postDelayed(mPulse, 3000);
     }
 
-    // the main button grows a little and brightens, and settles again
+    private static final int MAIN = 0xFFFFA41C, MAIN_LIT = 0xFFFFE45C;
+
+    // the main button grows a little and lights up, and settles again
     private void pulse() {
         Button b = mMain;
         if (b == null || !b.isAttachedToWindow()) return;
-        android.animation.ValueAnimator glow = android.animation.ValueAnimator.ofArgb(0xFFFFB020, 0xFFFFE08A, 0xFFFFB020);
+        android.graphics.drawable.GradientDrawable bg = (android.graphics.drawable.GradientDrawable) b.getBackground();
+        android.animation.ValueAnimator glow = android.animation.ValueAnimator.ofArgb(MAIN, MAIN_LIT, MAIN);
         glow.setDuration(700);
-        glow.addUpdateListener(a -> b.setBackgroundTintList(android.content.res.ColorStateList.valueOf((int) a.getAnimatedValue())));
+        glow.addUpdateListener(a -> bg.setColor((int) a.getAnimatedValue()));
         glow.start();
         b.animate().scaleX(1.12f).scaleY(1.12f).setDuration(300).withEndAction(() ->
             b.animate().scaleX(1f).scaleY(1f).setDuration(400).start()).start();
