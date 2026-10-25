@@ -723,5 +723,8 @@
     "Got it": "Compris",
     "Back": "Retour",
     "Fold the layout editor's toolbar": "Replier la barre d'outils de l'éditeur de disposition",
-    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "Dans Personnaliser la disposition, touche ◀ sous le nom du bouton : la barre d'outils se replie pour libérer la place. ▶ la rouvre."
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "Dans Personnaliser la disposition, touche ◀ sous le nom du bouton : la barre d'outils se replie pour libérer la place. ▶ la rouvre.",
+ "Restart the game?": "Redémarrer le jeu ?",
+ "Unsaved progress is lost. Save in the game first.": "La progression non sauvegardée est perdue. Sauvegarde d'abord dans le jeu.",
+ "Some changes take effect after RESTART.": "Certaines modifications s'appliquent après REDÉMARRER."
 }

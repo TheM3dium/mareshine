@@ -87,6 +87,13 @@
                 style="@style/DlMenuItem"
                 android:text="PLAY" />
 
+            <!-- only while the game still runs in the background (PLAY says RESUME then) -->
+            <Button
+                android:id="@+id/btnRestart"
+                style="@style/DlMenuItem"
+                android:text="RESTART"
+                android:visibility="gone" />
+
             <Button
                 android:id="@+id/btnSettings"
                 style="@style/DlMenuItem"

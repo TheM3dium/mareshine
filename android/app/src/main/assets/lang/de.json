@@ -724,5 +724,8 @@
     "Got it": "Verstanden",
     "Back": "Zurück",
     "Fold the layout editor's toolbar": "Die Werkzeugleiste des Layout-Editors einklappen",
-    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "Tippe in Layout anpassen auf ◀ unter dem Namen der Taste: Die Werkzeugleiste klappt sich aus dem Weg. ▶ öffnet sie wieder."
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "Tippe in Layout anpassen auf ◀ unter dem Namen der Taste: Die Werkzeugleiste klappt sich aus dem Weg. ▶ öffnet sie wieder.",
+ "Restart the game?": "Spiel neu starten?",
+ "Unsaved progress is lost. Save in the game first.": "Nicht gespeicherter Fortschritt geht verloren. Speichere vorher im Spiel.",
+ "Some changes take effect after RESTART.": "Einige Änderungen gelten erst nach NEU STARTEN."
 }

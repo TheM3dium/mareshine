@@ -190,6 +190,9 @@ public class SettingsActivity extends AppActivity {
     private final List<View> mTabBars = new ArrayList<>();
     private int mTab = 0;
     private boolean mInGame;
+    // opened from the main menu while the game still runs in the background
+    // (left with Home): what changes here applies once the game restarts
+    private boolean mGameInBackground, mBackgroundNoted;
     private LinearLayout mList;
     private TextView mDesc;
     private LinearLayout mOptList;
@@ -208,6 +211,7 @@ public class SettingsActivity extends AppActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mInGame = getIntent().getBooleanExtra(EXTRA_IN_GAME, false);
+        mGameInBackground = !mInGame && gameProcessAlive();
         DataDir.ensureLayout(this);
         mSettings.putAll(Settings.read(this));
         L.init(this);
@@ -239,9 +243,11 @@ public class SettingsActivity extends AppActivity {
         // the hidden "Fine-Tuner": 120 settings (as many as there are shines) changed in this menu;
         // a slider counts once until something else is changed
         int changed = 0;
+        boolean any = false;
         Map<String, String> before = Settings.read(this);
         for (Map.Entry<String, String> e : mSettings.entrySet()) {
             if (e.getValue().equals(before.get(e.getKey()))) continue;
+            if (!GameMenuActivity.liveSetting(e.getKey())) any = true;  // touch and controller apply at once
             if (!isSlider(e.getKey())) {
                 changed++;
                 mLastSlider = null;
@@ -252,6 +258,10 @@ public class SettingsActivity extends AppActivity {
         }
         Settings.write(this, mSettings);
         refreshValues();
+        if (any && mGameInBackground && !mBackgroundNoted) {
+            mBackgroundNoted = true;
+            android.widget.Toast.makeText(this, t("Takes effect after the game restarts."), android.widget.Toast.LENGTH_LONG).show();
+        }
         if (changed > 0 && Achievements.addProgress(this, "sms.fun.fine_tuner", changed, 120))
             android.widget.Toast.makeText(this, "✨  " + t("Secret achievement unlocked") + ": "
                 + Achievements.title(this, "sms.fun.fine_tuner"), android.widget.Toast.LENGTH_LONG).show();
@@ -265,6 +275,14 @@ public class SettingsActivity extends AppActivity {
     }
 
     private Context ctx() { return this; }
+
+    private boolean gameProcessAlive() {
+        android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> ps = am == null ? null : am.getRunningAppProcesses();
+        if (ps != null) for (android.app.ActivityManager.RunningAppProcessInfo p : ps)
+            if (p.processName != null && p.processName.endsWith(":game")) return true;
+        return false;
+    }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 

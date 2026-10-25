@@ -43,7 +43,7 @@ public class LauncherActivity extends AppActivity {
     private TextView tvPath;
     private TextView tvProgress;
     private ProgressBar progressBar;
-    private Button btnPlay;
+    private Button btnPlay, btnRestart;
     private Button btnSettings;
     private TextView tvDiscInfo;
     private View panelInfo;
@@ -65,6 +65,13 @@ public class LauncherActivity extends AppActivity {
         tvProgress = findViewById(R.id.tvProgress);
         progressBar = findViewById(R.id.progressBar);
         btnPlay = findViewById(R.id.btnPlay);
+        btnRestart = findViewById(R.id.btnRestart);
+        btnRestart.setOnClickListener(v -> new DlDialog(this)
+            .setTitle(t("Restart the game?"))
+            .setMessage(t("Unsaved progress is lost. Save in the game first."))
+            .setPositiveButton(t("Yes"), (d, w) -> restartGame())
+            .setNegativeButton(t("No"), null)
+            .show());
         btnSettings = findViewById(R.id.btnSettings);
         tvDataDir = findViewById(R.id.tvDataDir);
         tvDiscInfo = findViewById(R.id.tvDiscInfo);
@@ -88,7 +95,7 @@ public class LauncherActivity extends AppActivity {
         });
         ((TextView) findViewById(R.id.tvVersion)).setText(t("Version %s", CrashLog.BuildConfigInfo.version(this))
             + "\n" + getString(R.string.build_stamp));
-        findViewById(R.id.btnQuit).setOnClickListener(v -> { ShaderService.stop(this); finishAffinity(); });
+        findViewById(R.id.btnQuit).setOnClickListener(v -> quit());
 
         btnPlay.setOnClickListener(v -> launchGame());
 
@@ -207,6 +214,7 @@ public class LauncherActivity extends AppActivity {
         Updates.autoCheck(this, this::showUpdateBadge);
         modUpdates();
         checkIsoAndRefreshUi();
+        gameButtons();
         View first = btnPlay.getVisibility() == View.VISIBLE && btnPlay.isEnabled() ? btnPlay : btnSettings;
         if (getCurrentFocus() == null || getCurrentFocus().getVisibility() != View.VISIBLE) first.requestFocus();
         String problem = CrashLog.isEnabled(this) ? CrashLog.takeLastSessionProblem(this) : null;
@@ -772,6 +780,8 @@ public class LauncherActivity extends AppActivity {
         // the game still running in the background: back into it, without a
         // sync (it would change the saves under the running game)
         if (gameRunning()) {
+            if (GameMenuActivity.restartPending(this))
+                Toast.makeText(this, t("Some changes take effect after RESTART."), Toast.LENGTH_LONG).show();
             startSunshineNow();
             return;
         }
@@ -786,6 +796,54 @@ public class LauncherActivity extends AppActivity {
             return;
         }
         startSunshineNow();
+    }
+
+    // The game kept in the background (quick menu → MAIN MENU): PLAY says
+    // RESUME, and RESTART starts it afresh.
+    private void gameButtons() {
+        boolean bg = gameRunning();
+        btnPlay.setText(t(bg ? "RESUME" : "PLAY"));
+        btnRestart.setVisibility(bg && btnPlay.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);
+    }
+
+    // the game's process ends; unsaved progress is lost, saved games are written already
+    private void endGame(String why) {
+        android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> ps = am == null ? null : am.getRunningAppProcesses();
+        if (ps == null) return;
+        // its task too: else Android brings it back, and the game with it
+        for (android.app.ActivityManager.AppTask task : am.getAppTasks()) {
+            android.content.ComponentName c = task.getTaskInfo().baseActivity;
+            if (c != null && c.getClassName().endsWith(".SunshineActivity")) task.finishAndRemoveTask();
+        }
+        for (android.app.ActivityManager.RunningAppProcessInfo p : ps) {
+            if (p.processName == null || !p.processName.endsWith(":game")) continue;
+            try (java.io.FileWriter w = new java.io.FileWriter(new java.io.File(CrashLog.dir(this), "game.log"), true)) {
+                w.write("[log] " + why + "\n");
+            } catch (java.io.IOException ignored) {}
+            CrashLog.clearGameStarted(this);
+            android.os.Process.killProcess(p.pid);
+        }
+    }
+
+    private void restartGame() {
+        endGame("game restarted from the main menu");
+        btnRestart.setVisibility(View.GONE);
+        btnPlay.setText(t("PLAY"));
+        tvStatus.postDelayed(this::launchGame, 600);  // the old process needs a moment to go away
+    }
+
+    // QUIT: the game too, if it still runs; what it saved goes to the sync file first
+    private void quit() {
+        ShaderService.stop(this);
+        boolean wasRunning = gameRunning();
+        endGame("game quit from the main menu");
+        if (wasRunning && Sync.configured(this)) {
+            Toast.makeText(this, t("Syncing…"), Toast.LENGTH_SHORT).show();
+            tvStatus.postDelayed(() -> Sync.run(this, (msg, changed) -> finishAffinity()), 600);
+            return;
+        }
+        finishAffinity();
     }
 
     private boolean gameRunning() {

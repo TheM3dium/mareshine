@@ -724,5 +724,8 @@
     "Got it": "Capito",
     "Back": "Indietro",
     "Fold the layout editor's toolbar": "Ripiegare la barra degli strumenti dell'editor del layout",
-    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "In Personalizza layout, tocca ◀ sotto il nome del pulsante: la barra degli strumenti si ripiega e fa spazio. ▶ la riapre."
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "In Personalizza layout, tocca ◀ sotto il nome del pulsante: la barra degli strumenti si ripiega e fa spazio. ▶ la riapre.",
+ "Restart the game?": "Riavviare il gioco?",
+ "Unsaved progress is lost. Save in the game first.": "I progressi non salvati andranno persi. Salva prima nel gioco.",
+ "Some changes take effect after RESTART.": "Alcune modifiche hanno effetto dopo RIAVVIA."
 }

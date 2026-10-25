@@ -60,6 +60,7 @@ public class SunshineActivity extends SDLActivity {
     protected void onCreate(Bundle savedInstanceState) {
         CrashLog.install(this);
         clearOldSettings();
+        GameMenuActivity.rememberStartSettings(this);
         super.onCreate(savedInstanceState);
         mAchKnown = Achievements.unlockedIds(this); // what the banner does not announce again
 
@@ -571,6 +572,7 @@ public class SunshineActivity extends SDLActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        GameMenuActivity.pushLiveSettings(this);  // touch and controller settings changed in the main menu
         hideSystemUI();
         showMenuHint();
     }

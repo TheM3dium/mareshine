@@ -723,5 +723,8 @@
     "Got it": "Entendido",
     "Back": "Atrás",
     "Fold the layout editor's toolbar": "Plegar la barra de herramientas del editor de diseño",
-    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "En Personalizar diseño, toca ◀ bajo el nombre del botón: la barra de herramientas se pliega y deja sitio. ▶ la vuelve a abrir."
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "En Personalizar diseño, toca ◀ bajo el nombre del botón: la barra de herramientas se pliega y deja sitio. ▶ la vuelve a abrir.",
+ "Restart the game?": "¿Reiniciar el juego?",
+ "Unsaved progress is lost. Save in the game first.": "Se pierde el progreso no guardado. Guarda antes en el juego.",
+ "Some changes take effect after RESTART.": "Algunos cambios se aplican tras REINICIAR."
 }

@@ -84,7 +84,7 @@ public class GameMenuActivity extends AppActivity {
             startActivity(new Intent(this, SettingsActivity.class).putExtra(SettingsActivity.EXTRA_IN_GAME, true));
         });
         findViewById(R.id.btnRestart).setOnClickListener(v -> leaveGame(true));
-        findViewById(R.id.btnQuit).setOnClickListener(v -> leaveGame(false));
+        findViewById(R.id.btnQuit).setOnClickListener(v -> toMainMenu());
         findViewById(R.id.btnResume).requestFocus();
         fitBar();
     }
@@ -313,8 +313,12 @@ public class GameMenuActivity extends AppActivity {
     // The game is paused while this menu shows, so its environment can be
     // changed safely: the touch settings from settings.txt, then SMS_TOUCH_REV
     // so platform/pad reads them again.
-    private void pushTouchSettings() {
-        java.util.Map<String, String> m = Settings.read(this);
+    private void pushTouchSettings() { pushLiveSettings(this); }
+
+    // Also when the game comes back from the main menu (SunshineActivity): the
+    // settings the game takes up while it runs.
+    static void pushLiveSettings(android.content.Context ctx) {
+        java.util.Map<String, String> m = Settings.read(ctx);
         try {
             for (String k : TOUCH_KEYS) {
                 String v = m.getOrDefault(k, "");
@@ -331,6 +335,44 @@ public class GameMenuActivity extends AppActivity {
         } catch (Throwable ignored) {}
     }
 
+    // a setting the running game takes up (pushLiveSettings), not only at its start
+    static boolean liveSetting(String key) {
+        for (String k : TOUCH_KEYS) if (k.equals(key)) return true;
+        for (String k : PAD_KEYS) if (k.equals(key)) return true;
+        return key.equals("SMS_VIBRATION_CONTROLLER") || key.equals("SMS_VIBRATION_PHONE");
+    }
+
+    // The settings the game started with (SunshineActivity writes them): what
+    // was changed since, apart from what it takes up while it runs, waits for
+    // a restart.
+    static File startSettings(android.content.Context ctx) { return new File(ctx.getFilesDir(), "game-start-settings.txt"); }
+
+    static void rememberStartSettings(android.content.Context ctx) {
+        java.util.Properties p = new java.util.Properties();
+        for (java.util.Map.Entry<String, String> e : Settings.read(ctx).entrySet()) p.setProperty(e.getKey(), e.getValue());
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(startSettings(ctx))) {
+            p.store(out, null);
+        } catch (IOException ignored) {}
+    }
+
+    static boolean restartPending(android.content.Context ctx) {
+        java.util.Properties p = new java.util.Properties();
+        try (java.io.FileInputStream in = new java.io.FileInputStream(startSettings(ctx))) {
+            p.load(in);
+        } catch (IOException e) {
+            return false;
+        }
+        java.util.Map<String, String> now = Settings.read(ctx);
+        java.util.Set<String> keys = new java.util.HashSet<>(now.keySet());
+        keys.addAll(p.stringPropertyNames());
+        for (String k : keys) {
+            if (liveSetting(k)) continue;
+            String a = now.get(k), b = p.getProperty(k);
+            if (a == null ? b != null : !a.equals(b)) return true;
+        }
+        return false;
+    }
+
     @Override
     protected void onPause() {
         pushTouchSettings();
@@ -338,6 +380,21 @@ public class GameMenuActivity extends AppActivity {
     }
 
     // --- leaving the game -------------------------------------------------
+
+    // The main menu, the game kept in the background: PLAY says RESUME there,
+    // with RESTART below it (LauncherActivity).
+    private void toMainMenu() {
+        File log = new File(CrashLog.dir(this), "game.log");
+        try (FileWriter w = new FileWriter(log, true)) {
+            w.write("[log] main menu, the game kept in the background\n");
+        } catch (IOException ignored) {}
+        CrashLog.clearGameStarted(this);  // closed by Android in the background is no crash
+        Intent i = new Intent(this, LauncherActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        i.putExtra(LauncherActivity.EXTRA_FROM_GAME, true);
+        startActivity(i);
+        finish();
+    }
 
     // Restarting or quitting ends the game's process (the game cannot be shut
     // down cleanly from outside); saves are written synchronously, so nothing
