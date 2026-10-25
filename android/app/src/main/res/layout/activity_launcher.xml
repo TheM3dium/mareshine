@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Main menu, in the style of Dusklight's: the title on the left, PLAY /
-     SETTINGS / QUIT on the right, the disc status at the bottom right and a
+     MODS / SETTINGS / QUIT on the right, the disc status at the bottom right and a
      panel for messages at the bottom. With a working disc the app usually
      starts the game straight away (Settings → GAME → Start game
      automatically), so this shows when that is off or no disc is set. -->
@@ -86,6 +86,11 @@
                 android:id="@+id/btnPlay"
                 style="@style/DlMenuItem"
                 android:text="PLAY" />
+
+            <Button
+                android:id="@+id/btnMods"
+                style="@style/DlMenuItem"
+                android:text="MODS" />
 
             <Button
                 android:id="@+id/btnSettings"

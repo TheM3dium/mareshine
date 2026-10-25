@@ -45,6 +45,7 @@ public class LauncherActivity extends AppActivity {
     private ProgressBar progressBar;
     private Button btnPlay;
     private Button btnSettings;
+    private Button btnMods;
     private TextView tvDiscInfo;
     private View panelInfo;
     private TextView tvDataDir;
@@ -66,6 +67,8 @@ public class LauncherActivity extends AppActivity {
         progressBar = findViewById(R.id.progressBar);
         btnPlay = findViewById(R.id.btnPlay);
         btnSettings = findViewById(R.id.btnSettings);
+        btnMods = findViewById(R.id.btnMods);
+        btnMods.setVisibility(Mods.MENU ? View.VISIBLE : View.GONE);
         tvDataDir = findViewById(R.id.tvDataDir);
         tvDiscInfo = findViewById(R.id.tvDiscInfo);
         panelInfo = findViewById(R.id.panelInfo);
@@ -91,6 +94,9 @@ public class LauncherActivity extends AppActivity {
         findViewById(R.id.btnQuit).setOnClickListener(v -> { ShaderService.stop(this); finishAffinity(); });
 
         btnPlay.setOnClickListener(v -> launchGame());
+
+        // the mod manager (Mods): changes apply when the game starts
+        btnMods.setOnClickListener(v -> startActivity(new Intent(this, ModsActivity.class)));
 
         btnSettings.setOnClickListener(v ->
             startActivityForResult(new Intent(this, SettingsActivity.class), REQUEST_SETTINGS));
@@ -537,6 +543,7 @@ public class LauncherActivity extends AppActivity {
         progressBar.setVisibility(View.VISIBLE);
         btnPlay.setEnabled(false);
         btnSettings.setEnabled(false);
+        btnMods.setEnabled(false);
 
         Executors.newSingleThreadExecutor().execute(() -> {
             File destDir = isoDestDir();
@@ -606,6 +613,7 @@ public class LauncherActivity extends AppActivity {
                     tvProgress.setVisibility(View.GONE);
                     progressBar.setVisibility(View.GONE);
                     btnSettings.setEnabled(true);
+                    btnMods.setEnabled(true);
                     Toast.makeText(this, t("ISO copied successfully."), Toast.LENGTH_SHORT).show();
                     checkIsoAndRefreshUi();
                 });
@@ -619,6 +627,7 @@ public class LauncherActivity extends AppActivity {
                     progressBar.setVisibility(View.GONE);
                     mCopying = false;
                     btnSettings.setEnabled(true);
+                    btnMods.setEnabled(true);
                     checkIsoAndRefreshUi();
                     new DlDialog(this)
                         .setTitle(t("Error copying the ISO"))
@@ -683,6 +692,7 @@ public class LauncherActivity extends AppActivity {
         tvProgress.setOnClickListener(v -> mVerifyCancelled = true);
         btnPlay.setEnabled(false);
         btnSettings.setEnabled(false);
+        btnMods.setEnabled(false);
         Executors.newSingleThreadExecutor().execute(() -> {
             String sha1 = null;
             String error = null;
@@ -710,6 +720,7 @@ public class LauncherActivity extends AppActivity {
                 tvProgress.setOnClickListener(null);
                 progressBar.setVisibility(View.GONE);
                 btnSettings.setEnabled(true);
+                btnMods.setEnabled(true);
                 if (err != null) {
                     checkIsoAndRefreshUi();
                     new DlDialog(this).setTitle(t("Error reading the ISO")).setMessage(err)
