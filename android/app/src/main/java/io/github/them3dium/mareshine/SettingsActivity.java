@@ -1728,7 +1728,7 @@ public class SettingsActivity extends AppActivity {
         add(new Action("Customize layout",
             "Move, resize and hide the on-screen buttons and sticks, and switch on the R+ slider (one R button: "
                 + "slide out of its circle for R+). Drag with a finger or the mouse; pinch or use Size −/+ to resize.",
-            () -> mSettings.containsKey("SMS_TOUCH_LAYOUT") ? "Custom" : "Default",
+            () -> TouchDraw.isDefault(mSettings) ? "Default" : "Custom",
             () -> startActivity(new Intent(this, TouchLayoutActivity.class))));
 
         // both follow the game's own rumble option (platform/pad/rumble_game.cpp)

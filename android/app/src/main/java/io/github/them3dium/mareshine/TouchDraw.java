@@ -97,6 +97,26 @@ final class TouchDraw {
         p.y = y;
     }
 
+    // Whether the buttons are where their style has them by default (its saved
+    // layout, if any, moves, resizes or hides none of them)
+    static boolean isDefault(Map<String, String> settings) {
+        boolean gc = !"classic".equals(settings.get("SMS_TOUCH_STYLE"));
+        boolean slider = !"0".equals(settings.getOrDefault("SMS_TOUCH_R_SLIDER", "1"));
+        String layout = settings.get(gc ? "SMS_TOUCH_LAYOUT_GAMECUBE" : "SMS_TOUCH_LAYOUT");
+        if (layout == null) return true;
+        List<Elem> def = defaults(), now = defaults();
+        reset(def, gc, slider);
+        reset(now, gc, slider);
+        applyLayout(now, layout);
+        for (int i = 0; i < def.size(); i++) {
+            Elem a = def.get(i), b = now.get(i);
+            if (slider && a.name.equals("RPLUS")) continue;  // not used with the slider
+            if (Math.abs(a.x - b.x) > 0.002f || Math.abs(a.y - b.y) > 0.002f || Math.abs(a.r - b.r) > 0.002f
+                    || a.shown != b.shown) return false;
+        }
+        return true;
+    }
+
     // A saved layout (SMS_TOUCH_LAYOUT, SMS_TOUCH_LAYOUT_GAMECUBE:
     // "NAME=x,y,size,shown;...") over the defaults
     static void applyLayout(List<Elem> elems, String layout) {

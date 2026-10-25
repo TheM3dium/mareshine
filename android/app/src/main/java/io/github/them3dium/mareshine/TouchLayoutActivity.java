@@ -55,6 +55,7 @@ public class TouchLayoutActivity extends AppActivity {
     // SMS_TOUCH_STYLE: the button style; each has its own layout
     // (SMS_TOUCH_LAYOUT, SMS_TOUCH_LAYOUT_GAMECUBE), switched in the toolbar
     private boolean mGc;
+    private boolean mFolded; // the toolbar folded up to its label
     private String mLayoutClassic, mLayoutGc;
 
     @Override
@@ -195,7 +196,18 @@ public class TouchLayoutActivity extends AppActivity {
         tvSel.setTextSize(16);
         tvSel.setPadding(dp(8), 0, dp(12), 0);
         tvSel.setMinWidth(dp(130));
-        bar.addView(tvSel);
+        // the label, and under it the arrow that folds the panel up to them
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.VERTICAL);
+        head.addView(tvSel, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        Button fold = tool("◀", false);
+        fold.setPadding(dp(12), dp(2), dp(12), dp(2));
+        LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        flp.setMargins(dp(4), dp(4), 0, 0);
+        head.addView(fold, flp);
+        bar.addView(head);
 
         Button smaller = tool("Size −", false);
         Button bigger = tool("Size +", false);
@@ -290,7 +302,34 @@ public class TouchLayoutActivity extends AppActivity {
         col.addView(op, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         col.setPadding(0, 0, 0, dp(6));
+        // folded: only the label and the arrow (▶ opens it again); the panel
+        // slides together and apart
+        android.animation.LayoutTransition slide = new android.animation.LayoutTransition();
+        slide.enableTransitionType(android.animation.LayoutTransition.CHANGING);
+        col.setLayoutTransition(slide);
+        android.animation.LayoutTransition slideBar = new android.animation.LayoutTransition();
+        slideBar.enableTransitionType(android.animation.LayoutTransition.CHANGING);
+        bar.setLayoutTransition(slideBar);
+        fold.setOnClickListener(v -> {
+            // not while it still slides (a tap then would leave arrow and panel out of step)
+            if (slide.isRunning() || slideBar.isRunning()) return;
+            boolean folding = !mFolded;
+            mFolded = folding;
+            for (int i = 0; i < bar.getChildCount(); i++)
+                if (bar.getChildAt(i) != head) bar.getChildAt(i).setVisibility(folding ? View.GONE : View.VISIBLE);
+            op.setVisibility(folding ? View.GONE : View.VISIBLE);
+            fold.setText(folding ? "▶" : "◀");
+        });
+        // anchored at its left edge (it folds towards the arrow), placed in the middle at first
+        blp.gravity = Gravity.START | Gravity.TOP;
         root.addView(col, blp);
+        col.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                col.getViewTreeObserver().removeOnPreDrawListener(this);
+                col.setTranslationX((root.getWidth() - col.getWidth()) / 2f);
+                return true;
+            }
+        });
         tvSel.setOnTouchListener(dragToolbar(col));
 
         mSel = mElems.get(2); // A
