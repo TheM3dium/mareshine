@@ -628,6 +628,7 @@ void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, const char* label,
 	rasterPoly(cov, size, kGcShapes[shape], size * 0.47f, 0, 0, rot);
 	insideDistance(cov, size, dist);
 	const float stroke = fmaxf(1.5f, size * 0.05f);
+	const bool gate = shape == GC_GATE || shape == GC_CGATE;
 	// the letter at the widest place inside the shape, as large as it allows
 	float best = 0;
 	int bx = size / 2, by = size / 2;
@@ -675,15 +676,17 @@ void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, const char* label,
 			const float m = fminf(1.0f, cov[i]);
 			if (m <= 0)
 				continue;
-			if (pressed) {
-				im.blend(x, y, rgb, m * 0.92f);
-			} else {
+			const float line = fminf(1.0f, fmaxf(0.0f, stroke + 0.5f - dist[i]));
+			if (gate) {  // a stick's gate: only its outline, over a faint face
 				im.blend(x, y, 0x0A1420, m * 0.35f);
-				const float line = fminf(1.0f, fmaxf(0.0f, stroke + 0.5f - dist[i]));
 				im.blend(x, y, rgb, m * (dist[i] == 0 ? 1.0f : line));
+			} else {  // a button: filled in its colour; pressed, lighter with a white rim
+				im.blend(x, y, pressed ? shade(rgb, 1.25f) : rgb, m * 0.92f);
+				if (pressed)
+					im.blend(x, y, 0xFFFFFF, m * (dist[i] == 0 ? 1.0f : line));
 			}
 			if (lp && let[i] > 0)
-				im.blend(x, y, pressed ? 0x14202C : rgb, fminf(1.0f, let[i]));
+				im.blend(x, y, 0x14202C, fminf(1.0f, let[i]));
 		}
 }
 
