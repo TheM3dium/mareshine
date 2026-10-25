@@ -46,6 +46,9 @@ public class ModPageActivity extends AppActivity {
     private LinearLayout mRows;          // a settings page's
     private final List<View> mRowViews = new ArrayList<>();
     private ScrollView mScroll;
+    private TextView mScore;
+    private View mRating;
+    private TextView mTranslator;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private boolean mAutoOff;
     private float mAutoAt;
@@ -167,8 +170,21 @@ public class ModPageActivity extends AppActivity {
         ModViews.Suns suns = new ModViews.Suns(this);
         suns.setRating(mMod.rating);
         rating.addView(suns, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)));
-        TextView score = text(mMod.rating >= 0 ? String.format(Locale.ROOT, "%.2f/5", mMod.rating) : t("Not rated yet"),
-            GOLD, 14, false);
+        mScore = text("", GOLD, 14, false);
+        TextView score = mScore;
+        // a tap on the suns: the player's own rating
+        rating.setClickable(true);
+        rating.setFocusable(true);
+        // a dark pill under it keeps it readable over the picture; lit when focused
+        GradientDrawable pill = new GradientDrawable();
+        pill.setColor(0x99000000);
+        pill.setCornerRadius(dp(12));
+        rating.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {
+            pill, getDrawable(R.drawable.dl_tab)}));
+        rating.setPadding(dp(10), dp(2), dp(10), dp(2));
+        rating.setContentDescription(t("Rate"));
+        rating.setOnClickListener(v -> rate());
+        mRating = rating;
         score.setShadowLayer(dp(3), 0, dp(1), 0xFF000000);
         LinearLayout.LayoutParams sclp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -203,10 +219,10 @@ public class ModPageActivity extends AppActivity {
         mScroll = new ScrollView(this);
         panel.addView(mScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         if (mPageOption == null) {
-            StringBuilder about = new StringBuilder(mMod.description);
-            if (!mMod.author.isEmpty()) about.append(about.length() > 0 ? "\n\n" : "").append(t("by %s", mMod.author));
-            TextView desc = text(about.toString(), TEXT, 19, false);
-            desc.setGravity(Gravity.CENTER_HORIZONTAL);
+            // "* " lists become bullets; a text with a list reads from the left
+            String about = ("\n" + mMod.description).replaceAll("\n[*-] ", "\n• ").substring(1);
+            TextView desc = text(about, TEXT, 19, false);
+            desc.setGravity(about.contains("\n•") ? Gravity.START : Gravity.CENTER_HORIZONTAL);
             desc.setPadding(0, dp(6), 0, dp(6));
             mScroll.addView(desc);
             mScroll.setOnTouchListener((v, e) -> {
@@ -218,6 +234,21 @@ public class ModPageActivity extends AppActivity {
             mRows = new LinearLayout(this);
             mRows.setOrientation(LinearLayout.VERTICAL);
             mScroll.addView(mRows);
+        }
+
+        // at the panel's foot: who translated the language picked (left), the mod's makers (right)
+        if (mPageOption == null) {
+            FrameLayout foot = new FrameLayout(this);
+            mTranslator = text("", DIM, 15, true);
+            foot.addView(mTranslator, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START | Gravity.CENTER_VERTICAL));
+            if (!mMod.author.isEmpty()) {
+                TextView by = text(t("by %s", mMod.author), mMod.authorColor != 0 ? mMod.authorColor : DIM, 15, true);
+                foot.addView(by, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL));
+            }
+            foot.setPadding(0, dp(4), 0, 0);
+            panel.addView(foot);
         }
 
         // the buttons
@@ -346,12 +377,47 @@ public class ModPageActivity extends AppActivity {
         }, "mod-textures").start();
     }
 
+    // the suns' line: the rating, and the player's own
+    private void showScore() {
+        String s = mMod.rating >= 0 ? String.format(Locale.ROOT, "%.2f/5", mMod.rating) : t("Not rated yet");
+        int mine = Mods.myRating(this, mMod.id);
+        if (mine > 0) s += "  ·  " + t("yours: %d", mine);
+        mScore.setText(s);
+    }
+
+    private void rate() {
+        int mine = Mods.myRating(this, mMod.id);
+        String[] labels = new String[5];
+        Runnable[] acts = new Runnable[5];
+        for (int i = 0; i < 5; i++) {
+            int suns = 5 - i;
+            StringBuilder l = new StringBuilder();
+            for (int k = 0; k < 5; k++) l.append(k < suns ? "☀" : "·");
+            labels[i] = (suns == mine ? "✓  " : "") + l + "   " + suns;
+            acts[i] = () -> {
+                Mods.setMyRating(this, mMod.id, suns);
+                showScore();
+            };
+        }
+        choice(t("Rate %s", mMod.name), t("How many suns do you give it?"), labels, acts);
+    }
+
     private void refresh() {
+        showScore();
         mOnOff.setText(mMod.enabled ? "ON" : "OFF");
         mOnOff.setTextColor(mMod.enabled ? ON : DIM);
         mOnOff.setContentDescription(t(mMod.enabled ? "On" : "Off"));
         showButtons();
         if (mRows != null) showRows();
+        if (mTranslator != null) {
+            StringBuilder who = new StringBuilder();
+            for (Mods.Option o : mMod.allOptions()) {
+                Mods.Value v = o.isChoice() ? o.value(mMod.value(o)) : null;
+                if (v != null && !v.translator.isEmpty())
+                    who.append(who.length() > 0 ? "  ·  " : "").append(t("Translated by %s", v.translator));
+            }
+            mTranslator.setText(who);
+        }
     }
 
     // a toggle's or choice's value as shown
@@ -556,6 +622,7 @@ public class ModPageActivity extends AppActivity {
     protected List<View> padItems() {
         List<View> items = new ArrayList<>();
         items.add(mOnOff);
+        items.add(mRating);
         items.addAll(mRowViews);
         items.addAll(mButtonViews);
         items.add(mBack);

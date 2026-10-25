@@ -71,12 +71,13 @@ public final class Mods {
 
     // One of a choice's values: what it switches on
     public static final class Value {
-        public String id = "", label = "", folder = "", image = "";
+        public String id = "", label = "", folder = "", image = "", translator = "";
     }
 
     public static final class Mod {
         public String id, name, version = "", author = "", description = "", image = "", icon = "", preview = "";
         public float rating = -1;
+        public int authorColor;  // 0: the page's own
         public List<String> requires = new ArrayList<>();
         public final List<Option> options = new ArrayList<>();
         public File dir;
@@ -224,6 +225,36 @@ public final class Mods {
         return null;
     }
 
+    // The player's own rating of a mod (1 to 5 suns; 0: none), kept in
+    // settings.txt until it can be sent (the rating service)
+    public static final String RATINGS_KEY = "SMS_MOD_RATINGS";
+
+    public static int myRating(Context ctx, String id) {
+        for (String e : Settings.read(ctx).getOrDefault(RATINGS_KEY, "").split(";")) {
+            int eq = e.indexOf('=');
+            if (eq > 0 && e.substring(0, eq).equals(id)) {
+                try {
+                    return Math.max(0, Math.min(5, Integer.parseInt(e.substring(eq + 1))));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return 0;
+    }
+
+    public static void setMyRating(Context ctx, String id, int suns) {
+        StringBuilder sb = new StringBuilder();
+        for (String e : Settings.read(ctx).getOrDefault(RATINGS_KEY, "").split(";")) {
+            int eq = e.indexOf('=');
+            if (eq <= 0 || e.substring(0, eq).equals(id)) continue;
+            sb.append(sb.length() > 0 ? ";" : "").append(e);
+        }
+        if (suns > 0) sb.append(sb.length() > 0 ? ";" : "").append(id).append('=').append(suns);
+        Map<String, String> s = Settings.read(ctx);
+        s.put(RATINGS_KEY, sb.toString());
+        Settings.write(ctx, s);
+    }
+
     // every mod's option values, by mod id
     static Map<String, Map<String, String>> options(Context ctx) {
         Map<String, Map<String, String>> out = new LinkedHashMap<>();
@@ -304,6 +335,7 @@ public final class Mods {
                         v.label = loc(vj, "label", v.id);
                         v.folder = cleanPath(vj.optString("folder", ""));
                         v.image = new File(vj.optString("image", "")).getName();
+                        v.translator = vj.optString("translator", "");
                     }
                     if (!v.id.isEmpty()) o.values.add(v);
                 }
@@ -347,6 +379,11 @@ public final class Mods {
                 m.icon = o.optString("icon", "");
                 m.preview = o.optString("preview", "");
                 m.rating = (float) o.optDouble("rating", -1);
+                try {
+                    String c = o.optString("author_color", "");
+                    if (!c.isEmpty()) m.authorColor = 0xFF000000 | android.graphics.Color.parseColor(c);
+                } catch (IllegalArgumentException ignored) {
+                }
                 m.options.addAll(parseOptions(o.optJSONArray("options")));
                 JSONArray req = o.optJSONArray("requires");
                 if (req != null)

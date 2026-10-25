@@ -34,7 +34,8 @@ A zip of Dolphin textures with no `mod.json` (a texture pack as made for Dolphin
   "name": "My Mod",
   "version": "1.0",
   "author": "Me",
-  "description": "What it does. Long texts scroll on the mod's page.",
+  "description": "What it does. Long texts scroll on the mod's page; lines starting with \"* \" become a list.",
+  "author_color": "#46E06A",
   "icon": "icon.png",
   "preview": "preview.png",
   "requires": ["other-mod"],
@@ -61,7 +62,8 @@ A zip of Dolphin textures with no `mod.json` (a texture pack as made for Dolphin
 | `requires` | ids of mods that must be switched on and loaded before this one |
 | `image` | a whole disc image in the folder that is played instead of the player's own (only for mods too big for `files/`) |
 | `code` | `true` when the mod needs code built into the app (Super Mario Eclipse) |
-| `rating` | its suns (0 to 5) until players have rated it |
+| `author_color` | the colour of "by …" at the foot of its page, as `#RRGGBB` |
+| `rating` | its suns (0 to 5) until players have rated it; a tap on the suns rates it |
 | `options` | the buttons on its page, in order |
 
 ### Other languages
@@ -84,7 +86,7 @@ The mod's ON/OFF is always at the top left, so it is not one of them.
 | `type` | the button | keys |
 | --- | --- | --- |
 | `toggle` | on or off; lit when on | `id`, `label`, `default` (`true`/`false`), `folder` (switched on with it), `image` (a disc image played while on), `text` (a line about it on a settings page) |
-| `choice` | shows the chosen value; a tap picks another | `id`, `label`, `values` (names, or objects with `id`, `label`, `folder`, `image`), `default` (a value's id; else the first) |
+| `choice` | shows the chosen value; a tap picks another | `id`, `label`, `values` (names, or objects with `id`, `label`, `folder`, `image`, `translator`: shown as "Translated by …" at the foot of the page while that value is picked), `default` (a value's id; else the first) |
 | `page` | opens a page of settings | `label`, `options` (toggles and choices, shown as a list) |
 | `link` | opens a web page | `label`, `url` |
 

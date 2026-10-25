@@ -28,6 +28,33 @@ final class EclipseMod {
     static final String PREVIEW = "https://images.gamebanana.com/img/ss/mods/66c9f280640aa.jpg";
     static final String TEXTURES_PAGE = "https://github.com/iZePlayzYT/SuperMarioEclipse-TexturePacks/releases";
 
+    // its page's text (from its GameBanana page)
+    static final String ABOUT = "Super Mario Eclipse is the long-awaited return to Isle Delfino. As one of the most "
+        + "ambitious Mario fan projects ever created, this ROM hack offers a massive adventure full of new discoveries.\n"
+        + "The original 120 Shines have been modified for a unique, open-world experience and seamlessly woven into an "
+        + "expanded storyline. The project introduces a wide range of brand-new content and quality-of-life upgrades:\n\n"
+        + "* 240 Shine Sprites: 120 completely new Shines to collect alongside overhauled original missions.\n"
+        + "* Multiple Playable Characters: Play as Mario, Luigi, Il Piantissimo, and other secret characters, each "
+        + "featuring unique movement mechanics.\n"
+        + "* New Movement Styles: Experience smoother gameplay with expanded movesets, including the iconic long jump.\n"
+        + "* Enhanced Gameplay Engine: Play seamlessly without getting kicked out of worlds upon collecting a Shine, "
+        + "paired with drastically reduced loading times.\n"
+        + "* New Bosses & Custom Soundtrack: Challenge entirely new custom bosses accompanied by an original, dynamic "
+        + "music score.\n"
+        + "* Hand-Animated Cutscenes: Immerse yourself in an expanded story brought to life through custom animations.";
+
+    // the version of the mod.json the app writes (app_rev): an older one is rewritten
+    static final int REV = 2;
+
+    private static int rev(File json) {
+        try {
+            byte[] b = java.nio.file.Files.readAllBytes(json.toPath());
+            return new JSONObject(new String(b, StandardCharsets.UTF_8)).optInt("app_rev", 0);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
     static File dir(Context ctx) { return new File(Mods.dir(ctx), ID); }
 
     // the releases making its languages: English first, then its translations
@@ -50,12 +77,11 @@ final class EclipseMod {
         File d = dir(ctx);
         Mods.Release first = null;
         JSONArray values = new JSONArray();
-        StringBuilder credits = new StringBuilder();
         for (Mods.Release r : languages()) {
             if (!has(ctx, r)) continue;
             if (first == null) first = r;
-            values.put(new JSONObject().put("id", valueId(r)).put("label", languageName(r)).put("image", r.image));
-            if (!r.credits.isEmpty()) credits.append("\n").append(languageName(r)).append(": ").append(r.credits);
+            values.put(new JSONObject().put("id", valueId(r)).put("label", languageName(r)).put("image", r.image)
+                .put("translator", r.credits));
         }
         if (first == null) return false;
         Mods.Release e = Mods.ECLIPSE;
@@ -64,9 +90,9 @@ final class EclipseMod {
             .put(new JSONObject().put("type", "toggle").put("id", HD).put("label", "HD Textures").put("folder", HD))
             .put(new JSONObject().put("type", "link").put("label", "Website").put("url", e.page));
         JSONObject o = new JSONObject().put("id", ID).put("name", e.name).put("version", e.version)
-            .put("author", e.author).put("description", e.description + (credits.length() > 0
-                ? "\n\nTranslations:" + credits : "")).put("image", first.image).put("code", e.code)
-            .put("page", e.page).put("rating", e.rating).put("preview", PREVIEW).put("options", options);
+            .put("author", e.author).put("author_color", "#46E06A").put("description", ABOUT)
+            .put("image", first.image).put("code", e.code)
+            .put("app_rev", REV).put("page", e.page).put("rating", e.rating).put("preview", PREVIEW).put("options", options);
         File icon = new File(d, "icon.png");
         if (!icon.isFile()) {
             Bitmap b = banner(new File(d, first.image));
@@ -97,9 +123,9 @@ final class EclipseMod {
                 moved = true;
             }
         }
-        // a mod.json from before (no buttons): written anew
+        // a mod.json written by an older version of the app: written anew
         File json = new File(dir(ctx), "mod.json");
-        if (!moved && (!json.isFile() || Mods.read(dir(ctx)) == null || !Mods.read(dir(ctx)).options.isEmpty())) return;
+        if (!moved && (!json.isFile() || rev(json) >= REV)) return;
         try {
             write(ctx);
         } catch (Exception ignored) {
