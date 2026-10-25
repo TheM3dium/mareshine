@@ -76,7 +76,8 @@ public class SunshineActivity extends SDLActivity {
             // and their disc files, after any set by hand in settings.txt's `mod`
             // code built into the app (Super Mario Eclipse's) only for the mod that needs it
             Mods.Mod image = Mods.activeImage(this);
-            nativeSetenv("SMS_CODE_MODS", image != null && image.code ? "1" : "0");
+            // its name: the shared modules and that game mod's run (platform/mods/modhooks.cpp)
+            nativeSetenv("SMS_CODE_MODS", image != null && image.code ? image.id : "0");
             // Mareshine's achievements and language packs are Sunshine's: not in
             // a mod's own game (a pack would replace the mod's own text)
             if (image != null) {

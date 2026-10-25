@@ -118,6 +118,9 @@ endif()
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(_tools ${PORT_MODS}/../../tools/mods)
 set(_modules)
+# Game mods (a game of their own; one of them runs, SMS_CODE_MODS names it):
+# their constructors get a section each (tools/mods/tag_ctors.py, ELF only).
+set(_game_modules eclipse)
 foreach(m moveset eclipse)
   target_compile_options(${m}_objs PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
   set(_o ${CMAKE_CURRENT_BINARY_DIR}/${m}_module.o)
@@ -133,10 +136,14 @@ foreach(m moveset eclipse)
   else()
     set(_localize COMMAND ${Python3_EXECUTABLE} ${_tools}/localize_module.py ${CMAKE_OBJCOPY} ${_o})
   endif()
+  if(m IN_LIST _game_modules AND NOT APPLE AND NOT WIN32)
+    list(APPEND _localize COMMAND ${Python3_EXECUTABLE} ${_tools}/tag_ctors.py ${CMAKE_OBJCOPY} ${_o} ${m})
+  endif()
   add_custom_command(OUTPUT ${_o}
     COMMAND ${CMAKE_CXX_COMPILER} ${_ld_arch} -r -nostdlib -o ${_o} ${_partial_objects}
     ${_localize}
-    DEPENDS ${m}_objs $<TARGET_OBJECTS:${m}_objs> ${_response_dependency} ${_tools}/localize_module.py COMMAND_EXPAND_LISTS VERBATIM)
+    DEPENDS ${m}_objs $<TARGET_OBJECTS:${m}_objs> ${_response_dependency} ${_tools}/localize_module.py
+      ${_tools}/tag_ctors.py COMMAND_EXPAND_LISTS VERBATIM)
   list(APPEND _modules ${_o})
 endforeach()
 
