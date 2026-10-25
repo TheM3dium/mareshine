@@ -3,10 +3,11 @@
 letters as polygons, traced (potrace) from the pictures in this folder.
 
 The button shapes come from m-overlay by Bkacjios (MIT, LICENSE-m-overlay);
-l-, r- and rplus-trigger.png (L, R, R+) are Mareshine's own. Letters are DejaVu Sans Bold.
+l- and r-trigger.png (L, R; R+ is R pressed in) are Mareshine's own. Letters are DejaVu Sans Bold.
 Run: python3 tools/touch-gamecube/gen.py (needs Pillow and potrace).
 """
 import json
+import math
 import os
 import subprocess
 import sys
@@ -34,8 +35,11 @@ SHAPES = [  # name in the header, picture
     ("DPAD", "d-pad-gate-filled.png"),
     ("TRIGGER_L", "l-trigger.png"),
     ("TRIGGER_R", "r-trigger.png"),
-    ("TRIGGER_RPLUS", "rplus-trigger.png"),
 ]
+# R+ is R pressed in: its round side squashed towards its flat side, in R's
+# frame, so the flat side stays where R's is (touch.cpp draws R+ over R)
+RPLUS_SQUASH = 0.65
+R_FLAT_DEG = 21.4  # the slope of r-trigger.png's flat side (y down)
 LETTERS = "ABXYZCLRS+"
 
 
@@ -82,7 +86,31 @@ def normalize(rings):
     return [[((x - cx) / half, -(y - cy) / half) for x, y in r] for r in rings]
 
 
-def pole(mask):
+def pole_of_rings(rings, n=384):
+    """pole() of the polygons themselves, in their own [-1, 1] frame."""
+    im = Image.new("L", (n, n), 0)
+    d = ImageDraw.Draw(im)
+    for r in rings:  # even-odd: each ring toggles
+        ring = Image.new("L", (n, n), 0)
+        ImageDraw.Draw(ring).polygon([((x + 1) * n / 2, (y + 1) * n / 2) for x, y in r], fill=255)
+        im = Image.eval(Image.merge("L", [im]), lambda v: v)
+        from PIL import ImageChops
+        im = ImageChops.logical_xor(im.convert("1"), ring.convert("1")).convert("L")
+    x, y, dist = pole(im, frame=False)
+    return (x / (n / 2) - 1, y / (n / 2) - 1, dist / (n / 2))
+
+
+def squash(rings, deg, k):
+    """Pressed in: each point moved towards the flat side (at deg, the side
+    furthest along its normal), keeping k of its distance."""
+    t = math.radians(deg)
+    nx, ny = -math.sin(t), math.cos(t)
+    far = max(x * nx + y * ny for r in rings for x, y in r)
+    return [[(x + (far - (x * nx + y * ny)) * (1 - k) * nx, y + (far - (x * nx + y * ny)) * (1 - k) * ny)
+             for x, y in r] for r in rings]
+
+
+def pole(mask, frame=True):
     """The widest place inside the shape (where its letter goes) and how far it
     is from the edge, both in the shape's [-1, 1] units."""
     w, h = mask.size
@@ -105,6 +133,8 @@ def pole(mask):
     top = max(v for row in d for v in row)
     best, bx, by = min(((d[y][x], x, y) for y in range(h) for x in range(w) if d[y][x] >= top - 1.0),
                        key=lambda t: (t[1] - cx) ** 2 + (t[2] - cy) ** 2)
+    if not frame:  # in pixels
+        return (bx + 0.5, by + 0.5, best)
     return ((bx + 0.5 - cx) / half, (by + 0.5 - cy) / half, best / half)
 
 
@@ -156,7 +186,11 @@ def main():
         m = mask_of(pic)
         rings = normalize(trace(m, max(1, round(512 / max(m.size)))))
         shapes.append((name, emit(name, rings, lines)))
-        java.append((name, rings, pole(m)))
+        java.append((name, rings, pole_of_rings(rings)))
+        if name == "TRIGGER_R":
+            plus = squash(rings, R_FLAT_DEG, RPLUS_SQUASH)
+            shapes.append(("TRIGGER_RPLUS", emit("TRIGGER_RPLUS", plus, lines)))
+            java.append(("TRIGGER_RPLUS", plus, pole_of_rings(plus)))
     emit_java(java)
     for ch in LETTERS:
         letters.append(emit("Letter%d" % LETTERS.index(ch), normalize(trace(letter_mask(ch), 2)), lines))

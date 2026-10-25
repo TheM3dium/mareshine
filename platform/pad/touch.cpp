@@ -71,9 +71,10 @@ const Def kDefs[ID_COUNT] = {
 // in the middle of the right hand, B below left, X right, Y above, Z and R
 // just above them on one line, R+ beyond R, L as high as R.
 // How far L (mirrored), R and R+ are turned so their flat side falls as Z's
-// long side does: Z lies at 28.1 degrees, the pictures at 21.6, 21.4, 17.2.
+// long side does: Z lies at 28.1 degrees, L's and R's pictures at 21.6 and
+// 21.4 (R+ is R pressed in, in R's frame: turned as R).
 const float kGcTilt[3] = { (28.1f - 21.6f) * 3.14159f / 180, (28.1f - 21.4f) * 3.14159f / 180,
-                           (28.1f - 17.2f) * 3.14159f / 180 };
+                           (28.1f - 21.4f) * 3.14159f / 180 };
 
 struct GcPlace {
 	int id;
@@ -83,7 +84,7 @@ const GcPlace kGcPlaces[] = {
 	{ BTN_A, 0.86f, 0.70f, 0.090f },    { BTN_B, 0.775f, 0.80f, 0.060f },  { BTN_X, 0.945f, 0.62f, 0.068f },
 	{ BTN_Y, 0.85f, 0.52f, 0.068f },    { BTN_Z, 0.95f, 0.45f, 0.055f },
 	// R further up Z's line (its tilt, kGcTilt), R+ further still, L as high as R
-	{ BTN_R, 0.848f, 0.333f, 0.075f }, { BTN_RPLUS, 0.767f, 0.239f, 0.062f }, { BTN_L, 0.12f, 0.333f, 0.075f },
+	{ BTN_R, 0.877f, 0.366f, 0.075f }, { BTN_RPLUS, 0.804f, 0.281f, 0.075f }, { BTN_L, 0.12f, 0.366f, 0.075f },
 };
 
 struct Place {
