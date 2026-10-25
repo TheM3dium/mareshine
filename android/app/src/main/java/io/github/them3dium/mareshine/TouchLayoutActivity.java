@@ -99,7 +99,7 @@ public class TouchLayoutActivity extends AppActivity {
         super.onCreate(savedInstanceState);
         L.init(this);
         // the defaults of touch_controller.cpp
-        mElems.add(new Elem("STICK", "STICK", 0xFFBFC9D4, true, 0.16f, 0.72f, 0.14f));
+        mElems.add(new Elem("STICK", "STICK", 0xFFBFC9D4, true, 0.16f, 0.72f, 0.14f).gc(0.16f, 0.76f, 0.14f));
         mElems.add(new Elem("CSTICK", "C", 0xFFF1C40F, true, 0.61f, 0.76f, 0.11f));
         // and the GameCube style's places (kGcPlaces in touch.cpp)
         mElems.add(new Elem("A", "A", 0xFF2ECC71, false, 0.90f, 0.74f, 0.082f).gc(0.86f, 0.70f, 0.090f));

@@ -81,6 +81,7 @@ struct GcPlace {
 	float x, y, r;
 };
 const GcPlace kGcPlaces[] = {
+	{ STICK, 0.16f, 0.76f, 0.14f },     // as high as the C-stick
 	{ BTN_A, 0.86f, 0.70f, 0.090f },    { BTN_B, 0.775f, 0.80f, 0.060f },  { BTN_X, 0.937f, 0.628f, 0.068f },
 	{ BTN_Y, 0.85f, 0.52f, 0.068f },    { BTN_Z, 0.95f, 0.45f, 0.055f },
 	// R further up Z's line (its tilt, kGcTilt), R+ further still, L as high as R
