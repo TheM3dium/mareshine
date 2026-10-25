@@ -9,7 +9,7 @@ silently. The sources are reset to their checkouts first, then fixed up and
 patched (shi-layout.patch, mods-port.patch); a marker records the state, so
 an unchanged checkout is not redone.
 
-    fixup_sources.py ECLIPSE_ROOT BSE_ROOT SHI_ROOT [MOVESET_ROOT]
+    fixup_sources.py ECLIPSE_ROOT BSE_ROOT SHI_ROOT [MOVESET_ROOT [SUNBURN_ROOT]]
 """
 import glob
 import os
@@ -449,6 +449,9 @@ BSE_FIXES = TEXTURE_FIXES + CARD_IMAGE_FIXES + optional([RAWADDR_FIX]) + [RAWDAT
      "BSE's console log formats its arguments"),
 ] + FRAME_RATE_FIXES + ASPECT_RATIO_FIXES
 MOVESET_FIXES = optional(TEXTURE_FIXES + [RAWADDR_FIX]) + CARD_IMAGE_FIXES
+# Super Mario Sunburn: its card banner and icon, and green Yoshi's tongue
+# (the same retail floats as Eclipse's).
+SUNBURN_FIXES = optional(TEXTURE_FIXES + [RAWADDR_FIX, RAWDATA_FIX]) + CARD_IMAGE_FIXES + [RAWDATA_REGION_FIX]
 SHI_FIXES = BOOL_RET_FIXES + SHI_WORD_FIXES + SHI_GAME_TYPES + [
     # The SDK's OSMessage is a void *, as the port's OS keeps it; declared u32,
     # it was half the size in the 64-bit build. BSE's music streamer queues 16
@@ -717,11 +720,12 @@ def apply_patch(root, patch):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) not in (4, 5):
+    if len(sys.argv) not in (4, 5, 6):
         sys.exit(__doc__)
     roots = [os.path.abspath(a) for a in sys.argv[1:]]
     here = os.path.dirname(os.path.abspath(__file__))
-    patches = [os.path.join(here, "shi-layout.patch"), os.path.join(here, "mods-port.patch")]
+    patches = [os.path.join(here, "shi-layout.patch"), os.path.join(here, "mods-port.patch"),
+               os.path.join(here, "sunburn-v2.patch")]
     marker = os.path.join(os.path.dirname(roots[1]), ".sms_port_fixups")
     digest = state(roots, [os.path.abspath(__file__)] + patches)
     if os.path.exists(marker) and open(marker).read().strip() == digest:
@@ -732,15 +736,20 @@ if __name__ == "__main__":
     for r in roots:
         pristine(r)
     n = apply(roots[0], ECLIPSE_FIXES, True) + apply(roots[1], BSE_FIXES, True) + apply(roots[2], SHI_FIXES, True)
-    if len(roots) == 4:
+    if len(roots) >= 4:
         n += apply(roots[3], MOVESET_FIXES, True)
+    # Super Mario Sunburn v2's module: the 2023 source made into v2's
+    # (sunburn-v2.patch, rebuilt from the machine code), then the same fixes
+    if len(roots) == 5:
+        n += apply_patch(roots[4], patches[2])
+        n += apply(roots[4], SUNBURN_FIXES, True)
     # SunshineHeaderInterface's classes laid out as the port lays out the game's
     # (tools/mods/shi_layout, which also explains how to regenerate the patch).
     n += apply_patch(roots[2], patches[0])
     n += apply(roots[2], SHI_NATIVE_FLAG_FIXES, True)
     # The mods' own sources where they need more than a pattern: members they
     # address by retail offset (SMS_OFFSET, tools/mods/shi_layout/offsets.py).
-    if len(roots) == 4 and os.path.exists(patches[1]):
+    if len(roots) >= 4 and os.path.exists(patches[1]):
         n += apply_patch(os.path.dirname(roots[0]), patches[1])
     with open(marker, "w") as f:
         f.write(digest + "\n")

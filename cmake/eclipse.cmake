@@ -1,4 +1,5 @@
-# -DSMS_ECLIPSE=ON builds Super Mario Eclipse into the port (docs/ECLIPSE.md).
+# -DSMS_ECLIPSE=ON builds Super Mario Eclipse and Super Mario Sunburn into the
+# port (docs/ECLIPSE.md); one of them runs, named by SMS_CODE_MODS.
 #
 # Eclipse, BetterSunshineEngine and BetterSunshineMoveset (and the SunshineHeaderInterface headers
 # they are written against) are fetched at configure time at pinned
@@ -34,7 +35,11 @@ set(_eclipse_repos
   "eclipse|https://github.com/JoshuaMKW/super-mario-eclipse|792e14fa1583910673ddae7e85048c6ddb4ba700"
   "bse|https://github.com/JoshuaMKW/BetterSunshineEngine|bc6840e373d59a2601e7b5f9011732390561f6dd"
   "moveset|https://github.com/JoshuaMKW/BetterSunshineMoveset|2eb6f136cce4c0c7816808ad9dc3d1d95ef52b83"
-  "shi|https://github.com/JoshuaMKW/SunshineHeaderInterface|a0d858951e7fb22dce5304aa5c50287ecb0d6862")
+  "shi|https://github.com/JoshuaMKW/SunshineHeaderInterface|a0d858951e7fb22dce5304aa5c50287ecb0d6862"
+  # Super Mario Sunburn's 2023 source, made into v2's module by
+  # platform/mods/eclipse/sunburn-v2.patch (its submodule is not fetched:
+  # it is built against the BetterSunshineEngine above)
+  "sunburn|https://github.com/JoshuaMKW/Super-Mario-Sunburn|64c9805259df198a3a903cdd2462abb9137a0bbf")
 
 foreach(r ${_eclipse_repos})
   string(REPLACE "|" ";" r "${r}")
@@ -81,7 +86,7 @@ endforeach()
 
 execute_process(COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/platform/mods/eclipse/fixup_sources.py
   "${SMS_ECLIPSE_SRC_DIR}/eclipse" "${SMS_ECLIPSE_SRC_DIR}/bse" "${SMS_ECLIPSE_SRC_DIR}/shi"
-  "${SMS_ECLIPSE_SRC_DIR}/moveset"
+  "${SMS_ECLIPSE_SRC_DIR}/moveset" "${SMS_ECLIPSE_SRC_DIR}/sunburn"
   RESULT_VARIABLE _rc)
 if(NOT _rc EQUAL 0)
   message(FATAL_ERROR "SMS_ECLIPSE: fixup_sources.py failed")
@@ -117,7 +122,7 @@ ExternalProject_Add(sms_eclipse_build
   CMAKE_ARGS -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DCMAKE_C_COMPILER=${SMS_CLANG} -DCMAKE_CXX_COMPILER=${SMS_CLANGXX}
     -DECLIPSE_SRC=${SMS_ECLIPSE_SRC_DIR}/eclipse -DBSE_SRC=${SMS_ECLIPSE_SRC_DIR}/bse
-    -DMOVESET_SRC=${SMS_ECLIPSE_SRC_DIR}/moveset
+    -DMOVESET_SRC=${SMS_ECLIPSE_SRC_DIR}/moveset -DSUNBURN_SRC=${SMS_ECLIPSE_SRC_DIR}/sunburn
     -DSHI_SRC=${SMS_ECLIPSE_SRC_DIR}/shi -DPORT_MODS=${CMAKE_CURRENT_SOURCE_DIR}/platform/mods
     -DSMS_ARCH=${SMS_ARCH} ${_eclipse_platform_args}
   BUILD_ALWAYS ON

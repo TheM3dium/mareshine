@@ -1,11 +1,11 @@
-# Builds BetterSunshineEngine, BetterSunshineMoveset and Super Mario Eclipse (fetched sources, see
+# Builds BetterSunshineEngine, BetterSunshineMoveset, Super Mario Eclipse and Super Mario Sunburn (fetched sources, see
 # cmake/eclipse.cmake) into one static library for the 32-bit port, with
 # clang (their sources are written for it) and the port's shim headers in
 # place of the Kuribo/Kamek SDKs and PowerPC-only macros.
 cmake_minimum_required(VERSION 3.16)
 project(sms_eclipse C CXX)
 
-foreach(v ECLIPSE_SRC BSE_SRC MOVESET_SRC SHI_SRC PORT_MODS)
+foreach(v ECLIPSE_SRC BSE_SRC MOVESET_SRC SUNBURN_SRC SHI_SRC PORT_MODS)
   if(NOT ${v})
     message(FATAL_ERROR "${v} is required")
   endif()
@@ -24,6 +24,7 @@ foreach(d ${_bse_dirs})
 endforeach()
 file(GLOB MOVESET_SOURCES ${MOVESET_SRC}/src/*.cpp ${MOVESET_SRC}/src/*/*.cpp)
 file(GLOB ECLIPSE_SOURCES ${ECLIPSE_SRC}/src/*.c ${ECLIPSE_SRC}/src/*.cpp ${ECLIPSE_SRC}/src/*/*.c ${ECLIPSE_SRC}/src/*/*.cpp)
+file(GLOB SUNBURN_SOURCES ${SUNBURN_SRC}/src/*.cpp ${SUNBURN_SRC}/src/*/*.cpp)
 
 set(_shi ${SHI_SRC}/include ${SHI_SRC}/include/JSystem ${SHI_SRC}/include/Dolphin ${SHI_SRC}/include/SMS
   ${SHI_SRC}/include/Kamek ${SHI_SRC}/include/Kuribo)
@@ -94,6 +95,12 @@ target_include_directories(eclipse_objs PRIVATE ${PORT_MODS}/eclipse/shim ${PORT
 target_compile_definitions(eclipse_objs PRIVATE ${_defs})
 target_compile_options(eclipse_objs PRIVATE ${_opts})
 
+add_library(sunburn_objs OBJECT ${SUNBURN_SOURCES})
+target_include_directories(sunburn_objs PRIVATE ${PORT_MODS}/eclipse/shim ${PORT_MODS}/include
+  ${SUNBURN_SRC}/include ${BSE_SRC}/include ${_shi})
+target_compile_definitions(sunburn_objs PRIVATE ${_defs})
+target_compile_options(sunburn_objs PRIVATE ${_opts})
+
 # The partial links below run the compiler driver as a linker, for this target.
 if(APPLE AND CMAKE_OSX_ARCHITECTURES)
   set(_ld_arch -arch ${CMAKE_OSX_ARCHITECTURES})
@@ -120,8 +127,8 @@ set(_tools ${PORT_MODS}/../../tools/mods)
 set(_modules)
 # Game mods (a game of their own; one of them runs, SMS_CODE_MODS names it):
 # their constructors get a section each (tools/mods/tag_ctors.py, ELF only).
-set(_game_modules eclipse)
-foreach(m moveset eclipse)
+set(_game_modules eclipse sunburn)
+foreach(m moveset eclipse sunburn)
   target_compile_options(${m}_objs PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
   set(_o ${CMAKE_CURRENT_BINARY_DIR}/${m}_module.o)
   set(_partial_objects $<TARGET_OBJECTS:${m}_objs>)

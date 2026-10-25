@@ -1,0 +1,198 @@
+Reason: port: code-mod hooks (sms_modhook.h) for Super Mario Sunburn's patches that Eclipse and BetterSunshineEngine do not make: Gooper Blooper's fall cameras, red coins, the hover nozzle box, the water gun's nozzles, the gates, Delfino Plaza's next episode
+--- a/src/Enemy/bossgesso.cpp
++++ b/src/Enemy/bossgesso.cpp
+@@ -1,3 +1,6 @@
++#ifdef TARGET_PC
++#include <sms_modhook.h>
++#endif
+ #include "port_framerate.h"
+ #include <Enemy/BossGesso.hpp>
+ #include <Enemy/BossGessoTentacle.hpp>
+@@ -2191,6 +2194,37 @@
+ 			MSMainProc::setBossLivesFlagOnlyFlag(false);
+ 		}
+ 
++#ifdef TARGET_PC
++		// (nine arguments: more than sms_mod_as_free takes)
++		typedef void (*BossgessoFallCamera)(TMarDirector*, const char*, const JGeometry::TVec3<f32>*, s32, f32,
++		                                    bool, s32 (*)(uintptr_t, u32), uintptr_t, JDrama::TActor*,
++		                                    JDrama::TFlagT<u16>);
++		// Super Mario Sunburn (bl at retail 0x80073908, 0x80073960,
++		// 0x80073998): the same camera, with a callback that brings back the
++		// stage's music once the boss is down.
++		if (SMSGetMarDirector()->getCurrentMap() == 9) {
++			SMS_MOD_CALL(0x80073908, BossgessoFallCamera,
++			              gpMarDirector->fireStartDemoCamera(
++			                  "bgeso_fall_camera3", nullptr, -1, 0.0f, true, nullptr, 0,
++			                  nullptr, JDrama::TFlagT<u16>(0)),
++			              gpMarDirector, "bgeso_fall_camera3", nullptr, -1, 0.0f, true, nullptr, 0,
++			              nullptr, JDrama::TFlagT<u16>(0));
++		} else if (!self->is2ndFightNow()) {
++			SMS_MOD_CALL(0x80073960, BossgessoFallCamera,
++			              gpMarDirector->fireStartDemoCamera(
++			                  "bgeso_fall_camera", nullptr, -1, 0.0f, true, nullptr, 0,
++			                  nullptr, JDrama::TFlagT<u16>(0)),
++			              gpMarDirector, "bgeso_fall_camera", nullptr, -1, 0.0f, true, nullptr, 0,
++			              nullptr, JDrama::TFlagT<u16>(0));
++		} else {
++			SMS_MOD_CALL(0x80073998, BossgessoFallCamera,
++			              gpMarDirector->fireStartDemoCamera(
++			                  "bgeso_fall_camera2", nullptr, -1, 0.0f, true, nullptr, 0,
++			                  nullptr, JDrama::TFlagT<u16>(0)),
++			              gpMarDirector, "bgeso_fall_camera2", nullptr, -1, 0.0f, true, nullptr, 0,
++			              nullptr, JDrama::TFlagT<u16>(0));
++		}
++#else
+ 		if (SMSGetMarDirector()->getCurrentMap() == 9) {
+ 			gpMarDirector->fireStartDemoCamera("bgeso_fall_camera3", nullptr,
+ 			                                   -1, 0.0f, true, nullptr, 0,
+@@ -2204,6 +2238,7 @@
+ 			                                   -1, 0.0f, true, nullptr, 0,
+ 			                                   nullptr, JDrama::TFlagT<u16>(0));
+ 		}
++#endif
+ 
+ 		if (SMSGetMarDirector()->getCurrentMap() == 3 || SMSGetMarDirector()->getCurrentMap() == 59) {
+ 			gpItemManager->makeShineAppearWithDemo(
+--- a/src/MoveBG/Item.cpp
++++ b/src/MoveBG/Item.cpp
+@@ -407,7 +407,15 @@
+ 
+ void TCoinRed::taken(THitActor* param_1)
+ {
++#ifdef TARGET_PC
++	// Super Mario Sunburn (bl at retail 0x801BE454): a red coin counts as a
++	// coin of the stage too.
++	SMS_MOD_CALLM(0x801BE454, TFlagManager, incFlag,
++	              TFlagManager::getInstance()->incFlag(0x60000, 1),
++	              TFlagManager::getInstance(), 0x60000, 1);
++#else
+ 	TFlagManager::getInstance()->incFlag(0x60000, 1);
++#endif
+ 
+ 	SMSGetMSound()->startSoundActor(MSD_SE_SY_RED_COIN_GET, &mPosition, 0,
+ 	                                nullptr, 0, 4);
+@@ -1730,10 +1738,21 @@
+ 		unk15C = false;
+ 
+ 	if (strcmp(mContainedNozzleName, "normal_nozzle_item") == 0) {
++#ifdef TARGET_PC
++		// Super Mario Sunburn (bl at retail 0x801BB308, then `b` at
++		// 0x801BB30C past the other kinds): its function decides the hover
++		// box's nozzle and colour (a turbo box in New Game Plus), the box in r30.
++		if (void* sms_mod_t_ = SMS_MOD_SITE(0x801BB308)) {
++			SMS_MOD_GPR(30, this);
++			((void (*)())sms_mod_t_)();
++		} else
++#endif
++		{
+ 		mContainedNozzleType = TWaterGun::Hover;
+ 		unk15E.r             = 0;
+ 		unk15E.g             = 0;
+ 		unk15E.b             = 0xFF;
++		}
+ 	} else if (strcmp(mContainedNozzleName, "rocket_nozzle_item") == 0) {
+ 		mContainedNozzleType = TWaterGun::Rocket;
+ 		unk15E.r             = 0xFF;
+--- a/src/Player/WaterGun.cpp
++++ b/src/Player/WaterGun.cpp
+@@ -1312,7 +1312,16 @@
+ 	mNozzleList[Hover]         = &mNozzleHover;
+ 	mNozzleList[Turbo]         = &mNozzleTurbo;
+ 	mCurrentNozzle             = Spray;
++#ifdef TARGET_PC
++	// Super Mario Sunburn (word at retail 0x8026A3C8, `li r8, 4`): New Game
++	// Plus starts with the turbo nozzle (li r8, 5).
++	{
++		unsigned int w = SMS_MOD_WORD(0x8026A3C8, 0x39000004u);
++		mSecondNozzle  = (w >> 16) == 0x3900 ? (TNozzleType)(s16)w : Hover;
++	}
++#else
+ 	mSecondNozzle              = Hover;
++#endif
+ 	mNozzleRocket.unk38C       = MSD_SE_PO_ROCKET_TRIGGER;
+ 	mNozzleTurbo.unk38C        = MSD_SE_PO_SNIPER_TRIGGER;
+ 	mNozzleDeform.mBomb.unk38C = MSD_SE_PO_SHOTGUN_TRIGGER;
+@@ -1678,11 +1687,28 @@
+ 			mSwitchToSecondNozzleProgress = 0.0f;
+ 		}
+ 	} else {
++#ifdef TARGET_PC
++		// Super Mario Sunburn (bl at retail 0x8026A1F0 and 0x8026A204, over
++		// the stores): New Game Plus takes the turbo nozzle for the hover;
++		// the kind in r30, the water gun in r31.
++		if (void* sms_mod_t_ = SMS_MOD_SITE(0x8026A1F0)) {
++			SMS_MOD_GPR(30, nozzleType);
++			SMS_MOD_GPR(31, this);
++			((void (*)())sms_mod_t_)();
++		} else
++#endif
+ 		mSecondNozzle = nozzleType;
+ 		if (animate == true) {
+ 			mSwitchToSecondNozzleProgress = 1.0f;
+ 		}
+ 	}
++#ifdef TARGET_PC
++	if (void* sms_mod_t_ = SMS_MOD_SITE(0x8026A204)) {
++		SMS_MOD_GPR(30, nozzleType);
++		SMS_MOD_GPR(31, this);
++		((void (*)())sms_mod_t_)();
++	} else
++#endif
+ 	mCurrentNozzle = nozzleType;
+ 	WaterGunCurNozzle(this)->init();
+ 	if (nozzleType == Yoshi) {
+--- a/src/MoveBG/ModelGate.cpp
++++ b/src/MoveBG/ModelGate.cpp
+@@ -1,3 +1,6 @@
++#ifdef TARGET_PC
++#include <sms_modhook.h>
++#endif
+ #include <MoveBG/ModelGate.hpp>
+ #include <M3DUtil/MActorUtil.hpp>
+ #include <M3DUtil/SampleCtrlModel.hpp>
+@@ -222,6 +225,12 @@
+ 		break;
+ 	}
+ 
++#ifdef TARGET_PC
++	// Super Mario Sunburn (bl at retail 0x801EC858 over the bool's
++	// `clrlwi`, then `cmplwi r3, 1`): every gate is open once Bowser is down.
++	if (void* sms_mod_t_ = SMS_MOD_SITE(0x801EC858))
++		opened = ((unsigned char (*)(bool))sms_mod_t_)(opened) == 1;
++#endif
+ 	if (opened == true) {
+ 		mFlags |= GATE_FLAG_ACTIVE;
+ 		offHitFlag(HIT_FLAG_NO_COLLISION);
+--- a/src/System/MarDirectorDirect.cpp
++++ b/src/System/MarDirectorDirect.cpp
+@@ -470,6 +470,13 @@
+ 	return scenario;
+ }
+ 
++#ifdef TARGET_PC
++// Super Mario Sunburn calls decideNextScenario by its retail name
++// (SunshineHeaderInterface's raw_fn.hxx, tools/mods/gen_rawfn.py); it is
++// static here, so its trampoline is here too.
++extern "C" intptr_t sms_rawfn_decideNextScenario__FUc(int p0) { return decideNextScenario((u8)p0); }
++#endif
++
+ // fabricated: retail forms &gpApplication.mNextArea as a pointer before the
+ // inlined TGameSequence::set (`stbu`/`addi r4, r3, 0x12`), which a
+ // reference-returning level reproduces.
+@@ -1498,7 +1505,15 @@
+ 		switch (nextArea.getStage()) {
+ 		case 1:
+ 			unkE4         = 2;
++#ifdef TARGET_PC
++			// Super Mario Sunburn (bl at retail 0x802976AC): its win
++			// condition (70 shines or every Shadow Mario) picks the episode.
++			nextArea.unk1 = SMS_MOD_CALLF_R(0x802976AC, decideNextScenario,
++			                                decideNextScenario(nextArea.getStage()),
++			                                nextArea.getStage());
++#else
+ 			nextArea.unk1 = decideNextScenario(nextArea.getStage());
++#endif
+ 			TFlagManager::getInstance()->setFlag(0x40003, 0);
+ 			break;
+ 

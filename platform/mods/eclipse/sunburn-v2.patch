@@ -1,0 +1,125 @@
+Super Mario Sunburn v2.0's module ("v1.0" by EpicWade, built Feb 7 2025), rebuilt from its
+machine code (tools/mods/kxe_dump.py) on the 2023 source it was made from:
+BetterSunshineEngine v2's callbacks, skippable cutscenes, the saves' company
+code '03', and the win condition kept as a word.
+
+diff --git include/settings.hxx include/settings.hxx
+index b2ab03b..555fd2b 100644
+--- a/include/settings.hxx
++++ b/include/settings.hxx
+@@ -81,7 +81,7 @@ public:
+     }
+ 
+ private:
+-    bool mWinConditionFlag;
++    int mWinConditionFlag;  // v2 reads a whole word
+ };
+ 
+ bool isGamePlusMode();
+diff --git src/main.cpp src/main.cpp
+index 9360643..b172c1c 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -8,6 +8,7 @@
+ #include <JSystem/J2D/J2DTextBox.hxx>
+ 
+ #include <SMS/System/Application.hxx>
++#include <SMS/Manager/FlagManager.hxx>
+ 
+ #include <BetterSMS/game.hxx>
+ #include <BetterSMS/module.hxx>
+@@ -22,8 +23,14 @@
+ 
+ extern Settings::SettingsGroup gSettingsGroup;
+ 
+-// Module definition
+-BetterSMS::ModuleInfo gModuleInfo("Super Mario Sunburn", 1, 8, &gSettingsGroup);
++// Module definition (v2.0: Super Mario Sunburn's module "v1.0" by EpicWade,
++// built Feb 7 2025, rebuilt from its machine code for Mareshine: the 2023
++// source on BetterSunshineEngine v2's API, cutscenes that can always be
++// skipped, and its saves under the company code '03')
++static BetterSMS::ModuleInfo &moduleInfo() {
++    static BetterSMS::ModuleInfo info("Super Mario Sunburn", 1, 0, &gSettingsGroup);
++    return info;
++}
+ 
+ // Init settings
+ extern void initializeSettings(Settings::SettingsGroup &group);
+@@ -40,14 +47,14 @@ extern void forceParams(TMario *player, bool isMario);
+ extern void adjustYoshiTounge(TMario *player, bool isMario);
+ 
+ static void initModule() {
+-    // Register callbacks
++    moduleInfo();
+     initializeSettings(gSettingsGroup);
+     {
+         auto &saveInfo        = gSettingsGroup.getSaveInfo();
+         saveInfo.mSaveName    = BetterSMS::Settings::getGroupName(gSettingsGroup);
+         saveInfo.mBlocks      = 1;
+         saveInfo.mGameCode    = 'GMSE';
+-        saveInfo.mCompany     = 0x3033;  // '01'
++        saveInfo.mCompany     = 0x3033;  // '03'
+         saveInfo.mBannerFmt   = CARD_BANNER_CI;
+         saveInfo.mBannerImage = reinterpret_cast<const ResTIMG *>(gSaveBnr);
+         saveInfo.mIconFmt     = CARD_ICON_CI;
+@@ -56,31 +63,25 @@ static void initModule() {
+         saveInfo.mIconTable   = reinterpret_cast<const ResTIMG *>(gSaveIcon);
+         saveInfo.mSaveGlobal  = true;
+     }
+-    BetterSMS::registerModule(&gModuleInfo);
++    BetterSMS::registerModule(moduleInfo());
+ 
+-    BetterSMS::Stage::registerInitCallback("Sunburn_YoshiFlagFix", enableYoshiAfterBowserDefeat);
+-    BetterSMS::Stage::registerInitCallback("Sunburn_NokiBayFix", enableNokiBayEveryWhere);
+-    BetterSMS::Stage::registerUpdateCallback("Sunburn_NewGamePlusUnlocker",
+-                                             checkFor120ShinesCollected);
+-    BetterSMS::Player::registerUpdateCallback("Sunburn_NewGamePlusParams", forceParams);
+-    BetterSMS::Player::registerUpdateCallback("Sunburn_AdjustYoshiTongue", adjustYoshiTounge);
++    BetterSMS::Stage::addInitCallback(enableYoshiAfterBowserDefeat);
++    BetterSMS::Stage::addInitCallback(enableNokiBayEveryWhere);
++    BetterSMS::Stage::addUpdateCallback(checkFor120ShinesCollected);
++    BetterSMS::Player::addUpdateCallback(forceParams);
++    BetterSMS::Player::addUpdateCallback(adjustYoshiTounge);
+ }
+ 
+-static void deinitModule() {
+-    // Cleanup callbacks
+-    BetterSMS::Stage::deregisterInitCallback("Sunburn_YoshiFlagFix");
+-    BetterSMS::Stage::deregisterInitCallback("Sunburn_NokiBayFix");
+-    BetterSMS::Stage::deregisterUpdateCallback("Sunburn_NewGamePlusUnlocker");
+-    BetterSMS::Player::deregisterUpdateCallback("Sunburn_NewGamePlusParams");
+-    BetterSMS::Player::deregisterUpdateCallback("Sunburn_AdjustYoshiTongue");
+-
+-    BetterSMS::deregisterModule(&gModuleInfo);
+-}
++// v2 writes `li r3, 1` over the two TFlagManager::getBool calls at boot that
++// ask whether a movie was seen before (a seen one can be skipped); the port
++// reaches them as calls, so a function that always answers yes.
++static bool movieSeen(TFlagManager *manager, u32 flag) { return true; }
++SMS_PATCH_BL(SMS_PORT_REGION(0x802B5E8C, 0, 0, 0), movieSeen);
++SMS_PATCH_BL(SMS_PORT_REGION(0x802B5EF4, 0, 0, 0), movieSeen);
+ 
+ // Definition block
+-KURIBO_MODULE_BEGIN("Super Mario Sunburn", "Wade & JoshuaMK", "v1.8") {
++KURIBO_MODULE_BEGIN("Super Mario Sunburn", "EpicWade", "v1.0") {
+     // Set the load and unload callbacks to our registration functions
+     KURIBO_EXECUTE_ON_LOAD { initModule(); }
+-    KURIBO_EXECUTE_ON_UNLOAD { deinitModule(); }
+ }
+ KURIBO_MODULE_END()
+diff --git src/yoshi/green_mode.cpp src/yoshi/green_mode.cpp
+index 2993e00..332ce8b 100644
+--- a/src/yoshi/green_mode.cpp
++++ b/src/yoshi/green_mode.cpp
+@@ -48,8 +48,9 @@ static bool canMountYoshi() {
+ 
+   auto *params = Player::getData(player)->getParams();
+ 
+-  // Prevent very large players from mounting
+-  if (params->mScaleMultiplier.get() * stage_config->mPlayerSizeMultiplier.get() > 1.5f)
++  // Prevent very large players from mounting (BetterSunshineEngine v4 has
++  // no scale of the player's own: the stage's alone)
++  if (stage_config->mPlayerSizeMultiplier.get() > 1.5f)
+       return false;
+ 
+   if (player->mState & static_cast<u32>(TMario::STATE_WATERBORN))
