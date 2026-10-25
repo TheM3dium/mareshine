@@ -66,6 +66,19 @@ const Def kDefs[ID_COUNT] = {
 	{ "LOAD", "LOAD", 0.83f, 0.08f, 0.042f, 0xD35400 },
 };
 
+// The GameCube style's default places (unless the layout has its own): A big
+// in the middle of the right hand, B below left, X right, Y above, Z and R
+// just above them, R+ beside R.
+struct GcPlace {
+	int id;
+	float x, y, r;
+};
+const GcPlace kGcPlaces[] = {
+	{ BTN_A, 0.86f, 0.70f, 0.090f }, { BTN_B, 0.775f, 0.80f, 0.060f }, { BTN_X, 0.945f, 0.62f, 0.068f },
+	{ BTN_Y, 0.85f, 0.52f, 0.068f }, { BTN_Z, 0.95f, 0.45f, 0.055f },  { BTN_R, 0.885f, 0.35f, 0.075f },
+	{ BTN_RPLUS, 0.80f, 0.38f, 0.062f },
+};
+
 struct Place {
 	float x, y, r;
 	bool shown;
@@ -99,6 +112,8 @@ float envFloat(const char* name, float dflt)
 void readConfig(Config& c)
 {
 	c = Config();
+	const char* style = getenv("SMS_TOUCH_STYLE");
+	c.style = style && !strcmp(style, "gamecube") ? 1 : 0;
 	const char* mode = getenv("SMS_TOUCH_CONTROLS");
 	if (mode && (!strcmp(mode, "on") || !strcmp(mode, "1")))
 		c.mode = 1;
@@ -111,8 +126,6 @@ void readConfig(Config& c)
 	float slide = envFloat("SMS_TOUCH_R_SLIDE", 0.06f);
 	c.rSlide = slide < 0.02f ? 0.02f : slide > 0.4f ? 0.4f : slide;
 	c.haptic = envOn("SMS_TOUCH_HAPTIC", false);
-	const char* style = getenv("SMS_TOUCH_STYLE");
-	c.style = style && !strcmp(style, "gamecube") ? 1 : 0;
 	c.stateDelay = envOn("SMS_SAVESTATE_DELAY", true);
 	c.swipeX = envOn("SMS_SWIPE_INVERT_X", true);
 	c.swipeY = envOn("SMS_SWIPE_INVERT_Y", false);
@@ -120,6 +133,9 @@ void readConfig(Config& c)
 	c.camY = envOn("SMS_CAMERA_INVERT_Y", false);
 	for (int i = 0; i < ID_COUNT; i++)
 		c.place[i] = { kDefs[i].x, kDefs[i].y, kDefs[i].r, true };
+	if (c.style == 1)  // the GameCube style: the buttons where the controller has them
+		for (const GcPlace& g : kGcPlaces)
+			c.place[g.id] = { g.x, g.y, g.r, true };
 	const char* layout = getenv("SMS_TOUCH_LAYOUT");
 	for (const char* p = layout; p && *p;) {
 		const char* end = strchr(p, ';');
@@ -137,7 +153,14 @@ void readConfig(Config& c)
 				x = x < 0 ? 0 : x > 1 ? 1 : x;
 				y = y < 0 ? 0 : y > 1 ? 1 : y;
 				r = r < 0.02f ? 0.02f : r > 0.4f ? 0.4f : r;
-				c.place[i] = { x, y, r, shown != 0 };
+				// a button still where the classic layout has it keeps its
+				// GameCube place (only whether it is shown is taken)
+				const bool untouched = fabsf(x - kDefs[i].x) < 0.002f && fabsf(y - kDefs[i].y) < 0.002f
+				                       && fabsf(r - kDefs[i].r) < 0.002f;
+				if (c.style == 1 && untouched)
+					c.place[i].shown = shown != 0;
+				else
+					c.place[i] = { x, y, r, shown != 0 };
 			}
 	}
 }
@@ -602,7 +625,8 @@ void insideDistance(const std::vector<float>& cov, int size, std::vector<float>&
 
 // One button picture: shape (turned by rot), its colour, a label (letters
 // from kGcLetterChars, "" for none)
-void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, const char* label, bool pressed, float rot = 0)
+void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, const char* label, bool pressed, float rot = 0,
+            float letterScale = 1)
 {
 	im.init(size);
 	std::vector<float> cov, dist, let;
@@ -621,7 +645,7 @@ void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, const char* label,
 			}
 	// the label's glyphs side by side, each as wide as its polygon
 	const int n = (int)strlen(label);
-	const float gs = fminf(best * (n > 1 ? 0.5f : 0.62f), size * 0.3f), gap = gs * 0.12f;
+	const float gs = fminf(best * (n > 1 ? 0.5f : 0.62f), size * 0.3f) * letterScale, gap = gs * 0.12f;
 	std::vector<int> glyph;
 	std::vector<float> width;
 	float total = 0;
@@ -698,17 +722,17 @@ void buildAtlas()
 	const Place& c = g_cfg.place[CSTICK];
 	const int stickPx = (int)(s.r * 2 * g_h), cPx = (int)(c.r * 2 * g_h);
 	const bool gc = g_cfg.style == 1;
-	auto gcPic = [&](int size, GcShape sh, uint32_t rgb, const char* letter, bool pressed, float rot = 0) {
+	auto gcPic = [&](int size, GcShape sh, uint32_t rgb, const char* letter, bool pressed, float letterScale = 1) {
 		pics.emplace_back();
-		makeGc(pics.back(), size < 16 ? 16 : size > 512 ? 512 : size, sh, rgb, letter, pressed, rot);
+		makeGc(pics.back(), size < 16 ? 16 : size > 512 ? 512 : size, sh, rgb, letter, pressed, 0, letterScale);
 	};
 	if (gc) {
 		gcPic(stickPx, GC_GATE, 0xFFFFFF, "", false);
 		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, "", false);
 		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, "", true);
 		gcPic(cPx, GC_CGATE, 0xFFD21F, "", false);
-		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, "C", false);
-		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, "C", true);
+		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, "C", false, 0.65f);
+		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, "C", true, 0.65f);
 	} else {
 		add(stickPx, kDefs[STICK].rgb, "", false, true);
 		add((int)(stickPx * 0.44f), kDefs[STICK].rgb, "", false, false);
@@ -719,7 +743,7 @@ void buildAtlas()
 	}
 	add((int)(g_cfg.place[BTN_HUD].r * 2 * g_h), kDefs[BTN_HUD].rgb, "SHOW", false, false);
 	if (gc)
-		gcPic((int)(g_cfg.place[BTN_R].r * 2 * g_h), GC_TRIGGER_RPLUS, 0xD0D4DA, "R+", true);
+		gcPic((int)(g_cfg.place[BTN_R].r * 2 * g_h), GC_TRIGGER_RPLUS, 0xD0D4DA, "R+", true, 0.75f);
 	else
 		add((int)(g_cfg.place[BTN_R].r * 2 * g_h), kDefs[BTN_RPLUS].rgb, "R+", true, false);
 	const int ind = (int)indicatorSize(), dot = (int)(ind * 0.14f);
@@ -735,20 +759,14 @@ void buildAtlas()
 		for (int pressed = 0; pressed < 2; pressed++) {
 			const int px = (int)(g_cfg.place[i].r * 2 * g_h);
 			if (gc && (i == BTN_A || i == BTN_B)) {
-				gcPic(px, i == BTN_A ? GC_A : GC_B, i == BTN_A ? 0x2ECC71 : 0xE74C3C, i == BTN_A ? "A" : "B", pressed != 0);
-			} else if (gc && (i == BTN_X || i == BTN_Y)) {
-				// bent round A wherever the layout puts them: X's picture has A to
-				// its left, Y's below it
-				const Place &me = g_cfg.place[i], &a = g_cfg.place[BTN_A];
-				const float dx = (a.x - me.x) * g_w / g_h, dy = a.y - me.y;
-				const float want = (dx * dx + dy * dy) > 1e-8f ? atan2f(dy, dx) : (i == BTN_X ? 3.14159f : 1.5708f);
-				const float base = i == BTN_X ? 3.14159f : 1.5708f;
-				gcPic(px, i == BTN_X ? GC_X : GC_Y, 0xD0D4DA, i == BTN_X ? "X" : "Y", pressed != 0, want - base);
+				gcPic(px, i == BTN_A ? GC_A : GC_B, i == BTN_A ? 0x2ECC71 : 0xE74C3C, i == BTN_A ? "A" : "B", pressed != 0, 0.65f);
+			} else if (gc && (i == BTN_X || i == BTN_Y)) {  // as on the controller: X upright, Y lying
+				gcPic(px, i == BTN_X ? GC_X : GC_Y, 0xD0D4DA, i == BTN_X ? "X" : "Y", pressed != 0);
 			} else if (gc && i == BTN_Z) {
 				gcPic(px, GC_Z, 0x9B59B6, "Z", pressed != 0);
 			} else if (gc && (i == BTN_L || i == BTN_R || i == BTN_RPLUS)) {
 				gcPic(px, i == BTN_L ? GC_TRIGGER_L : i == BTN_R ? GC_TRIGGER_R : GC_TRIGGER_RPLUS, 0xD0D4DA,
-				      i == BTN_L ? "L" : i == BTN_R ? "R" : "R+", pressed != 0);
+				      i == BTN_L ? "L" : i == BTN_R ? "R" : "R+", pressed != 0, 0.75f);
 			} else {
 				add(px, kDefs[i].rgb, kDefs[i].label, pressed != 0, false);
 			}
