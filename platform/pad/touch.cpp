@@ -45,6 +45,7 @@ extern "C" __attribute__((weak)) void GXPC_DrawSprites(const GXPCSprite* sprites
 extern "C" __attribute__((weak)) void port_savestate_notice(const char* text);
 extern "C" __attribute__((weak)) int port_savestate_progress(int* kind);
 extern "C" __attribute__((weak)) int port_mp4_showing(void); // platform/thp/mp4_movies.cpp
+extern "C" __attribute__((weak)) int GXPC_OverlayVisible(void); // the performance overlay says it itself
 
 namespace {
 
@@ -988,7 +989,8 @@ extern "C" void touch_controls_draw(int winW, int winH)
 		const char* t = getenv("SMS_TEST_BUILD");
 		s_overlay = (o && *o && strcmp(o, "0") != 0) || (t && *t && strcmp(t, "0") != 0);
 	}
-	const bool mp4 = s_overlay && port_mp4_showing && port_mp4_showing();
+	const bool mp4 = s_overlay && port_mp4_showing && port_mp4_showing()
+	                 && !(GXPC_OverlayVisible && GXPC_OverlayVisible());
 	if (!visible() && percent < 0 && !mp4)
 		return;
 	if (g_spritesDirty) {

@@ -155,6 +155,9 @@ void GXPC_OverlayFrame(void) {
     s_clock.tick();
 }
 
+// an MP4 replacing the movie's picture right now (platform/thp/mp4_movies.cpp)
+extern "C" __attribute__((weak)) int port_mp4_showing(void);
+
 void GXPC_OverlayDraw(int winW, int winH) {
     static bool s_envChecked = false;
     if (!s_envChecked) {  // SMS_OVERLAY=1: start with the overlay open
@@ -196,7 +199,7 @@ void GXPC_OverlayDraw(int winW, int winH) {
                  "draws %u   vertices %u   EFB copies %u\n"
                  "texture uploads %u   shader compiles %u\n"
                  "frames %u   up %d:%02d\n"
-                 "window %dx%d\n"
+                 "window %dx%d%s\n"
                  "GL %s"
 #ifndef __ANDROID__  // a phone has no keyboard: the numbers only (Mareshine)
                  "\n"
@@ -217,7 +220,7 @@ void GXPC_OverlayDraw(int winW, int winH) {
                  s_clock.per.present, s_clock.per.swap, s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
                  s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait, st.draws, st.vertices, st.efbCopies,
                  st.textureUploads, st.shaderCompiles, s_clock.total, int(up) / 60, int(up) % 60, winW, winH,
-                 s_renderer.c_str());
+                 port_mp4_showing && port_mp4_showing() ? "   movie: MP4" : "", s_renderer.c_str());
 
         const int pad = 4;
         w = stb_easy_font_width(text) + pad * 2;

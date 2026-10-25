@@ -804,12 +804,14 @@ void GXPC_Present(const void* xfb) {
                 return;
             }
             GXPC_PresentXFB(xfb, w, h);
+            // a movie's cutscene frame, over the picture but under the
+            // performance overlay and the menus
+            if (GXPC_DrawBackdrop) GXPC_DrawBackdrop(w, h);
             GXPC_OverlayDraw(w, h);
             cheatMenuRender(w, h);
             warpMenuRender(w, h);
             savestateOverlayRender(w, h);
             // Mareshine's touch controls (platform/pad/touch.cpp), over everything else
-            if (GXPC_DrawBackdrop) GXPC_DrawBackdrop(w, h);
             if (touch_controls_draw) touch_controls_draw(w, h);
             captureWindow(s_frame, w, h);
             t1 = nowSeconds();
