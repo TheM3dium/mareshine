@@ -102,7 +102,7 @@ public class ModsActivity extends AppActivity {
         tabs.setGravity(Gravity.CENTER);
         for (int i = 0; i < 2; i++) {
             final int tab = i;
-            TextView tv = text(t(i == 0 ? "ACTIVE MODS" : "SEARCH MODS"), TEXT, 18, true);
+            TextView tv = text(t(i == 0 ? "INSTALLED" : "SEARCH MODS"), TEXT, 18, true);
             tv.setPadding(dp(18), dp(8), dp(18), dp(8));
             tv.setBackgroundResource(R.drawable.dl_tab);
             tv.setFocusable(true);
