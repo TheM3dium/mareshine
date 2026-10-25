@@ -318,12 +318,24 @@ public class ModInstallActivity extends AppActivity {
         if (r.incompatible.length > 0) o.put("incompatible", new org.json.JSONArray(java.util.Arrays.asList(r.incompatible)));
         o.put("options", new org.json.JSONArray().put(new org.json.JSONObject().put("type", "link")
             .put("label", "Website").put("url", r.page)));
-        File icon = new File(dir, "icon.png");
-        android.graphics.Bitmap b = EclipseMod.banner(new File(dir, r.image));
-        if (b != null) try (OutputStream out = new FileOutputStream(icon)) {
-            b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+        // its disc when the app ships one (Sunburn), else its disc's banner
+        File disc = new File(dir, "disc.png"), icon = new File(dir, "icon.png");
+        if (r.icon.startsWith("asset:")) {
+            try (java.io.InputStream in = getAssets().open(r.icon.substring(6)); OutputStream out = new FileOutputStream(disc)) {
+                byte[] buf = new byte[1 << 16];
+                for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+            } catch (IOException ex) {
+                disc.delete();
+            }
         }
-        if (icon.isFile()) o.put("icon", "icon.png");
+        if (!disc.isFile()) {
+            android.graphics.Bitmap b = EclipseMod.banner(new File(dir, r.image));
+            if (b != null) try (OutputStream out = new FileOutputStream(icon)) {
+                b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+            }
+        }
+        if (disc.isFile()) o.put("icon", "disc.png");
+        else if (icon.isFile()) o.put("icon", "icon.png");
         File[] old = dir.listFiles();
         if (old != null)
             for (File f : old)

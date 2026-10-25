@@ -601,19 +601,19 @@ public final class Mods {
 
     // The releases the app offers: those built in, replaced or added to by the
     // online catalog (ModUpdates fetches it into catalog.json in the app's files)
-    // Super Mario Sunburn v2.0 by EpicWade: its patch onto the North American
+    // Super Mario Sunburn v2.0 by EpicWade (Eclipse Team): its patch onto the North American
     // disc, picked by the player from its page; its code is built into the
     // app (rebuilt from the module's machine code, docs/ECLIPSE.md)
-    public static final Release SUNBURN = new Release("sunburn", "Super Mario Sunburn", "v2.0", "EpicWade",
+    public static final Release SUNBURN = new Release("sunburn", "Super Mario Sunburn", "v2.0", "Eclipse Team",
         "Open world, missions in any order, no boot out of the stages.", "https://gamebanana.com/mods/149607",
         new String[0], "super_mario_sunburn_v2.7z", 721112565L, "3dbe6007bf155ee133e2ec324c0a90d7",
         "patches/console.xdelta", "0c6d2edae9fdf40dfc410ff1623e4119", "04d9abf76675adcfaa6aa1dde6c40215",
         1459978240L, "Super Mario Sunburn v2.0.iso", true);
 
     static {
-        SUNBURN.credits = "EpicWade";
+        SUNBURN.credits = "EpicWade, Eclipse Team";
         SUNBURN.preview = "https://images.gamebanana.com/img/ss/mods/6505bdb7694a8.jpg";
-        SUNBURN.icon = SUNBURN.preview;
+        SUNBURN.icon = "asset:mods/sunburn-disc.png";
         SUNBURN.incompatible = new String[] {"eclipse"};
         SUNBURN.about = "Super Mario Sunburn makes Super Mario Sunshine play more like Super Mario 64, with many "
             + "improvements on top:\n\n"
