@@ -1,24 +1,72 @@
 {
   "releases": [
     {
-      "id": "eclipse", "name": "Super Mario Eclipse", "version": "v1.1.0", "author": "Eclipse Team",
+      "id": "eclipse",
+      "name": "Super Mario Eclipse",
+      "version": "v1.1.0",
+      "author": "Eclipse Team",
       "description": "New stages, characters and challenges: a whole new adventure.",
       "page": "https://gamebanana.com/mods/536309",
-      "urls": ["https://sms-eclipse.tekrantgaming.com/files/super_mario_eclipse_v110.7z", "https://gamebanana.com/dl/1729332"],
-      "file": "super_mario_eclipse_v110.7z", "size": 892257115, "md5": "37c1805ab88b2a3bb2a96bcdf6884433",
-      "patch": "patches/v1.1.0.xdelta", "sourceMd5": "0c6d2edae9fdf40dfc410ff1623e4119",
-      "resultMd5": "caa546309e0443f7b47632b040a250d7", "imageSize": 1459978240,
-      "image": "Super Mario Eclipse v1.1.0.iso", "code": true, "tested": true, "rating": 4
+      "urls": [
+        "https://sms-eclipse.tekrantgaming.com/files/super_mario_eclipse_v110.7z",
+        "https://gamebanana.com/dl/1729332"
+      ],
+      "file": "super_mario_eclipse_v110.7z",
+      "size": 892257115,
+      "md5": "37c1805ab88b2a3bb2a96bcdf6884433",
+      "patch": "patches/v1.1.0.xdelta",
+      "sourceMd5": "0c6d2edae9fdf40dfc410ff1623e4119",
+      "resultMd5": "caa546309e0443f7b47632b040a250d7",
+      "imageSize": 1459978240,
+      "image": "Super Mario Eclipse v1.1.0.iso",
+      "code": true,
+      "tested": true,
+      "rating": 4
     },
     {
-      "id": "eclipse-de", "base": "eclipse", "language": "Deutsch", "credits": "German Translation Team",
-      "name": "Super Mario Eclipse (Deutsch)", "version": "v1.1.0", "author": "Eclipse Team",
+      "id": "eclipse-de",
+      "base": "eclipse",
+      "language": "Deutsch",
+      "credits": "German Translation Team",
+      "name": "Super Mario Eclipse (Deutsch)",
+      "version": "v1.1.0",
+      "author": "Eclipse Team",
       "description": "New stages, characters and challenges: a whole new adventure.",
-      "page": "https://gamebanana.com/mods/666102", "urls": [],
-      "file": "super_mario_eclipse_v110_de_e0349.7z", "size": 904477530, "md5": "394a610f2e568e281129f281947eef2d",
-      "patch": "patches/v1.1.0 DE.xdelta", "sourceMd5": "0c6d2edae9fdf40dfc410ff1623e4119",
-      "resultMd5": "620ee2e30428ee38148b5041306b0b71", "imageSize": 1459978240,
-      "image": "Super Mario Eclipse v1.1.0 DE.iso", "code": true, "tested": true
+      "page": "https://gamebanana.com/mods/666102",
+      "urls": [],
+      "file": "super_mario_eclipse_v110_de_e0349.7z",
+      "size": 904477530,
+      "md5": "394a610f2e568e281129f281947eef2d",
+      "patch": "patches/v1.1.0 DE.xdelta",
+      "sourceMd5": "0c6d2edae9fdf40dfc410ff1623e4119",
+      "resultMd5": "620ee2e30428ee38148b5041306b0b71",
+      "imageSize": 1459978240,
+      "image": "Super Mario Eclipse v1.1.0 DE.iso",
+      "code": true,
+      "tested": true
+    },
+    {
+      "id": "sunburn",
+      "name": "Super Mario Sunburn",
+      "version": "v2.0",
+      "author": "EpicWade",
+      "credits": "EpicWade",
+      "description": "Open world, missions in any order, no boot out of the stages.",
+      "page": "https://gamebanana.com/mods/149607",
+      "urls": [],
+      "file": "super_mario_sunburn_v2.7z",
+      "size": 721112565,
+      "md5": "3dbe6007bf155ee133e2ec324c0a90d7",
+      "patch": "patches/console.xdelta",
+      "sourceMd5": "0c6d2edae9fdf40dfc410ff1623e4119",
+      "resultMd5": "04d9abf76675adcfaa6aa1dde6c40215",
+      "imageSize": 1459978240,
+      "image": "Super Mario Sunburn v2.0.iso",
+      "code": true,
+      "tested": true,
+      "incompatible": [
+        "eclipse"
+      ]
     }
   ]
 }
