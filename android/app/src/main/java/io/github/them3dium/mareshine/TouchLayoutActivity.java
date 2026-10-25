@@ -151,11 +151,11 @@ public class TouchLayoutActivity extends AppActivity {
         try {
             mOpacity = Math.max(0.05f, Math.min(1f, Float.parseFloat(m.getOrDefault("SMS_TOUCH_OPACITY", "70")) / 100f));
         } catch (NumberFormatException ignored) {}
-        mSlider = !"0".equals(m.getOrDefault("SMS_TOUCH_R_SLIDER", "0"));
+        mSlider = !"0".equals(m.getOrDefault("SMS_TOUCH_R_SLIDER", "1"));
         try {
             mSlide = clamp(Float.parseFloat(m.getOrDefault("SMS_TOUCH_R_SLIDE", Float.toString(SLIDE_DEFAULT))), 0.02f, 0.4f);
         } catch (NumberFormatException ignored) {}
-        mGc = "gamecube".equals(m.get("SMS_TOUCH_STYLE"));
+        mGc = !"classic".equals(m.get("SMS_TOUCH_STYLE"));  // GameCube unless Classic was chosen
         mLayoutClassic = m.get("SMS_TOUCH_LAYOUT");
         mLayoutGc = m.get("SMS_TOUCH_LAYOUT_GAMECUBE");
         apply(mGc ? mLayoutGc : mLayoutClassic);
@@ -163,7 +163,7 @@ public class TouchLayoutActivity extends AppActivity {
 
     // The style's defaults, then the layout over them
     private void apply(String layout) {
-        for (Elem e : mElems) e.reset(mGc);
+        resetAll();
         if (layout == null) return;
         for (String item : layout.split(";")) {
             int eq = item.indexOf('=');
@@ -181,6 +181,22 @@ public class TouchLayoutActivity extends AppActivity {
                 } catch (NumberFormatException ignored) {}
             }
         }
+    }
+
+    // The style's defaults. Without the R+ slider the GameCube style has R+ in
+    // R's place, by Z, and R above it (touch.cpp does the same)
+    private void resetAll() {
+        for (Elem e : mElems) e.reset(mGc);
+        if (mGc && !mSlider) swapR();
+    }
+
+    private void swapR() {
+        Elem r = elem("R"), p = elem("RPLUS");
+        float x = r.x, y = r.y;
+        r.x = p.x;
+        r.y = p.y;
+        p.x = x;
+        p.y = y;
     }
 
     private String layoutString() {
@@ -227,7 +243,7 @@ public class TouchLayoutActivity extends AppActivity {
             case "A": case "B": case "X": case "Y": case "Z": return gcIndex(elem);
             case "L": return gcIndex("TRIGGER_L");
             case "R": return gcIndex("TRIGGER_R");
-            case "RPLUS": return gcIndex("TRIGGER_RPLUS");
+            case "RPLUS": return gcIndex("TRIGGER_R");  // a second R; pressed in only in the game
             default: return -1;
         }
     }
@@ -360,6 +376,7 @@ public class TouchLayoutActivity extends AppActivity {
                 mSel = elem("R");
             }
             if (mSlider && mSel != null && mSel.name.equals("RPLUS")) mSel = elem("R");
+            if (mGc) swapR();  // R+ takes R's place by Z, or gives it back
             updateToolbar();
             mView.invalidate();
         });
@@ -373,7 +390,7 @@ public class TouchLayoutActivity extends AppActivity {
             mView.invalidate();
         });
         reset.setOnClickListener(v -> {
-            for (Elem e : mElems) e.reset(mGc);
+            resetAll();
             mSlide = SLIDE_DEFAULT;
             updateToolbar();
             mView.invalidate();

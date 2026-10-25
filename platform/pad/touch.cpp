@@ -8,12 +8,14 @@
 //   SMS_TOUCH_CONTROLS    auto (hidden after a controller is used, until the
 //                         screen is touched), on, off
 //   SMS_TOUCH_LAYOUT      "NAME=x,y,size,shown;..." for the names in kDefs
-//                         (SMS_TOUCH_LAYOUT_GAMECUBE for SMS_TOUCH_STYLE=gamecube),
+//                         (SMS_TOUCH_LAYOUT_GAMECUBE for the GameCube style, the
+//                         default; SMS_TOUCH_STYLE=classic for discs),
 //                         x and y fractions of the screen, size of its height
 //   SMS_TOUCH_OPACITY     percent; SMS_TOUCH_AUTOHIDE: seconds without a touch
 //                         after which they fade out (0 never)
 //   SMS_TOUCH_R_SLIDER    one R button for both stages: out of a circle of
-//                         SMS_TOUCH_R_SLIDE (of the screen height) it is R+
+//                         SMS_TOUCH_R_SLIDE (of the screen height) it is R+ (on by default;
+//                         off, R+ is a button of its own)
 //   SMS_TOUCH_HAPTIC      a tick for every button pressed
 //   SMS_SWIPE_INVERT_X/Y  the swipe camera's own inversion (X on by default);
 //                         the touch C-stick follows SMS_CAMERA_INVERT_X/Y
@@ -99,7 +101,7 @@ struct Config {
 	int mode = 0;  // 0 auto, 1 on, 2 off
 	float opacity = 0.7f, autoHide = 0, rSlide = 0.06f;
 	bool rSlider = false, haptic = false, stateDelay = true;
-	int style = 0;  // 0 classic discs, 1 GameCube outlines (SMS_TOUCH_STYLE=gamecube)
+	int style = 1;  // 0 classic discs (SMS_TOUCH_STYLE=classic), 1 GameCube outlines
 	bool swipeX = true, swipeY = false, camX = false, camY = false;
 	Place place[ID_COUNT];
 };
@@ -122,7 +124,7 @@ void readConfig(Config& c)
 {
 	c = Config();
 	const char* style = getenv("SMS_TOUCH_STYLE");
-	c.style = style && !strcmp(style, "gamecube") ? 1 : 0;
+	c.style = style && !strcmp(style, "classic") ? 0 : 1;
 	const char* mode = getenv("SMS_TOUCH_CONTROLS");
 	if (mode && (!strcmp(mode, "on") || !strcmp(mode, "1")))
 		c.mode = 1;
@@ -131,7 +133,7 @@ void readConfig(Config& c)
 	float pct = envFloat("SMS_TOUCH_OPACITY", 70);
 	c.opacity = pct < 5 ? 0.05f : pct > 100 ? 1.0f : pct / 100;
 	c.autoHide = envFloat("SMS_TOUCH_AUTOHIDE", 0);
-	c.rSlider = envOn("SMS_TOUCH_R_SLIDER", false);
+	c.rSlider = envOn("SMS_TOUCH_R_SLIDER", true);
 	float slide = envFloat("SMS_TOUCH_R_SLIDE", 0.06f);
 	c.rSlide = slide < 0.02f ? 0.02f : slide > 0.4f ? 0.4f : slide;
 	c.haptic = envOn("SMS_TOUCH_HAPTIC", false);
@@ -145,6 +147,13 @@ void readConfig(Config& c)
 	if (c.style == 1)  // the GameCube style: the buttons where the controller has them
 		for (const GcPlace& g : kGcPlaces)
 			c.place[g.id] = { g.x, g.y, g.r, true };
+	if (c.style == 1 && !c.rSlider) {  // R+ a button of its own: in R's place by Z, R above it
+		const Place r = c.place[BTN_R];
+		c.place[BTN_R].x = c.place[BTN_RPLUS].x;
+		c.place[BTN_R].y = c.place[BTN_RPLUS].y;
+		c.place[BTN_RPLUS].x = r.x;
+		c.place[BTN_RPLUS].y = r.y;
+	}
 	// each style has its own layout (the app's layout editor switches them)
 	const char* layout = getenv(c.style == 1 ? "SMS_TOUCH_LAYOUT_GAMECUBE" : "SMS_TOUCH_LAYOUT");
 	for (const char* p = layout; p && *p;) {
@@ -780,7 +789,8 @@ void buildAtlas()
 				gcPic(px, GC_Z, 0x9B59B6, "Z", pressed != 0);
 			} else if (gc && (i == BTN_L || i == BTN_R || i == BTN_RPLUS)) {
 				// turned to fall as Z does (28 degrees), L the other way
-				gcPic(px, i == BTN_L ? GC_TRIGGER_L : i == BTN_R ? GC_TRIGGER_R : GC_TRIGGER_RPLUS, 0xD0D4DA,
+				// R+ is a second R, pressed in when held
+				gcPic(px, i == BTN_L ? GC_TRIGGER_L : i == BTN_R || !pressed ? GC_TRIGGER_R : GC_TRIGGER_RPLUS, 0xD0D4DA,
 				      i == BTN_L ? "L" : i == BTN_R ? "R" : "R+", pressed != 0, 0.75f,
 				      i == BTN_L ? -kGcTilt[0] : i == BTN_R ? kGcTilt[1] : kGcTilt[2]);
 			} else {

@@ -1712,7 +1712,7 @@ public class SettingsActivity extends AppActivity {
         section("TOUCH");
         add(new Choice("SMS_TOUCH_STYLE", "Button style",
             "How the on-screen buttons look: Classic discs with letters, or GameCube outlines in the controller's shapes and colours.",
-            "classic", new String[] {"classic", "gamecube"}, new String[] {"Classic", "GameCube"}));
+            "gamecube", new String[] {"classic", "gamecube"}, new String[] {"Classic", "GameCube"}));
         add(new Choice("SMS_TOUCH_CONTROLS", "Touch controls",
             "The on-screen buttons. Auto hides them while a controller is connected.",
             "auto", new String[] {"auto", "on", "off"}, new String[] {"Auto", "On", "Off"}) {
