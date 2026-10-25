@@ -3,7 +3,9 @@ package io.github.them3dium.mareshine;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -36,9 +38,11 @@ import static io.github.them3dium.mareshine.L.t;
 // disc, downloads the release (it goes on where it stopped), checks it,
 // applies its patch straight out of the archive (Vcdiff) into the mod's own
 // disc image, checks that, and switches the mod on. Nothing of the game is
-// downloaded: the patch only turns the player's disc into the mod's.
+// downloaded: the patch only turns the player's disc into the mod's. A
+// translation (Mods.Release.base) comes from a file the player downloaded
+// and picked (EXTRA_URI): it is recognised by its size and checked the same way.
 public class ModInstallActivity extends AppActivity {
-    static final String EXTRA_ID = "release";
+    static final String EXTRA_ID = "release", EXTRA_URI = "uri";
 
     private TextView tvStatus;
     private ProgressBar bar;
@@ -52,6 +56,12 @@ public class ModInstallActivity extends AppActivity {
         ctx.startActivity(new Intent(ctx, ModInstallActivity.class).putExtra(EXTRA_ID, r.id));
     }
 
+    // a picked translation's file (Mods.translationOfSize)
+    static void start(Context ctx, Mods.Release r, Uri picked) {
+        ctx.startActivity(new Intent(ctx, ModInstallActivity.class).putExtra(EXTRA_ID, r.id)
+            .putExtra(EXTRA_URI, picked.toString()));
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -59,6 +69,8 @@ public class ModInstallActivity extends AppActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Mods.Release r = Mods.release(getIntent().getStringExtra(EXTRA_ID));
         if (r == null) { finish(); return; }
+        String picked = getIntent().getStringExtra(EXTRA_URI);
+        Uri uri = picked != null ? Uri.parse(picked) : null;
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(0xFF0A1B30);
@@ -104,7 +116,7 @@ public class ModInstallActivity extends AppActivity {
         setContentView(root);
         btnCancel.requestFocus();
 
-        mWorker = new Thread(() -> run(r), "mod-install");
+        mWorker = new Thread(() -> run(r, uri), "mod-install");
         mWorker.start();
     }
 
@@ -133,7 +145,7 @@ public class ModInstallActivity extends AppActivity {
 
     // --- the job ------------------------------------------------------------------
 
-    private void run(Mods.Release r) {
+    private void run(Mods.Release r, Uri picked) {
         File mods = Mods.dir(this), dl = new File(mods, ".downloads"), dest = new File(mods, r.id);
         File archive = new File(dl, r.file), part = new File(dl, r.file + ".part");
         File stage = new File(mods, r.id + ".tmp");
@@ -152,17 +164,28 @@ public class ModInstallActivity extends AppActivity {
                 return;
             }
             dl.mkdirs();
-            long need = r.imageSize + (archive.length() == r.size ? 0 : r.size - part.length()) + (200L << 20);
+            long need = r.imageSize + (picked != null || archive.length() == r.size ? 0 : r.size - part.length())
+                + (200L << 20);
             if (mods.getUsableSpace() < need) {
                 done(false, t("Not enough free space in %s: about %s is needed, %s is free.", mods.getAbsolutePath(),
                     gb(need), gb(mods.getUsableSpace())));
                 return;
             }
-            if (archive.length() != r.size) download(r, part, archive);
-            if (mCancel) { done(false, t("Cancelled. The download continues next time from where it stopped.")); return; }
-            String got = md5(archive, t("Checking the download…"));
+            if (picked == null) {
+                if (archive.length() != r.size) download(r, part, archive);
+                if (mCancel) { done(false, t("Cancelled. The download continues next time from where it stopped.")); return; }
+            }
+            String got;
+            try (InputStream in = open(picked, archive)) {
+                got = md5(in, picked != null ? r.size : archive.length(), t("Checking the download…"));
+            }
             if (got == null) { done(false, t("Cancelled.")); return; }
             if (!r.md5.equalsIgnoreCase(got)) {
+                if (picked != null) {
+                    done(false, t("This file is not %s %s (MD5 %s). Download it again from its page.", r.name,
+                        r.version, got));
+                    return;
+                }
                 archive.delete();
                 done(false, t("The download is damaged (MD5 %s). It was deleted; please try again.", got));
                 return;
@@ -173,7 +196,10 @@ public class ModInstallActivity extends AppActivity {
             stage.mkdirs();
             File image = new File(stage, r.image);
             String result = null;
-            try (SevenZFile z = SevenZFile.builder().setFile(archive).get()) {
+            try (ParcelFileDescriptor pfd = picked != null ? getContentResolver().openFileDescriptor(picked, "r") : null;
+                 FileInputStream pin = pfd != null ? new FileInputStream(pfd.getFileDescriptor()) : null;
+                 SevenZFile z = pin != null ? SevenZFile.builder().setSeekableByteChannel(pin.getChannel()).get()
+                     : SevenZFile.builder().setFile(archive).get()) {
                 for (SevenZArchiveEntry e; (e = z.getNextEntry()) != null; ) {
                     if (!e.getName().replace('\\', '/').equals(r.patch)) continue;
                     InputStream in = new InputStream() {
@@ -204,16 +230,21 @@ public class ModInstallActivity extends AppActivity {
             JSONObject o = new JSONObject();
             o.put("id", r.id).put("name", r.name).put("version", r.version).put("author", r.author)
                 .put("description", r.description).put("image", r.image).put("code", r.code).put("page", r.page);
+            if (!r.base.isEmpty()) o.put("language", r.language).put("translation", r.credits);
             try (OutputStream out = new FileOutputStream(new File(stage, "mod.json"))) {
                 out.write(o.toString(2).getBytes(StandardCharsets.UTF_8));
             }
             status(t("Installing…"));
             TexturePackActivity.remove(dest);
             if (!stage.renameTo(dest)) throw new IOException("cannot move the mod to " + dest);
-            archive.delete();
+            if (picked == null) archive.delete();
             switchOn(r.id);
-            done(true, t("%s is installed and switched on. Play starts it; switch it off in Mods to play Super Mario "
-                + "Sunshine again.", r.name));
+            String msg = t("%s is installed and switched on. Play starts it; switch it off in Mods to play Super Mario "
+                + "Sunshine again.", r.name);
+            if (!r.base.isEmpty() && new File(mods, r.base).isDirectory())
+                msg += "\n\n" + t("The version without the translation is still installed: delete it in Mods to free "
+                    + "%s. The downloaded file can be deleted too.", gb(r.imageSize));
+            done(true, msg);
         } catch (Exception e) {
             TexturePackActivity.remove(stage);
             done(false, t(mCancel ? "Cancelled: %s" : "Failed: %s", e.getMessage()));
@@ -289,22 +320,33 @@ public class ModInstallActivity extends AppActivity {
         throw new IOException("too many redirects");
     }
 
+    private InputStream open(Uri picked, File archive) throws IOException {
+        if (picked == null) return new FileInputStream(archive);
+        InputStream in = getContentResolver().openInputStream(picked);
+        if (in == null) throw new IOException("cannot open " + picked);
+        return in;
+    }
+
     // a file's MD5, with its progress shown; null when cancelled
     private String md5(File f, String what) throws Exception {
-        MessageDigest md = MessageDigest.getInstance("MD5");
-        long total = Math.max(1, f.length()), done = 0, last = 0;
         try (InputStream in = new FileInputStream(f)) {
-            byte[] buf = new byte[1 << 20];
-            for (int n; (n = in.read(buf)) > 0; ) {
-                if (mCancel) return null;
-                md.update(buf, 0, n);
-                done += n;
-                long now = System.currentTimeMillis();
-                if (now - last > 250) {
-                    last = now;
-                    status(what);
-                    progress((double) done / total);
-                }
+            return md5(in, f.length(), what);
+        }
+    }
+
+    private String md5(InputStream in, long size, String what) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        long total = Math.max(1, size), done = 0, last = 0;
+        byte[] buf = new byte[1 << 20];
+        for (int n; (n = in.read(buf)) > 0; ) {
+            if (mCancel) return null;
+            md.update(buf, 0, n);
+            done += n;
+            long now = System.currentTimeMillis();
+            if (now - last > 250) {
+                last = now;
+                status(what);
+                progress((double) done / total);
             }
         }
         StringBuilder sb = new StringBuilder();

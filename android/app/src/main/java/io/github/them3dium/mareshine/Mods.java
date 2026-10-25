@@ -187,6 +187,10 @@ public final class Mods {
         public final long size, imageSize;        // the archive, the patched image
         public final String sourceMd5, resultMd5, image;
         public final boolean code;
+        // a translation: the mod it translates and its language; picked by
+        // the player from its download page (no urls), until its makers allow
+        // the app to download it
+        public String base = "", language = "", credits = "";
 
         Release(String id, String name, String version, String author, String description, String page, String[] urls,
                 String file, long size, String md5, String patch, String sourceMd5, String resultMd5, long imageSize,
@@ -209,12 +213,53 @@ public final class Mods {
         "0c6d2edae9fdf40dfc410ff1623e4119", "caa546309e0443f7b47632b040a250d7", 1459978240L,
         "Super Mario Eclipse v1.1.0.iso", true);
 
-    public static Release release(String id) { return ECLIPSE.id.equals(id) ? ECLIPSE : null; }
+    // Super Mario Eclipse in German, by the German Translation Team: the same
+    // kind of patch onto the North American disc
+    public static final Release ECLIPSE_DE = new Release("eclipse-de", "Super Mario Eclipse (Deutsch)", "v1.1.0",
+        "Eclipse Team", "New stages, characters and challenges: a whole new adventure.",
+        "https://gamebanana.com/mods/666102", new String[0], "super_mario_eclipse_v110_de_e0349.7z", 904477530L,
+        "394a610f2e568e281129f281947eef2d", "patches/v1.1.0 DE.xdelta", "0c6d2edae9fdf40dfc410ff1623e4119",
+        "620ee2e30428ee38148b5041306b0b71", 1459978240L, "Super Mario Eclipse v1.1.0 DE.iso", true);
 
-    // the releases not installed yet (those needing code only in a build that has it)
+    static {
+        ECLIPSE_DE.base = "eclipse";
+        ECLIPSE_DE.language = "Deutsch";
+        ECLIPSE_DE.credits = "German Translation Team";
+    }
+
+    private static final Release[] RELEASES = {ECLIPSE, ECLIPSE_DE};
+
+    // A mod's HD texture pack, made by others (Dolphin format, imported with
+    // Import mod): its page, or null
+    public static String texturePage(String id) {
+        return id.equals("eclipse") || id.startsWith("eclipse-")
+            ? "https://github.com/iZePlayzYT/SuperMarioEclipse-TexturePacks/releases" : null;
+    }
+
+    public static Release release(String id) {
+        for (Release r : RELEASES) if (r.id.equals(id)) return r;
+        return null;
+    }
+
+    // the translations of a mod
+    public static List<Release> translations(String base) {
+        List<Release> out = new ArrayList<>();
+        for (Release r : RELEASES) if (r.base.equals(base)) out.add(r);
+        return out;
+    }
+
+    // the translation a picked file of this size is, or null
+    public static Release translationOfSize(long size) {
+        for (Release r : RELEASES) if (!r.base.isEmpty() && r.size == size) return r;
+        return null;
+    }
+
+    // the releases not installed yet (those needing code only in a build that
+    // has it; translations are picked by hand)
     public static List<Release> available(Context ctx) {
         List<Release> out = new ArrayList<>();
-        for (Release r : new Release[] {ECLIPSE}) {
+        for (Release r : RELEASES) {
+            if (r.urls.length == 0) continue;
             if (r.code && !codeBuiltIn(ctx)) continue;
             boolean have = false;
             for (Mod m : list(ctx)) if (m.id.equals(r.id) && m.image() != null) have = true;
@@ -251,10 +296,14 @@ public final class Mods {
 
     // Unpacks a .zip mod package into mods/<id>/ (replacing an older version of
     // the same mod) and returns it. Its mod.json may be at the top or in one
-    // folder (a zip made of the mod's folder).
+    // folder (a zip made of the mod's folder). A Dolphin texture pack (a zip of
+    // tex1_ PNGs or DDSs, such as Super Mario Eclipse's HD textures) becomes a
+    // mod of its own with them in textures/, named after the zip.
     public static Mod importZip(Context ctx, Uri uri, Progress progress) throws IOException {
         String prefix = findPrefix(ctx, uri);
-        if (prefix == null) throw new IOException(L.t("This is not a mod package: there is no mod.json in it."));
+        boolean pack = prefix == null && isTexturePack(ctx, uri);
+        if (pack) prefix = "";
+        else if (prefix == null) throw new IOException(L.t("This is not a mod package: there is no mod.json in it."));
         File root = dir(ctx);
         root.mkdirs();
         File tmp = new File(root, "import.tmp");
@@ -269,6 +318,10 @@ public final class Mods {
                 if (!name.startsWith(prefix)) continue;
                 name = name.substring(prefix.length());
                 if (name.isEmpty()) continue;
+                if (pack) {
+                    if (e.isDirectory() || !isTexture(name)) continue;
+                    name = "textures/" + name;
+                }
                 File out = new File(tmp, name);
                 // nothing may land outside the mod's folder ("../" in a name)
                 if (!out.getCanonicalPath().startsWith(tmp.getCanonicalPath() + File.separator))
@@ -290,6 +343,17 @@ public final class Mods {
             deleteTree(tmp);
             throw e;
         }
+        if (pack) {
+            String zipName = displayName(ctx, uri).replaceAll("(?i)\\.zip$", "");
+            JSONObject o = new JSONObject();
+            try {
+                o.put("id", cleanId(zipName)).put("name", zipName.replace('_', ' '));
+            } catch (org.json.JSONException ignored) {
+            }
+            try (OutputStream out = new FileOutputStream(new File(tmp, "mod.json"))) {
+                out.write(o.toString().getBytes(StandardCharsets.UTF_8));
+            }
+        }
         Mod m = read(tmp);
         if (m == null) {
             deleteTree(tmp);
@@ -303,6 +367,34 @@ public final class Mods {
         }
         m.dir = dest;
         return m;
+    }
+
+    // a Dolphin texture's file name: tex1_….png or .dds
+    private static boolean isTexture(String path) {
+        String n = path.substring(path.lastIndexOf('/') + 1).toLowerCase(Locale.ROOT);
+        return n.startsWith("tex1_") && (n.endsWith(".png") || n.endsWith(".dds"));
+    }
+
+    // whether the zip holds Dolphin textures (found among its first entries)
+    private static boolean isTexturePack(Context ctx, Uri uri) throws IOException {
+        try (InputStream in = ctx.getContentResolver().openInputStream(uri); ZipInputStream zip = new ZipInputStream(in)) {
+            int seen = 0;
+            for (ZipEntry e; (e = zip.getNextEntry()) != null && seen < 200; seen++)
+                if (!e.isDirectory() && isTexture(e.getName().replace('\\', '/'))) return true;
+            return false;
+        } catch (IllegalArgumentException e) {
+            throw new IOException(L.t("This is not a .zip file."));
+        }
+    }
+
+    private static String displayName(Context ctx, Uri uri) {
+        try (android.database.Cursor c = ctx.getContentResolver().query(uri,
+                new String[] {android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) return c.getString(0);
+        } catch (Exception ignored) {
+        }
+        String last = uri.getLastPathSegment();
+        return last != null ? last.substring(last.lastIndexOf('/') + 1) : "textures";
     }
 
     // "" when mod.json is at the zip's top, "folder/" when it is one folder down

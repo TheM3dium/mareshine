@@ -27,7 +27,7 @@ import static io.github.them3dium.mareshine.L.t;
 public class ModsActivity extends AppActivity {
     public static final String EXTRA_IN_GAME = "in_game";
     public static final int RESULT_RESTART = RESULT_FIRST_USER;
-    private static final int REQUEST_IMPORT = 1;
+    private static final int REQUEST_IMPORT = 1, REQUEST_TRANSLATION = 2;
     private static final int TEXT = 0xFFF4F8FF, DIM = 0xFF8FB4D4, GOLD = 0xFFFFC93C, WARN = 0xFFFFA25C;
 
     private List<Mods.Mod> mMods = new ArrayList<>();
@@ -247,19 +247,23 @@ public class ModsActivity extends AppActivity {
     }
 
     private void offer(Mods.Release r) {
+        List<Mods.Release> tr = Mods.translations(r.id);
         choice(t("Install %s?", r.name),
             t("%s is downloaded (%.1f GB) and made from your own Super Mario Sunshine disc image (North American, "
                 + "GMSE01): the download holds only the changes, nothing of the game. It then needs about %.1f GB "
                 + "and is switched on: Play starts it, and switching it off here plays Super Mario Sunshine again.",
                 r.name, r.size / 1e9, r.imageSize / 1e9),
-            new String[] {t("Install")}, new Runnable[] {() -> ModInstallActivity.start(this, r)});
+            tr.isEmpty() ? new String[] {t("Install")} : new String[] {t("Install"), t("Install a translation…")},
+            new Runnable[] {() -> ModInstallActivity.start(this, r), () -> translations(r.name, tr)});
     }
 
-    // Tapping a mod: on/off, up, down, delete
+    // Tapping a mod: on/off, up, down, delete, and its translations
     private void actions(int i) {
         final Mods.Mod m = mMods.get(i);
-        String[] labels = {t(m.enabled ? "Switch off" : "Switch on"), t("Move up"), t("Move down"), t("Delete")};
-        Runnable[] acts = {
+        List<Mods.Release> tr = Mods.translations(m.id);
+        List<String> labels = new ArrayList<>(java.util.Arrays.asList(t(m.enabled ? "Switch off" : "Switch on"),
+            t("Move up"), t("Move down"), t("Delete")));
+        Runnable[] base = {
             () -> {
                 m.enabled = !m.enabled;
                 // one game is played: a mod with its own disc image switches the others off
@@ -271,8 +275,80 @@ public class ModsActivity extends AppActivity {
             () -> move(i, +1),
             () -> confirmDelete(i),
         };
+        List<Runnable> acts = new ArrayList<>(java.util.Arrays.asList(base));
+        if (!tr.isEmpty()) {
+            labels.add(t("Install a translation…"));
+            acts.add(() -> translations(m.name, tr));
+        }
+        String page = Mods.texturePage(m.id);
+        if (page != null) {
+            labels.add(t("HD textures…"));
+            acts.add(() -> textures(m.name, page));
+        }
         boolean[] dim = {false, i == 0, i == mMods.size() - 1, false};
-        choice(m.name, null, labels, acts, dim);
+        choice(m.name, null, labels.toArray(new String[0]), acts.toArray(new Runnable[0]), dim);
+    }
+
+    // A mod's HD texture pack from its makers' page: downloaded there, then
+    // imported like a mod (Mods.importZip takes Dolphin texture packs)
+    private void textures(String name, String page) {
+        choice(t("HD textures"), t("An HD texture pack for %s is made by its own team. Download the texture pack's "
+                + ".zip from its page, then import it here: it becomes a mod of its own, switched on. The packs are "
+                + "large (several GB, and unpacked about twice that), and big textures need a lot of the device's "
+                + "memory.", name),
+            new String[] {t("Open download page"), t("Import downloaded file")},
+            new Runnable[] {() -> openPage(page), () -> mImport.performClick()});
+    }
+
+    private void openPage(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (android.content.ActivityNotFoundException e) {
+            choice(t("No browser"), url, new String[] {t("OK")}, new Runnable[] {null});
+        }
+    }
+
+    // A mod's translations come from their own pages: the player downloads one
+    // there and picks the file, and it is made from their disc like the mod
+    // (ModInstallActivity).
+    private void translations(String name, List<Mods.Release> tr) {
+        StringBuilder msg = new StringBuilder(t("Translations of %s are made by their own teams. Download one from its "
+            + "page (the .7z file, do not unpack it), then pick the downloaded file here. It is made from your own disc "
+            + "like %s and needs about %.1f GB.", name, name, tr.get(0).imageSize / 1e9));
+        for (Mods.Release r : tr) msg.append("\n\n").append(r.language).append(": ").append(t("by %s", r.credits))
+            .append(", ").append(r.version);
+        List<String> labels = new ArrayList<>();
+        List<Runnable> acts = new ArrayList<>();
+        for (Mods.Release r : tr) {
+            labels.add(tr.size() == 1 ? t("Open download page") : t("Download page: %s", r.language));
+            acts.add(() -> openPage(r.page));
+        }
+        labels.add(t("Pick downloaded file"));
+        acts.add(() -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            startActivityForResult(i, REQUEST_TRANSLATION);
+        });
+        choice(t("Install a translation"), msg.toString(), labels.toArray(new String[0]), acts.toArray(new Runnable[0]));
+    }
+
+    // the picked file: which translation it is, by its size
+    private void installTranslation(Uri uri) {
+        long size = -1;
+        try (android.database.Cursor c = getContentResolver().query(uri,
+                new String[] {android.provider.OpenableColumns.SIZE}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) size = c.getLong(0);
+        } catch (Exception ignored) {
+        }
+        Mods.Release r = Mods.translationOfSize(size);
+        if (r == null) {
+            choice(t("Not a known translation"), t("This file is none of the translations listed. Pick the .7z file "
+                + "as downloaded from the translation's page, not unpacked."), new String[] {t("OK")},
+                new Runnable[] {null});
+            return;
+        }
+        ModInstallActivity.start(this, r, uri);
     }
 
     private void move(int i, int dir) {
@@ -307,6 +383,8 @@ public class ModsActivity extends AppActivity {
         super.onActivityResult(request, result, data);
         if (request == REQUEST_IMPORT && result == RESULT_OK && data != null && data.getData() != null)
             importMod(data.getData());
+        if (request == REQUEST_TRANSLATION && result == RESULT_OK && data != null && data.getData() != null)
+            installTranslation(data.getData());
     }
 
     private void importMod(Uri uri) {
