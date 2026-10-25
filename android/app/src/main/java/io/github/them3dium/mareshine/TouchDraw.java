@@ -76,6 +76,86 @@ final class TouchDraw {
         return l;
     }
 
+    // The style's defaults (gamecube: its places); without the R+ slider the
+    // GameCube style has R+ in R's place, by Z, and R above it, square to their
+    // flat side (touch.cpp too)
+    static void reset(List<Elem> elems, boolean gamecube, boolean slider) {
+        for (Elem e : elems) e.reset(gamecube);
+        if (gamecube && !slider) swapR(elems);
+    }
+
+    static void swapR(List<Elem> elems) {
+        Elem r = null, p = null;
+        for (Elem e : elems) {
+            if (e.name.equals("R")) r = e;
+            if (e.name.equals("RPLUS")) p = e;
+        }
+        float x = r.x, y = r.y;
+        r.x = p.x;
+        r.y = p.y;
+        p.x = x;
+        p.y = y;
+    }
+
+    // A saved layout (SMS_TOUCH_LAYOUT, SMS_TOUCH_LAYOUT_GAMECUBE:
+    // "NAME=x,y,size,shown;...") over the defaults
+    static void applyLayout(List<Elem> elems, String layout) {
+        if (layout == null) return;
+        for (String item : layout.split(";")) {
+            int eq = item.indexOf('=');
+            if (eq <= 0) continue;
+            String name = item.substring(0, eq).trim();
+            String[] v = item.substring(eq + 1).split(",");
+            if (v.length < 3) continue;
+            for (Elem e : elems) {
+                if (!e.name.equals(name)) continue;
+                try {
+                    e.x = clamp(Float.parseFloat(v[0]), 0, 1);
+                    e.y = clamp(Float.parseFloat(v[1]), 0, 1);
+                    e.r = clamp(Float.parseFloat(v[2]), 0.02f, 0.4f);
+                    e.shown = v.length < 4 || !v[3].trim().equals("0");
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+    }
+
+    private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    // The Classic style: a disc in the button's colour with its label; a
+    // stick a ring with its knob. As big as the game draws them (a button's
+    // circle is 0.92 of its radius, a stick's 0.94). A hidden one is dashed.
+    static void drawClassic(Canvas c, Paint p, Elem e, float cx, float cy, float rPx, int a, float dash, float density) {
+        float r = rPx * (e.stick ? 0.94f : 0.92f);
+        p.setPathEffect(e.shown ? null : new DashPathEffect(new float[] {dash, dash * 5 / 6}, 0));
+        if (e.stick) {
+            p.setStyle(Paint.Style.FILL);
+            p.setColor((e.color & 0x00FFFFFF) | ((a / 4) << 24));
+            c.drawCircle(cx, cy, r, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(3 * density);
+            p.setColor((e.color & 0x00FFFFFF) | (a << 24));
+            c.drawCircle(cx, cy, r, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, r * 0.42f, p);
+        } else {
+            p.setStyle(Paint.Style.FILL);
+            p.setColor((e.color & 0x00FFFFFF) | (a << 24));
+            c.drawCircle(cx, cy, r, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(2 * density);
+            p.setColor((0xFFFFFF) | (a << 24));
+            c.drawCircle(cx, cy, r, p);
+        }
+        p.setPathEffect(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(e.shown ? 0xFFFFFFFF : 0x88FFFFFF);
+        p.setTextSize(Math.max(11 * density, r * (e.label.length() > 2 ? 0.55f : 0.8f)));
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        p.setTextAlign(Paint.Align.CENTER);
+        float ty = cy - (p.descent() + p.ascent()) / 2;
+        c.drawText(e.stick && e.name.equals("STICK") ? "" : e.label, cx, ty, p);
+    }
+
     // The editor's background: dark blue with a light grid to line things up
     static void background(Canvas c, Paint p, float w, float h) {
         c.drawColor(0xFF0A1B30);

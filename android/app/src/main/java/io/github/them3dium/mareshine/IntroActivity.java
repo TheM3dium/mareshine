@@ -41,6 +41,7 @@ public class IntroActivity extends AppActivity {
         final List<String> choices = new ArrayList<>();
         final List<Runnable> actions = new ArrayList<>();
         boolean asks;  // a choice page: only when the intro asks
+        boolean back;  // a Back button, to the choice before
 
         Page(String title, String text, Picture picture) {
             this.title = title;
@@ -68,7 +69,8 @@ public class IntroActivity extends AppActivity {
     private PictureView mView;
     private LinearLayout mPanel, mButtons;
     private TextView mTitle, mText;
-    private String mStyle, mSlider;  // the choice made (null: as before)
+    private String mStyle, mSlider;          // the choice made (null: as before)
+    private String mOrigStyle, mOrigSlider;  // the settings before it (null: not set)
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,9 +110,12 @@ public class IntroActivity extends AppActivity {
         }
     }
 
-    // back: as Skip
+    // back: to the choice from the page after it, else as Skip
     @Override
-    public void onBackPressed() { skip(); }
+    public void onBackPressed() {
+        if (mIndex >= 0 && mPages.get(mIndex).back) back();
+        else skip();
+    }
 
     // --- the intros' pages ----------------------------------------------------
 
@@ -124,6 +129,14 @@ public class IntroActivity extends AppActivity {
     private void gamecubeTouch() {
         List<Elem> elems = TouchDraw.defaults();
         for (Elem e : elems) e.reset(true);
+        // the buttons as they are now, shown when they stay
+        Map<String, String> m = Settings.read(this);
+        mOrigStyle = m.get("SMS_TOUCH_STYLE");
+        mOrigSlider = m.get("SMS_TOUCH_R_SLIDER");
+        boolean ownGc = !"classic".equals(mOrigStyle), ownSlider = !"0".equals(mOrigSlider);
+        List<Elem> own = TouchDraw.defaults();
+        TouchDraw.reset(own, ownGc, ownSlider);
+        TouchDraw.applyLayout(own, m.get(ownGc ? "SMS_TOUCH_LAYOUT_GAMECUBE" : "SMS_TOUCH_LAYOUT"));
         mPages.add(new Page(t("New: the GameCube button style"),
             t("The touch buttons now have the shapes and colours of the GameCube controller, and sit where it has them."),
             (c, p, w, h, ms) -> drawLayout(c, p, elems, w, h, Math.min(1f, ms / 1400f), null)));
@@ -139,20 +152,30 @@ public class IntroActivity extends AppActivity {
         mPages.add(ask);
         Page done = new Page(t("All set"),
             t("You can change this at any time: Settings, Input, Touch (Button style, and the R+ slider under Customize layout)."),
-            (c, p, w, h, ms) -> drawLayout(c, p, elems, w, h, mStyle == null ? 0.35f : 1f, null));
+            (c, p, w, h, ms) -> {
+                if (mStyle == null) drawOwn(c, p, own, ownGc, ownSlider, w, h, Math.min(1f, ms / 600f));
+                else drawLayout(c, p, elems, w, h, 1f, null);
+            });
         done.asks = true;
+        done.back = true;
         mPages.add(done);
     }
 
-    // the choice: the style and the R+ slider (null: as they are)
+    // the choice: the style and the R+ slider (null: as they were before the
+    // intro, also after another choice and Back)
     private void chooseTouch(String style, String slider) {
         mStyle = style;
         mSlider = slider;
         Map<String, String> m = Settings.read(this);
-        if (style != null) m.put("SMS_TOUCH_STYLE", style);
-        if (slider != null) m.put("SMS_TOUCH_R_SLIDER", slider);
+        put(m, "SMS_TOUCH_STYLE", style != null ? style : mOrigStyle);
+        put(m, "SMS_TOUCH_R_SLIDER", slider != null ? slider : mOrigSlider);
         Settings.write(this, m);
         show(mIndex + 1);
+    }
+
+    private static void put(Map<String, String> m, String key, String value) {
+        if (value != null) m.put(key, value);
+        else m.remove(key);
     }
 
     // --- pictures -------------------------------------------------------------
@@ -177,6 +200,17 @@ public class IntroActivity extends AppActivity {
             Elem at = separate && e == r ? rp : separate && e == rp ? r : e;
             int a = Math.round(225 * fade * (bright != null ? 0.35f : 1f));
             TouchDraw.drawGc(c, p, e, at.x * w, at.y * h, e.r * h, a, dp(6));
+        }
+    }
+
+    // The buttons as they are (their style, places, sizes; hidden ones left out)
+    private void drawOwn(Canvas c, Paint p, List<Elem> own, boolean gc, boolean slider, float w, float h, float fade) {
+        TouchDraw.background(c, p, w, h);
+        int a = Math.round(225 * fade);
+        for (Elem e : own) {
+            if (!e.shown || (slider && e.name.equals("RPLUS"))) continue;
+            if (!gc || !TouchDraw.drawGc(c, p, e, e.x * w, e.y * h, e.r * h, a, dp(6)))
+                TouchDraw.drawClassic(c, p, e, e.x * w, e.y * h, e.r * h, a, dp(6), dp(1));
         }
     }
 
@@ -327,6 +361,11 @@ public class IntroActivity extends AppActivity {
             }
         } else {
             boolean last = index == mPages.size() - 1;
+            if (page.back) {
+                Button back = button(t("Back"), false);
+                back.setOnClickListener(v -> back());
+                addButton(back);
+            }
             if (!last) {
                 Button skip = button(t("Skip"), false);
                 skip.setOnClickListener(v -> skip());
@@ -338,6 +377,12 @@ public class IntroActivity extends AppActivity {
         }
         first.requestFocus();
         mView.invalidate();
+    }
+
+    // Back: to the choice before this page
+    private void back() {
+        for (int i = mIndex - 1; i >= 0; i--)
+            if (!mPages.get(i).choices.isEmpty()) { show(i); return; }
     }
 
     // Skip: to the choice when there is one still to make, else done

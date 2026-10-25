@@ -111,40 +111,16 @@ public class TouchLayoutActivity extends AppActivity {
     // The style's defaults, then the layout over them
     private void apply(String layout) {
         resetAll();
-        if (layout == null) return;
-        for (String item : layout.split(";")) {
-            int eq = item.indexOf('=');
-            if (eq <= 0) continue;
-            String name = item.substring(0, eq).trim();
-            String[] v = item.substring(eq + 1).split(",");
-            if (v.length < 3) continue;
-            for (Elem e : mElems) {
-                if (!e.name.equals(name)) continue;
-                try {
-                    e.x = clamp(Float.parseFloat(v[0]), 0, 1);
-                    e.y = clamp(Float.parseFloat(v[1]), 0, 1);
-                    e.r = clamp(Float.parseFloat(v[2]), 0.02f, 0.4f);
-                    e.shown = v.length < 4 || !v[3].trim().equals("0");
-                } catch (NumberFormatException ignored) {}
-            }
-        }
+        TouchDraw.applyLayout(mElems, layout);
     }
 
     // The style's defaults. Without the R+ slider the GameCube style has R+ in
     // R's place, by Z, and R above it, square to their flat side (touch.cpp too)
     private void resetAll() {
-        for (Elem e : mElems) e.reset(mGc);
-        if (mGc && !mSlider) swapR();
+        TouchDraw.reset(mElems, mGc, mSlider);
     }
 
-    private void swapR() {
-        Elem r = elem("R"), p = elem("RPLUS");
-        float x = r.x, y = r.y;
-        r.x = p.x;
-        r.y = p.y;
-        p.x = x;
-        p.y = y;
-    }
+    private void swapR() { TouchDraw.swapR(mElems); }
 
     private String layoutString() {
         StringBuilder sb = new StringBuilder();
@@ -491,40 +467,8 @@ public class TouchLayoutActivity extends AppActivity {
                 // button's circle is 0.92 of its radius, a stick's 0.94)
                 float cx = e.x * w, cy = e.y * h, r = e.r * h * (e.stick ? 0.94f : 0.92f);
                 int a = e.shown ? Math.round(225 * Math.min(1f, mOpacity / 0.7f)) : 60;
-                p.setPathEffect(e.shown ? null : new DashPathEffect(new float[] {dp(6), dp(5)}, 0));
-                if (mGc && TouchDraw.drawGc(c, p, e, cx, cy, e.r * h, a, dp(6))) {
-                    p.setPathEffect(null);
-                } else if (e.stick) {
-                    p.setStyle(Paint.Style.FILL);
-                    p.setColor((e.color & 0x00FFFFFF) | ((a / 4) << 24));
-                    c.drawCircle(cx, cy, r, p);
-                    p.setStyle(Paint.Style.STROKE);
-                    p.setStrokeWidth(dp(3));
-                    p.setColor((e.color & 0x00FFFFFF) | (a << 24));
-                    c.drawCircle(cx, cy, r, p);
-                    p.setStyle(Paint.Style.FILL);
-                    c.drawCircle(cx, cy, r * 0.42f, p);
-                } else {
-                    p.setStyle(Paint.Style.FILL);
-                    p.setColor((e.color & 0x00FFFFFF) | (a << 24));
-                    c.drawCircle(cx, cy, r, p);
-                    p.setStyle(Paint.Style.STROKE);
-                    p.setStrokeWidth(dp(2));
-                    p.setColor((0xFFFFFF) | (a << 24));
-                    c.drawCircle(cx, cy, r, p);
-                }
-                p.setPathEffect(null);
-                p.setStyle(Paint.Style.FILL);
-                if (mGc && TouchDraw.gcShape(e.name) >= 0) {
-                    drawSelection(c, p, e, cx, cy, r);
-                    continue;
-                }
-                p.setColor(e.shown ? 0xFFFFFFFF : 0x88FFFFFF);
-                p.setTextSize(Math.max(dp(11), r * (e.label.length() > 2 ? 0.55f : 0.8f)));
-                p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
-                p.setTextAlign(Paint.Align.CENTER);
-                float ty = cy - (p.descent() + p.ascent()) / 2;
-                c.drawText(e.stick && e.name.equals("STICK") ? "" : e.label, cx, ty, p);
+                if (!mGc || !TouchDraw.drawGc(c, p, e, cx, cy, e.r * h, a, dp(6)))
+                    TouchDraw.drawClassic(c, p, e, cx, cy, e.r * h, a, dp(6), dp(1));
                 drawSelection(c, p, e, cx, cy, r);
             }
             Elem rb = elem("R");
