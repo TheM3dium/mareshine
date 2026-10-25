@@ -702,5 +702,11 @@
     "Delete the European disc image (%.1f GB)": "Elimina l'immagine disco europea (%.1f GB)",
     "Delete the European disc image?": "Eliminare l'immagine disco europea?",
     "The language packs do not need it any more. Delete %s?": "I pacchetti lingua non ne hanno più bisogno. Eliminare %s?",
-    "The European disc could not be deleted": "Non è stato possibile eliminare il disco europeo"
+    "The European disc could not be deleted": "Non è stato possibile eliminare il disco europeo",
+    "Button style": "Stile dei pulsanti",
+    "How the on-screen buttons look: Classic discs with letters, or GameCube outlines in the controller's shapes and colours.": "Come appaiono i pulsanti su schermo: Classico, dischi con lettere, o GameCube, contorni con le forme e i colori del controller.",
+    "Classic": "Classico",
+    "GameCube": "GameCube",
+    "GameCube button shapes": "Forme dei pulsanti GameCube",
+    "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license).": "Le forme dello stile pulsanti GameCube, ricalcate dalle immagini del controller di m-overlay (licenza MIT)."
 }

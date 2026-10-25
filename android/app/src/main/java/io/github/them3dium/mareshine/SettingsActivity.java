@@ -1710,6 +1710,9 @@ public class SettingsActivity extends AppActivity {
         });
 
         section("TOUCH");
+        add(new Choice("SMS_TOUCH_STYLE", "Button style",
+            "How the on-screen buttons look: Classic discs with letters, or GameCube outlines in the controller's shapes and colours.",
+            "classic", new String[] {"classic", "gamecube"}, new String[] {"Classic", "GameCube"}));
         add(new Choice("SMS_TOUCH_CONTROLS", "Touch controls",
             "The on-screen buttons. Auto hides them while a controller is connected.",
             "auto", new String[] {"auto", "on", "off"}, new String[] {"Auto", "On", "Off"}) {
@@ -2039,6 +2042,9 @@ public class SettingsActivity extends AppActivity {
         add(new Action("Decompilation",
             "The Super Mario Sunshine decompilation project (doldecomp/sms) that made the port possible.",
             () -> "doldecomp", () -> {}));
+        add(new Action("GameCube button shapes",
+            "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license).",
+            () -> "Bkacjios", () -> {}));
         add(new Action("Libraries",
             "SDL2 (input, audio, window), stb (images), Dear ImGui and bcdec (graphics layer).",
             () -> "SDL2, stb, ImGui", () -> {}));

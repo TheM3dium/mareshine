@@ -18,7 +18,9 @@
 //                         the touch C-stick follows SMS_CAMERA_INVERT_X/Y
 //   SMS_SAVESTATE_DELAY=0 SAVE and LOAD act at once instead of once held
 #include "touch.h"
+#include "touch_gamecube.h"
 #include "port_savestate.h"
+#include <algorithm>
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -75,6 +77,7 @@ struct Config {
 	int mode = 0;  // 0 auto, 1 on, 2 off
 	float opacity = 0.7f, autoHide = 0, rSlide = 0.06f;
 	bool rSlider = false, haptic = false, stateDelay = true;
+	int style = 0;  // 0 classic discs, 1 GameCube outlines (SMS_TOUCH_STYLE=gamecube)
 	bool swipeX = true, swipeY = false, camX = false, camY = false;
 	Place place[ID_COUNT];
 };
@@ -108,6 +111,8 @@ void readConfig(Config& c)
 	float slide = envFloat("SMS_TOUCH_R_SLIDE", 0.06f);
 	c.rSlide = slide < 0.02f ? 0.02f : slide > 0.4f ? 0.4f : slide;
 	c.haptic = envOn("SMS_TOUCH_HAPTIC", false);
+	const char* style = getenv("SMS_TOUCH_STYLE");
+	c.style = style && !strcmp(style, "gamecube") ? 1 : 0;
 	c.stateDelay = envOn("SMS_SAVESTATE_DELAY", true);
 	c.swipeX = envOn("SMS_SWIPE_INVERT_X", true);
 	c.swipeY = envOn("SMS_SWIPE_INVERT_Y", false);
@@ -520,6 +525,121 @@ void makeGlyph(Image& im, int dot, char ch)
 	}
 }
 
+// The GameCube style (SMS_TOUCH_STYLE=gamecube): the controller's own shapes
+// (touch_gamecube.h, traced from m-overlay's pictures) as outlines in the
+// button's colour with its letter; pressed, filled. Drawn from the polygons at
+// the size the button has on screen, so they stay sharp.
+
+// Coverage (0..1) of the polygons, even-odd, scaled by s around the middle of a
+// size x size picture and turned by rot; 4 x 4 samples a pixel.
+void rasterPoly(std::vector<float>& cov, int size, const GcPoly& p, float s, float ox, float oy, float rot)
+{
+	cov.assign((size_t)size * size, 0.0f);
+	std::vector<float> xs, ys;
+	const float c = cosf(rot), sn = sinf(rot), mid = size * 0.5f;
+	int at = 0;
+	struct Edge {
+		float x0, y0, x1, y1;
+	};
+	std::vector<Edge> edges;
+	for (int r = 0; r < p.ringCount; r++) {
+		const int n = p.rings[r];
+		for (int k = 0; k < n; k++) {
+			const float* a = &p.pts[(at + k) * 2];
+			const float* b = &p.pts[(at + (k + 1) % n) * 2];
+			Edge e = { mid + (a[0] * c - a[1] * sn) * s + ox, mid + (a[0] * sn + a[1] * c) * s + oy,
+			           mid + (b[0] * c - b[1] * sn) * s + ox, mid + (b[0] * sn + b[1] * c) * s + oy };
+			edges.push_back(e);
+		}
+		at += n;
+	}
+	std::vector<float> cross;
+	const int sub = 4;
+	for (int y = 0; y < size; y++)
+		for (int k = 0; k < sub; k++) {
+			const float yy = y + (k + 0.5f) / sub;
+			cross.clear();
+			for (const Edge& e : edges)
+				if ((e.y0 <= yy) != (e.y1 <= yy))
+					cross.push_back(e.x0 + (yy - e.y0) / (e.y1 - e.y0) * (e.x1 - e.x0));
+			std::sort(cross.begin(), cross.end());
+			for (size_t i = 0; i + 1 < cross.size(); i += 2) {
+				const float x0 = fmaxf(0.0f, cross[i]), x1 = fminf((float)size, cross[i + 1]);
+				for (int x = (int)x0; x < size && x < x1; x++) {
+					const float l = fmaxf(x0, (float)x), r = fminf(x1, (float)x + 1);
+					if (r > l)
+						cov[(size_t)y * size + x] += (r - l) / sub;
+				}
+			}
+		}
+}
+
+// For each pixel inside, its distance to the outside (3-4 chamfer, in pixels)
+void insideDistance(const std::vector<float>& cov, int size, std::vector<float>& dist)
+{
+	const float big = 1e6f;
+	dist.assign(cov.size(), 0.0f);
+	for (size_t i = 0; i < cov.size(); i++)
+		dist[i] = cov[i] > 0.5f ? big : 0.0f;
+	auto at = [&](int x, int y) { return x < 0 || y < 0 || x >= size || y >= size ? 0.0f : dist[(size_t)y * size + x]; };
+	for (int y = 0; y < size; y++)
+		for (int x = 0; x < size; x++) {
+			float& d = dist[(size_t)y * size + x];
+			if (d == 0)
+				continue;
+			d = fminf(d, fminf(at(x - 1, y), at(x, y - 1)) + 1.0f);
+			d = fminf(d, fminf(at(x - 1, y - 1), at(x + 1, y - 1)) + 1.4142f);
+		}
+	for (int y = size - 1; y >= 0; y--)
+		for (int x = size - 1; x >= 0; x--) {
+			float& d = dist[(size_t)y * size + x];
+			if (d == 0)
+				continue;
+			d = fminf(d, fminf(at(x + 1, y), at(x, y + 1)) + 1.0f);
+			d = fminf(d, fminf(at(x + 1, y + 1), at(x - 1, y + 1)) + 1.4142f);
+		}
+}
+
+// One button picture: shape (turned by rot), its colour, a letter (0: none)
+void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, char letter, bool pressed, float rot = 0)
+{
+	im.init(size);
+	std::vector<float> cov, dist, let;
+	rasterPoly(cov, size, kGcShapes[shape], size * 0.47f, 0, 0, rot);
+	insideDistance(cov, size, dist);
+	const float stroke = fmaxf(1.5f, size * 0.05f);
+	// the letter at the widest place inside the shape, as large as it allows
+	float best = 0;
+	int bx = size / 2, by = size / 2;
+	for (int y = 0; y < size; y++)
+		for (int x = 0; x < size; x++)
+			if (dist[(size_t)y * size + x] > best) {
+				best = dist[(size_t)y * size + x];
+				bx = x;
+				by = y;
+			}
+	const char* lp = letter ? strchr(kGcLetterChars, letter) : nullptr;
+	if (lp)
+		rasterPoly(let, size, kGcLetters[lp - kGcLetterChars], fminf(best * 0.62f, size * 0.3f), bx + 0.5f - size * 0.5f,
+		           by + 0.5f - size * 0.5f, 0);
+	for (int y = 0; y < size; y++)
+		for (int x = 0; x < size; x++) {
+			const size_t i = (size_t)y * size + x;
+			const float m = fminf(1.0f, cov[i]);
+			if (m <= 0)
+				continue;
+			if (pressed) {
+				im.blend(x, y, rgb, m * 0.92f);
+			} else {
+				im.blend(x, y, 0x0A1420, m * 0.35f);
+				const float line = fminf(1.0f, fmaxf(0.0f, stroke + 0.5f - dist[i]));
+				im.blend(x, y, rgb, m * (dist[i] == 0 ? 1.0f : line));
+			}
+			if (lp && let[i] > 0)
+				im.blend(x, y, pressed ? 0x14202C : rgb, fminf(1.0f, let[i]));
+		}
+}
+
 // The save state indicator (bottom left while a state loads or saves): a disc
 // like the SAVE and LOAD buttons, a ring of dots filling up around it, the
 // percentage beside it.
@@ -549,12 +669,26 @@ void buildAtlas()
 	const Place& s = g_cfg.place[STICK];
 	const Place& c = g_cfg.place[CSTICK];
 	const int stickPx = (int)(s.r * 2 * g_h), cPx = (int)(c.r * 2 * g_h);
-	add(stickPx, kDefs[STICK].rgb, "", false, true);
-	add((int)(stickPx * 0.44f), kDefs[STICK].rgb, "", false, false);
-	add((int)(stickPx * 0.44f), kDefs[STICK].rgb, "", true, false);
-	add(cPx, kDefs[CSTICK].rgb, "", false, true);
-	add((int)(cPx * 0.46f), kDefs[CSTICK].rgb, "C", false, false);
-	add((int)(cPx * 0.46f), kDefs[CSTICK].rgb, "C", true, false);
+	const bool gc = g_cfg.style == 1;
+	auto gcPic = [&](int size, GcShape sh, uint32_t rgb, char letter, bool pressed, float rot = 0) {
+		pics.emplace_back();
+		makeGc(pics.back(), size < 16 ? 16 : size > 512 ? 512 : size, sh, rgb, letter, pressed, rot);
+	};
+	if (gc) {
+		gcPic(stickPx, GC_GATE, 0xFFFFFF, 0, false);
+		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, 0, false);
+		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, 0, true);
+		gcPic(cPx, GC_CGATE, 0xFFD21F, 0, false);
+		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, 'C', false);
+		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, 'C', true);
+	} else {
+		add(stickPx, kDefs[STICK].rgb, "", false, true);
+		add((int)(stickPx * 0.44f), kDefs[STICK].rgb, "", false, false);
+		add((int)(stickPx * 0.44f), kDefs[STICK].rgb, "", true, false);
+		add(cPx, kDefs[CSTICK].rgb, "", false, true);
+		add((int)(cPx * 0.46f), kDefs[CSTICK].rgb, "C", false, false);
+		add((int)(cPx * 0.46f), kDefs[CSTICK].rgb, "C", true, false);
+	}
 	add((int)(g_cfg.place[BTN_HUD].r * 2 * g_h), kDefs[BTN_HUD].rgb, "SHOW", false, false);
 	add((int)(g_cfg.place[BTN_R].r * 2 * g_h), kDefs[BTN_RPLUS].rgb, "R+", true, false);
 	const int ind = (int)indicatorSize(), dot = (int)(ind * 0.14f);
@@ -567,8 +701,26 @@ void buildAtlas()
 		makeGlyph(pics.back(), ind / 20 < 1 ? 1 : ind / 20, *ch);
 	}
 	for (int i = BTN_A; i < ID_COUNT; i++)
-		for (int pressed = 0; pressed < 2; pressed++)
-			add((int)(g_cfg.place[i].r * 2 * g_h), kDefs[i].rgb, kDefs[i].label, pressed != 0, false);
+		for (int pressed = 0; pressed < 2; pressed++) {
+			const int px = (int)(g_cfg.place[i].r * 2 * g_h);
+			if (gc && (i == BTN_A || i == BTN_B)) {
+				gcPic(px, i == BTN_A ? GC_A : GC_B, i == BTN_A ? 0x2ECC71 : 0xE74C3C, i == BTN_A ? 'A' : 'B', pressed != 0);
+			} else if (gc && (i == BTN_X || i == BTN_Y)) {
+				// bent round A wherever the layout puts them: X's picture has A to
+				// its left, Y's below it
+				const Place &me = g_cfg.place[i], &a = g_cfg.place[BTN_A];
+				const float dx = (a.x - me.x) * g_w / g_h, dy = a.y - me.y;
+				const float want = (dx * dx + dy * dy) > 1e-8f ? atan2f(dy, dx) : (i == BTN_X ? 3.14159f : 1.5708f);
+				const float base = i == BTN_X ? 3.14159f : 1.5708f;
+				gcPic(px, i == BTN_X ? GC_X : GC_Y, 0xD0D4DA, i == BTN_X ? 'X' : 'Y', pressed != 0, want - base);
+			} else if (gc && i == BTN_Z) {
+				gcPic(px, GC_Z, 0x9B59B6, 'Z', pressed != 0);
+			} else if (gc && (i == BTN_L || i == BTN_R)) {
+				gcPic(px, GC_TRIGGER, 0xD0D4DA, i == BTN_L ? 'L' : 'R', pressed != 0);
+			} else {
+				add(px, kDefs[i].rgb, kDefs[i].label, pressed != 0, false);
+			}
+		}
 	// shelves 2048 wide
 	g_cuts.assign(pics.size(), Cut());
 	int x = 0, y = 0, rowH = 0;

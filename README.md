@@ -34,7 +34,7 @@ own copy of the European release (GMSP01) as an `.iso`.
 - **Adaptive layout**: the menus adapt to the display, clear of camera cutouts, system bars and
   rounded corners, on phones, tablets and TVs alike
 - **Customizable touch controls**: a touch layout editor (position and size of every button,
-  opacity, hide when idle)
+  opacity, hide when idle), and a GameCube button style in the controller's own shapes
 - **Controller settings**: controller choice, button mapping, dead zone, sensitivity and stick
   calibration, applied at once, also while playing
 - **Vibration**: graded strength for the phone and the controller (a controller vibrates where
@@ -122,6 +122,7 @@ You need JDK 17 and the Android SDK with NDK and CMake. The APK ends up in
 - **[TwilitRealm](https://github.com/TwilitRealm/dusklight)**: Dusklight, whose launcher and data
   folder inspired Mareshine's
 - **qashto and razius**: the Super Mario Sunshine UHD texture pack
+- **[Bkacjios](https://github.com/bkacjios/m-overlay)**: m-overlay, whose controller pictures the GameCube touch button style is traced from
 - **Libraries**: SDL2, stb, bcdec
 - **TheM3dium**: Mareshine
 
