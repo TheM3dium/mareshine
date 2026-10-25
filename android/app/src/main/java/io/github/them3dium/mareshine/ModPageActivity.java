@@ -159,10 +159,7 @@ public class ModPageActivity extends AppActivity {
         mOnOff = button("");
         mOnOff.setTextSize(24);
         mOnOff.setPadding(dp(22), dp(2), dp(22), dp(2));
-        mOnOff.setOnClickListener(v -> {
-            Mods.setEnabled(this, mMod.id, !mMod.enabled);
-            changed();
-        });
+        mOnOff.setOnClickListener(v -> ModFlows.setEnabled(this, mMod, !mMod.enabled, this::changed));
         top.addView(mOnOff, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48),
             Gravity.START | Gravity.CENTER_VERTICAL));
         LinearLayout rating = new LinearLayout(this);
@@ -515,6 +512,10 @@ public class ModPageActivity extends AppActivity {
             }
             if (o.id.equals(EclipseMod.HD) && !ModFlows.texturesDir(this).isDirectory()) {
                 ModFlows.textures(this);
+                return;
+            }
+            if (o.id.equals(EclipseMod.HD)) {
+                ModFlows.eclipseHd(this, mMod, o, this::changed);
                 return;
             }
         }

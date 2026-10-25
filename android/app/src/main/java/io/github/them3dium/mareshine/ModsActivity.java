@@ -424,11 +424,10 @@ public class ModsActivity extends AppActivity {
         List<Runnable> acts = new ArrayList<>();
         List<Boolean> dim = new ArrayList<>();
         labels.add(t(m.enabled ? "Switch off" : "Switch on"));
-        acts.add(() -> {
-            Mods.setEnabled(this, m.id, !m.enabled);
+        acts.add(() -> ModFlows.setEnabled(this, m, !m.enabled, () -> {
             mMods = Mods.list(this);
             changed(i);
-        });
+        }));
         dim.add(false);
         for (Mods.Option o : m.options) {
             if (!o.isToggle() && !o.isChoice()) continue;
@@ -463,6 +462,13 @@ public class ModsActivity extends AppActivity {
         }
         if (m.id.equals(EclipseMod.ID) && o.id.equals(EclipseMod.HD) && !ModFlows.texturesDir(this).isDirectory()) {
             ModFlows.textures(this);
+            return;
+        }
+        if (m.id.equals(EclipseMod.ID) && o.id.equals(EclipseMod.HD)) {
+            ModFlows.eclipseHd(this, m, o, () -> {
+                mMods = Mods.list(this);
+                changed(i);
+            });
             return;
         }
         if (o.isToggle()) {

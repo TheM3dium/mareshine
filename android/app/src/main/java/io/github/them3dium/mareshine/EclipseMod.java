@@ -44,7 +44,7 @@ final class EclipseMod {
         + "* Hand-Animated Cutscenes: Immerse yourself in an expanded story brought to life through custom animations.";
 
     // the version of the mod.json the app writes (app_rev): an older one is rewritten
-    static final int REV = 3;
+    static final int REV = 4;
     // its disc (made for the app without Nintendo's marks), also in Search Mods
     static final String DISC_ASSET = "mods/eclipse-disc.png";
 
@@ -94,7 +94,7 @@ final class EclipseMod {
         JSONObject o = new JSONObject().put("id", ID).put("name", e.name).put("version", e.version)
             .put("author", e.author).put("author_color", "#46E06A").put("description", ABOUT)
             .put("image", first.image).put("code", e.code)
-            .put("app_rev", REV).put("page", e.page).put("rating", e.rating).put("preview", PREVIEW).put("options", options);
+            .put("incompatible", new JSONArray().put("sunburn")).put("app_rev", REV).put("page", e.page).put("rating", e.rating).put("preview", PREVIEW).put("options", options);
         // its disc in the mod list: the disc art the app ships (assets/mods), else
         // the banner on the player's image
         File disc = new File(d, "disc.png");

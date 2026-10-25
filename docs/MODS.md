@@ -60,6 +60,7 @@ A zip of Dolphin textures with no `mod.json` (a texture pack as made for Dolphin
 | `name`, `version`, `author`, `description` | shown on its page and in the list |
 | `icon`, `preview` | pictures in the mod's folder (PNG or JPEG), or `https://` URLs. An icon with transparent corners (a whole disc's picture) is shown as it is; any other is put on a disc as its label |
 | `requires` | ids of mods that must be switched on and loaded before this one |
+| `incompatible` | ids of mods it does not work with: switching it on while one of them is on warns, and the player can switch those off or go on anyway |
 | `image` | a whole disc image in the folder that is played instead of the player's own (only for mods too big for `files/`) |
 | `code` | `true` when the mod needs code built into the app (Super Mario Eclipse) |
 | `author_color` | the colour of "by …" at the foot of its page, as `#RRGGBB` |

@@ -80,6 +80,7 @@ public final class Mods {
         public float rating = -1;
         public int authorColor;  // 0: the page's own
         public List<String> requires = new ArrayList<>();
+        public List<String> incompatible = new ArrayList<>();  // mods it does not work with
         public final List<Option> options = new ArrayList<>();
         public File dir;
         public boolean enabled, code;
@@ -220,6 +221,18 @@ public final class Mods {
         if (on && !mod.image.isEmpty())
             for (Mod o : all) if (o != mod && !o.image.isEmpty()) o.enabled = false;
         save(ctx, all);
+    }
+
+    // The switched-on mods that clash with this one: named as incompatible by
+    // either, or another with its own disc image (one game is played)
+    public static List<Mod> conflicts(Context ctx, Mod mod) {
+        List<Mod> out = new ArrayList<>();
+        for (Mod o : list(ctx)) {
+            if (o.id.equals(mod.id) || !o.enabled) continue;
+            if (mod.incompatible.contains(o.id) || o.incompatible.contains(mod.id)
+                    || (!mod.image.isEmpty() && !o.image.isEmpty())) out.add(o);
+        }
+        return out;
     }
 
     public static Mod find(Context ctx, String id) {
@@ -388,6 +401,9 @@ public final class Mods {
                 } catch (IllegalArgumentException ignored) {
                 }
                 m.options.addAll(parseOptions(o.optJSONArray("options")));
+                JSONArray inc = o.optJSONArray("incompatible");
+                if (inc != null)
+                    for (int i = 0; i < inc.length(); i++) m.incompatible.add(cleanId(inc.optString(i)));
                 JSONArray req = o.optJSONArray("requires");
                 if (req != null)
                     for (int i = 0; i < req.length(); i++) m.requires.add(cleanId(req.optString(i)));

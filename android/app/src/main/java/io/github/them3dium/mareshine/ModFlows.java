@@ -18,6 +18,72 @@ final class ModFlows {
     // the requests the screens pass on here (onActivityResult)
     static final int PICK_TRANSLATION = 11, PICK_TEXTURES = 12;
 
+    // Switches a mod on or off; switching on warns about the mods it does not
+    // work with (Mods.conflicts): switch those off, switch it on anyway (not
+    // for two games: only one can be played), or leave it. done runs after a change.
+    static void setEnabled(AppActivity a, Mods.Mod m, boolean on, Runnable done) {
+        List<Mods.Mod> clash = on ? Mods.conflicts(a, m) : new java.util.ArrayList<>();
+        if (clash.isEmpty()) {
+            Mods.setEnabled(a, m.id, on);
+            done.run();
+            return;
+        }
+        StringBuilder names = new StringBuilder();
+        boolean games = false;
+        for (Mods.Mod o : clash) {
+            names.append(names.length() > 0 ? ", " : "").append(o.name);
+            if (!m.image.isEmpty() && !o.image.isEmpty()) games = true;
+        }
+        String msg = t("%s does not work together with: %s.", m.name, names)
+            + (games ? "\n" + t("Each is a game of its own, and one game is played at a time.") : "");
+        Runnable others = () -> {
+            List<Mods.Mod> all = Mods.list(a);
+            for (Mods.Mod x : all) {
+                if (x.id.equals(m.id)) x.enabled = true;
+                for (Mods.Mod o : clash) if (x.id.equals(o.id)) x.enabled = false;
+            }
+            Mods.save(a, all);
+            done.run();
+        };
+        Runnable anyway = () -> {
+            Mods.setEnabled(a, m.id, true);
+            done.run();
+        };
+        if (games) a.choice(t("Mods that do not go together"), msg, new String[] {t("Switch the others off")},
+            new Runnable[] {others});
+        else a.choice(t("Mods that do not go together"), msg,
+            new String[] {t("Switch the others off"), t("Switch it on anyway")}, new Runnable[] {others, anyway});
+    }
+
+    // Mareshine's own HD texture pack (Settings → VIDEO): on, with textures in it
+    static boolean ownPackOn(android.content.Context c) {
+        if ("0".equals(Settings.read(c).getOrDefault("SMS_HD_TEXTURES", "1"))) return false;
+        String[] own = DataDir.texturesDir(c).list();
+        return own != null && own.length > 0;
+    }
+
+    // Super Mario Eclipse's HD textures on or off; on, while Mareshine's own
+    // pack is on, warns that the two do not go together
+    static void eclipseHd(AppActivity a, Mods.Mod m, Mods.Option o, Runnable done) {
+        boolean on = !m.value(o).equals("1");
+        if (!on || !ownPackOn(a)) {
+            Mods.setOption(a, m, o, on ? "1" : "0");
+            done.run();
+            return;
+        }
+        a.choice(t("Texture packs that do not go together"),
+            t("Mareshine's HD texture pack (Settings → VIDEO → HD textures) is on too. It is made for Super Mario "
+                + "Sunshine: with Super Mario Eclipse's own pack, textures of both get mixed."),
+            new String[] {t("Switch Mareshine's pack off"), t("Keep both on")}, new Runnable[] {() -> {
+                Settings.put(a, "SMS_HD_TEXTURES", "0");
+                Mods.setOption(a, m, o, "1");
+                done.run();
+            }, () -> {
+                Mods.setOption(a, m, o, "1");
+                done.run();
+            }});
+    }
+
     static void openPage(AppActivity a, String url) {
         try {
             a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
