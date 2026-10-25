@@ -26,6 +26,23 @@ import java.io.File;
 import static io.github.them3dium.mareshine.L.t;
 
 public class SunshineActivity extends SDLActivity {
+    // The game runs in a process of its own (":game"), which Android often keeps
+    // after the game ends, and with it the environment of the last start: the
+    // settings.txt values the game read (platform/port_runtime.cpp
+    // load_settings) and the ones set here. The environment wins over
+    // settings.txt, so a value changed in Settings since (a cheat switched
+    // off) stayed as it was until the process died. Each start begins with
+    // none of them.
+    private static void clearOldSettings() {
+        try {
+            for (String e : android.system.Os.environ()) {
+                int eq = e.indexOf('=');
+                if (eq > 0 && e.startsWith("SMS_")) android.system.Os.unsetenv(e.substring(0, eq));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     // The disc image to play: a mod's own image when one is switched on (Mods,
     // such as Super Mario Eclipse), else the launcher's choice (sms_disc), else
     // the one the launcher would find in the data folder or Downloads.
@@ -42,6 +59,7 @@ public class SunshineActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         CrashLog.install(this);
+        clearOldSettings();
         super.onCreate(savedInstanceState);
         mAchKnown = Achievements.unlockedIds(this); // what the banner does not announce again
 
