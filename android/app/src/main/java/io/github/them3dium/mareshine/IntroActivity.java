@@ -42,7 +42,6 @@ public class IntroActivity extends AppActivity {
         final List<Runnable> actions = new ArrayList<>();
         boolean asks;  // a choice page: only when the intro asks
         boolean back;  // a Back button, to the choice before
-        java.util.function.BooleanSupplier low = () -> false;  // the text below a top row of buttons
 
         Page(String title, String text, Picture picture) {
             this.title = title;
@@ -159,7 +158,6 @@ public class IntroActivity extends AppActivity {
             });
         done.asks = true;
         done.back = true;
-        done.low = () -> mStyle == null && !ownGc;  // Classic's top row (START, MENU, ...) shows
         mPages.add(done);
     }
 
@@ -184,7 +182,7 @@ public class IntroActivity extends AppActivity {
 
     private float dp(float v) { return v * getResources().getDisplayMetrics().density; }
 
-    // The GameCube buttons as the game places them, faded in by fade; bright:
+    // The GameCube buttons (and the top row) as the game places them, faded in by fade; bright:
     // all but that one dimmed (the caller draws it). With the slider (the
     // default) there is no R+ button; chosen without it, R+ is in R's place
     // and R above it (touch.cpp)
@@ -197,11 +195,13 @@ public class IntroActivity extends AppActivity {
             if (e.name.equals("RPLUS")) rp = e;
         }
         for (Elem e : elems) {
-            if (TouchDraw.gcShape(e.name) < 0 || (e.name.equals("RPLUS") && !separate)) continue;
+            if (e.name.equals("RPLUS") && !separate) continue;
             if (bright != null && e.name.equals(bright)) continue;
             Elem at = separate && e == r ? rp : separate && e == rp ? r : e;
             int a = Math.round(225 * fade * (bright != null ? 0.35f : 1f));
-            TouchDraw.drawGc(c, p, e, at.x * w, at.y * h, e.r * h, a, dp(6));
+            // the top row (START, MENU, ...) as discs, as in the game
+            if (!TouchDraw.drawGc(c, p, e, at.x * w, at.y * h, e.r * h, a, dp(6)))
+                TouchDraw.drawClassic(c, p, e, at.x * w, at.y * h, e.r * h, a, dp(6), dp(1));
         }
     }
 
@@ -320,7 +320,7 @@ public class IntroActivity extends AppActivity {
         int panelW = Math.round(getResources().getDisplayMetrics().widthPixels * 0.5f);
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(panelW, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.CENTER_HORIZONTAL | Gravity.TOP);
-        plp.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.05f);
+        plp.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.17f);  // below the top row
         root.addView(mPanel, plp);
 
         // the buttons, at the bottom in the middle
@@ -346,9 +346,6 @@ public class IntroActivity extends AppActivity {
         mIndex = index;
         mPageStart = SystemClock.uptimeMillis();
         Page page = mPages.get(index);
-        FrameLayout.LayoutParams plp = (FrameLayout.LayoutParams) mPanel.getLayoutParams();
-        plp.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * (page.low.getAsBoolean() ? 0.17f : 0.05f));
-        mPanel.setLayoutParams(plp);
         mTitle.setText(page.title);
         mText.setText(page.text);
         mPanel.setAlpha(0f);
