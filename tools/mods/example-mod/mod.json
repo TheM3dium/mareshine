@@ -1,0 +1,23 @@
+{
+  "id": "example-mod",
+  "name": "Example Mod",
+  "version": "1.0",
+  "author": "Mareshine",
+  "description": "An example of a mod package: its page, its buttons and a settings page. It changes nothing in the game. Copy this folder, change mod.json, put your own files into files/ and textures/, and zip the folder. docs/MODS.md describes every key.",
+  "icon": "icon.png",
+  "preview": "preview.png",
+  "rating": 4,
+  "options": [
+    {"type": "toggle", "id": "hd", "label": "HD Textures", "folder": "hd", "default": true},
+    {"type": "choice", "id": "style", "label": "Style", "values": [
+      {"id": "day", "label": "Day"},
+      {"id": "night", "label": "Night"}
+    ]},
+    {"type": "page", "label": "Settings", "options": [
+      {"type": "choice", "id": "difficulty", "label": "Difficulty", "values": ["Easy", "Normal", "Hard"], "default": "normal"},
+      {"type": "toggle", "id": "timer", "label": "Speedrun timer", "text": "Shows a timer in the corner (an example: nothing reads it)."}
+    ]},
+    {"type": "link", "label": "Website", "url": "https://example.com"},
+    {"type": "toggle", "id": "extra", "label": "Fifth button", "text": "More than four buttons: Back and Next page through them."}
+  ]
+}

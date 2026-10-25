@@ -34,27 +34,119 @@ import java.util.zip.ZipInputStream;
 //                patched from the player's disc by ModInstallActivity); the
 //                last such mod switched on is played
 //   "code": true    the mod needs code built into the app (SMS_CODE_MODS)
+//   "icon", "preview"   pictures in its folder (or https URLs): its label on
+//                the mod list's disc, and the picture its page is filled with
+//   "rating": 4     its suns until players have rated it
+//   "options": [...]   the buttons on its page (ModPageActivity): toggles and
+//                choices that switch folders or disc images, settings pages
+//                and links; docs/MODS.md has the format
 // Their order and which are on is settings.txt's SMS_MODS ("id:1;id:0", first
 // loaded first, so a later mod wins); mods not listed there are off, after
 // the listed ones. Changes apply when the game starts.
 public final class Mods {
     public static final String KEY = "SMS_MODS";
+    // the mods' option values: "mod.option=value;…" (Mod.state)
+    public static final String OPTIONS_KEY = "SMS_MOD_OPTIONS";
     // The mod manager's entries in Settings and the quick menu
     public static final boolean MENU = true;
 
     private Mods() {}
 
+    // A button on a mod's page (docs/MODS.md).
+    public static final class Option {
+        public String type = "", id = "", label = "", url = "", folder = "", image = "", def = "", text = "";
+        public final List<Value> values = new ArrayList<>();   // a choice's
+        public final List<Option> options = new ArrayList<>(); // a page's
+
+        public boolean isToggle() { return type.equals("toggle"); }
+        public boolean isChoice() { return type.equals("choice"); }
+        public boolean isPage() { return type.equals("page"); }
+        public boolean isLink() { return type.equals("link"); }
+
+        public Value value(String id) {
+            for (Value v : values) if (v.id.equals(id)) return v;
+            return null;
+        }
+    }
+
+    // One of a choice's values: what it switches on
+    public static final class Value {
+        public String id = "", label = "", folder = "", image = "";
+    }
+
     public static final class Mod {
-        public String id, name, version = "", author = "", description = "", image = "";
+        public String id, name, version = "", author = "", description = "", image = "", icon = "", preview = "";
+        public float rating = -1;
         public List<String> requires = new ArrayList<>();
+        public final List<Option> options = new ArrayList<>();
         public File dir;
         public boolean enabled, code;
 
-        // the disc image it plays, if it has one and it is there
+        // a picture of the mod's: a file in its folder, or a URL
+        public String picture(String name) {
+            if (name.isEmpty() || name.startsWith("https://")) return name;
+            File f = new File(dir, new File(name).getName());
+            return f.isFile() ? f.getAbsolutePath() : "";
+        }
+
+        // every option, those on its settings pages too
+        public List<Option> allOptions() {
+            List<Option> out = new ArrayList<>();
+            collect(options, out);
+            return out;
+        }
+
+        private static void collect(List<Option> in, List<Option> out) {
+            for (Option o : in) {
+                out.add(o);
+                collect(o.options, out);
+            }
+        }
+
+        // the disc image it plays, if it has one and it is there: a choice's
+        // value may pick another (Super Mario Eclipse's languages)
         public File image() {
-            if (image.isEmpty()) return null;
-            File f = new File(dir, image);
+            String name = image;
+            for (Option o : allOptions()) {
+                String pick = "";
+                if (o.isChoice()) {
+                    Value v = o.value(value(o));
+                    if (v != null) pick = v.image;
+                } else if (o.isToggle() && value(o).equals("1")) {
+                    pick = o.image;
+                }
+                if (!pick.isEmpty() && new File(dir, pick).isFile()) name = pick;
+            }
+            if (name.isEmpty()) return null;
+            File f = new File(dir, name);
             return f.isFile() ? f : null;
+        }
+
+        // its options' current values, by option id (Mods.list fills it)
+        public Map<String, String> state;
+
+        public String value(Option o) {
+            String v = state != null ? state.get(o.id) : null;
+            if (v != null) return v;
+            return o.isToggle() ? (o.def.equals("1") || o.def.equals("true") ? "1" : "0") : o.def;
+        }
+
+        // the folders its switched-on options add (each with files/ and textures/)
+        public List<File> optionFolders() {
+            List<File> out = new ArrayList<>();
+            for (Option o : allOptions()) {
+                String f = "";
+                if (o.isToggle() && value(o).equals("1")) f = o.folder;
+                if (o.isChoice()) {
+                    Value v = o.value(value(o));
+                    if (v != null) f = v.folder;
+                }
+                if (!f.isEmpty()) {
+                    File d = new File(dir, f);
+                    if (d.isDirectory()) out.add(d);
+                }
+            }
+            return out;
         }
 
         public File files() {
@@ -95,6 +187,11 @@ public final class Mods {
             out.add(m);
         }
         out.addAll(found.values()); // new ones: off, at the end
+        Map<String, Map<String, String>> state = options(ctx);
+        for (Mod m : out) {
+            m.state = state.get(m.id);
+            if (m.state == null) m.state = new LinkedHashMap<>();
+        }
         return out;
     }
 
@@ -107,6 +204,120 @@ public final class Mods {
         Map<String, String> s = Settings.read(ctx);
         s.put(KEY, sb.toString());
         Settings.write(ctx, s);
+    }
+
+    // Switches a mod on or off; one game is played, so a mod with its own disc
+    // image switches the others with one off.
+    public static void setEnabled(Context ctx, String id, boolean on) {
+        List<Mod> all = list(ctx);
+        Mod mod = null;
+        for (Mod m : all) if (m.id.equals(id)) mod = m;
+        if (mod == null) return;
+        mod.enabled = on;
+        if (on && !mod.image.isEmpty())
+            for (Mod o : all) if (o != mod && !o.image.isEmpty()) o.enabled = false;
+        save(ctx, all);
+    }
+
+    public static Mod find(Context ctx, String id) {
+        for (Mod m : list(ctx)) if (m.id.equals(id)) return m;
+        return null;
+    }
+
+    // every mod's option values, by mod id
+    static Map<String, Map<String, String>> options(Context ctx) {
+        Map<String, Map<String, String>> out = new LinkedHashMap<>();
+        for (String entry : Settings.read(ctx).getOrDefault(OPTIONS_KEY, "").split(";")) {
+            int dot = entry.indexOf('.'), eq = entry.indexOf('=');
+            if (dot <= 0 || eq <= dot + 1) continue;
+            Map<String, String> m = out.get(entry.substring(0, dot));
+            if (m == null) out.put(entry.substring(0, dot), m = new LinkedHashMap<>());
+            m.put(entry.substring(dot + 1, eq), entry.substring(eq + 1));
+        }
+        return out;
+    }
+
+    // Sets one option's value (ids and values are cleanId'd: no ';' '=' in them)
+    public static void setOption(Context ctx, Mod mod, Option o, String value) {
+        mod.state.put(o.id, cleanId(value));
+        Map<String, Map<String, String>> all = options(ctx);
+        all.put(mod.id, mod.state);
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Map<String, String>> m : all.entrySet())
+            for (Map.Entry<String, String> e : m.getValue().entrySet()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(m.getKey()).append('.').append(e.getKey()).append('=').append(e.getValue());
+            }
+        Map<String, String> s = Settings.read(ctx);
+        s.put(OPTIONS_KEY, sb.toString());
+        Settings.write(ctx, s);
+    }
+
+    // SMS_MOD_OPTIONS for the game: the switched-on mods' option values, for
+    // code built into the app that reads them
+    public static String optionsForGame(Context ctx) {
+        StringBuilder sb = new StringBuilder();
+        for (Mod m : list(ctx)) {
+            if (!m.enabled) continue;
+            for (Option o : m.allOptions()) {
+                if (o.id.isEmpty() || !(o.isToggle() || o.isChoice())) continue;
+                if (sb.length() > 0) sb.append(';');
+                sb.append(m.id).append('.').append(o.id).append('=').append(m.value(o));
+            }
+        }
+        return sb.toString();
+    }
+
+    static List<Option> parseOptions(JSONArray a) {
+        List<Option> out = new ArrayList<>();
+        if (a == null) return out;
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject j = a.optJSONObject(i);
+            if (j == null) continue;
+            Option o = new Option();
+            o.type = j.optString("type", "toggle");
+            o.id = cleanId(j.optString("id", ""));
+            o.label = j.optString("label", o.id);
+            o.text = j.optString("text", "");
+            o.url = j.optString("url", "");
+            o.folder = cleanPath(j.optString("folder", ""));
+            o.image = new File(j.optString("image", "")).getName();
+            Object def = j.opt("default");
+            o.def = def instanceof Boolean ? ((Boolean) def ? "1" : "0") : def != null ? cleanId(def.toString()) : "";
+            JSONArray vals = j.optJSONArray("values");
+            if (vals != null)
+                for (int k = 0; k < vals.length(); k++) {
+                    JSONObject vj = vals.optJSONObject(k);
+                    Value v = new Value();
+                    if (vj == null) {
+                        v.id = cleanId(vals.optString(k));
+                        v.label = vals.optString(k);
+                    } else {
+                        v.id = cleanId(vj.optString("id", ""));
+                        v.label = vj.optString("label", v.id);
+                        v.folder = cleanPath(vj.optString("folder", ""));
+                        v.image = new File(vj.optString("image", "")).getName();
+                    }
+                    if (!v.id.isEmpty()) o.values.add(v);
+                }
+            if (o.isChoice() && o.def.isEmpty() && !o.values.isEmpty()) o.def = o.values.get(0).id;
+            o.options.addAll(parseOptions(j.optJSONArray("options")));
+            if ((o.isToggle() || o.isChoice()) && o.id.isEmpty()) continue;  // nothing to keep its value under
+            out.add(o);
+        }
+        return out;
+    }
+
+    // a folder inside the mod's: no "..", no leading "/"
+    static String cleanPath(String p) {
+        if (p == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (String part : p.replace('\\', '/').split("/")) {
+            if (part.isEmpty() || part.equals(".") || part.equals("..")) continue;
+            if (sb.length() > 0) sb.append('/');
+            sb.append(part);
+        }
+        return sb.toString();
     }
 
     // A mod's folder: its mod.json, or the folder's name when it has none but
@@ -126,6 +337,10 @@ public final class Mods {
                 m.description = o.optString("description", "");
                 m.image = new File(o.optString("image", "")).getName();  // a file in its folder
                 m.code = o.optBoolean("code", false);
+                m.icon = o.optString("icon", "");
+                m.preview = o.optString("preview", "");
+                m.rating = (float) o.optDouble("rating", -1);
+                m.options.addAll(parseOptions(o.optJSONArray("options")));
                 JSONArray req = o.optJSONArray("requires");
                 if (req != null)
                     for (int i = 0; i < req.length(); i++) m.requires.add(cleanId(req.optString(i)));
@@ -191,6 +406,10 @@ public final class Mods {
         // the player from its download page (no urls), until its makers allow
         // the app to download it
         public String base = "", language = "", credits = "";
+        // for the Search tab: checked by us, its suns until players rate it, its disc label (a URL)
+        public boolean tested = true;
+        public float rating = -1;
+        public String icon = "";
 
         Release(String id, String name, String version, String author, String description, String page, String[] urls,
                 String file, long size, String md5, String patch, String sourceMd5, String resultMd5, long imageSize,
@@ -222,6 +441,7 @@ public final class Mods {
         "620ee2e30428ee38148b5041306b0b71", 1459978240L, "Super Mario Eclipse v1.1.0 DE.iso", true);
 
     static {
+        ECLIPSE.rating = 4;
         ECLIPSE_DE.base = "eclipse";
         ECLIPSE_DE.language = "Deutsch";
         ECLIPSE_DE.credits = "German Translation Team";
@@ -229,16 +449,24 @@ public final class Mods {
 
     private static final Release[] RELEASES = {ECLIPSE, ECLIPSE_DE};
 
-    // A mod's HD texture pack, made by others (Dolphin format, imported with
-    // Import mod): its page, or null
-    public static String texturePage(String id) {
-        return id.equals("eclipse") || id.startsWith("eclipse-")
-            ? "https://github.com/iZePlayzYT/SuperMarioEclipse-TexturePacks/releases" : null;
-    }
-
     public static Release release(String id) {
         for (Release r : RELEASES) if (r.id.equals(id)) return r;
         return null;
+    }
+
+    // the Search tab's mods (translations come with their mod)
+    public static List<Release> catalog(Context ctx) {
+        List<Release> out = new ArrayList<>();
+        for (Release r : RELEASES) {
+            if (!r.base.isEmpty() || (r.code && !codeBuiltIn(ctx))) continue;
+            out.add(r);
+        }
+        return out;
+    }
+
+    public static boolean installed(Context ctx, Release r) {
+        Mod m = find(ctx, r.id);
+        return m != null && m.image() != null;
     }
 
     // the translations of a mod
@@ -254,27 +482,19 @@ public final class Mods {
         return null;
     }
 
-    // the releases not installed yet (those needing code only in a build that
-    // has it; translations are picked by hand)
-    public static List<Release> available(Context ctx) {
-        List<Release> out = new ArrayList<>();
-        for (Release r : RELEASES) {
-            if (r.urls.length == 0) continue;
-            if (r.code && !codeBuiltIn(ctx)) continue;
-            boolean have = false;
-            for (Mod m : list(ctx)) if (m.id.equals(r.id) && m.image() != null) have = true;
-            if (!have) out.add(r);
-        }
-        return out;
-    }
-
     // SMS_MOD: the enabled mods' folders (dvd.cpp loads <folder>/files or /overlay), in order
     public static String discFolders(Context ctx) {
         StringBuilder sb = new StringBuilder();
         for (Mod m : list(ctx)) {
-            if (!m.enabled || m.files() == null) continue;
-            if (sb.length() > 0) sb.append(';');
-            sb.append(m.dir.getAbsolutePath());
+            if (!m.enabled) continue;
+            List<File> dirs = new ArrayList<>();
+            if (m.files() != null) dirs.add(m.dir);
+            for (File f : m.optionFolders())
+                if (new File(f, "files").isDirectory() || new File(f, "overlay").isDirectory()) dirs.add(f);
+            for (File d : dirs) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(d.getAbsolutePath());
+            }
         }
         return sb.toString();
     }
@@ -282,8 +502,12 @@ public final class Mods {
     // the enabled mods' texture folders, in order (a later one wins)
     public static List<String> textureFolders(Context ctx) {
         List<String> out = new ArrayList<>();
-        for (Mod m : list(ctx))
-            if (m.enabled && m.textures() != null) out.add(m.textures().getAbsolutePath());
+        for (Mod m : list(ctx)) {
+            if (!m.enabled) continue;
+            if (m.textures() != null) out.add(m.textures().getAbsolutePath());
+            for (File f : m.optionFolders())
+                if (new File(f, "textures").isDirectory()) out.add(new File(f, "textures").getAbsolutePath());
+        }
         return out;
     }
 
@@ -367,6 +591,49 @@ public final class Mods {
         }
         m.dir = dest;
         return m;
+    }
+
+    // Unpacks a Dolphin texture pack's textures into dest/ (replacing what is
+    // there), for a mod's own HD textures (Super Mario Eclipse's hd/textures).
+    // Returns how many there were.
+    public static int importTextures(Context ctx, Uri uri, File dest, Progress progress) throws IOException {
+        File tmp = new File(dest.getParentFile(), dest.getName() + ".tmp");
+        deleteTree(tmp);
+        tmp.mkdirs();
+        int count = 0;
+        long done = 0;
+        try (InputStream in = ctx.getContentResolver().openInputStream(uri); ZipInputStream zip = new ZipInputStream(in)) {
+            byte[] buf = new byte[1 << 16];
+            for (ZipEntry e; (e = zip.getNextEntry()) != null; ) {
+                if (progress.cancelled()) throw new IOException(L.t("Cancelled."));
+                String name = e.getName().replace('\\', '/');
+                if (e.isDirectory() || !isTexture(name)) continue;
+                File out = new File(tmp, cleanPath(name));
+                if (!out.getCanonicalPath().startsWith(tmp.getCanonicalPath() + File.separator)) continue;
+                out.getParentFile().mkdirs();
+                try (OutputStream o = new FileOutputStream(out)) {
+                    for (int n; (n = zip.read(buf)) > 0; ) {
+                        o.write(buf, 0, n);
+                        done += n;
+                        progress.step(done);
+                    }
+                }
+                count++;
+            }
+        } catch (IOException | IllegalArgumentException e) {
+            deleteTree(tmp);
+            throw e instanceof IOException ? (IOException) e : new IOException(L.t("This is not a .zip file."));
+        }
+        if (count == 0) {
+            deleteTree(tmp);
+            throw new IOException(L.t("There are no Dolphin textures (tex1_….png or .dds) in this file."));
+        }
+        deleteTree(dest);
+        if (!tmp.renameTo(dest)) {
+            deleteTree(tmp);
+            throw new IOException(L.t("Cannot move the textures into their folder."));
+        }
+        return count;
     }
 
     // a Dolphin texture's file name: tex1_….png or .dds

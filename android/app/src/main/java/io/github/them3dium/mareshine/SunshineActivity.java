@@ -85,6 +85,7 @@ public class SunshineActivity extends SDLActivity {
             }
             String mods = Mods.discFolders(this), own = Settings.read(this).getOrDefault("mod", "").trim();
             if (!mods.isEmpty()) nativeSetenv("SMS_MOD", own.isEmpty() ? mods : own + ";" + mods);
+            nativeSetenv("SMS_MOD_OPTIONS", Mods.optionsForGame(this));
             // the cutscene frames the app ships (frames added by an update too)
             String frame = Settings.read(this).getOrDefault("SMS_CUTSCENE_FRAME", "0");
             if (!frame.equals("0") && !frame.isEmpty()) CutscenePack.installFrames(this);

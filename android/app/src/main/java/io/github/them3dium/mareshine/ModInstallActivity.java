@@ -17,7 +17,6 @@ import android.widget.TextView;
 
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
-import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -27,9 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.List;
 import java.util.Locale;
 
 import static io.github.them3dium.mareshine.L.t;
@@ -146,9 +143,10 @@ public class ModInstallActivity extends AppActivity {
     // --- the job ------------------------------------------------------------------
 
     private void run(Mods.Release r, Uri picked) {
-        File mods = Mods.dir(this), dl = new File(mods, ".downloads"), dest = new File(mods, r.id);
+        // Super Mario Eclipse's languages side by side in its folder (EclipseMod)
+        File mods = Mods.dir(this), dl = new File(mods, ".downloads"), dest = EclipseMod.dir(this);
         File archive = new File(dl, r.file), part = new File(dl, r.file + ".part");
-        File stage = new File(mods, r.id + ".tmp");
+        File stage = new File(mods, "." + r.id + ".tmp");
         try {
             // the player's disc: the one the patch is made for
             File iso = LauncherActivity.findIsoFile(this);
@@ -226,39 +224,23 @@ public class ModInstallActivity extends AppActivity {
                 return;
             }
 
-            // in place, described, switched on
-            JSONObject o = new JSONObject();
-            o.put("id", r.id).put("name", r.name).put("version", r.version).put("author", r.author)
-                .put("description", r.description).put("image", r.image).put("code", r.code).put("page", r.page);
-            if (!r.base.isEmpty()) o.put("language", r.language).put("translation", r.credits);
-            try (OutputStream out = new FileOutputStream(new File(stage, "mod.json"))) {
-                out.write(o.toString(2).getBytes(StandardCharsets.UTF_8));
-            }
+            // in place, described, picked and switched on
             status(t("Installing…"));
-            TexturePackActivity.remove(dest);
-            if (!stage.renameTo(dest)) throw new IOException("cannot move the mod to " + dest);
+            dest.mkdirs();
+            File target = new File(dest, r.image);
+            target.delete();
+            if (!image.renameTo(target)) throw new IOException("cannot move the image to " + dest);
+            TexturePackActivity.remove(stage);
             if (picked == null) archive.delete();
-            switchOn(r.id);
+            EclipseMod.installed(this, r);
             String msg = t("%s is installed and switched on. Play starts it; switch it off in Mods to play Super Mario "
                 + "Sunshine again.", r.name);
-            if (!r.base.isEmpty() && new File(mods, r.base).isDirectory())
-                msg += "\n\n" + t("The version without the translation is still installed: delete it in Mods to free "
-                    + "%s. The downloaded file can be deleted too.", gb(r.imageSize));
+            if (picked != null) msg += "\n\n" + t("The downloaded file is not needed any more and can be deleted.");
             done(true, msg);
         } catch (Exception e) {
             TexturePackActivity.remove(stage);
             done(false, t(mCancel ? "Cancelled: %s" : "Failed: %s", e.getMessage()));
         }
-    }
-
-    // on, and the other mods with their own disc image off (one disc is played)
-    private void switchOn(String id) {
-        List<Mods.Mod> all = Mods.list(this);
-        for (Mods.Mod m : all) {
-            if (m.id.equals(id)) m.enabled = true;
-            else if (!m.image.isEmpty()) m.enabled = false;
-        }
-        Mods.save(this, all);
     }
 
     private void download(Mods.Release r, File part, File archive) throws IOException {

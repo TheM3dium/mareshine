@@ -216,6 +216,17 @@ public class AppActivity extends Activity {
         }
         String[] all = java.util.Arrays.copyOf(labels, labels.length + 1);
         all[labels.length] = L.t("Cancel");
+        // from five entries on they scroll, about four and a half in view
+        android.widget.LinearLayout entries = panel;
+        if (all.length > 5) {
+            android.widget.ScrollView sv = new android.widget.ScrollView(this);
+            entries = new android.widget.LinearLayout(this);
+            entries.setOrientation(android.widget.LinearLayout.VERTICAL);
+            sv.addView(entries);
+            sv.setScrollbarFadingEnabled(false);
+            panel.addView(sv, new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, Math.round(4.5f * 48 * d)));
+        }
         View first = null;
         for (int i = 0; i < all.length; i++) {
             final Runnable action = i < actions.length ? actions[i] : null;
@@ -233,7 +244,7 @@ public class AppActivity extends Activity {
                 dlg.dismiss();
                 if (action != null) action.run();
             });
-            panel.addView(item, new android.widget.LinearLayout.LayoutParams(
+            entries.addView(item, new android.widget.LinearLayout.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
             if (first == null) first = item;
         }

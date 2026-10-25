@@ -27,7 +27,7 @@ import static io.github.them3dium.mareshine.L.t;
 public class ModsActivity extends AppActivity {
     public static final String EXTRA_IN_GAME = "in_game";
     public static final int RESULT_RESTART = RESULT_FIRST_USER;
-    private static final int REQUEST_IMPORT = 1, REQUEST_TRANSLATION = 2;
+    private static final int REQUEST_IMPORT = 1, REQUEST_PAGE = 3;
     private static final int TEXT = 0xFFF4F8FF, DIM = 0xFF8FB4D4, GOLD = 0xFFFFC93C, WARN = 0xFFFFA25C;
 
     private List<Mods.Mod> mMods = new ArrayList<>();
@@ -46,6 +46,7 @@ public class ModsActivity extends AppActivity {
         super.onCreate(savedInstanceState);
         L.init(this);
         mInGame = getIntent().getBooleanExtra(EXTRA_IN_GAME, false);
+        EclipseMod.migrate(this);  // its languages as mods of their own before
         buildUi();
         reload();
     }
@@ -78,13 +79,14 @@ public class ModsActivity extends AppActivity {
     }
 
     private void buildUi() {
-        // the app's panel: title and ✕ on top, the mods scroll, Import / Close below
+        // the app's panel: title, the two tabs and ✕ on top, the mods scroll,
+        // paging and the buttons below
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundResource(R.drawable.dl_scrim_strong);
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackgroundResource(R.drawable.dl_panel);
-        panel.setPadding(dp(28), dp(14), dp(28), dp(14));
+        panel.setPadding(dp(28), dp(10), dp(28), dp(12));
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         plp.setMargins(dp(16), dp(12), dp(16), dp(12));
@@ -93,20 +95,32 @@ public class ModsActivity extends AppActivity {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.addView(text(t("MODS"), GOLD, 24, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        head.addView(text(t("MODS"), GOLD, 24, true));
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setGravity(Gravity.CENTER);
+        for (int i = 0; i < 2; i++) {
+            final int tab = i;
+            TextView tv = text(t(i == 0 ? "ACTIVE MODS" : "SEARCH MODS"), TEXT, 18, true);
+            tv.setPadding(dp(18), dp(8), dp(18), dp(8));
+            tv.setBackgroundResource(R.drawable.dl_tab);
+            tv.setFocusable(true);
+            tv.setOnClickListener(v -> showTab(tab));
+            tabs.addView(tv);
+            mTabs[i] = tv;
+        }
+        head.addView(tabs, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         TextView close = closeButton();
         close.setOnClickListener(v -> leave());
         head.addView(close);
         panel.addView(head);
 
-        TextView hint = text(t("Mods change the game's files and textures. They load in this order, top first: a mod "
-            + "lower down wins over one above it. Tap a mod to switch it on or off, move it or delete it. "
-            + "Changes apply when the game starts."), DIM, 15, false);
-        hint.setPadding(0, dp(4), 0, dp(8));
-        panel.addView(hint);
+        mHint = text("", DIM, 14, false);
+        mHint.setPadding(0, dp(2), 0, dp(6));
+        panel.addView(mHint);
         // several texture packs at once (Settings' own and mods'): a warning
-        mTexWarn = text("", WARN, 15, true);
-        mTexWarn.setPadding(0, 0, 0, dp(8));
+        mTexWarn = text("", WARN, 14, true);
+        mTexWarn.setPadding(0, 0, 0, dp(6));
         mTexWarn.setVisibility(View.GONE);
         panel.addView(mTexWarn);
 
@@ -125,18 +139,31 @@ public class ModsActivity extends AppActivity {
         mBar.setVisibility(View.GONE);
         panel.addView(mBar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(12)));
 
+        // paging at the left, the buttons at the right
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setGravity(Gravity.END);
-        buttons.setPadding(0, dp(10), 0, 0);
+        buttons.setGravity(Gravity.CENTER_VERTICAL);
+        buttons.setPadding(0, dp(8), 0, 0);
+        mPrev = button("‹ " + t("Back"), false);
+        mPageText = text("", DIM, 15, true);
+        mPageText.setPadding(dp(8), 0, dp(8), 0);
+        mNext = button(t("Next") + " ›", false);
+        mPerPage = button("", false);
+        mUntested = button("", false);
         mImport = button("Import mod", true);
         mClose = button("Close", false);
-        for (Button b : new Button[] {mImport, mClose}) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.setMargins(dp(6), 0, dp(6), 0);
-            buttons.addView(b, lp);
-        }
+        for (View b : new View[] {mPrev, mPageText, mNext}) buttons.addView(b, buttonParams());
+        buttons.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        for (View b : new View[] {mPerPage, mUntested, mImport, mClose}) buttons.addView(b, buttonParams());
         panel.addView(buttons);
+        mPrev.setOnClickListener(v -> page(-1));
+        mNext.setOnClickListener(v -> page(1));
+        mPerPage.setOnClickListener(v -> perPage());
+        mUntested.setOnClickListener(v -> {
+            mShowUntested = !mShowUntested;
+            mPage = 0;
+            showList();
+        });
         mImport.setOnClickListener(v -> {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -147,12 +174,19 @@ public class ModsActivity extends AppActivity {
         setContentView(root);
     }
 
+    private LinearLayout.LayoutParams buttonParams() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        return lp;
+    }
+
     private void reload() {
         mMods = Mods.list(this);
         showList();
     }
 
-    // back from installing one (ModInstallActivity)
+    // back from a mod's page or from installing one (ModInstallActivity)
     @Override
     protected void onResume() {
         super.onResume();
@@ -163,6 +197,55 @@ public class ModsActivity extends AppActivity {
         }
     }
 
+    // --- the tabs and their pages --------------------------------------------------
+
+    private static final int[] PER_PAGE = {5, 8, 10, 15};
+    private static final String PER_PAGE_KEY = "SMS_MODS_PER_PAGE";
+    private final TextView[] mTabs = new TextView[2];
+    private int mTab, mPage;
+    private boolean mShowUntested;
+    private TextView mHint, mPageText;
+    private Button mPrev, mNext, mPerPage, mUntested;
+
+    private int perPageCount() {
+        try {
+            int n = Integer.parseInt(Settings.read(this).getOrDefault(PER_PAGE_KEY, "8"));
+            for (int p : PER_PAGE) if (p == n) return n;
+        } catch (NumberFormatException ignored) {
+        }
+        return 8;
+    }
+
+    private void perPage() {
+        int cur = perPageCount(), next = PER_PAGE[0];
+        for (int i = 0; i < PER_PAGE.length; i++) if (PER_PAGE[i] == cur) next = PER_PAGE[(i + 1) % PER_PAGE.length];
+        java.util.Map<String, String> s = Settings.read(this);
+        s.put(PER_PAGE_KEY, String.valueOf(next));
+        Settings.write(this, s);
+        mPage = 0;
+        showList();
+        mPerPage.requestFocus();
+    }
+
+    private void showTab(int tab) {
+        mTab = tab;
+        mPage = 0;
+        showList();
+    }
+
+    private void page(int dir) {
+        mPage += dir;
+        showList();
+        (dir < 0 ? mPrev : mNext).requestFocus();
+    }
+
+    // the catalog's mods for the Search tab: tested ones, or all
+    private List<Mods.Release> catalog() {
+        List<Mods.Release> out = new ArrayList<>();
+        for (Mods.Release r : Mods.catalog(this)) if (r.tested || mShowUntested) out.add(r);
+        return out;
+    }
+
     private void showList() {
         int packs = Mods.textureFolders(this).size();
         if (!"0".equals(Settings.read(this).getOrDefault("SMS_HD_TEXTURES", "1"))) {
@@ -170,185 +253,212 @@ public class ModsActivity extends AppActivity {
             if (own != null && own.length > 0) packs++;
         }
         mTexWarn.setText("⚠  " + t(SettingsActivity.TEXTURE_MIX));
-        mTexWarn.setVisibility(packs > 1 ? View.VISIBLE : View.GONE);
+        mTexWarn.setVisibility(packs > 1 && mTab == 0 ? View.VISIBLE : View.GONE);
+        for (int i = 0; i < 2; i++) mTabs[i].setTextColor(i == mTab ? GOLD : DIM);
+        mHint.setText(mTab == 0
+            ? t("Tap a mod for its page, hold it to switch it on or off, move or delete it. They load top first: a "
+                + "mod lower down wins over one above it. Changes apply when the game starts.")
+            : t("Mods made from your own disc: tap one to install it."));
         mList.removeAllViews();
         mRows.clear();
-        if (mMods.isEmpty()) {
-            TextView none = text(t("No mods installed yet. Import a mod package (.zip with a mod.json) with the button "
-                + "below, or put a mod's folder into mods/ in your data folder."), TEXT, 16, false);
-            none.setPadding(0, dp(16), 0, dp(16));
-            mList.addView(none);
+        int per = perPageCount();
+        int count = mTab == 0 ? mMods.size() : catalog().size();
+        int pages = Math.max(1, (count + per - 1) / per);
+        mPage = Math.max(0, Math.min(mPage, pages - 1));
+        int from = mPage * per, to = Math.min(count, from + per);
+        if (mTab == 0) {
+            if (mMods.isEmpty()) {
+                TextView none = text(t("No mods installed yet. Find one in Search Mods, import a mod package (.zip) "
+                    + "with the button below, or put a mod's folder into mods/ in your data folder."), TEXT, 16, false);
+                none.setPadding(0, dp(16), 0, dp(16));
+                mList.addView(none);
+            }
+            for (int i = from; i < to; i++) addModRow(i);
+        } else {
+            List<Mods.Release> list = catalog();
+            if (list.isEmpty()) {
+                TextView none = text(t("Nothing to find here yet."), TEXT, 16, false);
+                none.setPadding(0, dp(16), 0, dp(16));
+                mList.addView(none);
+            }
+            for (int i = from; i < to; i++) addReleaseRow(list.get(i));
         }
-        for (int i = 0; i < mMods.size(); i++) {
-            final Mods.Mod m = mMods.get(i);
-            final int index = i;
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setBackgroundResource(R.drawable.dl_row);
-            row.setPadding(dp(18), dp(10), dp(18), dp(10));
-            row.setFocusable(true);
-            row.setClickable(true);
-            LinearLayout info = new LinearLayout(this);
-            info.setOrientation(LinearLayout.VERTICAL);
-            String title = (i + 1) + ".  " + m.name + (m.version.isEmpty() ? "" : "  " + m.version);
-            info.addView(text(title, TEXT, 18, true));
-            StringBuilder sub = new StringBuilder();
-            if (!m.author.isEmpty()) sub.append(t("by %s", m.author));
-            if (!m.description.isEmpty()) sub.append(sub.length() > 0 ? "  ·  " : "").append(m.description);
-            if (m.image() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("its own game"));
-            if (m.files() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("game files"));
-            if (m.textures() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("textures"));
-            if (sub.length() > 0) info.addView(text(sub.toString(), DIM, 14, false));
-            List<String> missing = m.enabled ? Mods.missing(m, mMods) : new ArrayList<>();
-            if (!missing.isEmpty())
-                info.addView(text("⚠  " + t("Needs %s, switched on and above it.", String.join(", ", missing)), WARN, 14, true));
-            row.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            TextView state = text(t(m.enabled ? "On" : "Off"), m.enabled ? GOLD : DIM, 18, true);
-            state.setPadding(dp(12), 0, 0, 0);
-            row.addView(state);
-            row.setOnClickListener(v -> actions(index));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.topMargin = dp(6);
-            mList.addView(row, lp);
-            mRows.add(row);
-        }
-        // mods to download, made from the player's own disc
-        List<Mods.Release> more = Mods.available(this);
-        if (!more.isEmpty()) {
-            TextView head = text(t("TO DOWNLOAD"), GOLD, 16, true);
-            head.setPadding(0, dp(18), 0, dp(2));
-            mList.addView(head);
-        }
-        for (Mods.Release r : more) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setBackgroundResource(R.drawable.dl_row);
-            row.setPadding(dp(18), dp(10), dp(18), dp(10));
-            row.setFocusable(true);
-            row.setClickable(true);
-            LinearLayout info = new LinearLayout(this);
-            info.setOrientation(LinearLayout.VERTICAL);
-            info.addView(text(r.name + "  " + r.version, TEXT, 18, true));
-            info.addView(text(t("by %s", r.author) + "  ·  " + t(r.description), DIM, 14, false));
-            row.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            TextView get = text("⬇  " + t("%.1f GB", r.size / 1e9), GOLD, 17, true);
-            get.setPadding(dp(12), 0, 0, 0);
-            row.addView(get);
-            row.setOnClickListener(v -> offer(r));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.topMargin = dp(6);
-            mList.addView(row, lp);
-            mRows.add(row);
-        }
+        boolean paged = pages > 1;
+        mPrev.setVisibility(paged ? View.VISIBLE : View.GONE);
+        mNext.setVisibility(paged ? View.VISIBLE : View.GONE);
+        mPageText.setVisibility(paged ? View.VISIBLE : View.GONE);
+        mPrev.setEnabled(mPage > 0);
+        mPrev.setAlpha(mPage > 0 ? 1f : 0.4f);
+        mNext.setEnabled(mPage < pages - 1);
+        mNext.setAlpha(mPage < pages - 1 ? 1f : 0.4f);
+        mPageText.setText((mPage + 1) + " / " + pages);
+        mPerPage.setText(t("Per page: %d", per));
+        mUntested.setText(t(mShowUntested ? "Hide untested mods" : "Show untested mods"));
+        mUntested.setVisibility(mTab == 1 ? View.VISIBLE : View.GONE);
+        mImport.setVisibility(mTab == 0 ? View.VISIBLE : View.GONE);
     }
 
+    // a row: the mod's disc, its name and suns, and at the right its state
+    private LinearLayout row(String icon, String title, String sub, float rating, String state,
+                             int stateColor) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setBackgroundResource(R.drawable.dl_row);
+        row.setPadding(dp(12), dp(6), dp(18), dp(6));
+        row.setFocusable(true);
+        row.setClickable(true);
+        row.setLongClickable(true);
+        ModViews.Disc disc = new ModViews.Disc(this);
+        disc.set(null, title);
+        ModViews.load(this, icon, dp(96), b -> disc.set(b, title));
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(52), dp(52));
+        dlp.rightMargin = dp(14);
+        row.addView(disc, dlp);
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.addView(text(title, TEXT, 18, true));
+        if (rating >= 0) {
+            ModViews.Suns suns = new ModViews.Suns(this);
+            suns.setRating(rating);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(16));
+            slp.leftMargin = dp(12);
+            line.addView(suns, slp);
+        }
+        info.addView(line);
+        if (!sub.isEmpty()) {
+            TextView s = text(sub, DIM, 14, false);
+            s.setMaxLines(2);
+            s.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            info.addView(s);
+        }
+        row.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView st = text(state, stateColor, 18, true);
+        st.setPadding(dp(12), 0, 0, 0);
+        row.addView(st);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(6);
+        mList.addView(row, lp);
+        mRows.add(row);
+        return row;
+    }
+
+    private void addModRow(int i) {
+        final Mods.Mod m = mMods.get(i);
+        StringBuilder sub = new StringBuilder();
+        if (!m.author.isEmpty()) sub.append(t("by %s", m.author));
+        if (m.image() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("its own game"));
+        if (m.files() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("game files"));
+        if (m.textures() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("textures"));
+        List<String> missing = m.enabled ? Mods.missing(m, mMods) : new ArrayList<>();
+        if (!missing.isEmpty())
+            sub.append("\n⚠  ").append(t("Needs %s, switched on and above it.", String.join(", ", missing)));
+        String title = (i + 1) + ".  " + m.name + (m.version.isEmpty() ? "" : "  " + m.version);
+        LinearLayout row = row(m.picture(m.icon), title, sub.toString(), m.rating,
+            t(m.enabled ? "On" : "Off"), m.enabled ? GOLD : DIM);
+        row.setOnClickListener(v -> ModPageActivity.start(this, m.id, "", REQUEST_PAGE));
+        row.setOnLongClickListener(v -> {
+            actions(i);
+            return true;
+        });
+    }
+
+    private void addReleaseRow(Mods.Release r) {
+        boolean have = Mods.installed(this, r);
+        String sub = t("by %s", r.author) + "  ·  " + t(r.description) + (r.tested ? "" : "  ·  " + t("untested"));
+        Mods.Mod m = have ? Mods.find(this, r.id) : null;
+        LinearLayout row = row(m != null ? m.picture(m.icon) : r.icon, r.name + "  " + r.version, sub, r.rating,
+            have ? t("Installed") : "⬇  " + t("%.1f GB", r.size / 1e9), have ? DIM : GOLD);
+        row.setOnClickListener(v -> {
+            if (have) {
+                ModPageActivity.start(this, r.id, "", REQUEST_PAGE);
+            } else {
+                offer(r);
+            }
+        });
+    }
+
+    // Super Mario Eclipse asks for its language first (ModFlows)
     private void offer(Mods.Release r) {
-        List<Mods.Release> tr = Mods.translations(r.id);
+        if (r.id.equals(EclipseMod.ID)) {
+            ModFlows.languages(this);
+            return;
+        }
         choice(t("Install %s?", r.name),
             t("%s is downloaded (%.1f GB) and made from your own Super Mario Sunshine disc image (North American, "
                 + "GMSE01): the download holds only the changes, nothing of the game. It then needs about %.1f GB "
                 + "and is switched on: Play starts it, and switching it off here plays Super Mario Sunshine again.",
                 r.name, r.size / 1e9, r.imageSize / 1e9),
-            tr.isEmpty() ? new String[] {t("Install")} : new String[] {t("Install"), t("Install a translation…")},
-            new Runnable[] {() -> ModInstallActivity.start(this, r), () -> translations(r.name, tr)});
+            new String[] {t("Install")}, new Runnable[] {() -> ModInstallActivity.start(this, r)});
     }
 
-    // Tapping a mod: on/off, up, down, delete, and its translations
+    // Holding a mod: on/off, its toggles and choices, up, down, delete
     private void actions(int i) {
         final Mods.Mod m = mMods.get(i);
-        List<Mods.Release> tr = Mods.translations(m.id);
-        List<String> labels = new ArrayList<>(java.util.Arrays.asList(t(m.enabled ? "Switch off" : "Switch on"),
-            t("Move up"), t("Move down"), t("Delete")));
-        Runnable[] base = {
-            () -> {
-                m.enabled = !m.enabled;
-                // one game is played: a mod with its own disc image switches the others off
-                if (m.enabled && m.image() != null)
-                    for (Mods.Mod o : mMods) if (o != m && o.image() != null) o.enabled = false;
-                changed(i);
-            },
-            () -> move(i, -1),
-            () -> move(i, +1),
-            () -> confirmDelete(i),
-        };
-        List<Runnable> acts = new ArrayList<>(java.util.Arrays.asList(base));
-        if (!tr.isEmpty()) {
-            labels.add(t("Install a translation…"));
-            acts.add(() -> translations(m.name, tr));
-        }
-        String page = Mods.texturePage(m.id);
-        if (page != null) {
-            labels.add(t("HD textures…"));
-            acts.add(() -> textures(m.name, page));
-        }
-        boolean[] dim = {false, i == 0, i == mMods.size() - 1, false};
-        choice(m.name, null, labels.toArray(new String[0]), acts.toArray(new Runnable[0]), dim);
-    }
-
-    // A mod's HD texture pack from its makers' page: downloaded there, then
-    // imported like a mod (Mods.importZip takes Dolphin texture packs)
-    private void textures(String name, String page) {
-        choice(t("HD textures"), t("An HD texture pack for %s is made by its own team. Download the texture pack's "
-                + ".zip from its page, then import it here: it becomes a mod of its own, switched on. The packs are "
-                + "large (several GB, and unpacked about twice that), and big textures need a lot of the device's "
-                + "memory.", name),
-            new String[] {t("Open download page"), t("Import downloaded file")},
-            new Runnable[] {() -> openPage(page), () -> mImport.performClick()});
-    }
-
-    private void openPage(String url) {
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-        } catch (android.content.ActivityNotFoundException e) {
-            choice(t("No browser"), url, new String[] {t("OK")}, new Runnable[] {null});
-        }
-    }
-
-    // A mod's translations come from their own pages: the player downloads one
-    // there and picks the file, and it is made from their disc like the mod
-    // (ModInstallActivity).
-    private void translations(String name, List<Mods.Release> tr) {
-        StringBuilder msg = new StringBuilder(t("Translations of %s are made by their own teams. Download one from its "
-            + "page (the .7z file, do not unpack it), then pick the downloaded file here. It is made from your own disc "
-            + "like %s and needs about %.1f GB.", name, name, tr.get(0).imageSize / 1e9));
-        for (Mods.Release r : tr) msg.append("\n\n").append(r.language).append(": ").append(t("by %s", r.credits))
-            .append(", ").append(r.version);
         List<String> labels = new ArrayList<>();
         List<Runnable> acts = new ArrayList<>();
-        for (Mods.Release r : tr) {
-            labels.add(tr.size() == 1 ? t("Open download page") : t("Download page: %s", r.language));
-            acts.add(() -> openPage(r.page));
-        }
-        labels.add(t("Pick downloaded file"));
+        List<Boolean> dim = new ArrayList<>();
+        labels.add(t(m.enabled ? "Switch off" : "Switch on"));
         acts.add(() -> {
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("*/*");
-            startActivityForResult(i, REQUEST_TRANSLATION);
+            Mods.setEnabled(this, m.id, !m.enabled);
+            mMods = Mods.list(this);
+            changed(i);
         });
-        choice(t("Install a translation"), msg.toString(), labels.toArray(new String[0]), acts.toArray(new Runnable[0]));
+        dim.add(false);
+        for (Mods.Option o : m.options) {
+            if (!o.isToggle() && !o.isChoice()) continue;
+            String value = o.isToggle() ? t(m.value(o).equals("1") ? "On" : "Off")
+                : o.value(m.value(o)) != null ? o.value(m.value(o)).label : m.value(o);
+            labels.add(o.label + ": " + value);
+            acts.add(() -> option(m, o, i));
+            dim.add(false);
+        }
+        labels.add(t("Move up"));
+        acts.add(() -> move(i, -1));
+        dim.add(i == 0);
+        labels.add(t("Move down"));
+        acts.add(() -> move(i, +1));
+        dim.add(i == mMods.size() - 1);
+        labels.add(t("Delete"));
+        acts.add(() -> confirmDelete(i));
+        dim.add(false);
+        boolean[] d = new boolean[dim.size()];
+        for (int k = 0; k < d.length; k++) d[k] = dim.get(k);
+        choice(m.name, null, labels.toArray(new String[0]), acts.toArray(new Runnable[0]), d);
     }
 
-    // the picked file: which translation it is, by its size
-    private void installTranslation(Uri uri) {
-        long size = -1;
-        try (android.database.Cursor c = getContentResolver().query(uri,
-                new String[] {android.provider.OpenableColumns.SIZE}, null, null, null)) {
-            if (c != null && c.moveToFirst() && !c.isNull(0)) size = c.getLong(0);
-        } catch (Exception ignored) {
-        }
-        Mods.Release r = Mods.translationOfSize(size);
-        if (r == null) {
-            choice(t("Not a known translation"), t("This file is none of the translations listed. Pick the .7z file "
-                + "as downloaded from the translation's page, not unpacked."), new String[] {t("OK")},
-                new Runnable[] {null});
+    // a toggle or choice from the quick menu (Eclipse's as on its page)
+    private void option(Mods.Mod m, Mods.Option o, int i) {
+        if (m.id.equals(EclipseMod.ID) && o.id.equals(EclipseMod.LANGUAGE)) {
+            ModFlows.languages(this);
             return;
         }
-        ModInstallActivity.start(this, r, uri);
+        if (m.id.equals(EclipseMod.ID) && o.id.equals(EclipseMod.HD) && !ModFlows.texturesDir(this).isDirectory()) {
+            ModFlows.textures(this);
+            return;
+        }
+        if (o.isToggle()) {
+            Mods.setOption(this, m, o, m.value(o).equals("1") ? "0" : "1");
+            mMods = Mods.list(this);
+            changed(i);
+            return;
+        }
+        String[] labels = new String[o.values.size()];
+        Runnable[] acts = new Runnable[labels.length];
+        for (int k = 0; k < labels.length; k++) {
+            Mods.Value v = o.values.get(k);
+            labels[k] = (v.id.equals(m.value(o)) ? "✓  " : "") + v.label;
+            acts[k] = () -> {
+                Mods.setOption(this, m, o, v.id);
+                mMods = Mods.list(this);
+                changed(i);
+            };
+        }
+        choice(o.label, null, labels, acts);
     }
 
     private void move(int i, int dir) {
@@ -362,8 +472,11 @@ public class ModsActivity extends AppActivity {
     private void changed(int focus) {
         mChanged = true;
         Mods.save(this, mMods);
+        int per = perPageCount();
+        if (focus >= 0) mPage = focus / per;
         showList();
-        if (focus >= 0 && focus < mRows.size()) mRows.get(focus).requestFocus();
+        int at = focus - mPage * per;
+        if (at >= 0 && at < mRows.size()) mRows.get(at).requestFocus();
     }
 
     private void confirmDelete(int i) {
@@ -383,8 +496,53 @@ public class ModsActivity extends AppActivity {
         super.onActivityResult(request, result, data);
         if (request == REQUEST_IMPORT && result == RESULT_OK && data != null && data.getData() != null)
             importMod(data.getData());
-        if (request == REQUEST_TRANSLATION && result == RESULT_OK && data != null && data.getData() != null)
-            installTranslation(data.getData());
+        if (request == ModFlows.PICK_TRANSLATION && result == RESULT_OK && data != null && data.getData() != null)
+            ModFlows.picked(this, data.getData());
+        if (request == ModFlows.PICK_TEXTURES && result == RESULT_OK && data != null && data.getData() != null)
+            importEclipseTextures(data.getData());
+        if (request == REQUEST_PAGE && result == RESULT_OK) mChanged = true;
+    }
+
+    // Super Mario Eclipse's HD texture pack (from its quick menu) into its hd/textures
+    private void importEclipseTextures(Uri uri) {
+        mBusy = true;
+        mCancel = false;
+        mStatus.setVisibility(View.VISIBLE);
+        mStatus.setText(t("Importing…"));
+        mBar.setVisibility(View.VISIBLE);
+        new Thread(() -> {
+            String error = null;
+            try {
+                ModFlows.texturesDir(this).getParentFile().mkdirs();
+                Mods.importTextures(this, uri, ModFlows.texturesDir(this), new Mods.Progress() {
+                    long last;
+                    @Override public void step(long bytes) {
+                        long now = System.currentTimeMillis();
+                        if (now - last < 250) return;
+                        last = now;
+                        runOnUiThread(() -> mStatus.setText(t("Importing… %.0f MB", bytes / 1e6)));
+                    }
+                    @Override public boolean cancelled() { return mCancel; }
+                });
+                Mods.Mod m = Mods.find(this, EclipseMod.ID);
+                if (m != null)
+                    for (Mods.Option o : m.options) if (o.id.equals(EclipseMod.HD)) Mods.setOption(this, m, o, "1");
+            } catch (Exception e) {
+                error = e.getMessage() != null ? e.getMessage() : e.toString();
+            }
+            final String err = error;
+            runOnUiThread(() -> {
+                mBusy = false;
+                mBar.setVisibility(View.GONE);
+                mStatus.setVisibility(View.GONE);
+                if (err != null) {
+                    choice(t("Textures not imported"), err, new String[] {t("OK")}, new Runnable[] {null});
+                    return;
+                }
+                mChanged = true;
+                reload();
+            });
+        }, "mod-textures").start();
     }
 
     private void importMod(Uri uri) {
@@ -468,9 +626,19 @@ public class ModsActivity extends AppActivity {
     @Override
     protected List<View> padItems() {
         List<View> items = new ArrayList<>(mRows);
-        items.add(mImport);
-        items.add(mClose);
+        for (View b : new View[] {mPrev, mNext, mPerPage, mUntested, mImport, mClose})
+            if (b.getVisibility() == View.VISIBLE && b.isEnabled()) items.add(b);
         return items;
+    }
+
+    // L/R and the D-pad's left/right switch between the tabs
+    @Override
+    protected boolean onPadTab(int dir, boolean shoulder) {
+        if (!shoulder && !mRows.contains(getCurrentFocus())) return false;  // along the buttons
+        int tab = Math.max(0, Math.min(1, mTab + dir));
+        if (tab != mTab) showTab(tab);
+        if (!mRows.isEmpty()) mRows.get(0).requestFocus();
+        return true;
     }
 
     @Override

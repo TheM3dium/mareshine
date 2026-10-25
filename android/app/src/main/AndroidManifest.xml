@@ -130,6 +130,13 @@
             android:exported="false"
             android:label="Mods">
         </activity>
+        <activity
+            android:name="io.github.them3dium.mareshine.ModPageActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="Mods">
+        </activity>
 
         <activity
             android:name="io.github.them3dium.mareshine.LanguagePackActivity"
