@@ -69,7 +69,7 @@ public class IntroActivity extends AppActivity {
     private PictureView mView;
     private LinearLayout mPanel, mButtons;
     private TextView mTitle, mText;
-    private Button mMain;      // the page's Next or Got it, lit now and then
+    private Button mMain;      // the page's orange button, lit now and then
     private final Runnable mPulse = this::pulse;
     private String mStyle, mSlider;          // the choice made (null: as before)
     private String mOrigStyle, mOrigSlider;  // the settings before it (null: not set)
@@ -469,11 +469,11 @@ public class IntroActivity extends AppActivity {
         }
         first.requestFocus();
         mView.invalidate();
-        // easily missed among the moving pictures: after a few seconds the way on
-        // lights up, now and then (not a choice's buttons: they are equal)
+        // easily missed among the moving pictures: after a few seconds the orange
+        // button (Next, Got it, a choice's first) lights up, now and then
         mButtons.removeCallbacks(mPulse);
-        mMain = page.choices.isEmpty() ? first : null;
-        if (mMain != null) mButtons.postDelayed(mPulse, 3000);
+        mMain = first;
+        mButtons.postDelayed(mPulse, 3000);
     }
 
     private static final int MAIN = 0xFFFFA41C, MAIN_LIT = 0xFFFFE45C;
