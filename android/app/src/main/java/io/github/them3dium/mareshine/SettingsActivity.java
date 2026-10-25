@@ -1956,7 +1956,7 @@ public class SettingsActivity extends AppActivity {
         add(new Action("Delete leftover downloads",
             "Downloads that were stopped half way and the pictures of mod pages kept for later. Nothing installed "
                 + "is touched.",
-            () -> mb(Mods.leftovers(ctx())),
+            later(() -> mb(Mods.leftovers(ctx()))),
             () -> {
                 Mods.deleteLeftovers(ctx());
                 showTab(mTab);
@@ -1964,7 +1964,7 @@ public class SettingsActivity extends AppActivity {
         add(new Action("Uninstall all mods",
             "Deletes every mod and its files from mods/ in your data folder, Super Mario Eclipse's games among them. "
                 + "Your saves stay.",
-            () -> mb(Mods.size(Mods.dir(ctx()))),
+            later(() -> mb(Mods.size(Mods.dir(ctx())))),
             () -> choice(t("Uninstall all mods?"), t("Every mod is deleted (%s). This cannot be undone.",
                     mb(Mods.size(Mods.dir(ctx())))),
                 new String[] {t("Uninstall all")}, new Runnable[] {() -> {
@@ -1974,6 +1974,27 @@ public class SettingsActivity extends AppActivity {
                     mSettings.putAll(Settings.read(this));
                     showTab(mTab);
                 }})));
+    }
+
+    // a row's value that takes a while (sizes of many files): "…" until it is
+    // worked out off the main thread, then shown
+    private java.util.function.Supplier<String> later(java.util.function.Supplier<String> slow) {
+        final String[] got = {null};
+        final boolean[] started = {false};
+        return () -> {
+            if (got[0] != null) return got[0];
+            if (!started[0]) {
+                started[0] = true;
+                new Thread(() -> {
+                    String v = slow.get();
+                    runOnUiThread(() -> {
+                        got[0] = v;
+                        refreshValues();
+                    });
+                }, "settings-value").start();
+            }
+            return "…";
+        };
     }
 
     private static String mb(long bytes) {

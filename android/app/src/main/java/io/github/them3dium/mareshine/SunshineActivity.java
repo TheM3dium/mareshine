@@ -88,13 +88,17 @@ public class SunshineActivity extends SDLActivity {
             if (Warp.available(this)) nativeSetenv("SMS_TEST_BUILD", "1");
             // Settings → VIDEO → HD textures (on unless turned off)
             boolean hd = !"0".equals(Settings.read(this).getOrDefault("SMS_HD_TEXTURES", "1"));
+            // and the HD Textures button of a mod's own game (ModLanguage)
+            Mods.Mod image = Mods.activeImage(this);
+            String modHd = image != null ? ModLanguage.hd(image) : ModLanguage.HD_DEFAULT;
+            if (!modHd.equals(ModLanguage.HD_DEFAULT)) hd = false;
             // the enabled mods' textures after the pack's, so a mod's win (Mods)
-            StringBuilder packs = new StringBuilder(hd ? DataDir.texturesDir(this).getAbsolutePath() : "");
+            StringBuilder packs = new StringBuilder(hd ? DataDir.texturesDir(this).getAbsolutePath()
+                : modHd.equals(ModLanguage.HD_OWN) ? ModLanguage.texturesDir(image).getAbsolutePath() : "");
             for (String t : Mods.textureFolders(this)) packs.append(packs.length() > 0 ? ";" : "").append(t);
             nativeSetenv("SMS_TEXTURE_PACKS", packs.length() > 0 ? packs.toString() : "0");
             // and their disc files, after any set by hand in settings.txt's `mod`
             // code built into the app (Super Mario Eclipse's) only for the mod that needs it
-            Mods.Mod image = Mods.activeImage(this);
             // its name: the shared modules and that game mod's run (platform/mods/modhooks.cpp)
             nativeSetenv("SMS_CODE_MODS", image != null && image.code ? image.id : "0");
             // Mareshine's achievements and language packs are Sunshine's: not in
@@ -102,15 +106,16 @@ public class SunshineActivity extends SDLActivity {
             if (image != null) {
                 nativeSetenv("SMS_ACHIEVEMENTS", "0");
                 // a pack only where the mod left the disc's text (ModLanguage; the launcher made the list)
-                String code = ModLanguage.applies(image) ? ModLanguage.packCode(this) : null;
+                String code = ModLanguage.code(this, image);
                 File skip = code != null ? ModLanguage.skipFile(image, code) : null;
                 if (skip != null && skip.isFile()) nativeSetenv("SMS_LANGUAGE_SKIP", skip.getAbsolutePath());
                 else nativeSetenv("SMS_LANGUAGE", "en");
             }
             String mods = Mods.discFolders(this), own = Settings.read(this).getOrDefault("mod", "").trim();
             // the pack's text merged into what the mod changed, over the mod's files
-            if (image != null && ModLanguage.applies(image) && ModLanguage.packCode(this) != null) {
-                File merged = ModLanguage.mergedDir(image, ModLanguage.packCode(this));
+            String packCode = image != null ? ModLanguage.code(this, image) : null;
+            if (packCode != null) {
+                File merged = ModLanguage.mergedDir(image, packCode);
                 if (new File(merged, "files").isDirectory())
                     mods = mods.isEmpty() ? merged.getAbsolutePath() : mods + ";" + merged.getAbsolutePath();
             }

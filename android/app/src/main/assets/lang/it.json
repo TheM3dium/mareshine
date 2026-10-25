@@ -729,5 +729,18 @@
  "Unsaved progress is lost. Save in the game first.": "I progressi non salvati andranno persi. Salva prima nel gioco.",
  "Some changes take effect after RESTART.": "Alcune modifiche hanno effetto dopo RIAVVIA.",
  "Preparing the language for %s…": "Preparazione della lingua per %s…",
- "%1$s: %2$d%% translated. Texts the mod changed stay in English.": "%1$s: %2$d%% tradotto. I testi modificati dalla mod restano in inglese."
+ "%1$s: %2$d%% translated. Texts the mod changed stay in English.": "%1$s: %2$d%% tradotto. I testi modificati dalla mod restano in inglese.",
+ "HD Textures": "Texture HD",
+ "HD textures": "Texture HD",
+ "Mareshine's HD texture pack is not installed or switched off. Install it in Settings → VIDEO → HD textures.": "Il pacchetto di texture HD di Mareshine non è installato o è disattivato. Installalo in IMPOSTAZIONI → VIDEO → Texture HD.",
+ "(default)": "(predefinito)",
+ "Mareshine's HD texture pack is made for Super Mario Sunshine and fits most of %s. Or import another Dolphin texture pack (.zip) for it.": "Il pacchetto di texture HD di Mareshine è fatto per Super Mario Sunshine e si adatta a quasi tutto %s. Oppure importa un altro pacchetto di texture Dolphin (.zip) per esso.",
+ "Default pack": "Pacchetto predefinito",
+ "Own pack": "Pacchetto proprio",
+ "Change the game language?": "Cambiare la lingua del gioco?",
+ "The language is the game language of Settings (GAME → Game language): it changes to %1$s for Super Mario Sunshine and %2$s alike.": "La lingua è la lingua del gioco delle impostazioni (GIOCO → Lingua del gioco): passa a %1$s sia in Super Mario Sunshine sia in %2$s.",
+ "Change": "Cambia",
+ "Delete the own pack": "Elimina il pacchetto proprio",
+ "Import another pack": "Importa un altro pacchetto",
+ "Delete the HD textures": "Elimina le texture HD"
 }

@@ -333,7 +333,7 @@ public class ModPageActivity extends AppActivity {
         if (mOnOff != null && !mImporting && load()) refresh();
     }
 
-    // Super Mario Eclipse's HD textures into hd/textures, then switched on
+    // HD textures into hd/textures (Super Mario Eclipse's, or a mod's own game's), then switched on
     private volatile boolean mImporting, mCancelImport;
 
     private void importTextures(Uri uri) {
@@ -344,7 +344,8 @@ public class ModPageActivity extends AppActivity {
         dlg.setOnDismissListener(d -> {
             if (mImporting) mCancelImport = true;  // closed while it runs: Cancel
         });
-        File dest = ModFlows.texturesDir(this);
+        boolean eclipse = mMod.id.equals(EclipseMod.ID);
+        File dest = eclipse ? ModFlows.texturesDir(this) : ModLanguage.texturesDir(mMod);
         long total = Mods.sizeOf(this, uri);
         new Thread(() -> {
             String error = null;
@@ -376,8 +377,12 @@ public class ModPageActivity extends AppActivity {
                     return;
                 }
                 load();
-                for (Mods.Option o : mMod.allOptions()) if (o.id.equals(EclipseMod.HD)) Mods.setOption(this, mMod, o, "1");
-                EclipseMod.setVersion(this, EclipseMod.HD, ModUpdates.versionIn(Mods.displayName(this, uri)));
+                if (eclipse) {
+                    for (Mods.Option o : mMod.allOptions()) if (o.id.equals(EclipseMod.HD)) Mods.setOption(this, mMod, o, "1");
+                    EclipseMod.setVersion(this, EclipseMod.HD, ModUpdates.versionIn(Mods.displayName(this, uri)));
+                } else {
+                    for (Mods.Option o : mMod.allOptions()) if (o.id.equals(ModLanguage.HD)) Mods.setOption(this, mMod, o, ModLanguage.HD_OWN);
+                }
                 changed();
                 choice(t("HD textures"), t("%d textures imported and switched on.", n), new String[] {t("OK")},
                     new Runnable[] {null});
@@ -527,6 +532,17 @@ public class ModPageActivity extends AppActivity {
                 return;
             }
         }
+        // a mod's own game: its language (Settings' game language) and HD textures (ModLanguage)
+        if (ModLanguage.applies(mMod) && !mMod.image.isEmpty()) {
+            if (o.id.equals(ModLanguage.LANGUAGE) && o.isChoice()) {
+                chooseLanguage(o);
+                return;
+            }
+            if (o.id.equals(ModLanguage.HD) && o.isChoice()) {
+                chooseHd(o);
+                return;
+            }
+        }
         if (o.isToggle()) {
             Mods.setOption(this, mMod, o, mMod.value(o).equals("1") ? "0" : "1");
             changed();
@@ -558,8 +574,59 @@ public class ModPageActivity extends AppActivity {
         choice(o.label, o.text.isEmpty() ? null : o.text, labels, acts);
     }
 
+    // A mod's own game's language is the game language of Settings: picking
+    // another one changes it for Super Mario Sunshine too, after a word.
+    private void chooseLanguage(Mods.Option o) {
+        String cur = mMod.value(o);
+        String[] labels = new String[o.values.size()];
+        Runnable[] acts = new Runnable[o.values.size()];
+        for (int i = 0; i < labels.length; i++) {
+            Mods.Value v = o.values.get(i);
+            labels[i] = (v.id.equals(cur) ? "✓  " : "") + v.label;
+            acts[i] = v.id.equals(cur) ? null : () -> choice(t("Change the game language?"),
+                t("The language is the game language of Settings (GAME → Game language): it changes to %1$s for "
+                    + "Super Mario Sunshine and %2$s alike.", v.label, mMod.name),
+                new String[] {t("Change"), t("Cancel")}, new Runnable[] {() -> {
+                    Settings.put(this, "language", v.id);
+                    changed();
+                }, null});
+        }
+        choice(o.label, null, labels, acts);
+    }
+
+    // its HD textures: off, Mareshine's pack (when installed), or a pack of its own (imported the first time)
+    private void chooseHd(Mods.Option o) {
+        String cur = ModLanguage.hd(mMod);
+        File own = ModLanguage.texturesDir(mMod);
+        String[] labels = new String[o.values.size()];
+        Runnable[] acts = new Runnable[o.values.size()];
+        for (int i = 0; i < labels.length; i++) {
+            Mods.Value v = o.values.get(i);
+            labels[i] = (v.id.equals(cur) ? "✓  " : "") + v.label;
+            if (v.id.equals(ModLanguage.HD_DEFAULT) && !ModFlows.ownPackOn(this))
+                acts[i] = () -> choice(t("HD textures"), t("Mareshine's HD texture pack is not installed or switched "
+                    + "off. Install it in Settings → VIDEO → HD textures."), new String[] {t("OK")}, new Runnable[] {null});
+            else if (v.id.equals(ModLanguage.HD_OWN) && !own.isDirectory())
+                acts[i] = () -> ModFlows.pick(this, ModFlows.PICK_TEXTURES);
+            else acts[i] = () -> {
+                Mods.setOption(this, mMod, o, v.id);
+                changed();
+            };
+        }
+        choice(o.label, o.text.isEmpty() ? null : o.text, labels, acts);
+    }
+
     // a long press: Super Mario Eclipse's languages and HD textures to delete
     private boolean longPress(Mods.Option o) {
+        if (o.id.equals(ModLanguage.HD) && ModLanguage.applies(mMod) && ModLanguage.texturesDir(mMod).isDirectory()) {
+            choice(t("HD textures"), null, new String[] {t("Import another pack"), t("Delete the own pack")},
+                new Runnable[] {() -> ModFlows.pick(this, ModFlows.PICK_TEXTURES), () -> {
+                    TexturePackActivity.remove(ModLanguage.texturesDir(mMod).getParentFile());
+                    Mods.setOption(this, mMod, o, ModLanguage.HD_DEFAULT);
+                    changed();
+                }});
+            return true;
+        }
         if (!mMod.id.equals(EclipseMod.ID)) return false;
         if (o.id.equals(EclipseMod.LANGUAGE)) {
             List<Mods.Release> have = new ArrayList<>();

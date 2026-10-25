@@ -34,11 +34,86 @@ final class ModLanguage {
         return new File(new File(DataDir.languagesDir(ctx), code), "files").isDirectory() ? code : null;
     }
 
+    // The buttons a mod's own game (not Eclipse's) gets on its page, before its
+    // own: Language (English, or an installed pack: the game language set in
+    // Settings, which the button changes) and HD Textures (off, Mareshine's
+    // pack, made for Sunshine, which the mod mostly keeps, or a pack of its own
+    // imported into hd/textures).
+    static final String LANGUAGE = "language", HD = "hd", HD_OFF = "off", HD_DEFAULT = "default", HD_OWN = "own";
+
+    static void addOptions(Context ctx, Mods.Mod m) {
+        if (m.image.isEmpty() || !applies(m)) return;
+        List<Mods.Option> own = new ArrayList<>();
+        List<String> codes = packCodes(ctx);
+        if (!codes.isEmpty()) {
+            Mods.Option o = new Mods.Option();
+            o.type = "choice";
+            o.id = LANGUAGE;
+            o.label = L.t("Language");
+            String cur = packCode(ctx);
+            o.def = cur != null ? cur : "en";
+            m.state.remove(LANGUAGE);  // not the mod's: Settings' game language
+            o.values.add(value("en", "English " + L.t("(default)")));
+            for (String c : codes) o.values.add(value(c, LanguagePackActivity.languageName(c)));
+            own.add(o);
+        }
+        // the toggle it was before
+        String was = m.state.get(HD);
+        if ("1".equals(was)) m.state.put(HD, HD_DEFAULT);
+        if ("0".equals(was)) m.state.put(HD, HD_OFF);
+        Mods.Option hd = new Mods.Option();
+        hd.type = "choice";
+        hd.id = HD;
+        hd.label = L.t("HD Textures");
+        hd.def = HD_DEFAULT;
+        hd.text = L.t("Mareshine's HD texture pack is made for Super Mario Sunshine and fits most of %s. Or import "
+            + "another Dolphin texture pack (.zip) for it.", m.name);
+        hd.values.add(value(HD_OFF, L.t("Off")));
+        hd.values.add(value(HD_DEFAULT, L.t("Default pack")));
+        hd.values.add(value(HD_OWN, L.t("Own pack")));
+        own.add(hd);
+        m.options.addAll(0, own);
+    }
+
+    private static Mods.Value value(String id, String label) {
+        Mods.Value v = new Mods.Value();
+        v.id = id;
+        v.label = label;
+        return v;
+    }
+
+    // the installed language packs
+    static List<String> packCodes(Context ctx) {
+        List<String> out = new ArrayList<>();
+        File[] fs = DataDir.languagesDir(ctx).listFiles();
+        if (fs != null) {
+            Arrays.sort(fs);
+            for (File f : fs)
+                if (!f.getName().startsWith(".") && new File(f, "files").isDirectory()) out.add(f.getName());
+        }
+        return out;
+    }
+
+    // the pack the mod's game is played with: the game language's
+    static String code(Context ctx, Mods.Mod m) { return applies(m) ? packCode(ctx) : null; }
+
+    // its own HD texture pack (HD Textures → Own pack)
+    static File texturesDir(Mods.Mod m) { return new File(new File(m.dir, HD), "textures"); }
+
+    // its HD Textures button: Mareshine's pack (on unless turned off), its own instead when picked and there
+    static String hd(Mods.Mod m) {
+        if (!applies(m)) return HD_DEFAULT;
+        String v = m.state != null ? m.state.get(HD) : null;
+        if (HD_OFF.equals(v) || "0".equals(v)) return HD_OFF;
+        if (HD_OWN.equals(v) && texturesDir(m).isDirectory()) return HD_OWN;
+        return HD_DEFAULT;
+    }
+
     static File skipFile(Mods.Mod m, String code) { return new File(m.dir, "language-" + code + ".skip"); }
 
     // what the cache is valid for: the mod's image, the pack and the player's disc
     private static String key(File image, File pack, File us) {
-        return "v2 " + image.length() + "-" + image.lastModified() + " " + pack.lastModified() + " " + us.length() + "-" + us.lastModified();
+        return "v3 " + image.length() + "-" + image.lastModified() + " " + pack.lastModified() + " " + us.length() + "-" + us.lastModified();
     }
 
     // The pack's texts merged into the mod's own files where the mod changed
@@ -194,6 +269,8 @@ final class ModLanguage {
         if (old.length() < 3 || old.indexOf('\n') >= 0) return null;
         String t = latin(tr);
         int at = t.indexOf(old);
+        // the game's name changed, and the translation does not name it ("Dieses Spiel"): it fits as it is
+        if (at < 0 && old.contains("Sunshine") && !t.contains("Sunshine")) return tr;
         if (at < 0 || t.indexOf(old, at + 1) >= 0) return null;
         return (t.substring(0, at) + now + t.substring(at + old.length())).getBytes(StandardCharsets.ISO_8859_1);
     }

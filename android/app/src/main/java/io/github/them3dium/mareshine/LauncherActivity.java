@@ -868,7 +868,7 @@ public class LauncherActivity extends AppActivity {
         // a mod's own game in a pack's language: which pack files fit, worked
         // out once (ModLanguage), and a word that not all of it is translated
         Mods.Mod mod = mFoundIsoFile != null && !gameRunning() ? Mods.activeImage(this) : null;
-        String code = ModLanguage.applies(mod) ? ModLanguage.packCode(this) : null;
+        String code = ModLanguage.code(this, mod);
         if (code != null && !mModLanguageReady) {
             final File us = mFoundIsoFile;
             if (!ModLanguage.ready(this, mod, code, us))

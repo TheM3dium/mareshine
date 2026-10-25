@@ -195,6 +195,7 @@ public final class Mods {
         for (Mod m : out) {
             m.state = state.get(m.id);
             if (m.state == null) m.state = new LinkedHashMap<>();
+            ModLanguage.addOptions(ctx, m);
         }
         return out;
     }
