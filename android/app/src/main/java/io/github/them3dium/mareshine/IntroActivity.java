@@ -126,6 +126,7 @@ public class IntroActivity extends AppActivity {
     private void pages() {
         switch (mId) {
             case Intro.GAMECUBE_TOUCH: gamecubeTouch(); break;
+            case Intro.EDITOR_FOLD: editorFold(); break;
             default: break;
         }
     }
@@ -163,6 +164,16 @@ public class IntroActivity extends AppActivity {
         done.asks = true;
         done.back = true;
         mPages.add(done);
+    }
+
+    private void editorFold() {
+        List<Elem> elems = TouchDraw.defaults();
+        Map<String, String> m = Settings.read(this);
+        boolean gc = !"classic".equals(m.get("SMS_TOUCH_STYLE"));
+        TouchDraw.reset(elems, gc, !"0".equals(m.get("SMS_TOUCH_R_SLIDER")));
+        mPages.add(new Page(t("Fold the layout editor's toolbar"),
+            t("In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again."),
+            (c, p, w, h, ms) -> drawFold(c, p, elems, gc, w, h, ms)));
     }
 
     // the choice: the style and the R+ slider (null: as they were before the
@@ -217,6 +228,74 @@ public class IntroActivity extends AppActivity {
             if (!e.shown || (slider && e.name.equals("RPLUS"))) continue;
             if (!gc || !TouchDraw.drawGc(c, p, e, e.x * w, e.y * h, e.r * h, a, dp(6)))
                 TouchDraw.drawClassic(c, p, e, e.x * w, e.y * h, e.r * h, a, dp(6), dp(1));
+        }
+    }
+
+    // The editor's toolbar folding up to its label and opening again, a finger
+    // tapping its arrow
+    private void drawFold(Canvas c, Paint p, List<Elem> elems, boolean gc, float w, float h, long ms) {
+        TouchDraw.background(c, p, w, h);
+        for (Elem e : elems) {
+            if (e.name.equals("RPLUS") || (!gc && !e.shown)) continue;
+            if (!gc || !TouchDraw.drawGc(c, p, e, e.x * w, e.y * h, e.r * h, 120, dp(6)))
+                TouchDraw.drawClassic(c, p, e, e.x * w, e.y * h, e.r * h, 120, dp(6), dp(1));
+        }
+        float cycle = 4400, t = ms % (long) cycle / cycle;
+        // 0 open; tap at .2; folds .25 to .35; tap at .62; opens .67 to .77
+        float k = t < 0.25f ? 0 : t < 0.35f ? (t - 0.25f) / 0.1f : t < 0.67f ? 1 : t < 0.77f ? 1 - (t - 0.67f) / 0.1f : 0;
+        k = k * k * (3 - 2 * k);  // eased
+        boolean folded = t >= 0.3f && t < 0.72f;
+        float x0 = w * 0.17f, y0 = h * 0.40f, fullW = w * 0.66f, smallW = dp(150);
+        float pw = fullW + (smallW - fullW) * k, ph = dp(108) + (dp(70) - dp(108)) * k;
+        android.graphics.RectF panel = new android.graphics.RectF(x0, y0, x0 + pw, y0 + ph);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xF00E2440);
+        c.drawRoundRect(panel, dp(12), dp(12), p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(dp(2));
+        p.setColor(0xFF2FB8C9);
+        c.drawRoundRect(panel, dp(12), dp(12), p);
+        c.save();
+        c.clipRect(panel);
+        // the label and its arrow
+        p.setStyle(Paint.Style.FILL);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setTextSize(dp(16));
+        p.setColor(0xFFFFC531);
+        c.drawText("✥ A  100%", x0 + dp(16), y0 + dp(28), p);
+        android.graphics.RectF arrow = new android.graphics.RectF(x0 + dp(14), y0 + dp(38), x0 + dp(56), y0 + dp(60));
+        p.setColor(0xFF143456);
+        c.drawRoundRect(arrow, dp(8), dp(8), p);
+        p.setColor(0xFFF4F8FF);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(dp(13));
+        c.drawText(folded ? "▶" : "◀", arrow.centerX(), arrow.centerY() + dp(5), p);
+        // the buttons and the opacity bar, folded away
+        String[] tools = {"GCUBE", "SIZE −", "SIZE +", "HIDE", "R+ SLIDER", "RESET ALL", "CANCEL", "SAVE"};
+        float bx = x0 + dp(170), bw = (fullW - dp(180)) / tools.length;
+        for (int i = 0; i < tools.length; i++) {
+            android.graphics.RectF b = new android.graphics.RectF(bx + i * bw + dp(3), y0 + dp(14), bx + (i + 1) * bw - dp(3), y0 + dp(46));
+            p.setColor(i == tools.length - 1 ? 0xFFFFB020 : 0xFF143456);
+            c.drawRoundRect(b, dp(8), dp(8), p);
+            p.setColor(i == tools.length - 1 ? 0xFF0A1B30 : 0xFFF4F8FF);
+            p.setTextSize(dp(11));
+            c.drawText(tools[i], b.centerX(), b.centerY() + dp(4), p);
+        }
+        p.setColor(0xFFFFC531);
+        c.drawRoundRect(new android.graphics.RectF(x0 + fullW * 0.35f, y0 + dp(70), x0 + fullW * 0.75f, y0 + dp(84)), dp(7), dp(7), p);
+        c.restore();
+        // the finger on the arrow
+        float tap = t >= 0.12f && t < 0.3f ? (t - 0.12f) / 0.18f : t >= 0.54f && t < 0.72f ? (t - 0.54f) / 0.18f : -1;
+        if (tap >= 0) {
+            float a = (float) Math.sin(Math.PI * tap);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(0xFFFFFF | (Math.round(110 * a) << 24));
+            c.drawCircle(arrow.centerX(), arrow.centerY(), dp(20), p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            p.setColor(0xFFFFFF | (Math.round(230 * a) << 24));
+            c.drawCircle(arrow.centerX(), arrow.centerY(), dp(20), p);
         }
     }
 
@@ -399,15 +478,27 @@ public class IntroActivity extends AppActivity {
         finishIntro();
     }
 
-    // done: faded out to the launcher
+    // done: faded out, to the next intro (it fades itself in) or to the launcher
     private void finishIntro() {
         Intro.done(this, mId);
+        String next = Intro.pending(this);
         View root = findViewById(android.R.id.content);
-        if (mView == null || root == null) { finish(); return; }
+        if (mView == null || root == null) {
+            if (next != null) startActivity(new android.content.Intent(this, IntroActivity.class).putExtra(EXTRA_ID, next));
+            finish();
+            overridePendingTransition(0, 0);
+            return;
+        }
         mButtons.setEnabled(false);
         root.animate().alpha(0f).setDuration(450).withEndAction(() -> {
-            finish();
-            overridePendingTransition(android.R.anim.fade_in, 0);
+            if (next != null) {
+                startActivity(new android.content.Intent(this, IntroActivity.class).putExtra(EXTRA_ID, next));
+                finish();
+                overridePendingTransition(0, 0);
+            } else {
+                finish();
+                overridePendingTransition(android.R.anim.fade_in, 0);
+            }
         }).start();
     }
 }

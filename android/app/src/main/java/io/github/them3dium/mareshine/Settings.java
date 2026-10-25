@@ -89,6 +89,7 @@ public final class Settings {
         Map<String, String> m = new LinkedHashMap<>();
         for (String[] kv : DEFAULTS) m.put(kv[0], kv[1]);
         m.put(REV, Integer.toString(CURRENT_REV));  // new: nothing to bring up to date
+        Intro.newInstall(m);
         write(ctx, m);
     }
 

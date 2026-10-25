@@ -722,5 +722,7 @@
     "You can change this at any time: Settings, Input, Touch (Button style, and the R+ slider under Customize layout).": "Puoi cambiarlo quando vuoi: Impostazioni, Comandi, Touch (Stile dei pulsanti, e il cursore R+ in Personalizza layout).",
     "Skip": "Salta",
     "Got it": "Capito",
-    "Back": "Indietro"
+    "Back": "Indietro",
+    "Fold the layout editor's toolbar": "Ripiegare la barra degli strumenti dell'editor del layout",
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "In Personalizza layout, tocca ◀ sotto il nome del pulsante: la barra degli strumenti si ripiega e fa spazio. ▶ la riapre."
 }

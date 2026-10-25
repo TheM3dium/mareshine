@@ -722,5 +722,7 @@
     "You can change this at any time: Settings, Input, Touch (Button style, and the R+ slider under Customize layout).": "Du kannst das jederzeit ändern: Einstellungen, Steuerung, Touch (Tastenstil, und den R+-Regler unter Layout anpassen).",
     "Skip": "Überspringen",
     "Got it": "Verstanden",
-    "Back": "Zurück"
+    "Back": "Zurück",
+    "Fold the layout editor's toolbar": "Die Werkzeugleiste des Layout-Editors einklappen",
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "Tippe in Layout anpassen auf ◀ unter dem Namen der Taste: Die Werkzeugleiste klappt sich aus dem Weg. ▶ öffnet sie wieder."
 }

@@ -8,27 +8,31 @@ import java.util.List;
 import java.util.Map;
 
 // Introductions: a few pages that show something new once, when the launcher
-// starts (IntroActivity shows them). Each has an id; the ones seen are kept in
-// settings.txt (so a reinstall with the same data folder does not show them
-// again), and an update can ask for an intro's choice page (Settings.upgrade),
-// which a new install never sees.
+// starts (IntroActivity shows them, one after another). Each has an id; the
+// ones seen are kept in settings.txt (so a reinstall with the same data folder
+// does not show them again), and an update can ask for an intro's choice page
+// (Settings.upgrade), which a new install never sees. An intro in UPDATES_ONLY
+// tells only those who used the app before: a new install counts it as seen.
 //
-// A new intro: an id here, in ALL, its condition in applies() and its pages in
-// IntroActivity.pages().
+// A new intro: an id here, in ALL (and UPDATES_ONLY if so), its condition in
+// applies() and its pages in IntroActivity.pages().
 final class Intro {
     private Intro() {}
 
     static final String GAMECUBE_TOUCH = "gamecube_touch";  // 2.1: the GameCube button style, the R+ slider
+    static final String EDITOR_FOLD = "editor_fold";        // 2.1: the layout editor's toolbar folds up
 
     // in the order they are shown
-    private static final String[] ALL = {GAMECUBE_TOUCH};
+    private static final String[] ALL = {GAMECUBE_TOUCH, EDITOR_FOLD};
+    private static final String[] UPDATES_ONLY = {EDITOR_FOLD};
 
     private static final String SEEN = "SMS_LAUNCHER_INTROS_SEEN";
     private static final String ASK = "SMS_LAUNCHER_INTROS_ASK";
 
     private static boolean applies(Context c, String id) {
         switch (id) {
-            case GAMECUBE_TOUCH: return AppActivity.isTouch(c);  // touch buttons only on a touch screen
+            case GAMECUBE_TOUCH:
+            case EDITOR_FOLD: return AppActivity.isTouch(c);  // touch buttons only on a touch screen
             default: return false;
         }
     }
@@ -42,6 +46,11 @@ final class Intro {
 
     // whether the intro asks for a choice (an update), not only shows
     static boolean asks(Context c, String id) { return list(Settings.read(c), ASK).contains(id); }
+
+    // for Settings.ensureDefaults: a new install has nothing to be told of an update
+    static void newInstall(Map<String, String> m) {
+        for (String id : UPDATES_ONLY) add(m, SEEN, id);
+    }
 
     // for Settings.upgrade: this intro asks
     static void ask(Map<String, String> m, String id) { add(m, ASK, id); }

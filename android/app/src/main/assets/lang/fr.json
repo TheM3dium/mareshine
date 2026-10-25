@@ -721,5 +721,7 @@
     "You can change this at any time: Settings, Input, Touch (Button style, and the R+ slider under Customize layout).": "Tu peux le changer à tout moment : Paramètres, Commandes, Tactile (Style des boutons, et le curseur R+ dans Personnaliser la disposition).",
     "Skip": "Passer",
     "Got it": "Compris",
-    "Back": "Retour"
+    "Back": "Retour",
+    "Fold the layout editor's toolbar": "Replier la barre d'outils de l'éditeur de disposition",
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "Dans Personnaliser la disposition, touche ◀ sous le nom du bouton : la barre d'outils se replie pour libérer la place. ▶ la rouvre."
 }

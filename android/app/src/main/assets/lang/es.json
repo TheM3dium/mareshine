@@ -721,5 +721,7 @@
     "You can change this at any time: Settings, Input, Touch (Button style, and the R+ slider under Customize layout).": "Puedes cambiarlo cuando quieras: Ajustes, Controles, Táctil (Estilo de botones, y el deslizador R+ en Personalizar diseño).",
     "Skip": "Saltar",
     "Got it": "Entendido",
-    "Back": "Atrás"
+    "Back": "Atrás",
+    "Fold the layout editor's toolbar": "Plegar la barra de herramientas del editor de diseño",
+    "In Customize layout, tap ◀ under the button's name: the toolbar folds up out of the way. ▶ opens it again.": "En Personalizar diseño, toca ◀ bajo el nombre del botón: la barra de herramientas se pliega y deja sitio. ▶ la vuelve a abrir."
 }
