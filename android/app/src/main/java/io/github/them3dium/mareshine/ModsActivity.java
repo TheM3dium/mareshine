@@ -152,6 +152,17 @@ public class ModsActivity extends AppActivity {
         showList();
     }
 
+    // back from installing one (ModInstallActivity)
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!mBusy && mList != null) {
+            boolean before = mMods.size() != Mods.list(this).size();
+            reload();
+            if (before) mChanged = true;
+        }
+    }
+
     private void showList() {
         int packs = Mods.textureFolders(this).size();
         if (!"0".equals(Settings.read(this).getOrDefault("SMS_HD_TEXTURES", "1"))) {
@@ -185,6 +196,7 @@ public class ModsActivity extends AppActivity {
             StringBuilder sub = new StringBuilder();
             if (!m.author.isEmpty()) sub.append(t("by %s", m.author));
             if (!m.description.isEmpty()) sub.append(sub.length() > 0 ? "  ·  " : "").append(m.description);
+            if (m.image() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("its own game"));
             if (m.files() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("game files"));
             if (m.textures() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("textures"));
             if (sub.length() > 0) info.addView(text(sub.toString(), DIM, 14, false));
@@ -202,6 +214,45 @@ public class ModsActivity extends AppActivity {
             mList.addView(row, lp);
             mRows.add(row);
         }
+        // mods to download, made from the player's own disc
+        List<Mods.Release> more = Mods.available(this);
+        if (!more.isEmpty()) {
+            TextView head = text(t("TO DOWNLOAD"), GOLD, 16, true);
+            head.setPadding(0, dp(18), 0, dp(2));
+            mList.addView(head);
+        }
+        for (Mods.Release r : more) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setBackgroundResource(R.drawable.dl_row);
+            row.setPadding(dp(18), dp(10), dp(18), dp(10));
+            row.setFocusable(true);
+            row.setClickable(true);
+            LinearLayout info = new LinearLayout(this);
+            info.setOrientation(LinearLayout.VERTICAL);
+            info.addView(text(r.name + "  " + r.version, TEXT, 18, true));
+            info.addView(text(t("by %s", r.author) + "  ·  " + t(r.description), DIM, 14, false));
+            row.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            TextView get = text("⬇  " + t("%.1f GB", r.size / 1e9), GOLD, 17, true);
+            get.setPadding(dp(12), 0, 0, 0);
+            row.addView(get);
+            row.setOnClickListener(v -> offer(r));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(6);
+            mList.addView(row, lp);
+            mRows.add(row);
+        }
+    }
+
+    private void offer(Mods.Release r) {
+        choice(t("Install %s?", r.name),
+            t("%s is downloaded (%.1f GB) and made from your own Super Mario Sunshine disc image (North American, "
+                + "GMSE01): the download holds only the changes, nothing of the game. It then needs about %.1f GB "
+                + "and is switched on: Play starts it, and switching it off here plays Super Mario Sunshine again.",
+                r.name, r.size / 1e9, r.imageSize / 1e9),
+            new String[] {t("Install")}, new Runnable[] {() -> ModInstallActivity.start(this, r)});
     }
 
     // Tapping a mod: on/off, up, down, delete
@@ -209,7 +260,13 @@ public class ModsActivity extends AppActivity {
         final Mods.Mod m = mMods.get(i);
         String[] labels = {t(m.enabled ? "Switch off" : "Switch on"), t("Move up"), t("Move down"), t("Delete")};
         Runnable[] acts = {
-            () -> { m.enabled = !m.enabled; changed(i); },
+            () -> {
+                m.enabled = !m.enabled;
+                // one game is played: a mod with its own disc image switches the others off
+                if (m.enabled && m.image() != null)
+                    for (Mods.Mod o : mMods) if (o != m && o.image() != null) o.enabled = false;
+                changed(i);
+            },
             () -> move(i, -1),
             () -> move(i, +1),
             () -> confirmDelete(i),

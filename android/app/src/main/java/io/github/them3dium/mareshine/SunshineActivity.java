@@ -26,9 +26,12 @@ import java.io.File;
 import static io.github.them3dium.mareshine.L.t;
 
 public class SunshineActivity extends SDLActivity {
-    // The disc image to play: the launcher's choice (sms_disc), else the one
-    // the launcher would find in the data folder or Downloads.
+    // The disc image to play: a mod's own image when one is switched on (Mods,
+    // such as Super Mario Eclipse), else the launcher's choice (sms_disc), else
+    // the one the launcher would find in the data folder or Downloads.
     private String discPath() {
+        Mods.Mod mod = Mods.activeImage(this);
+        if (mod != null) return mod.image().getAbsolutePath();
         Intent start = getIntent();
         String picked = start != null ? start.getStringExtra("sms_disc") : null;
         if (picked != null && !picked.trim().isEmpty()) return picked.trim();
@@ -71,6 +74,15 @@ public class SunshineActivity extends SDLActivity {
             for (String t : Mods.textureFolders(this)) packs.append(packs.length() > 0 ? ";" : "").append(t);
             nativeSetenv("SMS_TEXTURE_PACKS", packs.length() > 0 ? packs.toString() : "0");
             // and their disc files, after any set by hand in settings.txt's `mod`
+            // code built into the app (Super Mario Eclipse's) only for the mod that needs it
+            Mods.Mod image = Mods.activeImage(this);
+            nativeSetenv("SMS_CODE_MODS", image != null && image.code ? "1" : "0");
+            // Mareshine's achievements and language packs are Sunshine's: not in
+            // a mod's own game (a pack would replace the mod's own text)
+            if (image != null) {
+                nativeSetenv("SMS_ACHIEVEMENTS", "0");
+                nativeSetenv("SMS_LANGUAGE", "en");
+            }
             String mods = Mods.discFolders(this), own = Settings.read(this).getOrDefault("mod", "").trim();
             if (!mods.isEmpty()) nativeSetenv("SMS_MOD", own.isEmpty() ? mods : own + ";" + mods);
             // the cutscene frames the app ships (frames added by an update too)

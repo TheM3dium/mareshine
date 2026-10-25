@@ -29,22 +29,33 @@ import java.util.zip.ZipInputStream;
 //                same path (or goes inside the archive named like its folder), or
 //                is added (platform/dvd/dvd.cpp, SMS_MOD)
 //   textures/    Dolphin-format textures (SMS_TEXTURE_PACKS)
+//   "image": file   a whole disc image the mod plays instead of the player's
+//                own (a mod too big for an overlay, such as Super Mario Eclipse,
+//                patched from the player's disc by ModInstallActivity); the
+//                last such mod switched on is played
+//   "code": true    the mod needs code built into the app (SMS_CODE_MODS)
 // Their order and which are on is settings.txt's SMS_MODS ("id:1;id:0", first
 // loaded first, so a later mod wins); mods not listed there are off, after
 // the listed ones. Changes apply when the game starts.
 public final class Mods {
     public static final String KEY = "SMS_MODS";
-    // The mod manager's entries in Settings and the quick menu: off until it
-    // ships with patch import and Super Mario Eclipse (installed mods still load).
-    public static final boolean MENU = false;
+    // The mod manager's entries in Settings and the quick menu
+    public static final boolean MENU = true;
 
     private Mods() {}
 
     public static final class Mod {
-        public String id, name, version = "", author = "", description = "";
+        public String id, name, version = "", author = "", description = "", image = "";
         public List<String> requires = new ArrayList<>();
         public File dir;
-        public boolean enabled;
+        public boolean enabled, code;
+
+        // the disc image it plays, if it has one and it is there
+        public File image() {
+            if (image.isEmpty()) return null;
+            File f = new File(dir, image);
+            return f.isFile() ? f : null;
+        }
 
         public File files() {
             for (String n : new String[] {"files", "overlay"}) {
@@ -113,6 +124,8 @@ public final class Mods {
                 m.version = o.optString("version", "");
                 m.author = o.optString("author", "");
                 m.description = o.optString("description", "");
+                m.image = new File(o.optString("image", "")).getName();  // a file in its folder
+                m.code = o.optBoolean("code", false);
                 JSONArray req = o.optJSONArray("requires");
                 if (req != null)
                     for (int i = 0; i < req.length(); i++) m.requires.add(cleanId(req.optString(i)));
@@ -153,6 +166,62 @@ public final class Mods {
     }
 
     // --- for the game (SunshineActivity) ----------------------------------------
+
+    // The enabled mod whose disc image is played (the last one), or null
+    public static Mod activeImage(Context ctx) {
+        Mod out = null;
+        for (Mod m : list(ctx)) if (m.enabled && m.image() != null) out = m;
+        return out;
+    }
+
+    // whether this build of the app has the code mods built in (Gradle's
+    // -Pmareshine.eclipse=ON; docs/ECLIPSE.md)
+    public static boolean codeBuiltIn(Context ctx) { return ctx.getResources().getBoolean(R.bool.code_mods); }
+
+    // --- mods to download: patched from the player's own disc -------------------
+
+    public static final class Release {
+        public final String id, name, version, author, description, page;
+        public final String[] urls;               // the first that works
+        public final String file, md5, patch;     // the archive, its MD5, the delta in it
+        public final long size, imageSize;        // the archive, the patched image
+        public final String sourceMd5, resultMd5, image;
+        public final boolean code;
+
+        Release(String id, String name, String version, String author, String description, String page, String[] urls,
+                String file, long size, String md5, String patch, String sourceMd5, String resultMd5, long imageSize,
+                String image, boolean code) {
+            this.id = id; this.name = name; this.version = version; this.author = author; this.description = description;
+            this.page = page; this.urls = urls; this.file = file; this.size = size; this.md5 = md5; this.patch = patch;
+            this.sourceMd5 = sourceMd5; this.resultMd5 = resultMd5; this.imageSize = imageSize; this.image = image;
+            this.code = code;
+        }
+    }
+
+    // Super Mario Eclipse v1.1.0 as tools/mods/get.py installs it: the
+    // GameBanana release (mirrored for SMS Launcher; GameBanana the fallback),
+    // its xdelta patch applied to the North American disc (GMSE01, rev 0)
+    public static final Release ECLIPSE = new Release("eclipse", "Super Mario Eclipse", "v1.1.0", "Eclipse Team",
+        "New stages, characters and challenges: a whole new adventure.", "https://gamebanana.com/mods/536309",
+        new String[] {"https://sms-eclipse.tekrantgaming.com/files/super_mario_eclipse_v110.7z",
+            "https://gamebanana.com/dl/1729332"},
+        "super_mario_eclipse_v110.7z", 892257115L, "37c1805ab88b2a3bb2a96bcdf6884433", "patches/v1.1.0.xdelta",
+        "0c6d2edae9fdf40dfc410ff1623e4119", "caa546309e0443f7b47632b040a250d7", 1459978240L,
+        "Super Mario Eclipse v1.1.0.iso", true);
+
+    public static Release release(String id) { return ECLIPSE.id.equals(id) ? ECLIPSE : null; }
+
+    // the releases not installed yet (those needing code only in a build that has it)
+    public static List<Release> available(Context ctx) {
+        List<Release> out = new ArrayList<>();
+        for (Release r : new Release[] {ECLIPSE}) {
+            if (r.code && !codeBuiltIn(ctx)) continue;
+            boolean have = false;
+            for (Mod m : list(ctx)) if (m.id.equals(r.id) && m.image() != null) have = true;
+            if (!have) out.add(r);
+        }
+        return out;
+    }
 
     // SMS_MOD: the enabled mods' folders (dvd.cpp loads <folder>/files or /overlay), in order
     public static String discFolders(Context ctx) {
