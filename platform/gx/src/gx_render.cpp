@@ -2643,8 +2643,12 @@ static void copyEfb(uint32_t ctrl) {
         // those columns too. Taken to whole widened pixels, they went a column
         // past the quad the circle wipe's blur draws its centre cell back with,
         // which left a black line down the opening iris above 1x.
-        x0 = int(lroundf(float(x) * s_wide * s_scale));
-        x1 = int(lroundf(float(x + w) * s_wide * s_scale));
+        // The columns are the ones the quad rasterizes: those whose centre
+        // lies at or right of the left edge and left of the right edge. An
+        // edge on a half pixel (x 344 at 13:6 and 1.5x: 838.5) rounded up
+        // took one column more than the quad, cleared and never drawn over.
+        x0 = int(ceilf(float(x) * s_wide * s_scale - 0.5f));
+        x1 = int(ceilf(float(x + w) * s_wide * s_scale - 0.5f));
         fx = float(x0) / s_scale;
         fw = float(x1 - x0) / s_scale;
     }
