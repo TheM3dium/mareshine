@@ -372,6 +372,7 @@ public class ModPageActivity extends AppActivity {
                 }
                 load();
                 for (Mods.Option o : mMod.allOptions()) if (o.id.equals(EclipseMod.HD)) Mods.setOption(this, mMod, o, "1");
+                EclipseMod.setVersion(this, EclipseMod.HD, ModUpdates.versionIn(Mods.displayName(this, uri)));
                 changed();
                 choice(t("HD textures"), t("%d textures imported and switched on.", n), new String[] {t("OK")},
                     new Runnable[] {null});

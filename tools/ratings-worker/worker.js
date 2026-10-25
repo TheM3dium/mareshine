@@ -9,6 +9,8 @@
 // votes an hour in all ("ip:<hash>"): salted hashes of the address that expire
 // after the hour; the address itself is not kept.
 //
+//   GET  /catalog              the mods the app offers and their newest
+//                              versions (catalog.json, put into KV as "catalog")
 //   GET  /ratings              {"<mod>": {"sum": 17, "count": 4}, ...}
 //   POST /rate  {"mod": "eclipse", "install": "<32 hex>", "suns": 5}
 //                              {"sum": ..., "count": ...} for that mod;
@@ -39,6 +41,12 @@ async function agg(env, mod) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/catalog") {
+      const c = await env.RATINGS.get("catalog");
+      return new Response(c || '{"releases": []}', {
+        headers: { "content-type": "application/json", "cache-control": "public, max-age=300" },
+      });
+    }
     if (request.method === "GET" && url.pathname === "/ratings") {
       const mods = (await env.RATINGS.get("mods", "json")) || [];
       const out = {};

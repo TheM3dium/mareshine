@@ -110,5 +110,5 @@ final class ModFlows {
             new Runnable[] {() -> openPage(a, EclipseMod.TEXTURES_PAGE), () -> pick(a, PICK_TEXTURES)});
     }
 
-    static File texturesDir(AppActivity a) { return new File(new File(EclipseMod.dir(a), EclipseMod.HD), "textures"); }
+    static File texturesDir(android.content.Context c) { return new File(new File(EclipseMod.dir(c), EclipseMod.HD), "textures"); }
 }

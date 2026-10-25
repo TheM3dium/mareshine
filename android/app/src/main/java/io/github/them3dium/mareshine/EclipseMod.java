@@ -139,8 +139,65 @@ final class EclipseMod {
         Mods.save(ctx, Mods.list(ctx));  // without the old entry
     }
 
-    // Puts a newly made language in place and picks it.
+    // --- which version of each part is installed (versions.json) -----------------
+    // {"eclipse": {"version": "v1.1.0", "image": "…iso"}, "eclipse-de": {…}, "hd": {"version": "v5.0.0"}}
+
+    static JSONObject versions(Context ctx) {
+        File f = new File(dir(ctx), "versions.json");
+        JSONObject o = new JSONObject();
+        try {
+            if (f.isFile()) o = new JSONObject(new String(java.nio.file.Files.readAllBytes(f.toPath()),
+                StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+        }
+        // from before it was kept: the images this app version shipped with
+        // (not the catalog's, which may already name a newer one), kept from now on
+        boolean added = false;
+        for (Mods.Release r : new Mods.Release[] {Mods.ECLIPSE, Mods.ECLIPSE_DE}) {
+            if (o.has(r.id) || !new File(dir(ctx), r.image).isFile()) continue;
+            try {
+                o.put(r.id, new JSONObject().put("version", r.version).put("image", r.image));
+                added = true;
+            } catch (Exception ignored) {
+            }
+        }
+        if (added && dir(ctx).isDirectory()) saveVersions(ctx, o);
+        return o;
+    }
+
+    static void saveVersions(Context ctx, JSONObject o) {
+        try (OutputStream out = new FileOutputStream(new File(dir(ctx), "versions.json"))) {
+            out.write(o.toString(2).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+        }
+    }
+
+    // the version of a part that is installed, or ""
+    static String installedVersion(Context ctx, String part) {
+        JSONObject p = versions(ctx).optJSONObject(part);
+        return p != null ? p.optString("version", "") : "";
+    }
+
+    static void setVersion(Context ctx, String part, String version) {
+        JSONObject o = versions(ctx);
+        try {
+            JSONObject p = o.optJSONObject(part);
+            if (p == null) o.put(part, p = new JSONObject());
+            p.put("version", version);
+        } catch (Exception ignored) {
+        }
+        saveVersions(ctx, o);
+    }
+
+    // Puts a newly made language in place and picks it; an older version of
+    // it (another image) is deleted.
     static void installed(Context ctx, Mods.Release r) throws Exception {
+        JSONObject v = versions(ctx);
+        JSONObject old = v.optJSONObject(r.id);
+        String oldImage = old != null ? old.optString("image", "") : "";
+        if (!oldImage.isEmpty() && !oldImage.equals(r.image)) new File(dir(ctx), new File(oldImage).getName()).delete();
+        v.put(r.id, new JSONObject().put("version", r.version).put("image", r.image));
+        saveVersions(ctx, v);
         write(ctx);
         Mods.Mod m = Mods.find(ctx, ID);
         if (m == null) return;
@@ -152,6 +209,9 @@ final class EclipseMod {
     // Deletes one language's image (not the last: deleting the mod does that).
     static void delete(Context ctx, Mods.Release r) throws Exception {
         new File(dir(ctx), r.image).delete();
+        JSONObject v = versions(ctx);
+        v.remove(r.id);
+        saveVersions(ctx, v);
         write(ctx);
     }
 

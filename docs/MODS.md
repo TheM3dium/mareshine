@@ -58,12 +58,13 @@ A zip of Dolphin textures with no `mod.json` (a texture pack as made for Dolphin
 | --- | --- |
 | `id` | the mod's id and folder name: lower case letters, digits, `.`, `-`, `_` |
 | `name`, `version`, `author`, `description` | shown on its page and in the list |
-| `icon`, `preview` | pictures in the mod's folder (PNG or JPEG), or `https://` URLs |
+| `icon`, `preview` | pictures in the mod's folder (PNG or JPEG), or `https://` URLs. An icon with transparent corners (a whole disc's picture) is shown as it is; any other is put on a disc as its label |
 | `requires` | ids of mods that must be switched on and loaded before this one |
 | `image` | a whole disc image in the folder that is played instead of the player's own (only for mods too big for `files/`) |
 | `code` | `true` when the mod needs code built into the app (Super Mario Eclipse) |
 | `author_color` | the colour of "by …" at the foot of its page, as `#RRGGBB` |
 | `rating` | its suns (0 to 5) until players have rated it; a tap on the suns rates it |
+| `update` | an `https://` URL of a small JSON the app checks with **Install updates**: `{"version": "1.1", "url": "https://…/my-mod.zip", "page": "https://…"}`. A newer `version` is offered; `url` is downloaded and imported like the zip, else `page` is opened |
 | `options` | the buttons on its page, in order |
 
 ### Other languages

@@ -98,9 +98,21 @@ final class ModViews {
             invalidate();
         }
 
+        // a whole disc's picture (transparent corners, as a mod's own disc art): shown as it is
+        private static boolean isDiscArt(Bitmap b) {
+            return b.hasAlpha() && b.getWidth() > 32 && Math.abs(b.getWidth() - b.getHeight()) <= b.getWidth() / 10
+                && android.graphics.Color.alpha(b.getPixel(1, 1)) == 0
+                && android.graphics.Color.alpha(b.getPixel(b.getWidth() - 2, b.getHeight() - 2)) == 0;
+        }
+
         @Override
         protected void onDraw(Canvas c) {
             float s = Math.min(getWidth(), getHeight()), cx = getWidth() / 2f, cy = getHeight() / 2f, r = s / 2f;
+            if (mLabel != null && isDiscArt(mLabel)) {
+                android.graphics.RectF dst = new android.graphics.RectF(cx - r, cy - r, cx + r, cy + r);
+                c.drawBitmap(mLabel, null, dst, mPaint);
+                return;
+            }
             // the silver disc and its sheen
             mPaint.setShader(new RadialGradient(cx - r * 0.3f, cy - r * 0.3f, r * 1.4f,
                 new int[] {0xFFF4F8FF, 0xFFB8C6D6, 0xFF7D8DA0}, null, Shader.TileMode.CLAMP));

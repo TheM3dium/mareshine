@@ -76,6 +76,7 @@ public final class Mods {
 
     public static final class Mod {
         public String id, name, version = "", author = "", description = "", image = "", icon = "", preview = "";
+        public String update = "";  // a URL to look for a newer version at (ModUpdates)
         public float rating = -1;
         public int authorColor;  // 0: the page's own
         public List<String> requires = new ArrayList<>();
@@ -168,6 +169,7 @@ public final class Mods {
 
     // The installed mods, in their order.
     public static List<Mod> list(Context ctx) {
+        loadCatalog(ctx);
         Map<String, Mod> found = new LinkedHashMap<>();
         File[] dirs = dir(ctx).listFiles();
         if (dirs != null) {
@@ -378,6 +380,7 @@ public final class Mods {
                 m.code = o.optBoolean("code", false);
                 m.icon = o.optString("icon", "");
                 m.preview = o.optString("preview", "");
+                m.update = o.optString("update", "");
                 m.rating = (float) o.optDouble("rating", -1);
                 try {
                     String c = o.optString("author_color", "");
@@ -463,6 +466,27 @@ public final class Mods {
             this.sourceMd5 = sourceMd5; this.resultMd5 = resultMd5; this.imageSize = imageSize; this.image = image;
             this.code = code;
         }
+
+        // an entry of the online catalog (the keys as the fields; tools/ratings-worker/catalog.json)
+        static Release from(JSONObject o) {
+            String id = cleanId(o.optString("id", ""));
+            JSONArray u = o.optJSONArray("urls");
+            String[] urls = new String[u != null ? u.length() : 0];
+            for (int i = 0; i < urls.length; i++) urls[i] = u.optString(i);
+            Release r = new Release(id, o.optString("name", id), o.optString("version", ""),
+                o.optString("author", ""), o.optString("description", ""), o.optString("page", ""), urls,
+                new File(o.optString("file", "")).getName(), o.optLong("size", 0), o.optString("md5", ""),
+                o.optString("patch", ""), o.optString("sourceMd5", ""), o.optString("resultMd5", ""),
+                o.optLong("imageSize", 0), new File(o.optString("image", "")).getName(), o.optBoolean("code", false));
+            if (id.isEmpty() || r.image.isEmpty() || r.size <= 0 || r.md5.length() != 32) return null;
+            r.base = cleanId(o.optString("base", ""));
+            r.language = o.optString("language", "");
+            r.credits = o.optString("credits", "");
+            r.tested = o.optBoolean("tested", true);
+            r.rating = (float) o.optDouble("rating", -1);
+            r.icon = o.optString("icon", "");
+            return r;
+        }
     }
 
     // Super Mario Eclipse v1.1.0 as tools/mods/get.py installs it: the
@@ -491,19 +515,49 @@ public final class Mods {
         ECLIPSE_DE.credits = "German Translation Team";
     }
 
-    private static final Release[] RELEASES = {ECLIPSE, ECLIPSE_DE};
+    // The releases the app offers: those built in, replaced or added to by the
+    // online catalog (ModUpdates fetches it into catalog.json in the app's files)
+    private static final List<Release> RELEASES = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE));
+    private static long sCatalogTime = -1;
 
-    public static Release release(String id) {
+    static File catalogFile(Context ctx) { return new File(ctx.getFilesDir(), "catalog.json"); }
+
+    static synchronized void loadCatalog(Context ctx) {
+        File f = catalogFile(ctx);
+        long t = f.isFile() ? f.lastModified() : 0;
+        if (t == sCatalogTime) return;
+        sCatalogTime = t;
+        List<Release> all = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE));
+        if (t != 0) {
+            try {
+                JSONArray a = new JSONObject(readText(f)).optJSONArray("releases");
+                for (int i = 0; a != null && i < a.length(); i++) {
+                    Release r = Release.from(a.getJSONObject(i));
+                    if (r == null) continue;
+                    for (int k = all.size() - 1; k >= 0; k--) if (all.get(k).id.equals(r.id)) all.remove(k);
+                    all.add(r);
+                }
+            } catch (Exception ignored) {  // a damaged file: the built-in ones
+            }
+        }
+        RELEASES.clear();
+        RELEASES.addAll(all);
+    }
+
+    public static synchronized Release release(String id) {
         for (Release r : RELEASES) if (r.id.equals(id)) return r;
         return null;
     }
 
     // the Search tab's mods (translations come with their mod)
     public static List<Release> catalog(Context ctx) {
+        loadCatalog(ctx);
         List<Release> out = new ArrayList<>();
-        for (Release r : RELEASES) {
-            if (!r.base.isEmpty() || (r.code && !codeBuiltIn(ctx))) continue;
-            out.add(r);
+        synchronized (Mods.class) {
+            for (Release r : RELEASES) {
+                if (!r.base.isEmpty() || (r.code && !codeBuiltIn(ctx))) continue;
+                out.add(r);
+            }
         }
         return out;
     }
@@ -516,13 +570,17 @@ public final class Mods {
     // the translations of a mod
     public static List<Release> translations(String base) {
         List<Release> out = new ArrayList<>();
-        for (Release r : RELEASES) if (r.base.equals(base)) out.add(r);
+        synchronized (Mods.class) {
+            for (Release r : RELEASES) if (r.base.equals(base)) out.add(r);
+        }
         return out;
     }
 
     // the translation a picked file of this size is, or null
     public static Release translationOfSize(long size) {
-        for (Release r : RELEASES) if (!r.base.isEmpty() && r.size == size) return r;
+        synchronized (Mods.class) {
+            for (Release r : RELEASES) if (!r.base.isEmpty() && r.size == size) return r;
+        }
         return null;
     }
 
@@ -698,7 +756,7 @@ public final class Mods {
         }
     }
 
-    private static String displayName(Context ctx, Uri uri) {
+    static String displayName(Context ctx, Uri uri) {
         try (android.database.Cursor c = ctx.getContentResolver().query(uri,
                 new String[] {android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst() && !c.isNull(0)) return c.getString(0);

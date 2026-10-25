@@ -145,6 +145,7 @@ public class ModsActivity extends AppActivity {
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.setGravity(Gravity.CENTER_VERTICAL);
         buttons.setPadding(0, dp(8), 0, 0);
+        mUpdate = button("Install updates", false);
         mPrev = button("‹ " + t("Back"), false);
         mPageText = text("", DIM, 15, true);
         mPageText.setPadding(dp(8), 0, dp(8), 0);
@@ -153,10 +154,11 @@ public class ModsActivity extends AppActivity {
         mUntested = button("", false);
         mImport = button("Import mod", true);
         mClose = button("Close", false);
-        for (View b : new View[] {mPrev, mPageText, mNext}) buttons.addView(b, buttonParams());
+        for (View b : new View[] {mUpdate, mPrev, mPageText, mNext}) buttons.addView(b, buttonParams());
         buttons.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         for (View b : new View[] {mPerPage, mUntested, mImport, mClose}) buttons.addView(b, buttonParams());
         panel.addView(buttons);
+        mUpdate.setOnClickListener(v -> checkUpdates(null));
         mPrev.setOnClickListener(v -> page(-1));
         mNext.setOnClickListener(v -> page(1));
         mPerPage.setOnClickListener(v -> perPage());
@@ -191,6 +193,12 @@ public class ModsActivity extends AppActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // an update came back (its install or picker closed): the next one
+        if (mUpdateFlow && mUpdatePaused) {
+            mUpdatePaused = false;
+            if (mUpdateHold) mUpdateHold = false;  // what was picked starts its own install first
+            else if (!mBusy) mList.post(this::nextUpdate);
+        }
         if (!mBusy && mList != null) {
             boolean before = mMods.size() != Mods.list(this).size();
             reload();
@@ -206,7 +214,7 @@ public class ModsActivity extends AppActivity {
     private int mTab, mPage;
     private boolean mShowUntested;
     private TextView mHint, mPageText;
-    private Button mPrev, mNext, mPerPage, mUntested;
+    private Button mPrev, mNext, mPerPage, mUntested, mUpdate;
 
     private int perPageCount() {
         try {
@@ -297,6 +305,7 @@ public class ModsActivity extends AppActivity {
         mUntested.setText(t(mShowUntested ? "Hide untested mods" : "Show untested mods"));
         mUntested.setVisibility(mTab == 1 ? View.VISIBLE : View.GONE);
         mImport.setVisibility(mTab == 0 ? View.VISIBLE : View.GONE);
+        mUpdate.setVisibility(mTab == 0 && !mMods.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
     // a row: the mod's disc, its name and suns, and at the right its state
@@ -419,6 +428,9 @@ public class ModsActivity extends AppActivity {
             acts.add(() -> option(m, o, i));
             dim.add(false);
         }
+        labels.add(t("Check for updates"));
+        acts.add(() -> checkUpdates(m.id));
+        dim.add(false);
         labels.add(t("Move up"));
         acts.add(() -> move(i, -1));
         dim.add(i == 0);
@@ -491,6 +503,112 @@ public class ModsActivity extends AppActivity {
             }});
     }
 
+    // --- updates -------------------------------------------------------------------
+    // Install updates (or one mod's, from its quick menu): every part asked on
+    // its own, then the ones agreed to installed one after the other (each
+    // comes back here: onResume starts the next).
+
+    private final List<ModUpdates.Update> mUpdateQueue = new ArrayList<>();
+    private boolean mUpdateFlow, mUpdatePaused, mUpdateHold;
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mUpdateFlow) mUpdatePaused = true;
+    }
+
+    private void checkUpdates(String onlyMod) {
+        if (mBusy) return;
+        mBusy = true;
+        mStatus.setVisibility(View.VISIBLE);
+        mStatus.setText(t("Checking for updates…"));
+        mBar.setVisibility(View.VISIBLE);
+        new Thread(() -> {
+            List<ModUpdates.Update> found;
+            try {
+                found = ModUpdates.check(this, onlyMod);
+            } catch (Exception e) {
+                found = null;
+            }
+            final List<ModUpdates.Update> list = found;
+            runOnUiThread(() -> {
+                mBusy = false;
+                mBar.setVisibility(View.GONE);
+                mStatus.setVisibility(View.GONE);
+                reload();
+                if (list == null) {
+                    choice(t("Updates"), t("Could not look for updates. Are you online?"), new String[] {t("OK")},
+                        new Runnable[] {null});
+                } else if (list.isEmpty()) {
+                    choice(t("Updates"), t(onlyMod == null ? "All mods are up to date." : "This mod is up to date."),
+                        new String[] {t("OK")}, new Runnable[] {null});
+                } else {
+                    mUpdateQueue.clear();
+                    ask(list, 0);
+                }
+            });
+        }, "mod-updates").start();
+    }
+
+    // one question per part: "Update Super Mario Eclipse? v1.1.0 -> v1.2.0"
+    private void ask(List<ModUpdates.Update> list, int i) {
+        if (i >= list.size()) {
+            nextUpdate();
+            return;
+        }
+        ModUpdates.Update u = list.get(i);
+        String msg = t("%s → %s", u.from, u.to) + (list.size() > 1 ? "\n" + t("Update %d of %d", i + 1, list.size()) : "");
+        choice(t("Update %s?", u.title), msg, new String[] {t("Update"), t("Skip")}, new Runnable[] {
+            () -> { mUpdateQueue.add(u); ask(list, i + 1); },
+            () -> ask(list, i + 1)});
+    }
+
+    private void nextUpdate() {
+        mUpdateHold = false;
+        if (mUpdateQueue.isEmpty()) {
+            mUpdateFlow = false;
+            return;
+        }
+        mUpdateFlow = true;
+        ModUpdates.Update u = mUpdateQueue.remove(0);
+        mChanged = true;
+        u.install.accept(this);
+    }
+
+    // an update installed here (an import): the next one
+    private void afterUpdate() {
+        if (mUpdateFlow) nextUpdate();
+    }
+
+    // a mod's own update: its zip downloaded and imported like one picked
+    void downloadAndImport(String url, String name) {
+        mBusy = true;
+        mStatus.setVisibility(View.VISIBLE);
+        mStatus.setText(t("Downloading %s…", name));
+        mBar.setVisibility(View.VISIBLE);
+        new Thread(() -> {
+            Uri got = null;
+            String err = null;
+            try {
+                got = ModUpdates.download(this, url);
+            } catch (Exception e) {
+                err = e.getMessage() != null ? e.getMessage() : e.toString();
+            }
+            final Uri file = got;
+            final String error = err;
+            runOnUiThread(() -> {
+                mBusy = false;
+                if (file != null) {
+                    importMod(file);
+                } else {
+                    mBar.setVisibility(View.GONE);
+                    mStatus.setVisibility(View.GONE);
+                    choice(t("Update failed"), error, new String[] {t("OK")}, new Runnable[] {this::afterUpdate});
+                }
+            });
+        }, "mod-update-download").start();
+    }
+
     // --- importing ---------------------------------------------------------------
 
     @Override
@@ -498,10 +616,11 @@ public class ModsActivity extends AppActivity {
         super.onActivityResult(request, result, data);
         if (request == REQUEST_IMPORT && result == RESULT_OK && data != null && data.getData() != null)
             importMod(data.getData());
-        if (request == ModFlows.PICK_TRANSLATION && result == RESULT_OK && data != null && data.getData() != null)
-            ModFlows.picked(this, data.getData());
-        if (request == ModFlows.PICK_TEXTURES && result == RESULT_OK && data != null && data.getData() != null)
-            importEclipseTextures(data.getData());
+        boolean picked = result == RESULT_OK && data != null && data.getData() != null;
+        // a picked file starts its own install: the next update waits for that
+        if ((request == ModFlows.PICK_TRANSLATION || request == ModFlows.PICK_TEXTURES) && picked) mUpdateHold = mUpdateFlow;
+        if (request == ModFlows.PICK_TRANSLATION && picked) ModFlows.picked(this, data.getData());
+        if (request == ModFlows.PICK_TEXTURES && picked) importEclipseTextures(data.getData());
         if (request == REQUEST_PAGE && result == RESULT_OK) mChanged = true;
     }
 
@@ -529,6 +648,7 @@ public class ModsActivity extends AppActivity {
                 Mods.Mod m = Mods.find(this, EclipseMod.ID);
                 if (m != null)
                     for (Mods.Option o : m.options) if (o.id.equals(EclipseMod.HD)) Mods.setOption(this, m, o, "1");
+                EclipseMod.setVersion(this, EclipseMod.HD, ModUpdates.versionIn(Mods.displayName(this, uri)));
             } catch (Exception e) {
                 error = e.getMessage() != null ? e.getMessage() : e.toString();
             }
@@ -538,11 +658,12 @@ public class ModsActivity extends AppActivity {
                 mBar.setVisibility(View.GONE);
                 mStatus.setVisibility(View.GONE);
                 if (err != null) {
-                    choice(t("Textures not imported"), err, new String[] {t("OK")}, new Runnable[] {null});
+                    choice(t("Textures not imported"), err, new String[] {t("OK")}, new Runnable[] {this::afterUpdate});
                     return;
                 }
                 mChanged = true;
                 reload();
+                afterUpdate();
             });
         }, "mod-textures").start();
     }
@@ -579,7 +700,7 @@ public class ModsActivity extends AppActivity {
                 mBar.setVisibility(View.GONE);
                 mStatus.setVisibility(View.GONE);
                 if (err != null) {
-                    choice(t("Mod not imported"), err, new String[] {t("OK")}, new Runnable[] {null});
+                    choice(t("Mod not imported"), err, new String[] {t("OK")}, new Runnable[] {this::afterUpdate});
                     return;
                 }
                 // a new mod is switched on at the end; an updated one keeps its place and state
@@ -591,6 +712,7 @@ public class ModsActivity extends AppActivity {
                 int at = 0;
                 for (int k = 0; k < mMods.size(); k++) if (mMods.get(k).id.equals(mod.id)) at = k;
                 changed(at);
+                afterUpdate();
             });
         }, "mod-import").start();
     }
@@ -628,7 +750,7 @@ public class ModsActivity extends AppActivity {
     @Override
     protected List<View> padItems() {
         List<View> items = new ArrayList<>(mRows);
-        for (View b : new View[] {mPrev, mNext, mPerPage, mUntested, mImport, mClose})
+        for (View b : new View[] {mUpdate, mPrev, mNext, mPerPage, mUntested, mImport, mClose})
             if (b.getVisibility() == View.VISIBLE && b.isEnabled()) items.add(b);
         return items;
     }
