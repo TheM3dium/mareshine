@@ -600,8 +600,9 @@ void insideDistance(const std::vector<float>& cov, int size, std::vector<float>&
 		}
 }
 
-// One button picture: shape (turned by rot), its colour, a letter (0: none)
-void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, char letter, bool pressed, float rot = 0)
+// One button picture: shape (turned by rot), its colour, a label (letters
+// from kGcLetterChars, "" for none)
+void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, const char* label, bool pressed, float rot = 0)
 {
 	im.init(size);
 	std::vector<float> cov, dist, let;
@@ -618,10 +619,37 @@ void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, char letter, bool 
 				bx = x;
 				by = y;
 			}
-	const char* lp = letter ? strchr(kGcLetterChars, letter) : nullptr;
-	if (lp)
-		rasterPoly(let, size, kGcLetters[lp - kGcLetterChars], fminf(best * 0.62f, size * 0.3f), bx + 0.5f - size * 0.5f,
-		           by + 0.5f - size * 0.5f, 0);
+	// the label's glyphs side by side, each as wide as its polygon
+	const int n = (int)strlen(label);
+	const float gs = fminf(best * (n > 1 ? 0.5f : 0.62f), size * 0.3f), gap = gs * 0.12f;
+	std::vector<int> glyph;
+	std::vector<float> width;
+	float total = 0;
+	for (int k = 0; k < n; k++) {
+		const char* lp = strchr(kGcLetterChars, label[k]);
+		if (!lp)
+			continue;
+		const GcPoly& g = kGcLetters[lp - kGcLetterChars];
+		int pts = 0;
+		for (int r = 0; r < g.ringCount; r++)
+			pts += g.rings[r];
+		float lo = 1, hi = -1;
+		for (int q = 0; q < pts; q++)
+			lo = fminf(lo, g.pts[q * 2]), hi = fmaxf(hi, g.pts[q * 2]);
+		glyph.push_back((int)(lp - kGcLetterChars));
+		width.push_back((hi - lo) * gs);
+		total += width.back() + (glyph.size() > 1 ? gap : 0);
+	}
+	const bool lp = !glyph.empty();
+	let.assign((size_t)size * size, 0.0f);
+	float x = bx + 0.5f - size * 0.5f - total * 0.5f;
+	for (size_t k = 0; k < glyph.size(); k++) {
+		std::vector<float> one;
+		rasterPoly(one, size, kGcLetters[glyph[k]], gs, x + width[k] * 0.5f, by + 0.5f - size * 0.5f, 0);
+		for (size_t i = 0; i < one.size(); i++)
+			let[i] += one[i];
+		x += width[k] + gap;
+	}
 	for (int y = 0; y < size; y++)
 		for (int x = 0; x < size; x++) {
 			const size_t i = (size_t)y * size + x;
@@ -670,17 +698,17 @@ void buildAtlas()
 	const Place& c = g_cfg.place[CSTICK];
 	const int stickPx = (int)(s.r * 2 * g_h), cPx = (int)(c.r * 2 * g_h);
 	const bool gc = g_cfg.style == 1;
-	auto gcPic = [&](int size, GcShape sh, uint32_t rgb, char letter, bool pressed, float rot = 0) {
+	auto gcPic = [&](int size, GcShape sh, uint32_t rgb, const char* letter, bool pressed, float rot = 0) {
 		pics.emplace_back();
 		makeGc(pics.back(), size < 16 ? 16 : size > 512 ? 512 : size, sh, rgb, letter, pressed, rot);
 	};
 	if (gc) {
-		gcPic(stickPx, GC_GATE, 0xFFFFFF, 0, false);
-		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, 0, false);
-		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, 0, true);
-		gcPic(cPx, GC_CGATE, 0xFFD21F, 0, false);
-		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, 'C', false);
-		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, 'C', true);
+		gcPic(stickPx, GC_GATE, 0xFFFFFF, "", false);
+		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, "", false);
+		gcPic((int)(stickPx * 0.44f), GC_KNOB, 0xFFFFFF, "", true);
+		gcPic(cPx, GC_CGATE, 0xFFD21F, "", false);
+		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, "C", false);
+		gcPic((int)(cPx * 0.46f), GC_CKNOB, 0xFFD21F, "C", true);
 	} else {
 		add(stickPx, kDefs[STICK].rgb, "", false, true);
 		add((int)(stickPx * 0.44f), kDefs[STICK].rgb, "", false, false);
@@ -690,7 +718,10 @@ void buildAtlas()
 		add((int)(cPx * 0.46f), kDefs[CSTICK].rgb, "C", true, false);
 	}
 	add((int)(g_cfg.place[BTN_HUD].r * 2 * g_h), kDefs[BTN_HUD].rgb, "SHOW", false, false);
-	add((int)(g_cfg.place[BTN_R].r * 2 * g_h), kDefs[BTN_RPLUS].rgb, "R+", true, false);
+	if (gc)
+		gcPic((int)(g_cfg.place[BTN_R].r * 2 * g_h), GC_TRIGGER_RPLUS, 0xD0D4DA, "R+", true);
+	else
+		add((int)(g_cfg.place[BTN_R].r * 2 * g_h), kDefs[BTN_RPLUS].rgb, "R+", true, false);
 	const int ind = (int)indicatorSize(), dot = (int)(ind * 0.14f);
 	add(ind, kDefs[BTN_SAVE].rgb, "SAVE", false, false);
 	add(ind, kDefs[BTN_LOAD].rgb, "LOAD", false, false);
@@ -704,7 +735,7 @@ void buildAtlas()
 		for (int pressed = 0; pressed < 2; pressed++) {
 			const int px = (int)(g_cfg.place[i].r * 2 * g_h);
 			if (gc && (i == BTN_A || i == BTN_B)) {
-				gcPic(px, i == BTN_A ? GC_A : GC_B, i == BTN_A ? 0x2ECC71 : 0xE74C3C, i == BTN_A ? 'A' : 'B', pressed != 0);
+				gcPic(px, i == BTN_A ? GC_A : GC_B, i == BTN_A ? 0x2ECC71 : 0xE74C3C, i == BTN_A ? "A" : "B", pressed != 0);
 			} else if (gc && (i == BTN_X || i == BTN_Y)) {
 				// bent round A wherever the layout puts them: X's picture has A to
 				// its left, Y's below it
@@ -712,11 +743,12 @@ void buildAtlas()
 				const float dx = (a.x - me.x) * g_w / g_h, dy = a.y - me.y;
 				const float want = (dx * dx + dy * dy) > 1e-8f ? atan2f(dy, dx) : (i == BTN_X ? 3.14159f : 1.5708f);
 				const float base = i == BTN_X ? 3.14159f : 1.5708f;
-				gcPic(px, i == BTN_X ? GC_X : GC_Y, 0xD0D4DA, i == BTN_X ? 'X' : 'Y', pressed != 0, want - base);
+				gcPic(px, i == BTN_X ? GC_X : GC_Y, 0xD0D4DA, i == BTN_X ? "X" : "Y", pressed != 0, want - base);
 			} else if (gc && i == BTN_Z) {
-				gcPic(px, GC_Z, 0x9B59B6, 'Z', pressed != 0);
-			} else if (gc && (i == BTN_L || i == BTN_R)) {
-				gcPic(px, GC_TRIGGER, 0xD0D4DA, i == BTN_L ? 'L' : 'R', pressed != 0);
+				gcPic(px, GC_Z, 0x9B59B6, "Z", pressed != 0);
+			} else if (gc && (i == BTN_L || i == BTN_R || i == BTN_RPLUS)) {
+				gcPic(px, i == BTN_L ? GC_TRIGGER_L : i == BTN_R ? GC_TRIGGER_R : GC_TRIGGER_RPLUS, 0xD0D4DA,
+				      i == BTN_L ? "L" : i == BTN_R ? "R" : "R+", pressed != 0);
 			} else {
 				add(px, kDefs[i].rgb, kDefs[i].label, pressed != 0, false);
 			}

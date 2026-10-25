@@ -3,7 +3,7 @@
 letters as polygons, traced (potrace) from the pictures in this folder.
 
 The button shapes come from m-overlay by Bkacjios (MIT, LICENSE-m-overlay);
-lr-trigger.png (L and R) is Mareshine's own. Letters are DejaVu Sans Bold.
+l-, r- and rplus-trigger.png (L, R, R+) are Mareshine's own. Letters are DejaVu Sans Bold.
 Run: python3 tools/touch-gamecube/gen.py (needs Pillow and potrace).
 """
 import json
@@ -30,15 +30,20 @@ SHAPES = [  # name in the header, picture
     ("Z", "z-pressed.png"),
     ("START", "start-pressed.png"),
     ("DPAD", "d-pad-gate-filled.png"),
-    ("TRIGGER", "lr-trigger.png"),
+    ("TRIGGER_L", "l-trigger.png"),
+    ("TRIGGER_R", "r-trigger.png"),
+    ("TRIGGER_RPLUS", "rplus-trigger.png"),
 ]
-LETTERS = "ABXYZCLRS"
+LETTERS = "ABXYZCLRS+"
 
 
 def mask_of(path):
     a = Image.open(os.path.join(HERE, path)).convert("RGBA").split()[3]
+    if max(a.size) > 256:  # as fine as the 128 px pictures; more only adds points
+        k = 256 / max(a.size)
+        a = a.resize((round(a.size[0] * k), round(a.size[1] * k)), Image.LANCZOS)
     a = a.point(lambda v: 255 if v > 127 else 0)
-    if "trigger" in path:  # the bottom edge straight
+    if path == "lr-trigger.png":  # the bottom edge straight
         bb = a.getbbox()
         a = a.crop(bb)
         w, h = a.size
@@ -76,9 +81,9 @@ def normalize(rings):
 
 
 def letter_mask(ch):
-    f = ImageFont.truetype(FONT, 400)
-    im = Image.new("L", (520, 520), 0)
-    ImageDraw.Draw(im).text((260, 260), ch, font=f, fill=255, anchor="mm")
+    f = ImageFont.truetype(FONT, 160)
+    im = Image.new("L", (220, 220), 0)
+    ImageDraw.Draw(im).text((110, 110), ch, font=f, fill=255, anchor="mm")
     return im.crop(im.getbbox())
 
 
@@ -101,9 +106,10 @@ def main():
              "\tint ringCount;", "};", "", "namespace {"]
     shapes, letters = [], []
     for name, pic in SHAPES:
-        shapes.append((name, emit(name, normalize(trace(mask_of(pic))), lines)))
+        m = mask_of(pic)
+        shapes.append((name, emit(name, normalize(trace(m, max(1, round(512 / max(m.size))))), lines)))
     for ch in LETTERS:
-        letters.append(emit("Letter" + ch, normalize(trace(letter_mask(ch), 1)), lines))
+        letters.append(emit("Letter%d" % LETTERS.index(ch), normalize(trace(letter_mask(ch), 2)), lines))
     lines.append("")
     lines.append("enum GcShape { " + ", ".join("GC_" + n for n, _ in shapes) + ", GC_SHAPE_COUNT };")
     lines.append("const GcPoly kGcShapes[GC_SHAPE_COUNT] = { " + ", ".join(e for _, e in shapes) + " };")
