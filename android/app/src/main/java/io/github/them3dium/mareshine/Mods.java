@@ -529,6 +529,7 @@ public final class Mods {
             r.tested = o.optBoolean("tested", true);
             r.rating = (float) o.optDouble("rating", -1);
             r.icon = o.optString("icon", "");
+            if (r.icon.isEmpty() && id.equals("eclipse")) r.icon = ECLIPSE.icon;
             return r;
         }
     }
@@ -554,6 +555,7 @@ public final class Mods {
 
     static {
         ECLIPSE.rating = 4;
+        ECLIPSE.icon = "asset:" + EclipseMod.DISC_ASSET;
         ECLIPSE_DE.base = "eclipse";
         ECLIPSE_DE.language = "Deutsch";
         ECLIPSE_DE.credits = "German Translation Team";

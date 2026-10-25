@@ -110,6 +110,8 @@ final class ModViews {
             float s = Math.min(getWidth(), getHeight()), cx = getWidth() / 2f, cy = getHeight() / 2f, r = s / 2f;
             if (mLabel != null && isDiscArt(mLabel)) {
                 android.graphics.RectF dst = new android.graphics.RectF(cx - r, cy - r, cx + r, cy + r);
+                mPaint.setShader(null);
+                mPaint.setAlpha(255);  // not the rim's see-through black from before
                 c.drawBitmap(mLabel, null, dst, mPaint);
                 return;
             }
@@ -185,8 +187,14 @@ final class ModViews {
         new Thread(() -> {
             Bitmap b = null;
             try {
-                File f = where.startsWith("https://") ? cached(app, where) : new File(where);
-                if (f != null && f.isFile()) b = decode(f, maxSide);
+                if (where.startsWith("asset:")) {  // a picture the app ships
+                    try (java.io.InputStream in = app.getAssets().open(where.substring(6))) {
+                        b = BitmapFactory.decodeStream(in);
+                    }
+                } else {
+                    File f = where.startsWith("https://") ? cached(app, where) : new File(where);
+                    if (f != null && f.isFile()) b = decode(f, maxSide);
+                }
             } catch (Exception ignored) {
             }
             final Bitmap out = b;

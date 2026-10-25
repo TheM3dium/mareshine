@@ -44,7 +44,9 @@ final class EclipseMod {
         + "* Hand-Animated Cutscenes: Immerse yourself in an expanded story brought to life through custom animations.";
 
     // the version of the mod.json the app writes (app_rev): an older one is rewritten
-    static final int REV = 2;
+    static final int REV = 3;
+    // its disc (made for the app without Nintendo's marks), also in Search Mods
+    static final String DISC_ASSET = "mods/eclipse-disc.png";
 
     private static int rev(File json) {
         try {
@@ -93,14 +95,25 @@ final class EclipseMod {
             .put("author", e.author).put("author_color", "#46E06A").put("description", ABOUT)
             .put("image", first.image).put("code", e.code)
             .put("app_rev", REV).put("page", e.page).put("rating", e.rating).put("preview", PREVIEW).put("options", options);
+        // its disc in the mod list: the disc art the app ships (assets/mods), else
+        // the banner on the player's image
+        File disc = new File(d, "disc.png");
+        try (java.io.InputStream in = ctx.getAssets().open(DISC_ASSET);
+             OutputStream out = new FileOutputStream(disc)) {
+            byte[] buf = new byte[1 << 15];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        } catch (IOException ex) {
+            disc.delete();
+        }
         File icon = new File(d, "icon.png");
-        if (!icon.isFile()) {
+        if (!disc.isFile() && !icon.isFile()) {
             Bitmap b = banner(new File(d, first.image));
             if (b != null) try (OutputStream out = new FileOutputStream(icon)) {
                 b.compress(Bitmap.CompressFormat.PNG, 100, out);
             }
         }
-        if (icon.isFile()) o.put("icon", "icon.png");
+        if (disc.isFile()) o.put("icon", "disc.png");
+        else if (icon.isFile()) o.put("icon", "icon.png");
         try (OutputStream out = new FileOutputStream(new File(d, "mod.json"))) {
             out.write(o.toString(2).getBytes(StandardCharsets.UTF_8));
         }
