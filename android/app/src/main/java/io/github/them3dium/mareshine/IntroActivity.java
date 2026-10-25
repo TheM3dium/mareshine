@@ -69,6 +69,8 @@ public class IntroActivity extends AppActivity {
     private PictureView mView;
     private LinearLayout mPanel, mButtons;
     private TextView mTitle, mText;
+    private Button mMain;      // the page's Next or Got it, lit now and then
+    private final Runnable mPulse = this::pulse;
     private String mStyle, mSlider;          // the choice made (null: as before)
     private String mOrigStyle, mOrigSlider;  // the settings before it (null: not set)
 
@@ -462,6 +464,24 @@ public class IntroActivity extends AppActivity {
         }
         first.requestFocus();
         mView.invalidate();
+        // easily missed among the moving pictures: after a few seconds the way on
+        // lights up, now and then (not a choice's buttons: they are equal)
+        mButtons.removeCallbacks(mPulse);
+        mMain = page.choices.isEmpty() ? first : null;
+        if (mMain != null) mButtons.postDelayed(mPulse, 3000);
+    }
+
+    // the main button grows a little and brightens, and settles again
+    private void pulse() {
+        Button b = mMain;
+        if (b == null || !b.isAttachedToWindow()) return;
+        android.animation.ValueAnimator glow = android.animation.ValueAnimator.ofArgb(0xFFFFB020, 0xFFFFE08A, 0xFFFFB020);
+        glow.setDuration(700);
+        glow.addUpdateListener(a -> b.setBackgroundTintList(android.content.res.ColorStateList.valueOf((int) a.getAnimatedValue())));
+        glow.start();
+        b.animate().scaleX(1.12f).scaleY(1.12f).setDuration(300).withEndAction(() ->
+            b.animate().scaleX(1f).scaleY(1f).setDuration(400).start()).start();
+        mButtons.postDelayed(mPulse, 4000);
     }
 
     // Back: to the choice before this page
