@@ -102,10 +102,10 @@ public class TouchLayoutActivity extends AppActivity {
         mElems.add(new Elem("STICK", "STICK", 0xFFBFC9D4, true, 0.16f, 0.72f, 0.14f).gc(0.16f, 0.76f, 0.14f));
         mElems.add(new Elem("CSTICK", "C", 0xFFF1C40F, true, 0.61f, 0.76f, 0.11f));
         // and the GameCube style's places (kGcPlaces in touch.cpp)
-        mElems.add(new Elem("A", "A", 0xFF2ECC71, false, 0.90f, 0.74f, 0.082f).gc(0.86f, 0.70f, 0.090f));
-        mElems.add(new Elem("B", "B", 0xFFE74C3C, false, 0.80f, 0.82f, 0.072f).gc(0.775f, 0.80f, 0.060f));
-        mElems.add(new Elem("X", "X", 0xFFF1C40F, false, 0.82f, 0.62f, 0.062f).gc(0.937f, 0.628f, 0.068f));
-        mElems.add(new Elem("Y", "Y", 0xFF3498DB, false, 0.73f, 0.70f, 0.062f).gc(0.85f, 0.52f, 0.068f));
+        mElems.add(new Elem("A", "A", 0xFF2ECC71, false, 0.90f, 0.74f, 0.082f).gc(0.86f, 0.66f, 0.090f));
+        mElems.add(new Elem("B", "B", 0xFFE74C3C, false, 0.80f, 0.82f, 0.072f).gc(0.775f, 0.76f, 0.060f));
+        mElems.add(new Elem("X", "X", 0xFFF1C40F, false, 0.82f, 0.62f, 0.062f).gc(0.937f, 0.588f, 0.068f));
+        mElems.add(new Elem("Y", "Y", 0xFF3498DB, false, 0.73f, 0.70f, 0.062f).gc(0.85f, 0.48f, 0.068f));
         mElems.add(new Elem("L", "L", 0xFF95A5A6, false, 0.08f, 0.16f, 0.072f).gc(0.12f, 0.366f, 0.075f));
         mElems.add(new Elem("R", "R", 0xFF2980B9, false, 0.91f, 0.52f, 0.072f).gc(0.877f, 0.366f, 0.075f));
         mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f).gc(0.804f, 0.281f, 0.075f));
