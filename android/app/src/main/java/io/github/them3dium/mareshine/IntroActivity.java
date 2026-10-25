@@ -42,6 +42,7 @@ public class IntroActivity extends AppActivity {
         final List<Runnable> actions = new ArrayList<>();
         boolean asks;  // a choice page: only when the intro asks
         boolean back;  // a Back button, to the choice before
+        java.util.function.BooleanSupplier low = () -> false;  // the text below a top row of buttons
 
         Page(String title, String text, Picture picture) {
             this.title = title;
@@ -158,6 +159,7 @@ public class IntroActivity extends AppActivity {
             });
         done.asks = true;
         done.back = true;
+        done.low = () -> mStyle == null && !ownGc;  // Classic's top row (START, MENU, ...) shows
         mPages.add(done);
     }
 
@@ -344,6 +346,9 @@ public class IntroActivity extends AppActivity {
         mIndex = index;
         mPageStart = SystemClock.uptimeMillis();
         Page page = mPages.get(index);
+        FrameLayout.LayoutParams plp = (FrameLayout.LayoutParams) mPanel.getLayoutParams();
+        plp.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * (page.low.getAsBoolean() ? 0.17f : 0.05f));
+        mPanel.setLayoutParams(plp);
         mTitle.setText(page.title);
         mText.setText(page.text);
         mPanel.setAlpha(0f);
