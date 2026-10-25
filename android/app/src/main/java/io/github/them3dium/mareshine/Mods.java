@@ -268,6 +268,13 @@ public final class Mods {
         return sb.toString();
     }
 
+    // a text in the app's language when the mod has it ("description_de"), else as it is
+    static String loc(JSONObject o, String key, String def) {
+        String lang = L.loaded();
+        String own = lang.isEmpty() ? "" : o.optString(key + "_" + lang, "");
+        return own.isEmpty() ? o.optString(key, def) : own;
+    }
+
     static List<Option> parseOptions(JSONArray a) {
         List<Option> out = new ArrayList<>();
         if (a == null) return out;
@@ -277,8 +284,8 @@ public final class Mods {
             Option o = new Option();
             o.type = j.optString("type", "toggle");
             o.id = cleanId(j.optString("id", ""));
-            o.label = j.optString("label", o.id);
-            o.text = j.optString("text", "");
+            o.label = loc(j, "label", o.id);
+            o.text = loc(j, "text", "");
             o.url = j.optString("url", "");
             o.folder = cleanPath(j.optString("folder", ""));
             o.image = new File(j.optString("image", "")).getName();
@@ -294,7 +301,7 @@ public final class Mods {
                         v.label = vals.optString(k);
                     } else {
                         v.id = cleanId(vj.optString("id", ""));
-                        v.label = vj.optString("label", v.id);
+                        v.label = loc(vj, "label", v.id);
                         v.folder = cleanPath(vj.optString("folder", ""));
                         v.image = new File(vj.optString("image", "")).getName();
                     }
@@ -331,10 +338,10 @@ public final class Mods {
             try {
                 JSONObject o = new JSONObject(readText(json));
                 m.id = cleanId(o.optString("id", d.getName()));
-                m.name = o.optString("name", "");
+                m.name = loc(o, "name", "");
                 m.version = o.optString("version", "");
                 m.author = o.optString("author", "");
-                m.description = o.optString("description", "");
+                m.description = loc(o, "description", "");
                 m.image = new File(o.optString("image", "")).getName();  // a file in its folder
                 m.code = o.optBoolean("code", false);
                 m.icon = o.optString("icon", "");

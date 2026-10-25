@@ -64,6 +64,17 @@ A zip of Dolphin textures with no `mod.json` (a texture pack as made for Dolphin
 | `rating` | its suns (0 to 5) until players have rated it |
 | `options` | the buttons on its page, in order |
 
+### Other languages
+
+Texts are shown as written, usually in English.
+A mod can add its own translations next to them, with the language code after an underscore: `name_de`, `description_de`, and on buttons and values `label_de` and `text_de`.
+The app shows the one for its language (`de`, `es`, `fr`, `it`) and else the plain key.
+
+```json
+"description": "New stages and challenges.",
+"description_de": "Neue Level und Herausforderungen."
+```
+
 ### Buttons (`options`)
 
 A page shows up to four buttons, centred.

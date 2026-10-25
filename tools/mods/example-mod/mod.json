@@ -4,6 +4,7 @@
   "version": "1.0",
   "author": "Mareshine",
   "description": "An example of a mod package: its page, its buttons and a settings page. It changes nothing in the game. Copy this folder, change mod.json, put your own files into files/ and textures/, and zip the folder. docs/MODS.md describes every key.",
+  "description_de": "Ein Beispiel für ein Mod-Paket: seine Seite, seine Buttons und eine Einstellungsseite. Es ändert nichts am Spiel. Kopiere diesen Ordner, ändere mod.json, lege deine eigenen Dateien in files/ und textures/ und packe den Ordner als Zip. docs/MODS.md beschreibt jeden Eintrag.",
   "icon": "icon.png",
   "preview": "preview.png",
   "rating": 4,
@@ -13,7 +14,7 @@
       {"id": "day", "label": "Day"},
       {"id": "night", "label": "Night"}
     ]},
-    {"type": "page", "label": "Settings", "options": [
+    {"type": "page", "label": "Settings", "label_de": "Einstellungen", "options": [
       {"type": "choice", "id": "difficulty", "label": "Difficulty", "values": ["Easy", "Normal", "Hard"], "default": "normal"},
       {"type": "toggle", "id": "timer", "label": "Speedrun timer", "text": "Shows a timer in the corner (an example: nothing reads it)."}
     ]},

@@ -55,6 +55,10 @@ public final class L {
         return SYSTEM.equals(v) ? Locale.getDefault().getLanguage() : v;
     }
 
+    // the language loaded by init ("" before it), for texts that come with
+    // their own translations (a mod's "description_de", Mods)
+    public static String loaded() { return sLoaded; }
+
     // Loads the table for the current language (again only when it changed).
     public static void init(Context c) {
         String lang = current(c);
