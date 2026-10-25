@@ -52,6 +52,7 @@ final class ModUpdates {
         for (Mods.Mod m : Mods.list(ctx)) {
             if (onlyMod != null && !onlyMod.equals(m.id)) continue;
             if (m.id.equals(EclipseMod.ID)) eclipse(ctx, out);
+            else if (Mods.release(m.id) != null) release(ctx, m, Mods.release(m.id), out);
             else if (!m.update.isEmpty()) own(ctx, m, out);
         }
         return out;
@@ -94,6 +95,15 @@ final class ModUpdates {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    // a mod of the catalog's other than Eclipse (Super Mario Sunburn)
+    private static void release(Context ctx, Mods.Mod m, Mods.Release r, List<Update> out) {
+        if (m.version.isEmpty() || !newer(r.version, m.version)) return;
+        out.add(new Update(m.id, m.name, m.version, r.version, a -> {
+            if (r.urls.length > 0) ModInstallActivity.start(a, r);
+            else ModFlows.manual(a, r);
+        }));
     }
 
     // a mod's own update address

@@ -517,6 +517,12 @@ public final class Mods {
         public boolean tested = true;
         public float rating = -1;
         public String icon = "";
+        // for a mod of its own (not Eclipse's): its page's picture and text,
+        // and the mods it does not work with (written into its mod.json)
+        public String preview = "", about = "";
+        public String[] incompatible = new String[0];
+
+        boolean isEclipse() { return id.equals("eclipse") || base.equals("eclipse"); }
 
         Release(String id, String name, String version, String author, String description, String page, String[] urls,
                 String file, long size, String md5, String patch, String sourceMd5, String resultMd5, long imageSize,
@@ -545,7 +551,23 @@ public final class Mods {
             r.tested = o.optBoolean("tested", true);
             r.rating = (float) o.optDouble("rating", -1);
             r.icon = o.optString("icon", "");
-            if (r.icon.isEmpty() && id.equals("eclipse")) r.icon = ECLIPSE.icon;
+            r.preview = o.optString("preview", "");
+            r.about = o.optString("about", "");
+            JSONArray inc = o.optJSONArray("incompatible");
+            if (inc != null) {
+                r.incompatible = new String[inc.length()];
+                for (int i = 0; i < inc.length(); i++) r.incompatible[i] = cleanId(inc.optString(i));
+            }
+            // what the catalog leaves out comes from the app's own entry
+            for (Release own : new Release[] {ECLIPSE, ECLIPSE_DE, SUNBURN}) {
+                if (!own.id.equals(id)) continue;
+                if (r.icon.isEmpty()) r.icon = own.icon;
+                if (r.preview.isEmpty()) r.preview = own.preview;
+                if (r.about.isEmpty()) r.about = own.about;
+                if (r.incompatible.length == 0) r.incompatible = own.incompatible;
+                if (r.credits.isEmpty()) r.credits = own.credits;
+                if (r.rating < 0) r.rating = own.rating;
+            }
             return r;
         }
     }
@@ -579,7 +601,32 @@ public final class Mods {
 
     // The releases the app offers: those built in, replaced or added to by the
     // online catalog (ModUpdates fetches it into catalog.json in the app's files)
-    private static final List<Release> RELEASES = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE));
+    // Super Mario Sunburn v2.0 by EpicWade: its patch onto the North American
+    // disc, picked by the player from its page; its code is built into the
+    // app (rebuilt from the module's machine code, docs/ECLIPSE.md)
+    public static final Release SUNBURN = new Release("sunburn", "Super Mario Sunburn", "v2.0", "EpicWade",
+        "Open world, missions in any order, no boot out of the stages.", "https://gamebanana.com/mods/149607",
+        new String[0], "super_mario_sunburn_v2.7z", 721112565L, "3dbe6007bf155ee133e2ec324c0a90d7",
+        "patches/console.xdelta", "0c6d2edae9fdf40dfc410ff1623e4119", "04d9abf76675adcfaa6aa1dde6c40215",
+        1459978240L, "Super Mario Sunburn v2.0.iso", true);
+
+    static {
+        SUNBURN.credits = "EpicWade";
+        SUNBURN.preview = "https://images.gamebanana.com/img/ss/mods/6505bdb7694a8.jpg";
+        SUNBURN.icon = SUNBURN.preview;
+        SUNBURN.incompatible = new String[] {"eclipse"};
+        SUNBURN.about = "Super Mario Sunburn makes Super Mario Sunshine play more like Super Mario 64, with many "
+            + "improvements on top:\n\n"
+            + "* An open world: travel freely from stage to stage.\n"
+            + "* Several missions at once: collect the shines in any order.\n"
+            + "* No boot out: a shine does not always end the visit.\n"
+            + "* Autosave: no more saving with blue coins.\n"
+            + "* Every mission can give its 100 coins: 30 to 60 more coins in each stage.\n"
+            + "* Fixes for collision and many bugs.\n"
+            + "* New Game Plus and a real reward for all 120 shines.";
+    }
+
+    private static final List<Release> RELEASES = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE, SUNBURN));
     private static long sCatalogTime = -1;
 
     static File catalogFile(Context ctx) { return new File(ctx.getFilesDir(), "catalog.json"); }
@@ -589,7 +636,7 @@ public final class Mods {
         long t = f.isFile() ? f.lastModified() : 0;
         if (t == sCatalogTime) return;
         sCatalogTime = t;
-        List<Release> all = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE));
+        List<Release> all = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE, SUNBURN));
         if (t != 0) {
             try {
                 JSONArray a = new JSONObject(readText(f)).optJSONArray("releases");
@@ -639,9 +686,10 @@ public final class Mods {
     }
 
     // the translation a picked file of this size is, or null
-    public static Release translationOfSize(long size) {
+    // the release a picked file of this size is (one the player downloads by hand), or null
+    public static Release pickedOfSize(long size) {
         synchronized (Mods.class) {
-            for (Release r : RELEASES) if (!r.base.isEmpty() && r.size == size) return r;
+            for (Release r : RELEASES) if (r.urls.length == 0 && r.size == size) return r;
         }
         return null;
     }

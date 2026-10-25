@@ -139,6 +139,20 @@ final class ModFlows {
             labels, acts);
     }
 
+    // A mod the player downloads from its page and picks (Super Mario Sunburn)
+    static void manual(AppActivity a, Mods.Release r) {
+        if (!r.base.isEmpty()) {
+            translation(a, r);
+            return;
+        }
+        a.choice(t("Install %s", r.name),
+            t("%s is made by %s. Download it from its page (the .7z file, do not unpack it), then pick the "
+                + "downloaded file here. It is made from your own Super Mario Sunshine disc (North American, GMSE01) "
+                + "and needs about %.1f GB.", r.name, r.credits, r.imageSize / 1e9),
+            new String[] {t("Open download page"), t("Pick downloaded file")},
+            new Runnable[] {() -> openPage(a, r.page), () -> pick(a, PICK_TRANSLATION)});
+    }
+
     // A translation: downloaded from its page by the player, then picked
     static void translation(AppActivity a, Mods.Release r) {
         a.choice(t("Install %s", EclipseMod.languageName(r)),
@@ -157,10 +171,10 @@ final class ModFlows {
             if (c != null && c.moveToFirst() && !c.isNull(0)) size = c.getLong(0);
         } catch (Exception ignored) {
         }
-        Mods.Release r = Mods.translationOfSize(size);
+        Mods.Release r = Mods.pickedOfSize(size);
         if (r == null) {
-            a.choice(t("Not a known translation"), t("This file is none of the translations listed. Pick the .7z file "
-                + "as downloaded from the translation's page, not unpacked."), new String[] {t("OK")},
+            a.choice(t("Not a known file"), t("This file is none of the mods and translations listed. Pick the .7z "
+                + "file as downloaded from its page, not unpacked."), new String[] {t("OK")},
                 new Runnable[] {null});
             return;
         }

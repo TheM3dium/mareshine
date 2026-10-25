@@ -53,7 +53,7 @@ public class ModInstallActivity extends AppActivity {
         ctx.startActivity(new Intent(ctx, ModInstallActivity.class).putExtra(EXTRA_ID, r.id));
     }
 
-    // a picked translation's file (Mods.translationOfSize)
+    // a picked file: a translation, or a mod downloaded by hand (Mods.pickedOfSize)
     static void start(Context ctx, Mods.Release r, Uri picked) {
         ctx.startActivity(new Intent(ctx, ModInstallActivity.class).putExtra(EXTRA_ID, r.id)
             .putExtra(EXTRA_URI, picked.toString()));
@@ -143,8 +143,10 @@ public class ModInstallActivity extends AppActivity {
     // --- the job ------------------------------------------------------------------
 
     private void run(Mods.Release r, Uri picked) {
-        // Super Mario Eclipse's languages side by side in its folder (EclipseMod)
-        File mods = Mods.dir(this), dl = new File(mods, ".downloads"), dest = EclipseMod.dir(this);
+        // Super Mario Eclipse's languages side by side in its folder (EclipseMod);
+        // another mod in a folder of its own
+        File mods = Mods.dir(this), dl = new File(mods, ".downloads");
+        File dest = r.isEclipse() ? EclipseMod.dir(this) : new File(mods, r.id);
         File archive = new File(dl, r.file), part = new File(dl, r.file + ".part");
         File stage = new File(mods, "." + r.id + ".tmp");
         try {
@@ -233,7 +235,8 @@ public class ModInstallActivity extends AppActivity {
             if (!image.renameTo(target)) throw new IOException("cannot move the image to " + dest);
             TexturePackActivity.remove(stage);
             if (picked == null) archive.delete();
-            EclipseMod.installed(this, r);
+            if (r.isEclipse()) EclipseMod.installed(this, r);
+            else installed(r, dest);
             String msg = t("%s is installed and switched on. Play starts it; switch it off in Mods to play Super Mario "
                 + "Sunshine again.", r.name);
             if (picked != null) msg += "\n\n" + t("The downloaded file is not needed any more and can be deleted.");
@@ -301,6 +304,34 @@ public class ModInstallActivity extends AppActivity {
             return;
         }
         throw new IOException("too many redirects");
+    }
+
+    // A mod of its own: its mod.json (its page, the mods it does not work
+    // with, its disc's banner as its label), an older version's image gone, on
+    private void installed(Mods.Release r, File dir) throws Exception {
+        org.json.JSONObject o = new org.json.JSONObject().put("id", r.id).put("name", r.name)
+            .put("version", r.version).put("author", r.author)
+            .put("description", r.about.isEmpty() ? r.description : r.about).put("image", r.image)
+            .put("code", r.code).put("page", r.page);
+        if (r.rating >= 0) o.put("rating", r.rating);
+        if (!r.preview.isEmpty()) o.put("preview", r.preview);
+        if (r.incompatible.length > 0) o.put("incompatible", new org.json.JSONArray(java.util.Arrays.asList(r.incompatible)));
+        o.put("options", new org.json.JSONArray().put(new org.json.JSONObject().put("type", "link")
+            .put("label", "Website").put("url", r.page)));
+        File icon = new File(dir, "icon.png");
+        android.graphics.Bitmap b = EclipseMod.banner(new File(dir, r.image));
+        if (b != null) try (OutputStream out = new FileOutputStream(icon)) {
+            b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+        }
+        if (icon.isFile()) o.put("icon", "icon.png");
+        File[] old = dir.listFiles();
+        if (old != null)
+            for (File f : old)
+                if (f.getName().toLowerCase(Locale.ROOT).endsWith(".iso") && !f.getName().equals(r.image)) f.delete();
+        try (OutputStream out = new FileOutputStream(new File(dir, "mod.json"))) {
+            out.write(o.toString(2).getBytes("UTF-8"));
+        }
+        Mods.setEnabled(this, r.id, true);
     }
 
     private InputStream open(Uri picked, File archive) throws IOException {

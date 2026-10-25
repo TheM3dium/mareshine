@@ -409,6 +409,10 @@ public class ModsActivity extends AppActivity {
             ModFlows.languages(this);
             return;
         }
+        if (r.urls.length == 0) {
+            ModFlows.manual(this, r);
+            return;
+        }
         choice(t("Install %s?", r.name),
             t("%s is downloaded (%.1f GB) and made from your own Super Mario Sunshine disc image (North American, "
                 + "GMSE01): the download holds only the changes, nothing of the game. It then needs about %.1f GB "
