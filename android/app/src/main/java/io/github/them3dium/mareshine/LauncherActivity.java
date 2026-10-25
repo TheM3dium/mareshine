@@ -100,7 +100,10 @@ public class LauncherActivity extends AppActivity {
         // Settings.upgrade tells an update from a new install
         DataDir.ensureLayout(this);
         String intro = savedInstanceState == null ? Intro.pending(this) : null;
-        if (intro != null) startActivity(new Intent(this, IntroActivity.class).putExtra(IntroActivity.EXTRA_ID, intro));
+        if (intro != null) {
+            startActivity(new Intent(this, IntroActivity.class).putExtra(IntroActivity.EXTRA_ID, intro));
+            overridePendingTransition(0, 0);  // the intro fades itself in
+        }
         boolean restarting = getIntent() != null && getIntent().getBooleanExtra(EXTRA_AUTOSTART, false);
         handleAutostart(getIntent());
         // "Start game automatically" (Settings → GAME): straight into the game

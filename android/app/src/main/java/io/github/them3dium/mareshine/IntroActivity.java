@@ -85,6 +85,10 @@ public class IntroActivity extends AppActivity {
         buildUi();
         hideSystemUi();
         show(0);
+        // faded in, softly
+        View root = findViewById(android.R.id.content);
+        root.setAlpha(0f);
+        root.animate().alpha(1f).setStartDelay(150).setDuration(700).start();
     }
 
     @Override
@@ -395,8 +399,15 @@ public class IntroActivity extends AppActivity {
         finishIntro();
     }
 
+    // done: faded out to the launcher
     private void finishIntro() {
         Intro.done(this, mId);
-        finish();
+        View root = findViewById(android.R.id.content);
+        if (mView == null || root == null) { finish(); return; }
+        mButtons.setEnabled(false);
+        root.animate().alpha(0f).setDuration(450).withEndAction(() -> {
+            finish();
+            overridePendingTransition(android.R.anim.fade_in, 0);
+        }).start();
     }
 }
