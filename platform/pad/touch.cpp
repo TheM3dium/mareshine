@@ -86,8 +86,9 @@ const GcPlace kGcPlaces[] = {
 	{ STICK, 0.16f, 0.76f, 0.14f },     // as high as the C-stick, and B too
 	{ BTN_A, 0.86f, 0.66f, 0.090f },    { BTN_B, 0.775f, 0.76f, 0.060f },  { BTN_X, 0.937f, 0.588f, 0.068f },
 	{ BTN_Y, 0.85f, 0.48f, 0.068f },    { BTN_Z, 0.95f, 0.45f, 0.055f },
-	// R further up Z's line (its tilt, kGcTilt), R+ further still, L as high as R
-	{ BTN_R, 0.877f, 0.366f, 0.075f }, { BTN_RPLUS, 0.804f, 0.281f, 0.075f }, { BTN_L, 0.12f, 0.366f, 0.075f },
+	// R further up Z's line (its tilt, kGcTilt), L as high as R; R+ (without
+	// the slider) takes R's place and R goes above it, square to their flat side
+	{ BTN_R, 0.877f, 0.366f, 0.075f }, { BTN_RPLUS, 0.907f, 0.246f, 0.075f }, { BTN_L, 0.12f, 0.366f, 0.075f },
 };
 
 struct Place {
@@ -789,8 +790,8 @@ void buildAtlas()
 				gcPic(px, GC_Z, 0x9B59B6, "Z", pressed != 0);
 			} else if (gc && (i == BTN_L || i == BTN_R || i == BTN_RPLUS)) {
 				// turned to fall as Z does (28 degrees), L the other way
-				// R+ is a second R, pressed in when held
-				gcPic(px, i == BTN_L ? GC_TRIGGER_L : i == BTN_R || !pressed ? GC_TRIGGER_R : GC_TRIGGER_RPLUS, 0xD0D4DA,
+				// R+ is a second R (pressed in only R is, when slid out to R+)
+				gcPic(px, i == BTN_L ? GC_TRIGGER_L : GC_TRIGGER_R, 0xD0D4DA,
 				      i == BTN_L ? "L" : i == BTN_R ? "R" : "R+", pressed != 0, 0.75f,
 				      i == BTN_L ? -kGcTilt[0] : i == BTN_R ? kGcTilt[1] : kGcTilt[2]);
 			} else {

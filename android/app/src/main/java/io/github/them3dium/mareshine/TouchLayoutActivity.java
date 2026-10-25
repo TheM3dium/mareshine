@@ -108,7 +108,7 @@ public class TouchLayoutActivity extends AppActivity {
         mElems.add(new Elem("Y", "Y", 0xFF3498DB, false, 0.73f, 0.70f, 0.062f).gc(0.85f, 0.48f, 0.068f));
         mElems.add(new Elem("L", "L", 0xFF95A5A6, false, 0.08f, 0.16f, 0.072f).gc(0.12f, 0.366f, 0.075f));
         mElems.add(new Elem("R", "R", 0xFF2980B9, false, 0.91f, 0.52f, 0.072f).gc(0.877f, 0.366f, 0.075f));
-        mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f).gc(0.804f, 0.281f, 0.075f));
+        mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f).gc(0.907f, 0.246f, 0.075f));
         mElems.add(new Elem("Z", "Z", 0xFF9B59B6, false, 0.90f, 0.30f, 0.062f).gc(0.95f, 0.45f, 0.055f));
         mElems.add(new Elem("START", "START", 0xFFE67E22, false, 0.50f, 0.08f, 0.050f));
         mElems.add(new Elem("HUD", "HIDE", 0xFF7F8C8D, false, 0.40f, 0.08f, 0.045f)); // hides the other controls
@@ -184,7 +184,7 @@ public class TouchLayoutActivity extends AppActivity {
     }
 
     // The style's defaults. Without the R+ slider the GameCube style has R+ in
-    // R's place, by Z, and R above it (touch.cpp does the same)
+    // R's place, by Z, and R above it, square to their flat side (touch.cpp too)
     private void resetAll() {
         for (Elem e : mElems) e.reset(mGc);
         if (mGc && !mSlider) swapR();
@@ -243,7 +243,7 @@ public class TouchLayoutActivity extends AppActivity {
             case "A": case "B": case "X": case "Y": case "Z": return gcIndex(elem);
             case "L": return gcIndex("TRIGGER_L");
             case "R": return gcIndex("TRIGGER_R");
-            case "RPLUS": return gcIndex("TRIGGER_R");  // a second R; pressed in only in the game
+            case "RPLUS": return gcIndex("TRIGGER_R");  // a second R
             default: return -1;
         }
     }
