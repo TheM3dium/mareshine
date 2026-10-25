@@ -69,15 +69,21 @@ const Def kDefs[ID_COUNT] = {
 
 // The GameCube style's default places (unless the layout has its own): A big
 // in the middle of the right hand, B below left, X right, Y above, Z and R
-// just above them, R+ beside R.
+// just above them on one line, R+ beyond R, L as high as R.
+// How far L (mirrored), R and R+ are turned so their flat side falls as Z's
+// long side does: Z lies at 28.1 degrees, the pictures at 21.6, 21.4, 17.2.
+const float kGcTilt[3] = { (28.1f - 21.6f) * 3.14159f / 180, (28.1f - 21.4f) * 3.14159f / 180,
+                           (28.1f - 17.2f) * 3.14159f / 180 };
+
 struct GcPlace {
 	int id;
 	float x, y, r;
 };
 const GcPlace kGcPlaces[] = {
-	{ BTN_A, 0.86f, 0.70f, 0.090f }, { BTN_B, 0.775f, 0.80f, 0.060f }, { BTN_X, 0.945f, 0.62f, 0.068f },
-	{ BTN_Y, 0.85f, 0.52f, 0.068f }, { BTN_Z, 0.95f, 0.45f, 0.055f },  { BTN_R, 0.885f, 0.35f, 0.075f },
-	{ BTN_RPLUS, 0.80f, 0.38f, 0.062f },
+	{ BTN_A, 0.86f, 0.70f, 0.090f },    { BTN_B, 0.775f, 0.80f, 0.060f },  { BTN_X, 0.945f, 0.62f, 0.068f },
+	{ BTN_Y, 0.85f, 0.52f, 0.068f },    { BTN_Z, 0.95f, 0.45f, 0.055f },
+	// R further up Z's line (its tilt, kGcTilt), R+ further still, L as high as R
+	{ BTN_R, 0.848f, 0.333f, 0.075f }, { BTN_RPLUS, 0.767f, 0.239f, 0.062f }, { BTN_L, 0.12f, 0.333f, 0.075f },
 };
 
 struct Place {
@@ -630,15 +636,22 @@ void makeGc(Image& im, int size, GcShape shape, uint32_t rgb, const char* label,
 	const float stroke = fmaxf(1.5f, size * 0.05f);
 	const bool gate = shape == GC_GATE || shape == GC_CGATE;
 	// the letter at the widest place inside the shape, as large as it allows
+	// (of the places nearly as wide as the widest, the one nearest the middle:
+	// a pill is as wide all along)
 	float best = 0;
+	for (float d : dist)
+		best = fmaxf(best, d);
 	int bx = size / 2, by = size / 2;
+	float near = 1e9f;
 	for (int y = 0; y < size; y++)
-		for (int x = 0; x < size; x++)
-			if (dist[(size_t)y * size + x] > best) {
-				best = dist[(size_t)y * size + x];
+		for (int x = 0; x < size; x++) {
+			const float d2 = (x - size * 0.5f) * (x - size * 0.5f) + (y - size * 0.5f) * (y - size * 0.5f);
+			if (dist[(size_t)y * size + x] >= best - 1.0f && d2 < near) {
+				near = d2;
 				bx = x;
 				by = y;
 			}
+		}
 	// the label's glyphs side by side, each as wide as its polygon
 	const int n = (int)strlen(label);
 	const float gs = fminf(best * (n > 1 ? 0.5f : 0.62f), size * 0.3f) * letterScale, gap = gs * 0.12f;
@@ -720,9 +733,10 @@ void buildAtlas()
 	const Place& c = g_cfg.place[CSTICK];
 	const int stickPx = (int)(s.r * 2 * g_h), cPx = (int)(c.r * 2 * g_h);
 	const bool gc = g_cfg.style == 1;
-	auto gcPic = [&](int size, GcShape sh, uint32_t rgb, const char* letter, bool pressed, float letterScale = 1) {
+	auto gcPic = [&](int size, GcShape sh, uint32_t rgb, const char* letter, bool pressed, float letterScale = 1,
+	                 float rot = 0) {
 		pics.emplace_back();
-		makeGc(pics.back(), size < 16 ? 16 : size > 512 ? 512 : size, sh, rgb, letter, pressed, 0, letterScale);
+		makeGc(pics.back(), size < 16 ? 16 : size > 512 ? 512 : size, sh, rgb, letter, pressed, rot, letterScale);
 	};
 	if (gc) {
 		gcPic(stickPx, GC_GATE, 0xFFFFFF, "", false);
@@ -741,7 +755,7 @@ void buildAtlas()
 	}
 	add((int)(g_cfg.place[BTN_HUD].r * 2 * g_h), kDefs[BTN_HUD].rgb, "SHOW", false, false);
 	if (gc)
-		gcPic((int)(g_cfg.place[BTN_R].r * 2 * g_h), GC_TRIGGER_RPLUS, 0xD0D4DA, "R+", true, 0.75f);
+		gcPic((int)(g_cfg.place[BTN_R].r * 2 * g_h), GC_TRIGGER_RPLUS, 0xD0D4DA, "R+", true, 0.75f, kGcTilt[2]);
 	else
 		add((int)(g_cfg.place[BTN_R].r * 2 * g_h), kDefs[BTN_RPLUS].rgb, "R+", true, false);
 	const int ind = (int)indicatorSize(), dot = (int)(ind * 0.14f);
@@ -763,8 +777,10 @@ void buildAtlas()
 			} else if (gc && i == BTN_Z) {
 				gcPic(px, GC_Z, 0x9B59B6, "Z", pressed != 0);
 			} else if (gc && (i == BTN_L || i == BTN_R || i == BTN_RPLUS)) {
+				// turned to fall as Z does (28 degrees), L the other way
 				gcPic(px, i == BTN_L ? GC_TRIGGER_L : i == BTN_R ? GC_TRIGGER_R : GC_TRIGGER_RPLUS, 0xD0D4DA,
-				      i == BTN_L ? "L" : i == BTN_R ? "R" : "R+", pressed != 0, 0.75f);
+				      i == BTN_L ? "L" : i == BTN_R ? "R" : "R+", pressed != 0, 0.75f,
+				      i == BTN_L ? -kGcTilt[0] : i == BTN_R ? kGcTilt[1] : kGcTilt[2]);
 			} else {
 				add(px, kDefs[i].rgb, kDefs[i].label, pressed != 0, false);
 			}

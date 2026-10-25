@@ -106,9 +106,9 @@ public class TouchLayoutActivity extends AppActivity {
         mElems.add(new Elem("B", "B", 0xFFE74C3C, false, 0.80f, 0.82f, 0.072f).gc(0.775f, 0.80f, 0.060f));
         mElems.add(new Elem("X", "X", 0xFFF1C40F, false, 0.82f, 0.62f, 0.062f).gc(0.945f, 0.62f, 0.068f));
         mElems.add(new Elem("Y", "Y", 0xFF3498DB, false, 0.73f, 0.70f, 0.062f).gc(0.85f, 0.52f, 0.068f));
-        mElems.add(new Elem("L", "L", 0xFF95A5A6, false, 0.08f, 0.16f, 0.072f));
-        mElems.add(new Elem("R", "R", 0xFF2980B9, false, 0.91f, 0.52f, 0.072f).gc(0.885f, 0.35f, 0.075f));
-        mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f).gc(0.80f, 0.38f, 0.062f));
+        mElems.add(new Elem("L", "L", 0xFF95A5A6, false, 0.08f, 0.16f, 0.072f).gc(0.12f, 0.333f, 0.075f));
+        mElems.add(new Elem("R", "R", 0xFF2980B9, false, 0.91f, 0.52f, 0.072f).gc(0.848f, 0.333f, 0.075f));
+        mElems.add(new Elem("RPLUS", "R+", 0xFF1F4E79, false, 0.82f, 0.44f, 0.062f).gc(0.767f, 0.239f, 0.062f));
         mElems.add(new Elem("Z", "Z", 0xFF9B59B6, false, 0.90f, 0.30f, 0.062f).gc(0.95f, 0.45f, 0.055f));
         mElems.add(new Elem("START", "START", 0xFFE67E22, false, 0.50f, 0.08f, 0.050f));
         mElems.add(new Elem("HUD", "HIDE", 0xFF7F8C8D, false, 0.40f, 0.08f, 0.045f)); // hides the other controls
@@ -244,7 +244,19 @@ public class TouchLayoutActivity extends AppActivity {
     }
 
     // the shape at (cx, cy), unit pixels for its [-1, 1]
-    private static Path gcPath(int idx, float cx, float cy, float unit) {
+    // L, R and R+ turned to fall as Z does (touch.cpp, kGcTilt), in degrees
+    private static float gcTilt(String elem) {
+        switch (elem) {
+            case "L": return -(28.1f - 21.6f);
+            case "R": return 28.1f - 21.4f;
+            case "RPLUS": return 28.1f - 17.2f;
+            default: return 0;
+        }
+    }
+
+    private static Path gcPath(int idx, float cx, float cy, float unit) { return gcPath(idx, cx, cy, unit, 0); }
+
+    private static Path gcPath(int idx, float cx, float cy, float unit, float deg) {
         Path base = sGcPaths.get(idx);
         if (base == null) {
             base = new Path();
@@ -264,6 +276,7 @@ public class TouchLayoutActivity extends AppActivity {
         Path out = new Path();
         android.graphics.Matrix m = new android.graphics.Matrix();
         m.setScale(unit, unit);
+        m.postRotate(deg);
         m.postTranslate(cx, cy);
         base.transform(m, out);
         return out;
@@ -664,20 +677,22 @@ public class TouchLayoutActivity extends AppActivity {
                 p.setPathEffect(null);
                 p.setStyle(Paint.Style.FILL);
                 c.drawPath(gcPath(knob, cx, cy, ku), p);
-                if (e.name.equals("CSTICK")) gcLabel(c, p, knob, "C", cx, cy, ku, 0.65f, alpha);
+                if (e.name.equals("CSTICK")) gcLabel(c, p, knob, "C", cx, cy, ku, 0.65f, alpha, 0);
                 return true;
             }
+            float deg = gcTilt(e.name);
             p.setStyle(Paint.Style.FILL);
             p.setColor(rgb | ((alpha * 92 / 100) << 24));
-            c.drawPath(gcPath(idx, cx, cy, unit), p);
+            c.drawPath(gcPath(idx, cx, cy, unit, deg), p);
             float scale = e.name.equals("A") || e.name.equals("B") ? 0.65f
                 : e.name.equals("L") || e.name.equals("R") || e.name.equals("RPLUS") ? 0.75f : 1f;
-            gcLabel(c, p, idx, e.label, cx, cy, unit, scale, alpha);
+            gcLabel(c, p, idx, e.label, cx, cy, unit, scale, alpha, deg);
             return true;
         }
 
         // The letter at the shape's widest place, about as large as touch.cpp draws it
-        private void gcLabel(Canvas c, Paint p, int idx, String label, float cx, float cy, float unit, float scale, int alpha) {
+        private void gcLabel(Canvas c, Paint p, int idx, String label, float cx, float cy, float unit, float scale, int alpha,
+                             float deg) {
             float[] pole = GcShapes.POLES[idx];
             float gs = Math.min(pole[2] * unit * (label.length() > 1 ? 0.5f : 0.62f), unit / 0.94f * 0.6f) * scale;
             p.setPathEffect(null);
@@ -686,7 +701,11 @@ public class TouchLayoutActivity extends AppActivity {
             p.setTypeface(Typeface.DEFAULT_BOLD);
             p.setTextAlign(Paint.Align.CENTER);
             p.setTextSize(2 * gs / 0.72f);
-            float x = cx + pole[0] * unit, y = cy + pole[1] * unit;
+            // the shape's widest place, turned with it (the letter stays upright)
+            double a = Math.toRadians(deg);
+            float px = (float) (pole[0] * Math.cos(a) - pole[1] * Math.sin(a));
+            float py = (float) (pole[0] * Math.sin(a) + pole[1] * Math.cos(a));
+            float x = cx + px * unit, y = cy + py * unit;
             c.drawText(label, x, y - (p.descent() + p.ascent()) / 2, p);
         }
 
