@@ -742,5 +742,8 @@
  "Change": "Ändern",
  "Delete the own pack": "Eigenes Paket löschen",
  "Import another pack": "Anderes Paket importieren",
- "Delete the HD textures": "HD-Texturen löschen"
+ "Delete the HD textures": "HD-Texturen löschen",
+ "Keeping the files %s changes…": "Behalte die Dateien, die %s ändert…",
+ "Making %s smaller": "%s wird kleiner gemacht",
+ "Only the files it changes are kept, and its disc image goes: about 1 GB less. Once, a minute or two.": "Nur die Dateien, die der Mod ändert, werden behalten, und sein Disc-Image wird gelöscht: etwa 1 GB weniger. Einmalig, ein bis zwei Minuten."
 }

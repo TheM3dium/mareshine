@@ -533,7 +533,7 @@ public class ModPageActivity extends AppActivity {
             }
         }
         // a mod's own game: its language (Settings' game language) and HD textures (ModLanguage)
-        if (ModLanguage.applies(mMod) && !mMod.image.isEmpty()) {
+        if (ModLanguage.applies(mMod) && mMod.isGame()) {
             if (o.id.equals(ModLanguage.LANGUAGE) && o.isChoice()) {
                 chooseLanguage(o);
                 return;

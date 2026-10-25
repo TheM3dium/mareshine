@@ -42,7 +42,7 @@ final class ModLanguage {
     static final String LANGUAGE = "language", HD = "hd", HD_OFF = "off", HD_DEFAULT = "default", HD_OWN = "own";
 
     static void addOptions(Context ctx, Mods.Mod m) {
-        if (m.image.isEmpty() || !applies(m)) return;
+        if (!m.isGame() || !applies(m)) return;
         List<Mods.Option> own = new ArrayList<>();
         List<String> codes = packCodes(ctx);
         if (!codes.isEmpty()) {
@@ -111,9 +111,42 @@ final class ModLanguage {
 
     static File skipFile(Mods.Mod m, String code) { return new File(m.dir, "language-" + code + ".skip"); }
 
-    // what the cache is valid for: the mod's image, the pack and the player's disc
+    // what the cache is valid for: the mod's image (or its mod.json, for a game
+    // kept as files, ModGame), the pack and the player's disc
     private static String key(File image, File pack, File us) {
         return "v3 " + image.length() + "-" + image.lastModified() + " " + pack.lastModified() + " " + us.length() + "-" + us.lastModified();
+    }
+
+    private static File stamp(Mods.Mod m) {
+        if (m.image() != null) return m.image();
+        return m.gameFiles() ? new File(m.dir, "mod.json") : null;
+    }
+
+    // the mod's disc: its image, or its files over the player's disc
+    private interface Source extends AutoCloseable {
+        boolean has(String path);
+        byte[] read(String path) throws IOException;
+        @Override void close() throws IOException;
+    }
+
+    private static Source source(Mods.Mod m, LanguagePackBuilder.Disc us) throws IOException {
+        if (m.image() != null) {
+            LanguagePackBuilder.Disc d = new LanguagePackBuilder.Disc(m.image());
+            return new Source() {
+                @Override public boolean has(String path) { return d.has(path); }
+                @Override public byte[] read(String path) throws IOException { return d.read(path); }
+                @Override public void close() throws IOException { d.close(); }
+            };
+        }
+        File files = m.files();
+        return new Source() {
+            @Override public boolean has(String path) { return new File(files, path.substring(1)).isFile() || us.has(path); }
+            @Override public byte[] read(String path) throws IOException {
+                File f = new File(files, path.substring(1));
+                return f.isFile() ? ModLanguage.read(f) : us.read(path);
+            }
+            @Override public void close() {}
+        };
     }
 
     // The pack's texts merged into the mod's own files where the mod changed
@@ -130,7 +163,7 @@ final class ModLanguage {
     // the pack's.
     // the skip list made already for this mod image, pack and disc
     static boolean ready(Context ctx, Mods.Mod m, String code, File usDisc) {
-        File image = m.image(), files = new File(new File(DataDir.languagesDir(ctx), code), "files"), out = skipFile(m, code);
+        File image = stamp(m), files = new File(new File(DataDir.languagesDir(ctx), code), "files"), out = skipFile(m, code);
         if (image == null || usDisc == null || !out.isFile()) return false;
         try {
             return new String(read(out), StandardCharsets.UTF_8).split("\n", 2)[0].equals("# " + key(image, files, usDisc));
@@ -140,7 +173,7 @@ final class ModLanguage {
     }
 
     static File prepare(Context ctx, Mods.Mod m, String code, File usDisc) {
-        File image = m.image(), files = new File(new File(DataDir.languagesDir(ctx), code), "files");
+        File image = stamp(m), files = new File(new File(DataDir.languagesDir(ctx), code), "files");
         if (image == null || usDisc == null || !usDisc.isFile() || !files.isDirectory()) return null;
         File out = skipFile(m, code), merged = new File(mergedDir(m, code), "files");
         String key = key(image, files, usDisc);
@@ -166,7 +199,7 @@ final class ModLanguage {
             Map<String, String[]> where = new java.util.HashMap<>();
             int total = 0, english = 0;
             try (LanguagePackBuilder.Disc us = new LanguagePackBuilder.Disc(usDisc);
-                 LanguagePackBuilder.Disc mod = new LanguagePackBuilder.Disc(image)) {
+                 Source mod = source(m, us)) {
                 for (Map.Entry<String, List<String>> e : byDisc.entrySet()) {
                     String disc = e.getKey();
                     if (!us.has(disc)) continue;

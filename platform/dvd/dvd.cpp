@@ -699,6 +699,21 @@ static void apply_mods()
 		overlay_dir(files, std::string(), &replaced, &added, &inside);
 		port_log("[dvd] HD cutscenes: %d movies replaced (%s)\n", replaced, pack);
 	}
+	// A mod's own game kept as the disc's files it changed (SMS_GAME_MOD, such
+	// as Super Mario Sunburn's): the disc it makes, under the language pack,
+	// with its game code and maker (SMS_DISC_ID, "GMSE03": its saves its own).
+	if (const char* game = getenv("SMS_GAME_MOD"))
+		if (*game) {
+			int replaced = 0, added = 0, inside = 0;
+			overlay_dir(std::string(game) + "/files", std::string(), &replaced, &added, &inside);
+			port_log("[dvd] game %s: %d disc files replaced, %d added\n", game, replaced, added);
+		}
+	if (const char* id = getenv("SMS_DISC_ID"))
+		if (strlen(id) == 6) {
+			memcpy(g_disk_id.gameName, id, 4);
+			memcpy(g_disk_id.company, id + 4, 2);
+			port_log("[dvd] game code %s\n", id);
+		}
 	// The language pack, before explicit mods so that a mod's own files win.
 	if (const char* pack = port_language_pack_dir()) {
 		int replaced = 0, added = 0, inside = 0;

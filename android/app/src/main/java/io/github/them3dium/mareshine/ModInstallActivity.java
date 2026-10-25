@@ -164,7 +164,8 @@ public class ModInstallActivity extends AppActivity {
                 return;
             }
             dl.mkdirs();
-            long need = r.imageSize + (picked != null || archive.length() == r.size ? 0 : r.size - part.length())
+            // a game kept as files (ModGame): the image for a moment, and the files it changes
+            long need = r.imageSize + (r.overlay ? r.imageSize / 3 : 0) + (picked != null || archive.length() == r.size ? 0 : r.size - part.length())
                 + (200L << 20);
             if (mods.getUsableSpace() < need) {
                 done(false, t("Not enough free space in %s: about %s is needed, %s is free.", mods.getAbsolutePath(),
@@ -228,15 +229,37 @@ public class ModInstallActivity extends AppActivity {
             }
 
             // in place, described, picked and switched on
-            status(t("Installing…"));
-            dest.mkdirs();
-            File target = new File(dest, r.image);
-            target.delete();
-            if (!image.renameTo(target)) throw new IOException("cannot move the image to " + dest);
-            TexturePackActivity.remove(stage);
-            if (picked == null) archive.delete();
-            if (r.isEclipse()) EclipseMod.installed(this, r);
-            else installed(r, dest);
+            if (r.overlay) {
+                // only the files that differ from the player's disc, then the image goes
+                File files = new File(stage, "files");
+                long[] last = {0};
+                ModGame.extract(iso, image, files, (done, total) -> {
+                    long now = System.currentTimeMillis();
+                    if (now - last[0] > 250) {
+                        last[0] = now;
+                        status(t("Keeping the files %s changes…", r.name) + pct(done, total));
+                        progress((double) done / total);
+                    }
+                    return !mCancel;
+                });
+                status(t("Installing…"));
+                dest.mkdirs();
+                TexturePackActivity.remove(new File(dest, "files"));
+                if (!files.renameTo(new File(dest, "files"))) throw new IOException("cannot move the files to " + dest);
+                installed(r, dest, image, ModGame.discId(image));
+                TexturePackActivity.remove(stage);
+                if (picked == null) archive.delete();
+            } else {
+                status(t("Installing…"));
+                dest.mkdirs();
+                File target = new File(dest, r.image);
+                target.delete();
+                if (!image.renameTo(target)) throw new IOException("cannot move the image to " + dest);
+                TexturePackActivity.remove(stage);
+                if (picked == null) archive.delete();
+                if (r.isEclipse()) EclipseMod.installed(this, r);
+                else installed(r, dest, target, null);
+            }
             String msg = t("%s is installed and switched on. Play starts it; switch it off in Mods to play Super Mario "
                 + "Sunshine again.", r.name);
             if (picked != null) msg += "\n\n" + t("The downloaded file is not needed any more and can be deleted.");
@@ -307,12 +330,15 @@ public class ModInstallActivity extends AppActivity {
     }
 
     // A mod of its own: its mod.json (its page, the mods it does not work
-    // with, its disc's banner as its label), an older version's image gone, on
-    private void installed(Mods.Release r, File dir) throws Exception {
+    // with, its disc's banner as its label), an older version's image gone, on.
+    // discId: a game kept as files (ModGame), its image only read here.
+    private void installed(Mods.Release r, File dir, File image, String discId) throws Exception {
         org.json.JSONObject o = new org.json.JSONObject().put("id", r.id).put("name", r.name)
             .put("version", r.version).put("author", r.author)
-            .put("description", r.about.isEmpty() ? r.description : r.about).put("image", r.image)
+            .put("description", r.about.isEmpty() ? r.description : r.about)
             .put("code", r.code).put("page", r.page);
+        if (discId != null) o.put("game", true).put("disc_id", discId);
+        else o.put("image", r.image);
         if (r.rating >= 0) o.put("rating", r.rating);
         if (!r.preview.isEmpty()) o.put("preview", r.preview);
         if (r.incompatible.length > 0) o.put("incompatible", new org.json.JSONArray(java.util.Arrays.asList(r.incompatible)));
@@ -329,7 +355,7 @@ public class ModInstallActivity extends AppActivity {
             }
         }
         if (!disc.isFile()) {
-            android.graphics.Bitmap b = EclipseMod.banner(new File(dir, r.image));
+            android.graphics.Bitmap b = EclipseMod.banner(image);
             if (b != null) try (OutputStream out = new FileOutputStream(icon)) {
                 b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
             }
@@ -339,7 +365,7 @@ public class ModInstallActivity extends AppActivity {
         File[] old = dir.listFiles();
         if (old != null)
             for (File f : old)
-                if (f.getName().toLowerCase(Locale.ROOT).endsWith(".iso") && !f.getName().equals(r.image)) f.delete();
+                if (f.getName().toLowerCase(Locale.ROOT).endsWith(".iso") && (discId != null || !f.getName().equals(r.image))) f.delete();
         try (OutputStream out = new FileOutputStream(new File(dir, "mod.json"))) {
             out.write(o.toString(2).getBytes("UTF-8"));
         }

@@ -862,12 +862,40 @@ public class LauncherActivity extends AppActivity {
         }); }, 1500); // the game's process needs a moment to go away
     }
 
-    private boolean mModLanguageReady;
+    private boolean mModLanguageReady, mModConverting;
 
     private void startSunshineNow() {
         // a mod's own game in a pack's language: which pack files fit, worked
         // out once (ModLanguage), and a word that not all of it is translated
-        Mods.Mod mod = mFoundIsoFile != null && !gameRunning() ? Mods.activeImage(this) : null;
+        Mods.Mod mod = mFoundIsoFile != null && !gameRunning() ? Mods.activeGame(this) : null;
+        // a mod installed as a whole image that the app keeps as files now (ModGame): once, before it plays
+        if (!mModConverting && ModGame.toConvert(mod)) {
+            final File us = mFoundIsoFile;
+            final Mods.Mod m = mod;
+            android.app.Dialog dlg = choice(t("Making %s smaller", m.name), t("Only the files it changes are kept, "
+                + "and its disc image goes: about 1 GB less. Once, a minute or two."), new String[0], new Runnable[0]);
+            dlg.setCancelable(false);
+            new Thread(() -> {
+                long[] last = {0};
+                boolean ok = ModGame.convert(this, m, us, (done, total) -> {
+                    long now = System.currentTimeMillis();
+                    if (now - last[0] > 300) {
+                        last[0] = now;
+                        runOnUiThread(() -> choiceProgress(dlg, t("Keeping the files %s changes…", m.name)
+                            + String.format(Locale.ROOT, " %d%%", done * 100 / Math.max(1, total)), (float) done / total));
+                    }
+                    return true;
+                });
+                runOnUiThread(() -> {
+                    if (dlg.isShowing()) dlg.dismiss();
+                    // not done (no room, say): it plays from its image as before
+                    if (!ok) mModConverting = true;
+                    startSunshineNow();
+                    mModConverting = false;
+                });
+            }, "ModGame").start();
+            return;
+        }
         String code = ModLanguage.code(this, mod);
         if (code != null && !mModLanguageReady) {
             final File us = mFoundIsoFile;

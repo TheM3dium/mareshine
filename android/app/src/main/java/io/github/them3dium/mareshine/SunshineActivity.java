@@ -47,8 +47,8 @@ public class SunshineActivity extends SDLActivity {
     // such as Super Mario Eclipse), else the launcher's choice (sms_disc), else
     // the one the launcher would find in the data folder or Downloads.
     private String discPath() {
-        Mods.Mod mod = Mods.activeImage(this);
-        if (mod != null) return mod.image().getAbsolutePath();
+        Mods.Mod mod = Mods.activeGame(this);
+        if (mod != null && mod.image() != null) return mod.image().getAbsolutePath();
         Intent start = getIntent();
         String picked = start != null ? start.getStringExtra("sms_disc") : null;
         if (picked != null && !picked.trim().isEmpty()) return picked.trim();
@@ -89,7 +89,12 @@ public class SunshineActivity extends SDLActivity {
             // Settings → VIDEO → HD textures (on unless turned off)
             boolean hd = !"0".equals(Settings.read(this).getOrDefault("SMS_HD_TEXTURES", "1"));
             // and the HD Textures button of a mod's own game (ModLanguage)
-            Mods.Mod image = Mods.activeImage(this);
+            Mods.Mod image = Mods.activeGame(this);
+            // a game kept as the disc files it changes, over the player's disc (ModGame)
+            if (image != null && image.gameFiles()) {
+                nativeSetenv("SMS_GAME_MOD", image.dir.getAbsolutePath());
+                if (image.discId.length() == 6) nativeSetenv("SMS_DISC_ID", image.discId);
+            }
             String modHd = image != null ? ModLanguage.hd(image) : ModLanguage.HD_DEFAULT;
             if (!modHd.equals(ModLanguage.HD_DEFAULT)) hd = false;
             // the enabled mods' textures after the pack's, so a mod's win (Mods)

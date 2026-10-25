@@ -32,7 +32,7 @@ final class ModFlows {
         boolean games = false;
         for (Mods.Mod o : clash) {
             names.append(names.length() > 0 ? ", " : "").append(o.name);
-            if (!m.image.isEmpty() && !o.image.isEmpty()) games = true;
+            if (m.isGame() && o.isGame()) games = true;
         }
         String msg = t("%s does not work together with: %s.", m.name, names)
             + (games ? "\n" + t("Each is a game of its own, and one game is played at a time.") : "");

@@ -47,6 +47,7 @@
     },
     {
       "id": "sunburn",
+      "overlay": true,
       "name": "Super Mario Sunburn",
       "version": "v2.0",
       "author": "Eclipse Team",

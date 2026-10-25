@@ -741,5 +741,8 @@
  "Change": "Cambiar",
  "Delete the own pack": "Borrar el paquete propio",
  "Import another pack": "Importar otro paquete",
- "Delete the HD textures": "Borrar las texturas HD"
+ "Delete the HD textures": "Borrar las texturas HD",
+ "Keeping the files %s changes…": "Conservando los archivos que cambia %s…",
+ "Making %s smaller": "Reduciendo %s",
+ "Only the files it changes are kept, and its disc image goes: about 1 GB less. Once, a minute or two.": "Solo se conservan los archivos que cambia y se borra su imagen de disco: alrededor de 1 GB menos. Una sola vez, uno o dos minutos."
 }

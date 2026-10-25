@@ -84,6 +84,16 @@ public final class Mods {
         public final List<Option> options = new ArrayList<>();
         public File dir;
         public boolean enabled, code;
+        // a game of its own kept as the disc files it changes, with its game
+        // code and maker (ModGame: "game": true, "disc_id")
+        public boolean game;
+        public String discId = "";
+
+        // a game of its own: a whole image, or kept as files (one game is played)
+        public boolean isGame() { return !image.isEmpty() || game; }
+
+        // its game kept as files, there to play
+        public boolean gameFiles() { return game && image.isEmpty() && files() != null; }
 
         // a picture of the mod's: a file in its folder, or a URL
         public String picture(String name) {
@@ -219,8 +229,8 @@ public final class Mods {
         for (Mod m : all) if (m.id.equals(id)) mod = m;
         if (mod == null) return;
         mod.enabled = on;
-        if (on && !mod.image.isEmpty())
-            for (Mod o : all) if (o != mod && !o.image.isEmpty()) o.enabled = false;
+        if (on && mod.isGame())
+            for (Mod o : all) if (o != mod && o.isGame()) o.enabled = false;
         save(ctx, all);
     }
 
@@ -231,7 +241,7 @@ public final class Mods {
         for (Mod o : list(ctx)) {
             if (o.id.equals(mod.id) || !o.enabled) continue;
             if (mod.incompatible.contains(o.id) || o.incompatible.contains(mod.id)
-                    || (!mod.image.isEmpty() && !o.image.isEmpty())) out.add(o);
+                    || (mod.isGame() && o.isGame())) out.add(o);
         }
         return out;
     }
@@ -392,6 +402,8 @@ public final class Mods {
                 m.description = loc(o, "description", "");
                 m.image = new File(o.optString("image", "")).getName();  // a file in its folder
                 m.code = o.optBoolean("code", false);
+                m.game = o.optBoolean("game", false);
+                m.discId = o.optString("disc_id", "");
                 m.icon = o.optString("icon", "");
                 m.preview = o.optString("preview", "");
                 m.update = o.optString("update", "");
@@ -491,9 +503,9 @@ public final class Mods {
     // --- for the game (SunshineActivity) ----------------------------------------
 
     // The enabled mod whose disc image is played (the last one), or null
-    public static Mod activeImage(Context ctx) {
+    public static Mod activeGame(Context ctx) {
         Mod out = null;
-        for (Mod m : list(ctx)) if (m.enabled && m.image() != null) out = m;
+        for (Mod m : list(ctx)) if (m.enabled && (m.image() != null || m.gameFiles())) out = m;
         return out;
     }
 
@@ -510,6 +522,8 @@ public final class Mods {
         public final long size, imageSize;        // the archive, the patched image
         public final String sourceMd5, resultMd5, image;
         public final boolean code;
+        // kept as the disc files it changes, not as a whole image (ModGame)
+        public boolean overlay;
         // a translation: the mod it translates and its language; picked by
         // the player from its download page (no urls), until its makers allow
         // the app to download it
@@ -547,6 +561,7 @@ public final class Mods {
                 o.optLong("imageSize", 0), new File(o.optString("image", "")).getName(), o.optBoolean("code", false));
             if (id.isEmpty() || r.image.isEmpty() || r.size <= 0 || r.md5.length() != 32) return null;
             r.base = cleanId(o.optString("base", ""));
+            r.overlay = o.optBoolean("overlay", false);
             r.language = o.optString("language", "");
             r.credits = o.optString("credits", "");
             r.tested = o.optBoolean("tested", true);
@@ -568,6 +583,7 @@ public final class Mods {
                 if (r.incompatible.length == 0) r.incompatible = own.incompatible;
                 if (r.credits.isEmpty()) r.credits = own.credits;
                 if (r.rating < 0) r.rating = own.rating;
+                if (own.overlay) r.overlay = true;
             }
             return r;
         }
@@ -616,6 +632,7 @@ public final class Mods {
         SUNBURN.preview = "https://images.gamebanana.com/img/ss/mods/6505bdb7694a8.jpg";
         SUNBURN.icon = "asset:mods/sunburn-disc.png";
         SUNBURN.incompatible = new String[] {"eclipse"};
+        SUNBURN.overlay = true;
         SUNBURN.about = "Super Mario Sunburn makes Super Mario Sunshine play more like Super Mario 64, with many "
             + "improvements on top:\n\n"
             + "* An open world: travel freely from stage to stage.\n"
@@ -674,7 +691,7 @@ public final class Mods {
 
     public static boolean installed(Context ctx, Release r) {
         Mod m = find(ctx, r.id);
-        return m != null && m.image() != null;
+        return m != null && (m.image() != null || m.gameFiles());
     }
 
     // the translations of a mod
@@ -701,7 +718,7 @@ public final class Mods {
         for (Mod m : list(ctx)) {
             if (!m.enabled) continue;
             List<File> dirs = new ArrayList<>();
-            if (m.files() != null) dirs.add(m.dir);
+            if (m.files() != null && !m.gameFiles()) dirs.add(m.dir);  // a game's: SMS_GAME_MOD
             for (File f : m.optionFolders())
                 if (new File(f, "files").isDirectory() || new File(f, "overlay").isDirectory()) dirs.add(f);
             for (File d : dirs) {

@@ -371,7 +371,7 @@ public class ModsActivity extends AppActivity {
         final Mods.Mod m = mMods.get(i);
         StringBuilder sub = new StringBuilder();
         if (!m.author.isEmpty()) sub.append(t("by %s", m.author));
-        if (m.image() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("its own game"));
+        if (m.isGame()) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("its own game"));
         if (m.files() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("game files"));
         if (m.textures() != null) sub.append(sub.length() > 0 ? "  ·  " : "").append(t("textures"));
         List<String> missing = m.enabled ? Mods.missing(m, mMods) : new ArrayList<>();
