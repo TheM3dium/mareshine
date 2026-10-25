@@ -88,21 +88,30 @@ public final class Settings {
         }
         Map<String, String> m = new LinkedHashMap<>();
         for (String[] kv : DEFAULTS) m.put(kv[0], kv[1]);
+        m.put(REV, Integer.toString(CURRENT_REV));  // new: nothing to bring up to date
         write(ctx, m);
     }
 
     // Settings written by older versions, brought up to date once (the
     // revision is kept in settings.txt; the game ignores the key).
     private static final String REV = "SMS_LAUNCHER_SETTINGS_REV";
+    private static final int CURRENT_REV = 3;
 
     private static void upgrade(Context ctx) {
         Map<String, String> m = read(ctx);
         int rev = 0;
         try { rev = Integer.parseInt(m.getOrDefault(REV, "0")); } catch (NumberFormatException ignored) {}
-        if (rev >= 2) return;
+        if (rev >= CURRENT_REV) return;
         // 1.x always wrote copy_writeback = 0; 2.0 has it on, with a switch
-        if ("0".equals(m.get("copy_writeback"))) m.put("copy_writeback", "1");
-        m.put(REV, "2");
+        if (rev < 2 && "0".equals(m.get("copy_writeback"))) m.put("copy_writeback", "1");
+        // 2.1 has the GameCube button style and the R+ slider by default: an
+        // update keeps the buttons it had until its intro asks (Intro)
+        if (rev < 3 && !"gamecube".equals(m.get("SMS_TOUCH_STYLE"))) {
+            m.putIfAbsent("SMS_TOUCH_STYLE", "classic");
+            m.putIfAbsent("SMS_TOUCH_R_SLIDER", "0");
+            Intro.ask(m, Intro.GAMECUBE_TOUCH);
+        }
+        m.put(REV, Integer.toString(CURRENT_REV));
         write(ctx, m);
     }
 }

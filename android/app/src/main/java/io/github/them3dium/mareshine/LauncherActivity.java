@@ -96,6 +96,11 @@ public class LauncherActivity extends AppActivity {
             startActivityForResult(new Intent(this, SettingsActivity.class), REQUEST_SETTINGS));
 
         checkIsoAndRefreshUi();
+        // something new to show (Intro), once the settings are up to date:
+        // Settings.upgrade tells an update from a new install
+        DataDir.ensureLayout(this);
+        String intro = savedInstanceState == null ? Intro.pending(this) : null;
+        if (intro != null) startActivity(new Intent(this, IntroActivity.class).putExtra(IntroActivity.EXTRA_ID, intro));
         boolean restarting = getIntent() != null && getIntent().getBooleanExtra(EXTRA_AUTOSTART, false);
         handleAutostart(getIntent());
         // "Start game automatically" (Settings → GAME): straight into the game
@@ -104,7 +109,7 @@ public class LauncherActivity extends AppActivity {
         if (fromGame) syncAfterGame();
         if (savedInstanceState == null && !fromGame && mFoundIsoFile != null
                 && getSharedPreferences("sunshine", MODE_PRIVATE).getBoolean(SettingsActivity.PREF_AUTOSTART, false)
-                && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting) {
+                && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting && intro == null) {
             tvStatus.post(this::launchGame);
         }
     }

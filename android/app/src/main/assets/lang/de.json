@@ -709,5 +709,17 @@
     "GameCube": "GameCube",
     "GameCube button shapes": "GameCube-Tastenformen",
     "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license).": "Die Formen des GameCube-Tastenstils, nachgezeichnet nach den Controller-Bildern von m-overlay (MIT-Lizenz).",
-    "GCube": "GCube"
+    "GCube": "GCube",
+    "New: the GameCube button style": "Neu: der GameCube-Tastenstil",
+    "The touch buttons now have the shapes and colours of the GameCube controller, and sit where it has them.": "Die Touch-Tasten haben jetzt die Formen und Farben des GameCube-Controllers und sitzen dort, wo er sie hat.",
+    "R and R+ on one button": "R und R+ auf einer Taste",
+    "Press R and swipe down: past the dashed circle R becomes R+, pressed all the way in.": "Drücke R und wische nach unten: Hinter dem gestrichelten Kreis wird R zu R+, ganz durchgedrückt.",
+    "Switch to the new buttons?": "Zu den neuen Tasten wechseln?",
+    "You are updating: your touch buttons stay as they were unless you switch.": "Du hast aktualisiert: Deine Touch-Tasten bleiben, wie sie waren, außer du wechselst.",
+    "Yes, with a separate R+ button": "Ja, mit eigener R+-Taste",
+    "No": "Nein",
+    "All set": "Fertig",
+    "You can change this at any time: Settings, Input, Touch (Button style, and the R+ slider under Customize layout).": "Du kannst das jederzeit ändern: Einstellungen, Steuerung, Touch (Tastenstil, und den R+-Regler unter Layout anpassen).",
+    "Skip": "Überspringen",
+    "Got it": "Verstanden"
 }
