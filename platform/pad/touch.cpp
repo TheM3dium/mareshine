@@ -88,7 +88,7 @@ const GcPlace kGcPlaces[] = {
 	{ BTN_Y, 0.85f, 0.48f, 0.068f },    { BTN_Z, 0.95f, 0.45f, 0.055f },
 	// R further up Z's line (its tilt, kGcTilt), L as high as R; R+ (without
 	// the slider) takes R's place and R goes above it, square to their flat side
-	{ BTN_R, 0.877f, 0.366f, 0.075f }, { BTN_RPLUS, 0.907f, 0.246f, 0.075f }, { BTN_L, 0.12f, 0.366f, 0.075f },
+	{ BTN_R, 0.877f, 0.366f, 0.075f }, { BTN_RPLUS, 0.899f, 0.275f, 0.075f }, { BTN_L, 0.12f, 0.366f, 0.075f },
 };
 
 struct Place {
