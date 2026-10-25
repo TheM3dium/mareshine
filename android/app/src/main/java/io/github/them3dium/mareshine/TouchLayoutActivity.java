@@ -5,6 +5,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
@@ -208,6 +209,65 @@ public class TouchLayoutActivity extends AppActivity {
     }
 
     private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    // --- the GameCube style's shapes (GcShapes, from tools/touch-gamecube) ----
+
+    private static final java.util.Map<Integer, Path> sGcPaths = new java.util.HashMap<>();
+
+    private static int gcIndex(String name) {
+        for (int i = 0; i < GcShapes.NAMES.length; i++) if (GcShapes.NAMES[i].equals(name)) return i;
+        return -1;
+    }
+
+    // the shape an element has in the GameCube style, or -1 (drawn as before)
+    private static int gcShape(String elem) {
+        switch (elem) {
+            case "STICK": return gcIndex("GATE");
+            case "CSTICK": return gcIndex("CGATE");
+            case "A": case "B": case "X": case "Y": case "Z": return gcIndex(elem);
+            case "L": return gcIndex("TRIGGER_L");
+            case "R": return gcIndex("TRIGGER_R");
+            case "RPLUS": return gcIndex("TRIGGER_RPLUS");
+            default: return -1;
+        }
+    }
+
+    private static int gcColor(String elem) {
+        switch (elem) {
+            case "A": return 0x2ECC71;
+            case "B": return 0xE74C3C;
+            case "Z": return 0x9B59B6;
+            case "CSTICK": return 0xFFD21F;
+            case "STICK": return 0xFFFFFF;
+            default: return 0xD0D4DA;
+        }
+    }
+
+    // the shape at (cx, cy), unit pixels for its [-1, 1]
+    private static Path gcPath(int idx, float cx, float cy, float unit) {
+        Path base = sGcPaths.get(idx);
+        if (base == null) {
+            base = new Path();
+            base.setFillType(Path.FillType.EVEN_ODD);
+            for (String ring : GcShapes.RINGS[idx].split(";")) {
+                String[] pts = ring.trim().split(" ");
+                for (int k = 0; k < pts.length; k++) {
+                    String[] xy = pts[k].split(",");
+                    float x = Float.parseFloat(xy[0]), y = Float.parseFloat(xy[1]);
+                    if (k == 0) base.moveTo(x, y);
+                    else base.lineTo(x, y);
+                }
+                base.close();
+            }
+            sGcPaths.put(idx, base);
+        }
+        Path out = new Path();
+        android.graphics.Matrix m = new android.graphics.Matrix();
+        m.setScale(unit, unit);
+        m.postTranslate(cx, cy);
+        base.transform(m, out);
+        return out;
+    }
 
     // --- toolbar ------------------------------------------------------------
 
@@ -533,7 +593,9 @@ public class TouchLayoutActivity extends AppActivity {
                 float cx = e.x * w, cy = e.y * h, r = e.r * h * (e.stick ? 0.94f : 0.92f);
                 int a = e.shown ? Math.round(225 * Math.min(1f, mOpacity / 0.7f)) : 60;
                 p.setPathEffect(e.shown ? null : new DashPathEffect(new float[] {dp(6), dp(5)}, 0));
-                if (e.stick) {
+                if (mGc && drawGc(c, p, e, cx, cy, e.r * h, a)) {
+                    p.setPathEffect(null);
+                } else if (e.stick) {
                     p.setStyle(Paint.Style.FILL);
                     p.setColor((e.color & 0x00FFFFFF) | ((a / 4) << 24));
                     c.drawCircle(cx, cy, r, p);
@@ -554,21 +616,78 @@ public class TouchLayoutActivity extends AppActivity {
                 }
                 p.setPathEffect(null);
                 p.setStyle(Paint.Style.FILL);
+                if (mGc && gcShape(e.name) >= 0) {
+                    drawSelection(c, p, e, cx, cy, r);
+                    continue;
+                }
                 p.setColor(e.shown ? 0xFFFFFFFF : 0x88FFFFFF);
                 p.setTextSize(Math.max(dp(11), r * (e.label.length() > 2 ? 0.55f : 0.8f)));
                 p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
                 p.setTextAlign(Paint.Align.CENTER);
                 float ty = cy - (p.descent() + p.ascent()) / 2;
                 c.drawText(e.stick && e.name.equals("STICK") ? "" : e.label, cx, ty, p);
-                if (e == mSel) {
-                    p.setStyle(Paint.Style.STROKE);
-                    p.setStrokeWidth(dp(3));
-                    p.setColor(0xFFFFC531);
-                    c.drawCircle(cx, cy, r + dp(6), p);
-                }
+                drawSelection(c, p, e, cx, cy, r);
             }
             Elem rb = elem("R");
             if (mSlider && rb != null && rb.shown) drawSlideMark(c, rb, w, h);
+        }
+
+        private void drawSelection(Canvas c, Paint p, Elem e, float cx, float cy, float r) {
+            if (e != mSel) return;
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            p.setColor(0xFFFFC531);
+            c.drawCircle(cx, cy, r + dp(6), p);
+        }
+
+        // The GameCube style as the game draws it (touch.cpp, makeGc): the
+        // shape filled in the button's colour with its letter; a stick's gate
+        // only as an outline. Size: the button's picture is 2r, the shape 0.94r.
+        private boolean drawGc(Canvas c, Paint p, Elem e, float cx, float cy, float rPx, int alpha) {
+            int idx = gcShape(e.name);
+            if (idx < 0) return false;
+            float unit = 0.94f * rPx;
+            boolean stick = e.name.equals("STICK") || e.name.equals("CSTICK");
+            int rgb = gcColor(e.name);
+            p.setPathEffect(e.shown ? null : new DashPathEffect(new float[] {dp(6), dp(5)}, 0));
+            if (stick) {
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(0x0A1420 | ((alpha * 35 / 100) << 24));
+                c.drawPath(gcPath(idx, cx, cy, unit), p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(Math.max(dp(2), 2 * rPx * 0.05f));
+                p.setColor(rgb | (alpha << 24));
+                c.drawPath(gcPath(idx, cx, cy, unit), p);
+                // the knob in the middle, at rest
+                int knob = gcIndex(e.name.equals("STICK") ? "KNOB" : "CKNOB");
+                float ku = unit * (e.name.equals("STICK") ? 0.44f : 0.46f);
+                p.setPathEffect(null);
+                p.setStyle(Paint.Style.FILL);
+                c.drawPath(gcPath(knob, cx, cy, ku), p);
+                if (e.name.equals("CSTICK")) gcLabel(c, p, knob, "C", cx, cy, ku, 0.65f, alpha);
+                return true;
+            }
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(rgb | ((alpha * 92 / 100) << 24));
+            c.drawPath(gcPath(idx, cx, cy, unit), p);
+            float scale = e.name.equals("A") || e.name.equals("B") ? 0.65f
+                : e.name.equals("L") || e.name.equals("R") || e.name.equals("RPLUS") ? 0.75f : 1f;
+            gcLabel(c, p, idx, e.label, cx, cy, unit, scale, alpha);
+            return true;
+        }
+
+        // The letter at the shape's widest place, about as large as touch.cpp draws it
+        private void gcLabel(Canvas c, Paint p, int idx, String label, float cx, float cy, float unit, float scale, int alpha) {
+            float[] pole = GcShapes.POLES[idx];
+            float gs = Math.min(pole[2] * unit * (label.length() > 1 ? 0.5f : 0.62f), unit / 0.94f * 0.6f) * scale;
+            p.setPathEffect(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(0x14202C | (alpha << 24));
+            p.setTypeface(Typeface.DEFAULT_BOLD);
+            p.setTextAlign(Paint.Align.CENTER);
+            p.setTextSize(2 * gs / 0.72f);
+            float x = cx + pole[0] * unit, y = cy + pole[1] * unit;
+            c.drawText(label, x, y - (p.descent() + p.ascent()) / 2, p);
         }
 
         // Where R becomes R+: a dashed circle around R, labelled R+ at its top.
