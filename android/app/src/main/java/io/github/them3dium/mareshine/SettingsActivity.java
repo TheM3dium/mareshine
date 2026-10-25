@@ -295,6 +295,7 @@ public class SettingsActivity extends AppActivity {
         mTabs.add("VIDEO");
         mTabs.add("INPUT");
         mTabs.add("CHEATS");
+        if (Mods.MENU) mTabs.add("MODS");
         mTabs.add("ACHIEVEMENTS");
         mTabs.add("OTHER");
         for (int i = 0; i < mTabs.size(); i++) {
@@ -443,12 +444,13 @@ public class SettingsActivity extends AppActivity {
         mList.removeAllViews();
         mRows.clear();
         showDescription("");
-        switch (idx) {
-            case 0: buildGame(); break;
-            case 1: buildVideo(); break;
-            case 2: buildInput(); break;
-            case 3: buildCheats(); break;
-            case 4: buildAchievements(); break;
+        switch (mTabs.get(idx)) {
+            case "GAME": buildGame(); break;
+            case "VIDEO": buildVideo(); break;
+            case "INPUT": buildInput(); break;
+            case "CHEATS": buildCheats(); break;
+            case "MODS": buildMods(); break;
+            case "ACHIEVEMENTS": buildAchievements(); break;
             default: buildInterface(); break;
         }
     }
@@ -967,23 +969,6 @@ public class SettingsActivity extends AppActivity {
             "How loud the music is. 0% turns it off."));
         add(new Volume("SMS_SFX_VOLUME", "Sound effects",
             "How loud sound effects and voices are. 0% turns them off."));
-
-        // mod packages in mods/ (Mods, ModsActivity); they load when the game starts
-        if (Mods.MENU) section("MODS");
-        if (Mods.MENU) add(new Action("Mods",
-            "Mod packages that change the game's files and textures: switch them on or off, set their order, "
-                + "import new ones. Changes apply when the game starts.",
-            () -> {
-                int on = 0, all = 0;
-                for (Mods.Mod m : Mods.list(ctx())) {
-                    all++;
-                    if (m.enabled) on++;
-                }
-                return all == 0 ? t("None") : t("%d of %d on", on, all);
-            },
-            () -> startActivity(new Intent(this, ModsActivity.class))) {
-            @Override boolean hasArrow() { return true; }
-        });
 
         section("DATA");
         Row data = new Action("Data folder",
@@ -1902,6 +1887,80 @@ public class SettingsActivity extends AppActivity {
                 refreshValues();
             });
         }
+    }
+
+    // The mod manager (Mods, ModsActivity) and its settings; tidying up its files
+    private void buildMods() {
+        section("MODS");
+        add(new Action("Open mods",
+            "Mod packages that change the game's files and textures, and games made from your disc such as Super "
+                + "Mario Eclipse: switch them on or off, set their order, find and import new ones. Changes apply when "
+                + "the game starts.",
+            () -> {
+                int on = 0, all = 0;
+                for (Mods.Mod m : Mods.list(ctx())) {
+                    all++;
+                    if (m.enabled) on++;
+                }
+                return all == 0 ? t("None") : t("%d of %d on", on, all);
+            },
+            () -> startActivity(new Intent(this, ModsActivity.class))) {
+            @Override boolean hasArrow() { return true; }
+        });
+        add(new Action("Check for mod updates",
+            "Looks for newer versions of your mods (each part of Super Mario Eclipse on its own) and asks which to "
+                + "install.",
+            null, () -> startActivity(new Intent(this, ModsActivity.class).putExtra(ModsActivity.EXTRA_UPDATES, true))));
+        add(new Toggle(ModsActivity.AUTO_UPDATES_KEY, "Look for updates automatically",
+            "Once a day, when the app starts, it looks for mod updates and tells you only when there are some.",
+            true, false));
+        add(new Choice("SMS_MODS_PER_PAGE", "Mods per page", "How many mods the mod list shows at a time.", "8",
+            new String[] {"5", "8", "10", "15"}, new String[] {"5", "8", "10", "15"}));
+        add(new Toggle(ModsActivity.UNTESTED_KEY, "Show untested mods",
+            "Search Mods also lists mods we have not checked yet. They may not work.", false, false));
+
+        section("TIDY UP");
+        add(new Action("Switch all mods off",
+            "Plays Super Mario Sunshine as it is, without uninstalling anything. Switch them on again in the mod "
+                + "list.",
+            () -> {
+                int on = 0;
+                for (Mods.Mod m : Mods.list(ctx())) if (m.enabled) on++;
+                return on == 0 ? t("All off") : t("%d on", on);
+            },
+            () -> {
+                List<Mods.Mod> all = Mods.list(ctx());
+                for (Mods.Mod m : all) m.enabled = false;
+                Mods.save(ctx(), all);
+                mSettings.putAll(Settings.read(this));
+                showTab(mTab);
+            }));
+        add(new Action("Delete leftover downloads",
+            "Downloads that were stopped half way and the pictures of mod pages kept for later. Nothing installed "
+                + "is touched.",
+            () -> mb(Mods.leftovers(ctx())),
+            () -> {
+                Mods.deleteLeftovers(ctx());
+                showTab(mTab);
+            }));
+        add(new Action("Uninstall all mods",
+            "Deletes every mod and its files from mods/ in your data folder, Super Mario Eclipse's games among them. "
+                + "Your saves stay.",
+            () -> mb(Mods.size(Mods.dir(ctx()))),
+            () -> choice(t("Uninstall all mods?"), t("Every mod is deleted (%s). This cannot be undone.",
+                    mb(Mods.size(Mods.dir(ctx())))),
+                new String[] {t("Uninstall all")}, new Runnable[] {() -> {
+                    Mods.uninstallAll(ctx());
+                    mSettings.remove(Mods.KEY);
+                    mSettings.remove(Mods.OPTIONS_KEY);
+                    mSettings.putAll(Settings.read(this));
+                    showTab(mTab);
+                }})));
+    }
+
+    private static String mb(long bytes) {
+        return bytes >= 1e9 ? String.format(java.util.Locale.ROOT, "%.1f GB", bytes / 1e9)
+            : String.format(java.util.Locale.ROOT, "%.0f MB", bytes / 1e6);
     }
 
     private void buildAchievements() {

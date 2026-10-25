@@ -421,6 +421,50 @@ public final class Mods {
 
     public static boolean delete(Mod m) { return deleteTree(m.dir); }
 
+    // a folder's size in bytes
+    public static long size(File f) {
+        if (f.isFile()) return f.length();
+        long n = 0;
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) n += size(k);
+        return n;
+    }
+
+    // what can go without losing anything: stopped downloads, half-made mods
+    // (*.tmp) and cached pictures of mod pages
+    private static List<File> leftoverFiles(Context ctx) {
+        List<File> out = new ArrayList<>();
+        out.add(new File(dir(ctx), ".downloads"));
+        out.add(new File(ctx.getCacheDir(), "mod-pictures"));
+        out.add(new File(ctx.getCacheDir(), "mod-update.zip"));
+        File[] kids = dir(ctx).listFiles();
+        if (kids != null) for (File k : kids) if (k.getName().endsWith(".tmp")) out.add(k);
+        File hd = new File(new File(dir(ctx), "eclipse"), "hd");
+        File[] hk = hd.listFiles();
+        if (hk != null) for (File k : hk) if (k.getName().endsWith(".tmp")) out.add(k);
+        return out;
+    }
+
+    public static long leftovers(Context ctx) {
+        long n = 0;
+        for (File f : leftoverFiles(ctx)) n += size(f);
+        return n;
+    }
+
+    public static void deleteLeftovers(Context ctx) {
+        for (File f : leftoverFiles(ctx)) deleteTree(f);
+    }
+
+    // every mod gone, and their order and options
+    public static void uninstallAll(Context ctx) {
+        File[] kids = dir(ctx).listFiles();
+        if (kids != null) for (File k : kids) deleteTree(k);
+        Map<String, String> s = Settings.read(ctx);
+        s.remove(KEY);
+        s.remove(OPTIONS_KEY);
+        Settings.write(ctx, s);
+    }
+
     private static boolean deleteTree(File f) {
         File[] kids = f.listFiles();
         if (kids != null) for (File k : kids) deleteTree(k);

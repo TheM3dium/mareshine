@@ -45,7 +45,6 @@ public class LauncherActivity extends AppActivity {
     private ProgressBar progressBar;
     private Button btnPlay;
     private Button btnSettings;
-    private Button btnMods;
     private TextView tvDiscInfo;
     private View panelInfo;
     private TextView tvDataDir;
@@ -67,8 +66,6 @@ public class LauncherActivity extends AppActivity {
         progressBar = findViewById(R.id.progressBar);
         btnPlay = findViewById(R.id.btnPlay);
         btnSettings = findViewById(R.id.btnSettings);
-        btnMods = findViewById(R.id.btnMods);
-        btnMods.setVisibility(Mods.MENU ? View.VISIBLE : View.GONE);
         tvDataDir = findViewById(R.id.tvDataDir);
         tvDiscInfo = findViewById(R.id.tvDiscInfo);
         panelInfo = findViewById(R.id.panelInfo);
@@ -94,9 +91,6 @@ public class LauncherActivity extends AppActivity {
         findViewById(R.id.btnQuit).setOnClickListener(v -> { ShaderService.stop(this); finishAffinity(); });
 
         btnPlay.setOnClickListener(v -> launchGame());
-
-        // the mod manager (Mods): changes apply when the game starts
-        btnMods.setOnClickListener(v -> startActivity(new Intent(this, ModsActivity.class)));
 
         btnSettings.setOnClickListener(v ->
             startActivityForResult(new Intent(this, SettingsActivity.class), REQUEST_SETTINGS));
@@ -211,6 +205,7 @@ public class LauncherActivity extends AppActivity {
         else registerReceiver(mShaderProgress, progress);
         ShaderService.start(this);
         Updates.autoCheck(this, this::showUpdateBadge);
+        modUpdates();
         checkIsoAndRefreshUi();
         View first = btnPlay.getVisibility() == View.VISIBLE && btnPlay.isEnabled() ? btnPlay : btnSettings;
         if (getCurrentFocus() == null || getCurrentFocus().getVisibility() != View.VISIBLE) first.requestFocus();
@@ -543,7 +538,6 @@ public class LauncherActivity extends AppActivity {
         progressBar.setVisibility(View.VISIBLE);
         btnPlay.setEnabled(false);
         btnSettings.setEnabled(false);
-        btnMods.setEnabled(false);
 
         Executors.newSingleThreadExecutor().execute(() -> {
             File destDir = isoDestDir();
@@ -613,7 +607,6 @@ public class LauncherActivity extends AppActivity {
                     tvProgress.setVisibility(View.GONE);
                     progressBar.setVisibility(View.GONE);
                     btnSettings.setEnabled(true);
-                    btnMods.setEnabled(true);
                     Toast.makeText(this, t("ISO copied successfully."), Toast.LENGTH_SHORT).show();
                     checkIsoAndRefreshUi();
                 });
@@ -627,7 +620,6 @@ public class LauncherActivity extends AppActivity {
                     progressBar.setVisibility(View.GONE);
                     mCopying = false;
                     btnSettings.setEnabled(true);
-                    btnMods.setEnabled(true);
                     checkIsoAndRefreshUi();
                     new DlDialog(this)
                         .setTitle(t("Error copying the ISO"))
@@ -692,7 +684,6 @@ public class LauncherActivity extends AppActivity {
         tvProgress.setOnClickListener(v -> mVerifyCancelled = true);
         btnPlay.setEnabled(false);
         btnSettings.setEnabled(false);
-        btnMods.setEnabled(false);
         Executors.newSingleThreadExecutor().execute(() -> {
             String sha1 = null;
             String error = null;
@@ -720,7 +711,6 @@ public class LauncherActivity extends AppActivity {
                 tvProgress.setOnClickListener(null);
                 progressBar.setVisibility(View.GONE);
                 btnSettings.setEnabled(true);
-                btnMods.setEnabled(true);
                 if (err != null) {
                     checkIsoAndRefreshUi();
                     new DlDialog(this).setTitle(t("Error reading the ISO")).setMessage(err)
@@ -826,5 +816,37 @@ public class LauncherActivity extends AppActivity {
         } else {
             Toast.makeText(this, t("Please select a valid ISO first."), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // Once a day (Settings → MODS → Look for updates automatically): mods with
+    // updates are offered; nothing is said when there are none or it is offline.
+    private void modUpdates() {
+        java.util.Map<String, String> st = io.github.them3dium.mareshine.Settings.read(this);
+        if (!Mods.MENU || "0".equals(st.getOrDefault(ModsActivity.AUTO_UPDATES_KEY, "1"))) return;
+        java.io.File stamp = new java.io.File(getFilesDir(), "mod_updates_checked");
+        if (System.currentTimeMillis() - stamp.lastModified() < 24L * 3600_000) return;
+        if (Mods.list(this).isEmpty()) return;
+        new Thread(() -> {
+            java.util.List<ModUpdates.Update> found;
+            try {
+                found = ModUpdates.check(this, null);
+                stamp.createNewFile();
+                stamp.setLastModified(System.currentTimeMillis());
+            } catch (Exception e) {
+                return;
+            }
+            if (found.isEmpty()) return;
+            int n = found.size();
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                new DlDialog(this)
+                    .setTitle(t("Mod updates"))
+                    .setMessage(t(n == 1 ? "There is an update for your mods." : "There are %d updates for your mods.", n))
+                    .setPositiveButton(t("Show"), (d, w) -> startActivity(new Intent(this, ModsActivity.class)
+                        .putExtra(ModsActivity.EXTRA_UPDATES, true)))
+                    .setNegativeButton(t("Later"), null)
+                    .show();
+            });
+        }, "mod-updates-daily").start();
     }
 }

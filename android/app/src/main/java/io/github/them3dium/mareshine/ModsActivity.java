@@ -26,6 +26,10 @@ import static io.github.them3dium.mareshine.L.t;
 // the game (RESULT_RESTART); declining keeps the changes for the next start.
 public class ModsActivity extends AppActivity {
     public static final String EXTRA_IN_GAME = "in_game";
+    // opened to look for updates at once (Settings → MODS, LauncherActivity's daily look)
+    public static final String EXTRA_UPDATES = "updates";
+    // Settings → MODS
+    public static final String AUTO_UPDATES_KEY = "SMS_MODS_AUTO_UPDATES", UNTESTED_KEY = "SMS_MODS_UNTESTED";
     public static final int RESULT_RESTART = RESULT_FIRST_USER;
     private static final int REQUEST_IMPORT = 1, REQUEST_PAGE = 3;
     private static final int TEXT = 0xFFF4F8FF, DIM = 0xFF8FB4D4, GOLD = 0xFFFFC93C, WARN = 0xFFFFA25C;
@@ -47,8 +51,11 @@ public class ModsActivity extends AppActivity {
         L.init(this);
         mInGame = getIntent().getBooleanExtra(EXTRA_IN_GAME, false);
         EclipseMod.migrate(this);  // its languages as mods of their own before
+        mShowUntested = "1".equals(Settings.read(this).getOrDefault(UNTESTED_KEY, "0"));
         buildUi();
         reload();
+        if (getIntent().getBooleanExtra(EXTRA_UPDATES, false) && savedInstanceState == null)
+            mList.post(() -> checkUpdates(null));
         Ratings.refresh(this, () -> { if (!mBusy) showList(); });
     }
 
@@ -164,6 +171,9 @@ public class ModsActivity extends AppActivity {
         mPerPage.setOnClickListener(v -> perPage());
         mUntested.setOnClickListener(v -> {
             mShowUntested = !mShowUntested;
+            java.util.Map<String, String> st = Settings.read(this);
+            st.put(UNTESTED_KEY, mShowUntested ? "1" : "0");
+            Settings.write(this, st);
             mPage = 0;
             showList();
         });
