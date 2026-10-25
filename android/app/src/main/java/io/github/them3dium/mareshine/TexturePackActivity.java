@@ -289,7 +289,7 @@ public class TexturePackActivity extends AppActivity {
                     long now = System.currentTimeMillis();
                     if (now - last > 250) {
                         last = now;
-                        status(t("Downloading… %s of %s", mb(got), mb(pack.size)));
+                        status(t("Downloading… %s of %s", mb(got), mb(pack.size)) + pct(got, pack.size));
                         progress((double) got / pack.size);
                     }
                 }
@@ -334,7 +334,7 @@ public class TexturePackActivity extends AppActivity {
                 long now = System.currentTimeMillis();
                 if (now - last > 250) {
                     last = now;
-                    status(t("Unpacking… %s of %s", mb(done), mb(total)));
+                    status(t("Unpacking… %s of %s", mb(done), mb(total)) + pct(done, total));
                     progress((double) done / total);
                 }
             }
@@ -363,7 +363,7 @@ public class TexturePackActivity extends AppActivity {
                         long now = System.currentTimeMillis();
                         if (now - last > 250) {
                             last = now;
-                            status(t("Unpacking… %s of %s (this takes a while)", mb(done), mb(total)));
+                            status(t("Unpacking… %s of %s (this takes a while)", mb(done), mb(total)) + pct(done, total));
                             progress((double) done / total);
                         }
                     }

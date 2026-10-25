@@ -209,7 +209,8 @@ public class ModInstallActivity extends AppActivity {
                         long now = System.currentTimeMillis();
                         if (now - last[0] > 250) {
                             last[0] = now;
-                            status(t("Making %s from your disc… %s of %s", r.name, mb(written), mb(r.imageSize)));
+                            status(t("Making %s from your disc… %s of %s", r.name, mb(written), mb(r.imageSize))
+                                + pct(written, r.imageSize));
                             progress(Math.min(1.0, (double) written / r.imageSize));
                         }
                         return !mCancel;
@@ -290,7 +291,7 @@ public class ModInstallActivity extends AppActivity {
                     long now = System.currentTimeMillis();
                     if (now - last > 250) {
                         last = now;
-                        status(t("Downloading %s… %s of %s", r.name, mb(got), mb(r.size)));
+                        status(t("Downloading %s… %s of %s", r.name, mb(got), mb(r.size)) + pct(got, r.size));
                         progress((double) got / r.size);
                     }
                 }
@@ -327,7 +328,7 @@ public class ModInstallActivity extends AppActivity {
             long now = System.currentTimeMillis();
             if (now - last > 250) {
                 last = now;
-                status(what);
+                status(what + pct(done, total));
                 progress((double) done / total);
             }
         }

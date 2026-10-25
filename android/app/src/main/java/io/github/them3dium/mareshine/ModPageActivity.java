@@ -345,13 +345,21 @@ public class ModPageActivity extends AppActivity {
             if (mImporting) mCancelImport = true;  // closed while it runs: Cancel
         });
         File dest = ModFlows.texturesDir(this);
+        long total = Mods.sizeOf(this, uri);
         new Thread(() -> {
             String error = null;
             int count = 0;
             try {
                 dest.getParentFile().mkdirs();
                 count = Mods.importTextures(this, uri, dest, new Mods.Progress() {
-                    @Override public void step(long bytes) {}
+                    long last;
+                    @Override public void step(long bytes) {
+                        long now = System.currentTimeMillis();
+                        if (now - last < 300) return;
+                        last = now;
+                        runOnUiThread(() -> choiceProgress(dlg, t("Unpacking the textures…") + "\n"
+                            + Mods.progressText(bytes, total), total > 0 ? (float) bytes / total : -1));
+                    }
                     @Override public boolean cancelled() { return mCancelImport; }
                 });
             } catch (Exception e) {

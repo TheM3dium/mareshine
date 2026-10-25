@@ -642,6 +642,7 @@ public class ModsActivity extends AppActivity {
 
     // Super Mario Eclipse's HD texture pack (from its quick menu) into its hd/textures
     private void importEclipseTextures(Uri uri) {
+        long total = Mods.sizeOf(this, uri);
         mBusy = true;
         mCancel = false;
         mStatus.setVisibility(View.VISIBLE);
@@ -657,7 +658,14 @@ public class ModsActivity extends AppActivity {
                         long now = System.currentTimeMillis();
                         if (now - last < 250) return;
                         last = now;
-                        runOnUiThread(() -> mStatus.setText(t("Importing… %.0f MB", bytes / 1e6)));
+                        runOnUiThread(() -> {
+                            mStatus.setText(t("Importing…") + "  " + Mods.progressText(bytes, total));
+                            if (total > 0) {
+                                mBar.setIndeterminate(false);
+                                mBar.setMax(1000);
+                                mBar.setProgress((int) (bytes * 1000 / total));
+                            }
+                        });
                     }
                     @Override public boolean cancelled() { return mCancel; }
                 });
@@ -672,6 +680,7 @@ public class ModsActivity extends AppActivity {
             runOnUiThread(() -> {
                 mBusy = false;
                 mBar.setVisibility(View.GONE);
+                mBar.setIndeterminate(true);
                 mStatus.setVisibility(View.GONE);
                 if (err != null) {
                     choice(t("Textures not imported"), err, new String[] {t("OK")}, new Runnable[] {this::afterUpdate});
@@ -685,6 +694,7 @@ public class ModsActivity extends AppActivity {
     }
 
     private void importMod(Uri uri) {
+        long total = Mods.sizeOf(this, uri);  // the unpacked bytes come near it for a texture pack
         mBusy = true;
         mCancel = false;
         mImport.setEnabled(false);
@@ -701,7 +711,14 @@ public class ModsActivity extends AppActivity {
                         long now = System.currentTimeMillis();
                         if (now - last < 250) return;
                         last = now;
-                        runOnUiThread(() -> mStatus.setText(t("Importing… %.0f MB", bytes / 1e6)));
+                        runOnUiThread(() -> {
+                            mStatus.setText(t("Importing… %.0f MB", bytes / 1e6) + pct(bytes, total));
+                            if (total > 0) {
+                                mBar.setIndeterminate(false);
+                                mBar.setMax(1000);
+                                mBar.setProgress((int) Math.min(1000, bytes * 1000 / total));
+                            }
+                        });
                     }
                     @Override public boolean cancelled() { return mCancel; }
                 });
@@ -714,6 +731,7 @@ public class ModsActivity extends AppActivity {
                 mBusy = false;
                 mImport.setEnabled(true);
                 mBar.setVisibility(View.GONE);
+                mBar.setIndeterminate(true);
                 mStatus.setVisibility(View.GONE);
                 if (err != null) {
                     choice(t("Mod not imported"), err, new String[] {t("OK")}, new Runnable[] {this::afterUpdate});

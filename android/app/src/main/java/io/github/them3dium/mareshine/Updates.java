@@ -285,7 +285,14 @@ final class Updates {
                         out.write(buf, 0, n);
                         got += n;
                         int pct = total > 0 ? (int) (got * 100 / total) : 0;
-                        if (pct != last) { last = pct; final int p = pct; main.post(() -> bar.setProgress(p)); }
+                        if (pct != last) {
+                            last = pct;
+                            final int p = pct;
+                            main.post(() -> {
+                                bar.setProgress(p);
+                                label.setText(t("Downloading %s…", r.name) + (total > 0 ? "  ·  " + p + " %" : ""));
+                            });
+                        }
                     }
                 } finally {
                     c.disconnect();

@@ -318,7 +318,7 @@ public class CutsceneActivity extends AppActivity {
                     long now = System.currentTimeMillis();
                     if (now - last > 250) {
                         last = now;
-                        status(label + "\n" + t("Downloading… %s of %s", mb(got), mb(m.patchBytes)));
+                        status(label + "\n" + t("Downloading… %s of %s", mb(got), mb(m.patchBytes)) + pct(got, m.patchBytes));
                         progress((base + got) / total);
                     }
                 }

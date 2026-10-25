@@ -212,6 +212,7 @@ public class AppActivity extends Activity {
             msg.setTextColor(getColor(R.color.dl_dim));
             msg.setTextSize(14);
             msg.setPadding(0, Math.round(4 * d), 0, Math.round(6 * d));
+            msg.setTag(CHOICE_MESSAGE);  // for a dialog that shows progress (choiceProgress)
             panel.addView(msg);
         }
         String[] all = java.util.Arrays.copyOf(labels, labels.length + 1);
@@ -264,6 +265,35 @@ public class AppActivity extends Activity {
         }
         if (first != null) first.requestFocus();
         return dlg;
+    }
+
+    static final String CHOICE_MESSAGE = "choice_message";
+
+    // "  ·  37 %" after a progress text (nothing when the total is unknown)
+    static String pct(long done, long total) {
+        return total > 0 ? "  ·  " + Math.min(100, done * 100 / total) + " %" : "";
+    }
+
+    // A choice() dialog's message, changed while it shows (progress), and a
+    // bar under it at `fraction` (0 to 1; below 0: none)
+    static void choiceProgress(android.app.Dialog dlg, String message, float fraction) {
+        if (dlg == null || dlg.getWindow() == null) return;
+        View v = dlg.getWindow().getDecorView().findViewWithTag(CHOICE_MESSAGE);
+        if (!(v instanceof TextView)) return;
+        ((TextView) v).setText(message);
+        if (fraction < 0) return;
+        android.view.ViewGroup parent = (android.view.ViewGroup) v.getParent();
+        android.widget.ProgressBar bar = parent.findViewWithTag("choice_bar");
+        if (bar == null) {
+            bar = new android.widget.ProgressBar(dlg.getContext(), null, android.R.attr.progressBarStyleHorizontal);
+            bar.setTag("choice_bar");
+            bar.setMax(1000);
+            bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFFC531));
+            parent.addView(bar, parent.indexOfChild(v) + 1, new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.round(14 * dlg.getContext().getResources().getDisplayMetrics().density)));
+        }
+        bar.setProgress(Math.round(Math.max(0, Math.min(1, fraction)) * 1000));
     }
 
     static void closeOnOutsideTap(Activity a, View root, View panel) {

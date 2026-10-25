@@ -255,7 +255,7 @@ public class LanguagePackActivity extends AppActivity {
                             last = now;
                             final long g = got, s = size;
                             runOnUiThread(() -> {
-                                tvStatus.setText(t("Copying the European disc… %.0f MB", g / 1e6));
+                                tvStatus.setText(t("Copying the European disc… %.0f MB", g / 1e6) + pct(g, s));
                                 if (s > 0) bar.setProgress((int) (g * 1000 / s));
                             });
                         }
@@ -300,7 +300,7 @@ public class LanguagePackActivity extends AppActivity {
                     Arrays.asList(LanguagePackBuilder.LANG_CODES), new LanguagePackBuilder.Progress() {
                         @Override public void step(String what, double f) {
                             runOnUiThread(() -> {
-                                tvStatus.setText(t("Building: %s", what));
+                                tvStatus.setText(t("Building: %s", what) + pct(Math.round(f * 1000), 1000));
                                 bar.setProgress((int) (f * 1000));
                             });
                         }

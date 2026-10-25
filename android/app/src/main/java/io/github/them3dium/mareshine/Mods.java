@@ -697,11 +697,12 @@ public final class Mods {
         File tmp = new File(root, "import.tmp");
         deleteTree(tmp);
         tmp.mkdirs();
-        long done = 0;
-        try (InputStream in = ctx.getContentResolver().openInputStream(uri); ZipInputStream zip = new ZipInputStream(in)) {
+        try (InputStream raw = ctx.getContentResolver().openInputStream(uri); Counting in = new Counting(raw);
+             ZipInputStream zip = new ZipInputStream(in)) {
             byte[] buf = new byte[1 << 16];
             for (ZipEntry e; (e = zip.getNextEntry()) != null; ) {
                 if (progress.cancelled()) throw new IOException(L.t("Cancelled."));
+                progress.step(in.read);
                 String name = e.getName().replace('\\', '/');
                 if (!name.startsWith(prefix)) continue;
                 name = name.substring(prefix.length());
@@ -722,8 +723,7 @@ public final class Mods {
                 try (OutputStream o = new FileOutputStream(out)) {
                     for (int n; (n = zip.read(buf)) > 0; ) {
                         o.write(buf, 0, n);
-                        done += n;
-                        progress.step(done);
+                        progress.step(in.read);
                     }
                 }
             }
@@ -765,11 +765,12 @@ public final class Mods {
         deleteTree(tmp);
         tmp.mkdirs();
         int count = 0;
-        long done = 0;
-        try (InputStream in = ctx.getContentResolver().openInputStream(uri); ZipInputStream zip = new ZipInputStream(in)) {
+        try (InputStream raw = ctx.getContentResolver().openInputStream(uri); Counting in = new Counting(raw);
+             ZipInputStream zip = new ZipInputStream(in)) {
             byte[] buf = new byte[1 << 16];
             for (ZipEntry e; (e = zip.getNextEntry()) != null; ) {
                 if (progress.cancelled()) throw new IOException(L.t("Cancelled."));
+                progress.step(in.read);
                 String name = e.getName().replace('\\', '/');
                 if (e.isDirectory() || !isTexture(name)) continue;
                 File out = new File(tmp, cleanPath(name));
@@ -778,8 +779,7 @@ public final class Mods {
                 try (OutputStream o = new FileOutputStream(out)) {
                     for (int n; (n = zip.read(buf)) > 0; ) {
                         o.write(buf, 0, n);
-                        done += n;
-                        progress.step(done);
+                        progress.step(in.read);
                     }
                 }
                 count++;
@@ -816,6 +816,43 @@ public final class Mods {
         } catch (IllegalArgumentException e) {
             throw new IOException(L.t("This is not a .zip file."));
         }
+    }
+
+    // A stream that counts the bytes read from it: a zip's progress (its
+    // compressed bytes against the file's size)
+    static final class Counting extends java.io.FilterInputStream {
+        long read;
+
+        Counting(InputStream in) { super(in); }
+
+        @Override public int read() throws IOException {
+            int b = super.read();
+            if (b >= 0) read++;
+            return b;
+        }
+
+        @Override public int read(byte[] b, int off, int len) throws IOException {
+            int n = super.read(b, off, len);
+            if (n > 0) read += n;
+            return n;
+        }
+    }
+
+    // a picked file's size in bytes (-1: unknown)
+    static long sizeOf(Context ctx, Uri uri) {
+        try (android.database.Cursor c = ctx.getContentResolver().query(uri,
+                new String[] {android.provider.OpenableColumns.SIZE}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) return c.getLong(0);
+        } catch (Exception ignored) {
+        }
+        return -1;
+    }
+
+    // "37 %  ·  3.4 of 9.2 GB" (or the bytes alone when the size is unknown)
+    static String progressText(long done, long total) {
+        String d = String.format(Locale.ROOT, "%.1f", done / 1e9);
+        if (total <= 0) return String.format(Locale.ROOT, "%s GB", d);
+        return String.format(Locale.ROOT, "%d %%  ·  %s of %.1f GB", Math.min(100, done * 100 / total), d, total / 1e9);
     }
 
     static String displayName(Context ctx, Uri uri) {
