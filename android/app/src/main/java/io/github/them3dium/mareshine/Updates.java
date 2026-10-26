@@ -141,7 +141,8 @@ final class Updates {
             String error = null;
             try {
                 Release r = latest();
-                if (r != null && compare(r.tag, current) > 0 && r.apkUrl != null) newer = r;
+                // a beta ("2.1.0-beta.1") is not offered: this is the stable version a beta goes back to
+                if (r != null && !r.tag.contains("-") && compare(r.tag, current) > 0 && r.apkUrl != null) newer = r;
             } catch (Exception e) {
                 error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             }
