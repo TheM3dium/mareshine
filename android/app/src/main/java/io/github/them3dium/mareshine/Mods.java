@@ -201,6 +201,9 @@ public final class Mods {
             out.add(m);
         }
         out.addAll(found.values()); // new ones: off, at the end
+        File tour = sTour;
+        Mod example = tour != null ? read(tour) : null;
+        if (example != null) out.add(0, example);  // the intro's (Tour), first
         Map<String, Map<String, String>> state = options(ctx);
         for (Mod m : out) {
             m.state = state.get(m.id);
@@ -213,6 +216,7 @@ public final class Mods {
     public static void save(Context ctx, List<Mod> mods) {
         StringBuilder sb = new StringBuilder();
         for (Mod m : mods) {
+            if (m.id.equals(TOUR_ID)) continue;  // the intro's, not kept
             if (sb.length() > 0) sb.append(';');
             sb.append(m.id).append(':').append(m.enabled ? '1' : '0');
         }
@@ -244,6 +248,33 @@ public final class Mods {
                     || (mod.isGame() && o.isGame())) out.add(o);
         }
         return out;
+    }
+
+    // The intro's example mod (Tour): a mod.json, its pictures and buttons
+    // copied from the assets to the app's cache, listed first while the intro
+    // shows it and deleted after. Nothing of it is kept in settings.txt.
+    static final String TOUR_ID = "mareshine-example";
+    private static volatile File sTour;
+
+    static void tourStart(Context ctx) {
+        File dir = new File(ctx.getCacheDir(), "tour/" + TOUR_ID);
+        deleteTree(dir);
+        dir.mkdirs();
+        for (String name : new String[] {"mod.json", "icon.png", "preview.png"}) {
+            try (InputStream in = ctx.getAssets().open("mods/example/" + name);
+                 OutputStream out = new FileOutputStream(new File(dir, name))) {
+                byte[] buf = new byte[1 << 14];
+                for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+            } catch (IOException e) {
+                return;
+            }
+        }
+        sTour = dir;
+    }
+
+    static void tourEnd(Context ctx) {
+        sTour = null;
+        deleteTree(new File(ctx.getCacheDir(), "tour"));
     }
 
     public static Mod find(Context ctx, String id) {

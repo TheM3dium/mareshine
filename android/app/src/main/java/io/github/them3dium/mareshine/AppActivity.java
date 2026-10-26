@@ -323,6 +323,10 @@ public class AppActivity extends Activity {
     // Android search for the next one.
     protected java.util.List<View> padItems() { return null; }
 
+    // The entry a controller starts on when nothing is chosen (touch mode
+    // keeps the focus from being set), or null for the first
+    protected View padDefault() { return null; }
+
     // A on `focused` before it is clicked: true when the screen handled it
     // (a text field, whose keyboard a controller cannot work)
     protected boolean onPadA(View focused) { return false; }
@@ -345,6 +349,11 @@ public class AppActivity extends Activity {
         for (int i = 0; i < live.size() && cur != null; i++) {
             View v = live.get(i);
             if (v == cur || (v instanceof android.view.ViewGroup && isDescendant((android.view.ViewGroup) v, cur))) at = i;
+        }
+        View main = padDefault();
+        if (at < 0 && main != null && live.contains(main)) {  // nothing chosen yet: the screen's main entry
+            main.requestFocusFromTouch();
+            return true;
         }
         int next = at < 0 ? 0 : Math.max(0, Math.min(live.size() - 1, at + dir));
         live.get(next).requestFocusFromTouch();

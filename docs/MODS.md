@@ -1,4 +1,4 @@
-# Mods for Mareshine
+# Mods for Mareshine (work in progress)
 
 A mod is a folder in `mods/` in the app's data folder (`Sms/mods/<id>/` on Android).
 You can also hand it out as a `.zip` of that folder, which players add with **Mods → Import mod**.

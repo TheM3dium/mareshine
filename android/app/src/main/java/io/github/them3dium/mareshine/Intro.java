@@ -21,9 +21,10 @@ final class Intro {
 
     static final String GAMECUBE_TOUCH = "gamecube_touch";  // 2.1: the GameCube button style, the R+ slider
     static final String EDITOR_FOLD = "editor_fold";        // 2.1: the layout editor's toolbar folds up
+    static final String MOD_MANAGER = "mod_manager";        // 2.1: mods, where they are, finding and managing them
 
     // in the order they are shown
-    private static final String[] ALL = {GAMECUBE_TOUCH, EDITOR_FOLD};
+    private static final String[] ALL = {GAMECUBE_TOUCH, EDITOR_FOLD, MOD_MANAGER};
     private static final String[] UPDATES_ONLY = {EDITOR_FOLD};
 
     private static final String SEEN = "SMS_LAUNCHER_INTROS_SEEN";
@@ -33,6 +34,7 @@ final class Intro {
         switch (id) {
             case GAMECUBE_TOUCH:
             case EDITOR_FOLD: return AppActivity.isTouch(c);  // touch buttons only on a touch screen
+            case MOD_MANAGER: return Mods.MENU;               // everyone: touch and controller
             default: return false;
         }
     }

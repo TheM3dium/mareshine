@@ -74,6 +74,79 @@ public class ModPageActivity extends AppActivity {
             return;
         }
         buildUi();
+        if (Tour.step(this) != null) tour();
+    }
+
+    // --- the mod manager's intro (Tour) ----------------------------------------------
+    // the example mod's page: the pointer (right stick) goes to a button and
+    // clicks, then the focus (left stick) steps along the page as it does
+
+    private Tour mTour;
+    private android.app.Dialog mTourMenu;
+    private int mTourCycle = -1;
+
+    private void tour() {
+        mTour = new Tour(this);
+        stopAuto();
+        if (Tour.RATE.equals(Tour.step(this))) {
+            // a finger taps the suns; the rating's menu opens, as it is, and closes by itself
+            mTour.show(Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0.55f, 56 + 10, (c, p, ms) -> {
+                float cycle = 7000, t = Tour.loop(ms, cycle);
+                int n = (int) (ms / (long) cycle);
+                mTour.tap(c, p, mTour.rectOf(mRating), t, 0.3f);
+                if (t >= 0.36f && t < 0.68f && mTourCycle != n && mTourMenu == null) {
+                    mTourCycle = n;
+                    mTourMenu = rateMenu(true);
+                    android.view.Window w = mTourMenu.getWindow();
+                    if (w != null) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+                } else if (t >= 0.68f && mTourMenu != null) {
+                    mTourMenu.dismiss();
+                    mTourMenu = null;
+                }
+            });
+            return;
+        }
+        mTour.show(Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0.55f, 56 + 10, (c, p, ms) -> {
+            float t = Tour.loop(ms, 9000);
+            List<View> order = new ArrayList<>();
+            order.add(mOnOff);
+            order.addAll(mButtonViews);
+            order.add(mBack);
+            android.graphics.RectF target = mButtonViews.size() > 1 ? mTour.rectOf(mButtonViews.get(1)) : null;
+            android.graphics.RectF top = mTour.rectOf(mRating);
+            float lx = c.getWidth() / 2f, ly = top != null ? top.bottom + mTour.dp(26) : mTour.dp(90);
+            if (t < 0.45f) {
+                // the second button lights up when the pointer (over()) clicks it
+                if (target == null) return;
+                float u = t / 0.45f;
+                if (u >= 0.7f) mTour.focused(c, target);
+                mTour.label(c, p, t("Right stick: pointer"), lx, ly, 0xFFFFFFFF);
+            } else {
+                // the focus from ON/OFF along the buttons to Back
+                int at = Math.min(order.size() - 1, (int) ((t - 0.45f) / 0.55f * (order.size() + 0.5f)));
+                android.graphics.RectF r = mTour.rectOf(order.get(at));
+                if (r != null) mTour.focused(c, r);
+                mTour.label(c, p, t("Left stick: from button to button"), lx, ly, 0xFFFFC93C);
+            }
+        });
+        // the pointer itself: over the text too
+        mTour.over((c, p, ms) -> {
+            float t = Tour.loop(ms, 9000);
+            if (t >= 0.45f || mButtonViews.size() < 2) return;
+            android.graphics.RectF target = mTour.rectOf(mButtonViews.get(1));
+            if (target == null) return;
+            float u = t / 0.45f, k = Tour.ease(u, 0.1f, 0.6f);
+            float sx = c.getWidth() * 0.5f, sy = c.getHeight() * 0.42f;
+            float px = sx + (target.centerX() - sx) * k, py = sy + (target.centerY() - sy) * k;
+            mTour.click(c, p, px, py, (u - 0.7f) / 0.3f);
+            mTour.pointer(c, p, px, py);
+        });
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (mTour == null) super.onBackPressed();  // in the intro: its buttons alone
     }
 
     // the mod and this page's options, fresh (another page may have changed them)
@@ -293,6 +366,7 @@ public class ModPageActivity extends AppActivity {
     @Override
     protected void onDestroy() {
         mHandler.removeCallbacksAndMessages(null);
+        if (mTourMenu != null) mTourMenu.dismiss();
         super.onDestroy();
     }
 
@@ -412,6 +486,12 @@ public class ModPageActivity extends AppActivity {
                 new String[] {t("OK")}, new Runnable[] {null});
             return;
         }
+        rateMenu(false);
+    }
+
+    // the suns to pick (`shown`: as they are, doing nothing; the intro's)
+    private android.app.Dialog rateMenu(boolean shown) {
+        int mine = Mods.myRating(this, mMod.id);
         String[] labels = new String[5];
         Runnable[] acts = new Runnable[5];
         for (int i = 0; i < 5; i++) {
@@ -424,7 +504,8 @@ public class ModPageActivity extends AppActivity {
                 showScore();
             };
         }
-        choice(t("Rate %s", mMod.name), t("How many suns do you give it?"), labels, acts);
+        return choice(t("Rate %s", mMod.name), t("How many suns do you give it?"), labels,
+            shown ? new Runnable[0] : acts);
     }
 
     private void refresh() {
@@ -705,13 +786,18 @@ public class ModPageActivity extends AppActivity {
     // L/R page through the buttons; the D-pad's left/right moves along them
     @Override
     protected boolean onPadTab(int dir, boolean shoulder) {
+        if (mTour != null) return shoulder;  // left/right along the intro's buttons
         if (!shoulder) return false;
         page(dir);
         return true;
     }
 
     @Override
+    protected View padDefault() { return mTour != null ? mTour.padDefault() : null; }
+
+    @Override
     protected List<View> padItems() {
+        if (mTour != null) return mTour.padItems();
         List<View> items = new ArrayList<>();
         items.add(mOnOff);
         items.add(mRating);

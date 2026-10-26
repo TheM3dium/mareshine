@@ -115,7 +115,8 @@ final class ModFlows {
             boolean have = EclipseMod.has(a, r);
             String name = EclipseMod.languageName(r);
             labels[i] = have ? (EclipseMod.valueId(r).equals(cur) ? "✓  " : "") + name
-                : name + "  ·  " + t(r.urls.length > 0 ? "download %.1f GB" : "pick the downloaded file", r.size / 1e9);
+                : r.urls.length > 0 ? t("%s  ·  the app downloads it (%.1f GB)", name, r.size / 1e9)
+                : t("%s  ·  you download it from its page", name);
             final Mods.Mod mod = m;
             final Mods.Option o = opt;
             acts[i] = () -> {
@@ -134,9 +135,9 @@ final class ModFlows {
         acts[langs.size()] = () -> a.choice(t("Another language"), t("Only the languages listed have a translation "
                 + "for Super Mario Eclipse so far. A new one will show up here with an app update."),
             new String[] {t("OK")}, new Runnable[] {null});
-        a.choice(t("Which language?"), t("Each language is its own copy of the game (about %.1f GB), made from "
-            + "your own disc. Hold Language on Super Mario Eclipse's page to delete one.", Mods.ECLIPSE.imageSize / 1e9),
-            labels, acts);
+        a.choice(t("Which language?"), t("Pick the language you want to play in. Each language is a whole game of its "
+            + "own, made from your own disc: you do not need English first. Hold Language on Super Mario Eclipse's page "
+            + "to delete one."), labels, acts);
     }
 
     // A mod the player downloads from its page and picks (Super Mario Sunburn)

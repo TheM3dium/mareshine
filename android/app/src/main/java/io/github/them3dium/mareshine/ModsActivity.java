@@ -68,6 +68,79 @@ public class ModsActivity extends AppActivity {
         if (getIntent().getBooleanExtra(EXTRA_UPDATES, false) && savedInstanceState == null)
             mList.post(() -> checkUpdates(null));
         Ratings.refresh(this, () -> { if (!mBusy) showList(); });
+        if (Tour.step(this) != null) tour();
+    }
+
+    // --- the mod manager's intro (Tour) ----------------------------------------------
+    // SEARCH MODS with a finger tapping the first mod; INSTALLED with a finger
+    // holding the example mod (first) until its quick menu opens, shown as it
+    // is but closed again by itself, its entries doing nothing
+
+    private Tour mTour;
+    private android.app.Dialog mTourMenu;
+    private int mTourCycle = -1;
+
+    private void tour() {
+        boolean search = Tour.SEARCH.equals(Tour.step(this));
+        showTab(search ? 1 : 0);
+        mTour = new Tour(this);
+        mTour.show(Gravity.END | Gravity.BOTTOM, 0.45f, (c, p, ms) -> {
+            android.graphics.RectF r = mRows.isEmpty() ? null : mTour.rectOf(mRows.get(0));
+            if (search) {
+                mTour.tap(c, p, r, Tour.loop(ms, 2600), 0.45f);
+                return;
+            }
+            if (r == null) return;
+            float cycle = 7000, t = Tour.loop(ms, cycle);
+            int n = (int) (ms / (long) cycle);
+            // the finger shows on the mod, holds while the ring fills, the menu opens, the finger goes
+            float a = t < 0.05f ? 0 : t < 0.12f ? (t - 0.05f) / 0.07f : t < 0.42f ? 1 : Math.max(0, 1 - (t - 0.42f) / 0.08f);
+            float x = r.left + r.width() * 0.15f, y = r.centerY();  // on its name
+            mTour.finger(c, p, x, y, a, t >= 0.14f && t < 0.4f,
+                Tour.ease(t, 0.14f, 0.36f));
+            if (t >= 0.38f && t < 0.68f && mTourCycle != n && mTourMenu == null) {
+                mTourCycle = n;
+                mTourMenu = actions(0, true);
+                android.view.Window w = mTourMenu.getWindow();
+                if (w != null) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    | android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+            } else if (t >= 0.68f && mTourMenu != null) {
+                closeTourMenu();
+            }
+        });
+        if (search) return;
+        // then: a short tap opens a mod's page; Next shows it, waits, and opens the example's
+        mTour.then(t("A mod's own page"), t("Tap a mod shortly (or press A) to open its own page with all its "
+            + "settings."), (c, p, ms) -> {
+            closeTourMenu();
+            android.graphics.RectF r = mTour.rectOf(mRows.isEmpty() ? null : mRows.get(0));
+            if (r != null) mTour.focused(c, r, 0.5f + 0.5f * (float) Math.sin(ms / 400.0));
+        });
+        mTour.beforeNext(600 + 850, (c, p, ms) -> {  // the tap, then a short wait
+            closeTourMenu();
+            android.graphics.RectF r = name();
+            if (ms > 300) mTour.focused(c, mTour.rectOf(mRows.isEmpty() ? null : mRows.get(0)));
+            if (ms < 600) mTour.tap(c, p, r, 0.25f + ms / 600f * 0.6f, 0.5f);
+        });
+    }
+
+    private void closeTourMenu() {
+        if (mTourMenu == null) return;
+        mTourMenu.dismiss();
+        mTourMenu = null;
+    }
+
+    // the example mod's row, its left part (where its name is)
+    private android.graphics.RectF name() {
+        android.graphics.RectF r = mRows.isEmpty() ? null : mTour.rectOf(mRows.get(0));
+        if (r != null) r.set(r.left, r.top, r.left + r.width() * 0.3f, r.bottom);
+        return r;
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mTourMenu != null) mTourMenu.dismiss();
+        super.onDestroy();
     }
 
     private TextView text(String s, int color, int size, boolean bold) {
@@ -403,7 +476,7 @@ public class ModsActivity extends AppActivity {
             t(m.enabled ? "On" : "Off"), m.enabled ? GOLD : DIM);
         row.setOnClickListener(v -> ModPageActivity.start(this, m.id, "", REQUEST_PAGE));
         row.setOnLongClickListener(v -> {
-            actions(i);
+            actions(i, false);
             return true;
         });
     }
@@ -442,8 +515,9 @@ public class ModsActivity extends AppActivity {
             new String[] {t("Install")}, new Runnable[] {() -> ModInstallActivity.start(this, r)});
     }
 
-    // Holding a mod: on/off, its toggles and choices, up, down, delete
-    private void actions(int i) {
+    // Holding a mod: on/off, its toggles and choices, up, down, delete (`shown`:
+    // the menu as it is, its entries doing nothing; the intro's)
+    private android.app.Dialog actions(int i, boolean shown) {
         final Mods.Mod m = mMods.get(i);
         List<String> labels = new ArrayList<>();
         List<Runnable> acts = new ArrayList<>();
@@ -476,7 +550,8 @@ public class ModsActivity extends AppActivity {
         dim.add(false);
         boolean[] d = new boolean[dim.size()];
         for (int k = 0; k < d.length; k++) d[k] = dim.get(k);
-        choice(m.name, null, labels.toArray(new String[0]), acts.toArray(new Runnable[0]), d);
+        return choice(m.name, null, labels.toArray(new String[0]),
+            shown ? new Runnable[0] : acts.toArray(new Runnable[0]), d);
     }
 
     // a toggle or choice from the quick menu (Eclipse's as on its page)
@@ -779,7 +854,9 @@ public class ModsActivity extends AppActivity {
     // --- leaving -------------------------------------------------------------------
 
     @Override
-    public void onBackPressed() { leave(); }
+    public void onBackPressed() {
+        if (mTour == null) leave();  // in the intro: its buttons alone
+    }
 
     // After a change in the game: restart now, or keep the changes for the next start.
     private void leave() {
@@ -808,7 +885,11 @@ public class ModsActivity extends AppActivity {
     @Override protected boolean usesPadCursor() { return true; }
 
     @Override
+    protected View padDefault() { return mTour != null ? mTour.padDefault() : null; }
+
+    @Override
     protected List<View> padItems() {
+        if (mTour != null) return mTour.padItems();
         List<View> items = new ArrayList<>(mRows);
         for (View b : new View[] {mCreate, mUpdate, mPrev, mNext, mPerPage, mUntested, mImport, mClose})
             if (b.getVisibility() == View.VISIBLE && b.isEnabled()) items.add(b);
@@ -818,6 +899,7 @@ public class ModsActivity extends AppActivity {
     // L/R and the D-pad's left/right switch between the tabs
     @Override
     protected boolean onPadTab(int dir, boolean shoulder) {
+        if (mTour != null) return shoulder;  // left/right along the intro's buttons
         if (!shoulder && !mRows.contains(getCurrentFocus())) return false;  // along the buttons
         int tab = Math.max(0, Math.min(1, mTab + dir));
         if (tab != mTab) showTab(tab);

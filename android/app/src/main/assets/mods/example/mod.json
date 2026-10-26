@@ -1,0 +1,32 @@
+{
+  "id": "mareshine-example",
+  "name": "Example Mod",
+  "name_de": "Beispiel-Mod",
+  "name_es": "Mod de ejemplo",
+  "name_fr": "Mod d'exemple",
+  "name_it": "Mod di esempio",
+  "version": "1.0",
+  "author": "Mareshine",
+  "description": "An example for this intro: it shows what a mod's page looks like and is gone once the intro ends. A real mod has its own picture, text and buttons here.",
+  "description_de": "Ein Beispiel für diese Einführung: Es zeigt, wie die Seite eines Mods aussieht, und ist weg, sobald die Einführung endet. Ein echter Mod hat hier sein eigenes Bild, seinen Text und seine Buttons.",
+  "description_es": "Un ejemplo para esta introducción: muestra cómo es la página de un mod y desaparece al terminar la introducción. Un mod de verdad tiene aquí su propia imagen, su texto y sus botones.",
+  "description_fr": "Un exemple pour cette introduction : il montre à quoi ressemble la page d'un mod et disparaît à la fin de l'introduction. Un vrai mod a ici sa propre image, son texte et ses boutons.",
+  "description_it": "Un esempio per questa introduzione: mostra com'è la pagina di una mod e sparisce alla fine dell'introduzione. Una mod vera ha qui la sua immagine, il suo testo e i suoi pulsanti.",
+  "icon": "icon.png",
+  "preview": "preview.png",
+  "rating": 4,
+  "options": [
+    {"type": "choice", "id": "language", "label": "Language", "label_de": "Sprache", "label_es": "Idioma", "label_fr": "Langue", "label_it": "Lingua", "values": [
+      {"id": "en", "label": "English"},
+      {"id": "de", "label": "Deutsch"},
+      {"id": "es", "label": "Español"},
+      {"id": "fr", "label": "Français"},
+      {"id": "it", "label": "Italiano"}
+    ]},
+    {"type": "toggle", "id": "hd", "label": "HD Textures", "label_de": "HD-Texturen", "label_es": "Texturas HD", "label_fr": "Textures HD", "label_it": "Texture HD", "default": true},
+    {"type": "page", "label": "Settings", "label_de": "Einstellungen", "label_es": "Ajustes", "label_fr": "Réglages", "label_it": "Impostazioni", "options": [
+      {"type": "choice", "id": "difficulty", "label": "Difficulty", "values": ["Easy", "Normal", "Hard"], "default": "normal"}
+    ]},
+    {"type": "link", "label": "Website", "url": "https://github.com/TheM3dium/mareshine"}
+  ]
+}

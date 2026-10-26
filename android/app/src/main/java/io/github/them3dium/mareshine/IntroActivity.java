@@ -42,6 +42,8 @@ public class IntroActivity extends AppActivity {
         final List<Runnable> actions = new ArrayList<>();
         boolean asks;  // a choice page: only when the intro asks
         boolean back;  // a Back button, to the choice before
+        String link;   // a button in the middle of the picture, and what it does
+        Runnable linkAction;
 
         Page(String title, String text, Picture picture) {
             this.title = title;
@@ -68,6 +70,7 @@ public class IntroActivity extends AppActivity {
     private long mPageStart;
     private PictureView mView;
     private LinearLayout mPanel, mButtons;
+    private Button mLink;
     private TextView mTitle, mText;
     private Button mMain;      // the page's orange button, lit now and then
     private final Runnable mPulse = this::pulse;
@@ -99,6 +102,20 @@ public class IntroActivity extends AppActivity {
         if (hasFocus) hideSystemUi();
     }
 
+    // a controller moves along the buttons and presses them (AppActivity's scheme)
+    @Override protected boolean usesPadNav() { return true; }
+
+    @Override
+    protected List<View> padItems() {
+        List<View> items = new ArrayList<>();
+        if (mLink != null && mLink.getVisibility() == View.VISIBLE) items.add(mLink);
+        if (mButtons != null) for (int i = 0; i < mButtons.getChildCount(); i++) items.add(mButtons.getChildAt(i));
+        return items;
+    }
+
+    // a controller starts on the orange button (Next, Got it, a choice's first)
+    @Override protected View padDefault() { return mMain; }
+
     // the whole display, as the game has it, so the buttons are where they will be
     @Override protected boolean keepClearOfSystemUi() { return false; }
 
@@ -129,8 +146,56 @@ public class IntroActivity extends AppActivity {
         switch (mId) {
             case Intro.GAMECUBE_TOUCH: gamecubeTouch(); break;
             case Intro.EDITOR_FOLD: editorFold(); break;
+            case Intro.MOD_MANAGER: modManager(); break;
             default: break;
         }
+    }
+
+    // --- the mod manager ------------------------------------------------------
+
+    private android.graphics.Bitmap mEclipseDisc, mSunburnDisc;  // loaded once
+    private int mTourAfter = -1;  // the page Tour's steps on the real screens follow (-1: none)
+    private boolean mTouring;
+    private static final int REQUEST_TOUR = 1;
+
+    private android.graphics.Bitmap asset(String path) {
+        try (java.io.InputStream in = getAssets().open(path)) {
+            return android.graphics.BitmapFactory.decodeStream(in);
+        } catch (java.io.IOException e) {
+            return null;
+        }
+    }
+
+    private void modManager() {
+        mEclipseDisc = asset(EclipseMod.DISC_ASSET);
+        mSunburnDisc = asset("mods/sunburn-disc.png");
+        mPages.add(new Page(t("New: Mods"),
+            t("Super Mario Sunburn (SMSB) and Super Mario Eclipse (SME) now run in Mareshine, made from your own "
+                + "disc. SMSB in every language of the app, SME in English and German for now (more to come)."),
+            this::drawDiscs));
+        Page menu = new Page(t("The mod menu"),
+            t("Everything about mods is in the mod menu: install mods from SEARCH MODS, or make your own and import "
+                + "it. The next pages show you around, on the app's own screens."),
+            this::drawPreviews);
+        menu.back = true;
+        mPages.add(menu);
+        // then the app's own screens, with an example mod (Tour)
+        mTourAfter = mPages.size() - 1;
+        Page own = new Page(t("Make your own mods"),
+            t("Change stages, textures or music and share it as a mod. The guide on GitHub shows how, step by step."),
+            (c, p, w, h, ms) -> TouchDraw.background(c, p, w, h));
+        own.link = t("Open the guide");
+        own.linkAction = () -> choice(t("Open GitHub?"), t("The guide to making mods opens in your browser."),
+            new String[] {t("Open")}, new Runnable[] {() -> {
+                try {
+                    startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(ModsActivity.GUIDE)));
+                } catch (android.content.ActivityNotFoundException e) {
+                    choice(t("No browser"), ModsActivity.GUIDE, new String[] {t("OK")}, new Runnable[] {null});
+                }
+            }});
+        own.back = true;  // to the steps' last
+        mPages.add(own);
     }
 
     private void gamecubeTouch() {
@@ -345,6 +410,176 @@ public class IntroActivity extends AppActivity {
         }
     }
 
+    // --- the mod manager's first page ----------------------------------------
+
+    private static final int TEXT = 0xFFF4F8FF;
+
+    // the room for a picture: between the text panel and the buttons
+    private float areaTop(float h) {
+        return Math.max(h * 0.42f, (mPanel != null ? mPanel.getBottom() : 0) + dp(14));
+    }
+
+    private float areaBottom(float h) {
+        return (mButtons != null && mButtons.getTop() > 0 ? mButtons.getTop() : h * 0.88f) - dp(12);
+    }
+
+    private void text(Canvas c, Paint p, String s, float x, float y, float size, int color, Paint.Align align) {
+        p.setStyle(Paint.Style.FILL);
+        p.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        p.setTextAlign(align);
+        p.setTextSize(size);
+        p.setColor(color);
+        c.drawText(s, x, y, p);
+    }
+
+    // a mod's disc picture, turned by `deg`
+    private void disc(Canvas c, Paint p, android.graphics.Bitmap b, float cx, float cy, float r, float deg) {
+        disc(c, p, b, cx, cy, r, deg, 255);
+    }
+
+    private void disc(Canvas c, Paint p, android.graphics.Bitmap b, float cx, float cy, float r, float deg, int alpha) {
+        if (b == null) return;
+        c.save();
+        c.rotate(deg, cx, cy);
+        p.setFilterBitmap(true);
+        p.setAlpha(alpha);
+        c.drawBitmap(b, null, new android.graphics.RectF(cx - r, cy - r, cx + r, cy + r), p);
+        c.restore();
+    }
+
+    // Page 1: the two games' discs fly in from the sides, turning, and land with
+    // a flash and confetti (mods are something to celebrate); then they turn
+    // side by side
+    private static final long START = 800;          // after the page has faded in (onCreate)
+    private static final long LAND = START + 1100;  // when the discs are in place
+
+    private void drawDiscs(Canvas c, Paint p, float w, float h, long ms) {
+        TouchDraw.background(c, p, w, h);
+        float top = areaTop(h), bot = areaBottom(h) - dp(26);  // the names below the discs
+        float r = Math.min((bot - top) / 2, w * 0.13f), y = (top + bot) / 2, deg = ms * 0.045f;
+        float in = Math.max(0f, Math.min(1f, (ms - START) / (float) (LAND - START))), k = in <= 0 ? 0 : backOut(in);
+        float spin = (1 - k) * 540;  // the extra turns while flying
+        float ex = w * 0.36f - (1 - k) * w * 0.6f, sx = w * 0.64f + (1 - k) * w * 0.6f;
+        // the flash: a golden ring growing from between them, and rays
+        float t = (ms - LAND) / 900f;
+        if (t > 0 && t < 1) {
+            float cx = w / 2, rr = r * (0.6f + 2.4f * t);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(10) * (1 - t));
+            p.setColor(0xFFFFC531 & 0x00FFFFFF | (Math.round(220 * (1 - t)) << 24));
+            c.drawCircle(cx, y, rr, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setShader(new android.graphics.RadialGradient(cx, y, r * 2.6f,
+                0xFFFFE9A0 & 0x00FFFFFF | (Math.round(150 * (1 - t)) << 24), 0x00FFE9A0,
+                android.graphics.Shader.TileMode.CLAMP));
+            c.drawCircle(cx, y, r * 2.6f, p);
+            p.setShader(null);
+        }
+        disc(c, p, mEclipseDisc, ex, y + (float) Math.sin(ms / 700.0) * dp(4), r, deg + spin, 255);
+        disc(c, p, mSunburnDisc, sx, y + (float) Math.sin(ms / 700.0 + 1.6) * dp(4), r, -deg - spin, 255);
+        int name = Math.round(255 * Math.max(0, Math.min(1, (ms - LAND) / 500f)));
+        text(c, p, "Super Mario Eclipse", w * 0.36f, y + r + dp(22), dp(15), TEXT & 0x00FFFFFF | (name << 24), Paint.Align.CENTER);
+        text(c, p, "Super Mario Sunburn", w * 0.64f, y + r + dp(22), dp(15), TEXT & 0x00FFFFFF | (name << 24), Paint.Align.CENTER);
+        confetti(c, p, w / 2, y, (ms - LAND) / 1000f, h);
+    }
+
+    // overshooting a little, then settling (0 to 1)
+    private static float backOut(float x) {
+        float s = 0.3f, u = x - 1;  // small: the discs must not meet in the middle
+        return 1 + u * u * ((s + 1) * u + s);
+    }
+
+    private static final int[] CONFETTI = {0xFFFFC531, 0xFFFFA41C, 0xFFFF3D8B, 0xFF2FB8C9, 0xFF46E06A, 0xFFF4F8FF};
+
+    // pieces shot up from (x, y) `t` seconds ago, falling and turning, gone after a while
+    private void confetti(Canvas c, Paint p, float x, float y, float t, float h) {
+        if (t < 0 || t > 3f) return;
+        p.setStyle(Paint.Style.FILL);
+        for (int i = 0; i < 130; i++) {
+            double a = Math.toRadians(-90 + ((i * 137.5) % 160) - 80);  // upwards, fanned out
+            float v = dp(380 + (i * 53) % 420), g = dp(900);
+            float px = x + (float) Math.cos(a) * v * t * (1 + (i % 5) * 0.25f);
+            float py = y + (float) Math.sin(a) * v * t + g * t * t / 2;
+            if (py > h + dp(20)) continue;
+            float fade = Math.max(0, Math.min(1, (3f - t) / 0.8f));
+            p.setColor(CONFETTI[i % CONFETTI.length] & 0x00FFFFFF | (Math.round(255 * fade) << 24));
+            c.save();
+            c.rotate(t * (200 + i * 37 % 400) * (i % 2 == 0 ? 1 : -1), px, py);
+            float cw = dp(5 + i % 5), chh = dp(9 + i % 6) * Math.abs((float) Math.cos(t * 6 + i));
+            c.drawRect(px - cw / 2, py - chh / 2, px + cw / 2, py + chh / 2, p);
+            c.restore();
+        }
+    }
+
+    // Page 2: each game's disc on a card of its colours: a glow, slow rays
+    // turning behind it, the disc turning and zooming a little (only the app's
+    // own pictures: the games' logos are not ours to show)
+    private void drawPreviews(Canvas c, Paint p, float w, float h, long ms) {
+        TouchDraw.background(c, p, w, h);
+        float top = areaTop(h), bot = areaBottom(h) - dp(52);  // the names and "and more" below
+        float ch = Math.min(bot - top, w * 0.38f * 9 / 16), cw = ch * 16 / 9, y = (top + bot) / 2;
+        float gap = dp(24), fade = Math.min(1f, ms / 900f);
+        int alpha = Math.round(255 * fade);
+        float[] cx = {w / 2 - gap / 2 - cw / 2, w / 2 + gap / 2 + cw / 2};
+        android.graphics.Bitmap[] discs = {mEclipseDisc, mSunburnDisc};
+        int[][] colours = {{0xFF2A0B4A, 0xFF7A1450, 0xFFFF3D8B}, {0xFF5A1206, 0xFFC2410C, 0xFFFFB02E}};
+        String[] names = {"Super Mario Eclipse", "Super Mario Sunburn"};
+        for (int k = 0; k < 2; k++) {
+            android.graphics.RectF r = new android.graphics.RectF(cx[k] - cw / 2, y - ch / 2, cx[k] + cw / 2, y + ch / 2);
+            int[] col = colours[k];
+            c.save();
+            android.graphics.Path clip = new android.graphics.Path();
+            clip.addRoundRect(r, dp(12), dp(12), android.graphics.Path.Direction.CW);
+            c.clipPath(clip);
+            // the card: dark at the edge, its colour towards the middle
+            p.setStyle(Paint.Style.FILL);
+            p.setShader(new android.graphics.LinearGradient(r.left, r.top, r.right, r.bottom, col[0], col[1],
+                android.graphics.Shader.TileMode.CLAMP));
+            p.setAlpha(alpha);
+            c.drawRect(r, p);
+            // rays, turning slowly the other way to the disc
+            float rays = (k == 0 ? -1 : 1) * ms * 0.006f, len = cw;
+            p.setShader(null);
+            p.setColor(col[2] & 0x00FFFFFF | (Math.round(38 * fade) << 24));
+            android.graphics.Path ray = new android.graphics.Path();
+            for (int i = 0; i < 12; i++) {
+                double a0 = Math.toRadians(rays + i * 30), a1 = Math.toRadians(rays + i * 30 + 12);
+                ray.moveTo(r.centerX(), r.centerY());
+                ray.lineTo(r.centerX() + (float) Math.cos(a0) * len, r.centerY() + (float) Math.sin(a0) * len);
+                ray.lineTo(r.centerX() + (float) Math.cos(a1) * len, r.centerY() + (float) Math.sin(a1) * len);
+                ray.close();
+            }
+            c.drawPath(ray, p);
+            // a glow behind the disc, breathing
+            float glow = ch * (0.55f + 0.04f * (float) Math.sin(ms / 900.0 + k));
+            p.setShader(new android.graphics.RadialGradient(r.centerX(), r.centerY(), glow,
+                col[2] & 0x00FFFFFF | (Math.round(150 * fade) << 24), col[2] & 0x00FFFFFF,
+                android.graphics.Shader.TileMode.CLAMP));
+            c.drawCircle(r.centerX(), r.centerY(), glow, p);
+            p.setShader(null);
+            // small sparks drifting up
+            for (int i = 0; i < 10; i++) {
+                float sx = r.left + r.width() * ((i * 0.137f + k * 0.31f) % 1f);
+                float sp = ((ms / 5200f) + i * 0.173f) % 1f;
+                float sy = r.bottom - sp * r.height();
+                p.setColor(0xFFFFFF | (Math.round(150 * fade * (float) Math.sin(sp * Math.PI)) << 24));
+                c.drawCircle(sx, sy, dp(1.6f + (i % 3)), p);
+            }
+            p.setAlpha(255);
+            // the disc, turning, zooming a little
+            float zoom = 1f + 0.06f * (float) Math.sin(ms / 2600.0 + k * 1.7);
+            disc(c, p, discs[k], r.centerX(), r.centerY(), ch * 0.36f * zoom, ms * (k == 0 ? 0.03f : -0.03f), alpha);
+            c.restore();
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            p.setColor(0xFF2FB8C9 & 0x00FFFFFF | (alpha << 24));
+            c.drawRoundRect(r, dp(12), dp(12), p);
+            p.setStyle(Paint.Style.FILL);
+            text(c, p, names[k], cx[k], r.bottom + dp(22), dp(15), TEXT, Paint.Align.CENTER);
+        }
+        text(c, p, t("and more (soon)"), w / 2, y + ch / 2 + dp(48), dp(15), 0xFFFFC531, Paint.Align.CENTER);
+    }
+
     private class PictureView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -413,6 +648,19 @@ public class IntroActivity extends AppActivity {
         plp.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.17f);  // below the top row
         root.addView(mPanel, plp);
 
+        // a page's button in the middle of its picture
+        mLink = button("", true);
+        mLink.setTextSize(20);
+        mLink.setVisibility(View.GONE);
+        mLink.setOnClickListener(v -> {
+            Page page = mPages.get(mIndex);
+            if (page.linkAction != null) page.linkAction.run();
+        });
+        FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+        llp.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * 0.62f);
+        root.addView(mLink, llp);
+
         // the buttons, at the bottom in the middle
         mButtons = new LinearLayout(this);
         mButtons.setOrientation(LinearLayout.HORIZONTAL);
@@ -438,8 +686,12 @@ public class IntroActivity extends AppActivity {
         Page page = mPages.get(index);
         mTitle.setText(page.title);
         mText.setText(page.text);
+        mLink.setText(page.link != null ? page.link : "");
+        mLink.setVisibility(page.link != null ? View.VISIBLE : View.GONE);
         mPanel.setAlpha(0f);
-        mPanel.animate().alpha(1f).setDuration(350).start();
+        // the mods' first page: the text after the discs have landed
+        long wait = index == 0 && Intro.MOD_MANAGER.equals(mId) ? LAND + 300 : 0;
+        mPanel.animate().alpha(1f).setStartDelay(wait).setDuration(350).start();
         mButtons.removeAllViews();
         Button first;
         if (!page.choices.isEmpty()) {
@@ -464,7 +716,10 @@ public class IntroActivity extends AppActivity {
                 addButton(skip);
             }
             first = button(t(last ? "Got it" : "Next"), true);
-            first.setOnClickListener(v -> show(mIndex + 1));
+            first.setOnClickListener(v -> {
+                if (mIndex == mTourAfter) startTour();
+                else show(mIndex + 1);
+            });
             addButton(first);
         }
         first.requestFocus();
@@ -492,10 +747,15 @@ public class IntroActivity extends AppActivity {
         mButtons.postDelayed(mPulse, 4000);
     }
 
-    // Back: to the choice before this page
+    // Back: to the choice before this page, else the page before
     private void back() {
+        if (mTourAfter >= 0 && mIndex == mTourAfter + 1) {  // the page after the steps: their last again
+            startTour(Tour.count() - 1);
+            return;
+        }
         for (int i = mIndex - 1; i >= 0; i--)
             if (!mPages.get(i).choices.isEmpty()) { show(i); return; }
+        if (mIndex > 0) show(mIndex - 1);  // no choice before it: the page before
     }
 
     // Skip: to the choice when there is one still to make, else done
@@ -503,6 +763,34 @@ public class IntroActivity extends AppActivity {
         for (int i = mIndex + 1; i < mPages.size(); i++)
             if (!mPages.get(i).choices.isEmpty()) { show(i); return; }
         if (mIndex >= 0 && !mPages.get(mIndex).choices.isEmpty()) return;  // the choice itself: choose
+        finishIntro();
+    }
+
+    // the steps on the real screens; they come back here when skipped or done
+    private void startTour() { startTour(0); }
+
+    private void startTour(int step) {
+        if (mTouring) return;
+        mTouring = true;
+        Mods.tourStart(this);
+        startActivityForResult(Tour.intent(this, step), REQUEST_TOUR);
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+    }
+
+    @Override
+    protected void onActivityResult(int request, int result, android.content.Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != REQUEST_TOUR) return;
+        Mods.tourEnd(this);
+        mTouring = false;
+        if (result == Tour.RESULT_BACK) {  // Back on its first step: the page before the steps
+            if (mIndex != mTourAfter) show(mTourAfter);
+            return;
+        }
+        if (result == Tour.RESULT_DONE) {  // Next on its last: the page after it
+            show(mTourAfter + 1);
+            return;
+        }
         finishIntro();
     }
 

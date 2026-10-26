@@ -217,6 +217,21 @@ public class SettingsActivity extends AppActivity {
         L.init(this);
         buildFrame();
         showTab(savedInstanceState != null ? savedInstanceState.getInt("tab", 0) : 0);
+        if (Tour.step(this) != null) tour();
+    }
+
+    // the mod manager's intro (Tour): the MODS tab, a finger tapping Open mods
+    private Tour mTour;
+
+    private void tour() {
+        int mods = mTabs.indexOf("MODS");
+        if (mods >= 0) showTab(mods);
+        mTour = new Tour(this);
+        View root = findViewById(android.R.id.content);
+        mTour.show(Gravity.END | Gravity.BOTTOM, 0.42f, (c, p, ms) -> {
+            View open = Tour.withText(root, t("Open mods"));
+            mTour.tap(c, p, mTour.rectOf(open), Tour.loop(ms, 2600), 0.45f);
+        });
     }
 
     @Override
@@ -835,6 +850,7 @@ public class SettingsActivity extends AppActivity {
 
     @Override
     public void onBackPressed() {
+        if (mTour != null) return;  // the intro's buttons alone
         if (mOpen != null) closeOptions(true);
         else super.onBackPressed();
     }
@@ -855,6 +871,7 @@ public class SettingsActivity extends AppActivity {
 
     @Override
     protected boolean onPadTab(int dir, boolean shoulder) {
+        if (mTour != null) return shoulder;  // left/right along the intro's buttons
         if (mOpen != null) {
             if (!shoulder) return false;  // the open choices or slider take left/right
             closeOptions(false);
@@ -865,7 +882,11 @@ public class SettingsActivity extends AppActivity {
     }
 
     @Override
+    protected View padDefault() { return mTour != null ? mTour.padDefault() : null; }
+
+    @Override
     protected List<View> padItems() {
+        if (mTour != null) return mTour.padItems();
         if (mOpen != null) {
             if (mPanel != null && mOpen == mPanel.row && mPanel.orderedNavigation && mPanelItems != null)
                 return java.util.Arrays.asList(mPanelItems);
