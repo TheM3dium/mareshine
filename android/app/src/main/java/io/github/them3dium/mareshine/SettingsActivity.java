@@ -2105,6 +2105,14 @@ public class SettingsActivity extends AppActivity {
         add(new Toggle(Updates.SETTING, "Check for updates automatically",
             "Each time the app starts, Mareshine looks for a newer version and offers it. Nothing is installed "
                 + "without your OK.", true, false));
+        add(new Toggle(Updates.BETA_SETTING, "Offer beta versions",
+            "Test versions before they are finished. Off, you get the next stable version once it is out, and it "
+                + "replaces the beta. Your data stays.",
+            Updates.isBeta(CrashLog.BuildConfigInfo.version(ctx())), false));
+        if (Updates.isBeta(CrashLog.BuildConfigInfo.version(this)))
+            add(new Action("Back to stable version",
+                "Installs the latest stable version over this beta. Your saves, mods and settings stay.",
+                null, () -> Updates.backToStable(this)));
         add(new Action("Check for updates now",
             "Looks for a newer version now. It is downloaded and installed only after you confirm it.",
             () -> Updates.found(ctx()) != null

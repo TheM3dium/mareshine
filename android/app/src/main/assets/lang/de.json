@@ -782,5 +782,14 @@
  "Open GitHub?": "GitHub öffnen?",
  "The guide to making mods opens in your browser.": "Die Anleitung zum Bauen von Mods öffnet sich in deinem Browser.",
  "Open": "Öffnen",
- "No browser": "Kein Browser"
+ "No browser": "Kein Browser",
+ "Offer beta versions": "Beta-Versionen anbieten",
+ "Test versions before they are finished. Off, you get the next stable version once it is out, and it replaces the beta. Your data stays.": "Testversionen, bevor sie fertig sind. Aus: Du bekommst die nächste stabile Version, sobald sie da ist, und sie ersetzt die Beta. Deine Daten bleiben.",
+ "Back to stable version": "Zurück zur stabilen Version",
+ "Installs the latest stable version over this beta. Your saves, mods and settings stay.": "Installiert die neueste stabile Version über diese Beta. Spielstände, Mods und Einstellungen bleiben.",
+ "Looking for the stable version…": "Suche die stabile Version…",
+ "No stable version found": "Keine stabile Version gefunden",
+ "Try again later.": "Versuche es später noch einmal.",
+ "Back to the stable version %s?": "Zurück zur stabilen Version %s?",
+ "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Sie wird über diese Beta (%s) installiert. Spielstände, Mods und Einstellungen bleiben. Beta-Versionen werden nicht mehr angeboten."
 }

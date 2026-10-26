@@ -54,6 +54,18 @@ final class Updates {
 
     interface Result { void done(Release newer, String error); }
 
+    // Beta versions (GitHub pre-releases) offered too: on by default while a
+    // beta is installed, so its testers get the next one; off, the next
+    // stable version is offered once it is newer than the beta
+    static final String BETA_SETTING = "SMS_UPDATE_BETA";
+
+    static boolean isBeta(String version) { return version.contains("-"); }
+
+    static boolean betaEnabled(Context c) {
+        String v = Settings.read(c).get(BETA_SETTING);
+        return v != null ? v.equals("1") : isBeta(CrashLog.BuildConfigInfo.version(c));
+    }
+
     static boolean autoEnabled(Context c) {
         return !"0".equals(Settings.read(c).getOrDefault(SETTING, "1"));
     }
@@ -136,11 +148,12 @@ final class Updates {
     private static void check(Context c, Result result) {
         Handler main = new Handler(Looper.getMainLooper());
         String current = CrashLog.BuildConfigInfo.version(c);
+        boolean beta = betaEnabled(c);
         new Thread(() -> {
             Release newer = null;
             String error = null;
             try {
-                Release r = latest();
+                Release r = beta ? newest() : latest();
                 if (r != null && compare(r.tag, current) > 0 && r.apkUrl != null) newer = r;
             } catch (Exception e) {
                 error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -151,46 +164,137 @@ final class Updates {
         }, "UpdateCheck").start();
     }
 
+    // the latest stable release (GitHub leaves pre-releases out of it)
     private static Release latest() throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(
-            "https://api.github.com/repos/" + REPO + "/releases/latest").openConnection();
+        String body = get("https://api.github.com/repos/" + REPO + "/releases/latest");
+        return body == null ? null : parse(new JSONObject(body));
+    }
+
+    // the newest release with an APK, pre-releases (betas) among them
+    private static Release newest() throws Exception {
+        String body = get("https://api.github.com/repos/" + REPO + "/releases?per_page=30");
+        if (body == null) return null;
+        JSONArray all = new JSONArray(body);
+        Release best = null;
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject j = all.getJSONObject(i);
+            if (j.optBoolean("draft")) continue;
+            Release r = parse(j);
+            if (r.apkUrl != null && (best == null || compare(r.tag, best.tag) > 0)) best = r;
+        }
+        return best;
+    }
+
+    // the newest stable release (no pre-release), whichever GitHub calls latest
+    private static Release newestStable() throws Exception {
+        String body = get("https://api.github.com/repos/" + REPO + "/releases?per_page=30");
+        if (body == null) return null;
+        JSONArray all = new JSONArray(body);
+        Release best = null;
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject j = all.getJSONObject(i);
+            if (j.optBoolean("draft") || j.optBoolean("prerelease")) continue;
+            Release r = parse(j);
+            if (r.apkUrl != null && !isBeta(version(r)) && (best == null || compare(r.tag, best.tag) > 0)) best = r;
+        }
+        return best;
+    }
+
+    // From a beta (Settings -> OTHER -> UPDATES): the stable version installed
+    // over it. Android installs no older version over a newer one, so each
+    // stable release a beta can go back to is built with a higher versionCode
+    // than the betas before it (docs/RELEASES.md); the data folder stays.
+    static void backToStable(Activity a) {
+        Handler main = new Handler(Looper.getMainLooper());
+        Toast.makeText(a, t("Looking for the stable version…"), Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            Release r = null;
+            String error = null;
+            try {
+                r = newestStable();
+            } catch (Exception e) {
+                error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            }
+            final Release stable = r;
+            final String err = error;
+            main.post(() -> {
+                if (a.isFinishing() || a.isDestroyed()) return;
+                if (stable == null) {
+                    new DlDialog(a).setTitle(t("No stable version found"))
+                        .setMessage(err != null ? err : t("Try again later.")).setPositiveButton(t("OK"), null).show();
+                    return;
+                }
+                new DlDialog(a)
+                    .setTitle(t("Back to the stable version %s?", version(stable)))
+                    .setMessage(t("It is installed over this beta (%s). Your saves, mods and settings stay. Beta "
+                        + "versions are no longer offered.", CrashLog.BuildConfigInfo.version(a)))
+                    .setPositiveButton(t("Yes"), (d, w) -> {
+                        java.util.Map<String, String> m = Settings.read(a);
+                        m.put(BETA_SETTING, "0");
+                        Settings.write(a, m);
+                        download(a, stable);
+                    })
+                    .setNegativeButton(t("Cancel"), null)
+                    .show();
+            });
+        }, "BackToStable").start();
+    }
+
+    // a GitHub API answer's body, or null for 404 (no release yet)
+    private static String get(String url) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(10000);
         c.setReadTimeout(15000);
         c.setRequestProperty("Accept", "application/vnd.github+json");
         c.setRequestProperty("User-Agent", "Mareshine updater");
         try {
-            if (c.getResponseCode() == 404) return null; // no release yet
+            if (c.getResponseCode() == 404) return null;
             if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
-            StringBuilder sb = new StringBuilder();
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
             try (InputStream in = c.getInputStream()) {
                 byte[] buf = new byte[8192];
                 int n;
-                while ((n = in.read(buf)) > 0) sb.append(new String(buf, 0, n, "UTF-8"));
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
             }
-            JSONObject j = new JSONObject(sb.toString());
-            Release r = new Release();
-            r.tag = j.optString("tag_name", "");
-            r.name = j.optString("name", r.tag);
-            r.notes = j.optString("body", "");
-            r.page = j.optString("html_url", "https://github.com/" + REPO + "/releases");
-            JSONArray assets = j.optJSONArray("assets");
-            for (int i = 0; assets != null && i < assets.length(); i++) {
-                JSONObject as = assets.getJSONObject(i);
-                if (as.optString("name").toLowerCase().endsWith(".apk")) {
-                    r.apkUrl = as.optString("browser_download_url");
-                    r.apkSize = as.optLong("size", -1);
-                    break;
-                }
-            }
-            return r;
+            return out.toString("UTF-8");
         } finally {
             c.disconnect();
         }
     }
 
-    // "v1.2.0" against "1.1.0": numbers part by part, missing parts are 0
+    private static Release parse(JSONObject j) {
+        Release r = new Release();
+        r.tag = j.optString("tag_name", "");
+        r.name = j.optString("name", r.tag);
+        r.notes = j.optString("body", "");
+        r.page = j.optString("html_url", "https://github.com/" + REPO + "/releases");
+        JSONArray assets = j.optJSONArray("assets");
+        for (int i = 0; assets != null && i < assets.length(); i++) {
+            JSONObject as = assets.optJSONObject(i);
+            if (as != null && as.optString("name").toLowerCase().endsWith(".apk")) {
+                r.apkUrl = as.optString("browser_download_url");
+                r.apkSize = as.optLong("size", -1);
+                break;
+            }
+        }
+        return r;
+    }
+
+    // "v1.2.0" against "1.1.0": numbers part by part, missing parts are 0; a
+    // pre-release ("2.1.0-beta.1") comes before its version ("2.1.0"), and
+    // betas by their number
     static int compare(String a, String b) {
-        String[] x = a.replaceFirst("^[vV]", "").split("[^0-9]+"), y = b.replaceFirst("^[vV]", "").split("[^0-9]+");
+        a = a.replaceFirst("^[vV]", "");
+        b = b.replaceFirst("^[vV]", "");
+        int da = a.indexOf('-'), db = b.indexOf('-');
+        int c = numbers(da < 0 ? a : a.substring(0, da), db < 0 ? b : b.substring(0, db));
+        if (c != 0) return c;
+        if ((da < 0) != (db < 0)) return da < 0 ? 1 : -1;
+        return da < 0 ? 0 : numbers(a.substring(da + 1), b.substring(db + 1));
+    }
+
+    private static int numbers(String a, String b) {
+        String[] x = a.split("[^0-9]+"), y = b.split("[^0-9]+");
         for (int i = 0; i < Math.max(x.length, y.length); i++) {
             int p = i < x.length && !x[i].isEmpty() ? Integer.parseInt(x[i]) : 0;
             int q = i < y.length && !y[i].isEmpty() ? Integer.parseInt(y[i]) : 0;
