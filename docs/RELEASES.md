@@ -12,13 +12,15 @@ Mareshine updates itself from this repository's GitHub releases (`Updates.java`)
 ## Going back to stable
 
 Android installs no APK with a lower `versionCode` over a higher one, and uninstalling deletes the data folder on phones (`Android/data/…`).
-So a beta's **Back to stable version** button installs the newest stable release, and that release must have a **higher versionCode than every beta before it**.
+So a beta's **Back to stable version** button installs the newest stable release, which must have a **higher versionCode than every beta**.
+That is why the stable version a beta goes back to has a versionCode far above the betas' (1000), and the next stable version one above that.
 
 | version | versionCode |
 | --- | --- |
 | 2.0.0 | 19 |
 | 2.1.0-beta.1 | 20 |
 | 2.0.1 (2.0.0 again, for going back; offers no betas) | 21 |
-| next beta | 22 or higher |
-
-Each new beta takes a versionCode above the last stable one, and each stable release one above the last beta.
+| 2.1.0-beta.2 | 22 |
+| 2.0.2 (as 2.0.1, above every beta to come) | 1000 |
+| betas of 2.1 | 23 to 999 |
+| 2.1.0 | 1001 |

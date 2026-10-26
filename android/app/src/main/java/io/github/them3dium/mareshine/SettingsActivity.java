@@ -2057,6 +2057,9 @@ public class SettingsActivity extends AppActivity {
         section("NOTICES");
         add(new Toggle(SunshineActivity.SHADER_POPUP_SETTING, "Shader compiling in game",
             "While the app compiles shaders in the background, a small box at the bottom left of the game shows how far it is. Until it is done, places you visit for the first time can stutter briefly.", true, false));
+        add(new Toggle(SunshineActivity.MENU_HINT_SETTING, "How to open the quick menu",
+            "When the game starts and the quick menu closes, a short notice at the top says how to open the quick "
+                + "menu (Select on a controller, a three-finger swipe on touch).", true, false));
 
         section("SYNC");
         String syncNote = "\n\n" + t("Quit to the main menu to sync.");

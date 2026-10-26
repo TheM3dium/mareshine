@@ -153,6 +153,8 @@ public class SunshineActivity extends SDLActivity {
     // --- the background shader compile (ShaderService) goes on during the
     // game: a small box at the bottom left says so (Settings → OTHER) ---------
     static final String SHADER_POPUP_SETTING = "SMS_SHADER_POPUP";
+    // Settings -> OTHER -> NOTICES: how to open the quick menu (showMenuHint)
+    static final String MENU_HINT_SETTING = "SMS_MENU_HINT";
 
     private View mShaderBox;
     private TextView mShaderText;
@@ -561,10 +563,11 @@ public class SunshineActivity extends SDLActivity {
     // closes: with a controller connected its button, otherwise on a
     // touchscreen the three-finger swipe (as Dusklight does).
     // Not again within 8 seconds of the last time it was due: opening and
-    // closing the menu again and again keeps it away.
+    // closing the menu again and again keeps it away. Off in Settings, never.
     private static long sMenuHintAt = -1;
 
     private void showMenuHint() {
+        if ("0".equals(Settings.read(this).getOrDefault(MENU_HINT_SETTING, "1"))) return;
         long now = android.os.SystemClock.elapsedRealtime();
         boolean recent = sMenuHintAt >= 0 && now - sMenuHintAt < 8000;
         sMenuHintAt = now;

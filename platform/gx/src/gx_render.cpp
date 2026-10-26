@@ -1116,6 +1116,11 @@ void rendererInit(float efbScale) {
                "gets a GPU driver only if its 32-bit GL libraries are installed; the 64-bit build "
                "(SMS_ARCH=64 ./build.sh) uses the system's driver.", renderer);
     s_efbW = s_wide > 1.0f ? (int(float(EFB_W) * s_wide + 1.0f) & ~1) : EFB_W;
+    // The EFB is rounded up to whole, even columns (853.3 -> 854 at 16:9):
+    // what is stretched across the frame (fades, wipes, copies drawn back)
+    // spans all of them, else the last column or two showed the scene
+    // through every fade to black (#11). The camera is a hair wider for it.
+    if (s_efbW != EFB_W) s_wide = float(s_efbW) / float(EFB_W);
     if (const char* e = getenv("SMS_WIDESCREEN_HUD")) s_hudEdges = s_efbW != EFB_W && !strcmp(e, "edges");
     s_ox = (s_efbW - EFB_W) / 2;
     if (s_efbW != EFB_W) logmsg("widescreen: EFB %dx%d", s_efbW, EFB_H);

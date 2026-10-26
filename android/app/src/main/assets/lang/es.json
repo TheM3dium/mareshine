@@ -790,5 +790,7 @@
  "No stable version found": "No se encontró una versión estable",
  "Try again later.": "Inténtalo más tarde.",
  "Back to the stable version %s?": "¿Volver a la versión estable %s?",
- "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Se instala sobre esta beta (%s). Tus partidas, mods y ajustes se conservan. Ya no se ofrecerán versiones beta."
+ "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Se instala sobre esta beta (%s). Tus partidas, mods y ajustes se conservan. Ya no se ofrecerán versiones beta.",
+ "How to open the quick menu": "Cómo abrir el menú rápido",
+ "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Al empezar el juego y al cerrarse el menú rápido, un breve aviso arriba indica cómo abrir el menú rápido (Select en un mando, deslizar con tres dedos en pantalla táctil)."
 }

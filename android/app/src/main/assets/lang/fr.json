@@ -790,5 +790,7 @@
  "No stable version found": "Aucune version stable trouvée",
  "Try again later.": "Réessaie plus tard.",
  "Back to the stable version %s?": "Revenir à la version stable %s ?",
- "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Elle est installée par-dessus cette bêta (%s). Tes sauvegardes, mods et réglages restent. Les versions bêta ne sont plus proposées."
+ "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Elle est installée par-dessus cette bêta (%s). Tes sauvegardes, mods et réglages restent. Les versions bêta ne sont plus proposées.",
+ "How to open the quick menu": "Comment ouvrir le menu rapide",
+ "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Au lancement du jeu et à la fermeture du menu rapide, une courte notice en haut indique comment ouvrir le menu rapide (Select sur une manette, glisser à trois doigts sur l'écran tactile)."
 }
