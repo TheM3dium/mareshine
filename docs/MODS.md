@@ -9,6 +9,20 @@ Zip that folder, import the zip, and it shows up in the mod list.
 
 No game data belongs in a mod you share: only the files your mod changes or adds.
 
+## Your first mod in five steps
+
+1. **Get the game's files.** In Dolphin, right-click Super Mario Sunshine (the North American disc, GMSE01) → *Properties* → *Filesystem* → right-click the disc → *Extract Entire Disc*.
+   You now have the disc's folders: `data/`, `AudioRes/`, `movie/` and so on.
+2. **Change a file.** Edit what you want with the usual Sunshine tools, for a stage's archive (`data/scene/*.szs`) its map, objects or messages.
+3. **Put only that file into your mod**, at the same path below `files/`: a changed `data/scene/bianco0.szs` goes to `my-mod/files/data/scene/bianco0.szs`.
+   For one file inside an archive, a folder named like the archive is enough: `my-mod/files/data/scene/bianco0.szs/map/message.bmg` replaces just that message file and leaves the rest of the archive as it is.
+4. **Describe it in `mod.json`**: copy the one from [`tools/mods/example-mod/`](../tools/mods/example-mod/) and change `id`, `name`, `author` and `description` (all keys below).
+   Add an `icon.png` and a `preview.png` if you like.
+5. **Zip the folder and import it**: copy the zip to the phone, then in Mareshine *Settings → MODS → Open mods → Import mod*.
+   It shows up in the list, switched off: hold it (or hold A) and switch it on, then play.
+
+When something does not load, switch on the log (*Settings → OTHER*) and look for `[dvd] mod …` in `logs/game.log`: it says how many of your files replaced the disc's, were added, or went inside an archive.
+
 ## The folder
 
 ```
@@ -63,6 +77,7 @@ A zip of Dolphin textures with no `mod.json` (a texture pack as made for Dolphin
 | `incompatible` | ids of mods it does not work with: switching it on while one of them is on warns, and the player can switch those off or go on anyway |
 | `image` | a whole disc image in the folder that is played instead of the player's own (only for mods too big for `files/`) |
 | `code` | `true` when the mod needs code built into the app (Super Mario Eclipse) |
+| `game`, `disc_id` | a game of its own kept as the disc files it changes (Super Mario Sunburn): `files/` is played over the player's disc with the game code and maker `disc_id` (such as `"GMSE03"`), so its saves stay apart from Sunshine's. One game is played at a time |
 | `author_color` | the colour of "by …" at the foot of its page, as `#RRGGBB` |
 | `rating` | its suns (0 to 5) until players have rated it; a tap on the suns rates it |
 | `update` | an `https://` URL of a small JSON the app checks with **Install updates**: `{"version": "1.1", "url": "https://…/my-mod.zip", "page": "https://…"}`. A newer `version` is offered; `url` is downloaded and imported like the zip, else `page` is opened |

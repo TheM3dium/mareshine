@@ -163,6 +163,7 @@ public class ModsActivity extends AppActivity {
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.setGravity(Gravity.CENTER_VERTICAL);
         buttons.setPadding(0, dp(8), 0, 0);
+        mCreate = button("Create own mods?", false);
         mUpdate = button("Install updates", false);
         mPrev = button("‹ " + t("Back"), false);
         mPageText = text("", DIM, 15, true);
@@ -172,11 +173,18 @@ public class ModsActivity extends AppActivity {
         mUntested = button("", false);
         mImport = button("Import mod", true);
         mClose = button("Close", false);
-        for (View b : new View[] {mUpdate, mPrev, mPageText, mNext}) buttons.addView(b, buttonParams());
+        for (View b : new View[] {mCreate, mUpdate, mPrev, mPageText, mNext}) buttons.addView(b, buttonParams());
         buttons.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         for (View b : new View[] {mPerPage, mUntested, mImport, mClose}) buttons.addView(b, buttonParams());
         panel.addView(buttons);
         mUpdate.setOnClickListener(v -> checkUpdates(null));
+        mCreate.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(GUIDE)));
+            } catch (android.content.ActivityNotFoundException e) {
+                choice(t("No browser"), GUIDE, new String[] {t("OK")}, new Runnable[] {null});
+            }
+        });
         mPrev.setOnClickListener(v -> page(-1));
         mNext.setOnClickListener(v -> page(1));
         mPerPage.setOnClickListener(v -> perPage());
@@ -235,7 +243,9 @@ public class ModsActivity extends AppActivity {
     private int mTab, mPage;
     private boolean mShowUntested;
     private TextView mHint, mPageText;
-    private Button mPrev, mNext, mPerPage, mUntested, mUpdate;
+    private Button mPrev, mNext, mPerPage, mUntested, mUpdate, mCreate;
+    // how a mod is made: its folder and mod.json (docs/MODS.md)
+    static final String GUIDE = "https://github.com/TheM3dium/mareshine/blob/main/docs/MODS.md";
 
     private int perPageCount() {
         try {
@@ -800,7 +810,7 @@ public class ModsActivity extends AppActivity {
     @Override
     protected List<View> padItems() {
         List<View> items = new ArrayList<>(mRows);
-        for (View b : new View[] {mUpdate, mPrev, mNext, mPerPage, mUntested, mImport, mClose})
+        for (View b : new View[] {mCreate, mUpdate, mPrev, mNext, mPerPage, mUntested, mImport, mClose})
             if (b.getVisibility() == View.VISIBLE && b.isEnabled()) items.add(b);
         return items;
     }
