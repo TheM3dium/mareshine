@@ -793,5 +793,17 @@
  "Back to the stable version %s?": "Zurück zur stabilen Version %s?",
  "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Sie wird über diese Beta (%s) installiert. Spielstände, Mods und Einstellungen bleiben. Beta-Versionen werden nicht mehr angeboten.",
  "How to open the quick menu": "Hinweis zum Schnellmenü",
- "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Beim Spielstart und wenn sich das Schnellmenü schließt, sagt ein kurzer Hinweis oben, wie du das Schnellmenü öffnest (Select am Controller, Wischen mit drei Fingern auf dem Touchscreen)."
+ "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Beim Spielstart und wenn sich das Schnellmenü schließt, sagt ein kurzer Hinweis oben, wie du das Schnellmenü öffnest (Select am Controller, Wischen mit drei Fingern auf dem Touchscreen).",
+ "Share log": "Log teilen",
+ "Sends the game's log and the latest crash reports to another app, for example to attach them to a bug report on GitHub.": "Sendet das Log des Spiels und die letzten Absturzberichte an eine andere App, zum Beispiel um sie an einen Fehlerbericht auf GitHub anzuhängen.",
+ "Copy log": "Log kopieren",
+ "Copies the game's log to the clipboard, to paste it into a bug report.": "Kopiert das Log des Spiels in die Zwischenablage, um es in einen Fehlerbericht einzufügen.",
+ "There is no log yet. Turn on logs, play until the problem happens, then try again.": "Es gibt noch kein Log. Schalte die Logs ein, spiele, bis das Problem auftritt, und versuche es dann erneut.",
+ "No app to share with was found.": "Keine App zum Teilen gefunden.",
+ "The log could not be read.": "Das Log konnte nicht gelesen werden.",
+ "Log copied.": "Log kopiert.",
+ "Save log": "Log speichern",
+ "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Speichert das Log des Spiels und die letzten Absturzberichte als eine Datei, zum Beispiel in Downloads, um sie im Browser an einen Fehlerbericht anzuhängen.",
+ "Log saved.": "Log gespeichert.",
+ "The log could not be saved.": "Das Log konnte nicht gespeichert werden."
 }

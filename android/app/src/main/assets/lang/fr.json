@@ -792,5 +792,17 @@
  "Back to the stable version %s?": "Revenir à la version stable %s ?",
  "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Elle est installée par-dessus cette bêta (%s). Tes sauvegardes, mods et réglages restent. Les versions bêta ne sont plus proposées.",
  "How to open the quick menu": "Comment ouvrir le menu rapide",
- "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Au lancement du jeu et à la fermeture du menu rapide, une courte notice en haut indique comment ouvrir le menu rapide (Select sur une manette, glisser à trois doigts sur l'écran tactile)."
+ "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Au lancement du jeu et à la fermeture du menu rapide, une courte notice en haut indique comment ouvrir le menu rapide (Select sur une manette, glisser à trois doigts sur l'écran tactile).",
+ "Share log": "Partager le journal",
+ "Sends the game's log and the latest crash reports to another app, for example to attach them to a bug report on GitHub.": "Envoie le journal du jeu et les derniers rapports de plantage à une autre app, par exemple pour les joindre à un rapport de bug sur GitHub.",
+ "Copy log": "Copier le journal",
+ "Copies the game's log to the clipboard, to paste it into a bug report.": "Copie le journal du jeu dans le presse-papiers, pour le coller dans un rapport de bug.",
+ "There is no log yet. Turn on logs, play until the problem happens, then try again.": "Il n'y a pas encore de journal. Active les journaux, joue jusqu'à ce que le problème se produise, puis réessaie.",
+ "No app to share with was found.": "Aucune app de partage trouvée.",
+ "The log could not be read.": "Le journal n'a pas pu être lu.",
+ "Log copied.": "Journal copié.",
+ "Save log": "Enregistrer le journal",
+ "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Enregistre le journal du jeu et les derniers rapports de plantage dans un seul fichier, par exemple dans Téléchargements, pour le joindre à un rapport de bug depuis le navigateur.",
+ "Log saved.": "Journal enregistré.",
+ "The log could not be saved.": "Le journal n'a pas pu être enregistré."
 }

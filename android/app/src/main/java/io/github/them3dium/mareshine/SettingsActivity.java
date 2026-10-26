@@ -1874,7 +1874,7 @@ public class SettingsActivity extends AppActivity {
             new String[] {"1", "2", "5", "10"}, new String[] {"Off", "2x", "5x", "10x"}));
     }
 
-    private static final int REQUEST_SYNC_CREATE = 41, REQUEST_SYNC_OPEN = 42;
+    private static final int REQUEST_SYNC_CREATE = 41, REQUEST_SYNC_OPEN = 42, REQUEST_SAVE_LOG = 43;
 
     private void chooseSyncFile() {
         List<String> items = new ArrayList<>();
@@ -1916,6 +1916,10 @@ public class SettingsActivity extends AppActivity {
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == REQUEST_SAVE_LOG) {
+            if (result == RESULT_OK && data != null && data.getData() != null) LogShare.saveTo(this, data.getData());
+            return;
+        }
         if ((request == REQUEST_SYNC_CREATE || request == REQUEST_SYNC_OPEN) && result == RESULT_OK
                 && data != null && data.getData() != null) {
             Sync.setUri(this, data.getData());
@@ -2146,6 +2150,17 @@ public class SettingsActivity extends AppActivity {
             @Override String value() { return CrashLog.isEnabled(ctx()) ? "On" : "Off"; }
             @Override void step(int dir) { CrashLog.setEnabled(ctx(), !CrashLog.isEnabled(ctx())); refreshValues(); }
         });
+        add(new Action("Share log",
+            "Sends the game's log and the latest crash reports to another app, for example to attach them to a "
+                + "bug report on GitHub.",
+            () -> "", () -> LogShare.share(this)));
+        add(new Action("Save log",
+            "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach "
+                + "it to a bug report from the browser.",
+            () -> "", () -> LogShare.save(this, REQUEST_SAVE_LOG)));
+        add(new Action("Copy log",
+            "Copies the game's log to the clipboard, to paste it into a bug report.",
+            () -> "", () -> LogShare.copy(this)));
         section("RESET");
         add(new Action("Reset all settings",
             "Sets every setting back to its default: video (Recommended (HD)), controller, button mapping, "

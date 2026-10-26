@@ -193,6 +193,12 @@
             android:exported="false"
             android:label="Controller Settings">
         </activity>
+        <!-- the logs shared from Settings → OTHER → LOGS (LogShare) -->
+        <provider
+            android:name="io.github.them3dium.mareshine.LogShare$Provider"
+            android:authorities="io.github.them3dium.mareshine.logs"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 
 </manifest>

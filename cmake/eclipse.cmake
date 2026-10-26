@@ -116,6 +116,14 @@ else()
   set(_eclipse_platform_args -DCMAKE_OBJCOPY=${CMAKE_OBJCOPY})
 endif()
 list(APPEND _eclipse_platform_args -DPython3_EXECUTABLE=${Python3_EXECUTABLE})
+# The mods' sources are fetched into this build folder: their file names (in
+# asserts and debug info) say where it is, so they go relative, as the game's
+# own do (android/app/build.gradle's -ffile-prefix-map)
+set(_eclipse_prefix_map "-ffile-prefix-map=${CMAKE_BINARY_DIR}=. -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
+if(DEFINED ENV{HOME})
+  string(APPEND _eclipse_prefix_map " -ffile-prefix-map=$ENV{HOME}=~")
+endif()
+list(APPEND _eclipse_platform_args "-DCMAKE_C_FLAGS=${_eclipse_prefix_map}" "-DCMAKE_CXX_FLAGS=${_eclipse_prefix_map}")
 ExternalProject_Add(sms_eclipse_build
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/platform/mods/eclipse/lib
   BINARY_DIR ${CMAKE_BINARY_DIR}/eclipse-build

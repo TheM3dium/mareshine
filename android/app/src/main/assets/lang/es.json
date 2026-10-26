@@ -792,5 +792,17 @@
  "Back to the stable version %s?": "¿Volver a la versión estable %s?",
  "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Se instala sobre esta beta (%s). Tus partidas, mods y ajustes se conservan. Ya no se ofrecerán versiones beta.",
  "How to open the quick menu": "Cómo abrir el menú rápido",
- "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Al empezar el juego y al cerrarse el menú rápido, un breve aviso arriba indica cómo abrir el menú rápido (Select en un mando, deslizar con tres dedos en pantalla táctil)."
+ "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "Al empezar el juego y al cerrarse el menú rápido, un breve aviso arriba indica cómo abrir el menú rápido (Select en un mando, deslizar con tres dedos en pantalla táctil).",
+ "Share log": "Compartir registro",
+ "Sends the game's log and the latest crash reports to another app, for example to attach them to a bug report on GitHub.": "Envía el registro del juego y los últimos informes de fallos a otra app, por ejemplo para adjuntarlos a un informe de errores en GitHub.",
+ "Copy log": "Copiar registro",
+ "Copies the game's log to the clipboard, to paste it into a bug report.": "Copia el registro del juego al portapapeles para pegarlo en un informe de errores.",
+ "There is no log yet. Turn on logs, play until the problem happens, then try again.": "Todavía no hay registro. Activa los registros, juega hasta que ocurra el problema y vuelve a intentarlo.",
+ "No app to share with was found.": "No se encontró ninguna app para compartir.",
+ "The log could not be read.": "No se pudo leer el registro.",
+ "Log copied.": "Registro copiado.",
+ "Save log": "Guardar registro",
+ "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Guarda el registro del juego y los últimos informes de fallos en un solo archivo, por ejemplo en Descargas, para adjuntarlo a un informe de errores desde el navegador.",
+ "Log saved.": "Registro guardado.",
+ "The log could not be saved.": "No se pudo guardar el registro."
 }

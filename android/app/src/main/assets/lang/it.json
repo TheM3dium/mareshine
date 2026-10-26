@@ -793,5 +793,17 @@
  "Back to the stable version %s?": "Tornare alla versione stabile %s?",
  "It is installed over this beta (%s). Your saves, mods and settings stay. Beta versions are no longer offered.": "Viene installata sopra questa beta (%s). Salvataggi, mod e impostazioni restano. Le versioni beta non vengono più offerte.",
  "How to open the quick menu": "Come aprire il menu rapido",
- "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "All'avvio del gioco e quando il menu rapido si chiude, un breve avviso in alto dice come aprire il menu rapido (Select sul controller, scorrimento con tre dita sul touch)."
+ "When the game starts and the quick menu closes, a short notice at the top says how to open the quick menu (Select on a controller, a three-finger swipe on touch).": "All'avvio del gioco e quando il menu rapido si chiude, un breve avviso in alto dice come aprire il menu rapido (Select sul controller, scorrimento con tre dita sul touch).",
+ "Share log": "Condividi log",
+ "Sends the game's log and the latest crash reports to another app, for example to attach them to a bug report on GitHub.": "Invia il log del gioco e gli ultimi rapporti di crash a un'altra app, per esempio per allegarli a una segnalazione su GitHub.",
+ "Copy log": "Copia log",
+ "Copies the game's log to the clipboard, to paste it into a bug report.": "Copia il log del gioco negli appunti, per incollarlo in una segnalazione.",
+ "There is no log yet. Turn on logs, play until the problem happens, then try again.": "Non c'è ancora un log. Attiva i log, gioca finché il problema si presenta, poi riprova.",
+ "No app to share with was found.": "Nessuna app per condividere trovata.",
+ "The log could not be read.": "Impossibile leggere il log.",
+ "Log copied.": "Log copiato.",
+ "Save log": "Salva log",
+ "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Salva il log del gioco e gli ultimi rapporti di crash in un unico file, per esempio in Download, per allegarlo a una segnalazione dal browser.",
+ "Log saved.": "Log salvato.",
+ "The log could not be saved.": "Impossibile salvare il log."
 }
