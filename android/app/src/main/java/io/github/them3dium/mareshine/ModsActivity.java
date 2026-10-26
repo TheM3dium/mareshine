@@ -41,6 +41,16 @@ public class ModsActivity extends AppActivity {
     private ProgressBar mBar;
     private Button mImport, mClose;
     private boolean mChanged, mInGame;
+    private String mStart;
+
+    // what the game starts with: the mods, their order, options and versions, the game language
+    private String state() {
+        java.util.Map<String, String> s = Settings.read(this);
+        StringBuilder sb = new StringBuilder().append(s.get(Mods.KEY)).append('|').append(s.get(Mods.OPTIONS_KEY))
+            .append('|').append(s.get("language"));
+        for (Mods.Mod m : Mods.list(this)) sb.append('|').append(m.id).append(' ').append(m.version);
+        return sb.toString();
+    }
     private volatile boolean mBusy, mCancel;
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
@@ -51,6 +61,7 @@ public class ModsActivity extends AppActivity {
         L.init(this);
         mInGame = getIntent().getBooleanExtra(EXTRA_IN_GAME, false);
         EclipseMod.migrate(this);  // its languages as mods of their own before
+        mStart = state();
         mShowUntested = "1".equals(Settings.read(this).getOrDefault(UNTESTED_KEY, "0"));
         buildUi();
         reload();
@@ -391,7 +402,7 @@ public class ModsActivity extends AppActivity {
         boolean have = Mods.installed(this, r);
         String sub = t("by %s", r.author) + "  ·  " + t(r.description) + (r.tested ? "" : "  ·  " + t("untested"));
         Mods.Mod m = have ? Mods.find(this, r.id) : null;
-        float suns = m != null ? Ratings.shown(m) : r.rating;
+        float suns = m != null ? Ratings.shown(m) : Ratings.shown(r.id, r.rating);
         LinearLayout row = row(m != null ? m.picture(m.icon) : r.icon, r.name + "  " + r.version, sub, suns,
             have ? t("Installed") : "⬇  " + t("%.1f GB", r.size / 1e9), have ? DIM : GOLD);
         row.setOnClickListener(v -> {
@@ -766,7 +777,7 @@ public class ModsActivity extends AppActivity {
             mCancel = true;
             return;
         }
-        if (!mChanged) {
+        if (!mChanged || state().equals(mStart)) {  // switched back as it was: nothing to say
             finish();
             return;
         }
@@ -784,6 +795,7 @@ public class ModsActivity extends AppActivity {
     // --- controller ------------------------------------------------------------------
 
     @Override protected boolean usesPadNav() { return true; }
+    @Override protected boolean usesPadCursor() { return true; }
 
     @Override
     protected List<View> padItems() {

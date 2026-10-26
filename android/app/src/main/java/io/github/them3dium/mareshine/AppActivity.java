@@ -144,6 +144,7 @@ public class AppActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) hideSystemBars();
+        else hideCursor();  // a dialog on top: its own entries, by the D-pad
     }
 
     protected void hideSystemBars() {
@@ -380,14 +381,25 @@ public class AppActivity extends Activity {
             int hy = Math.round(ev.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y));
             float sy = ev.getAxisValue(android.view.MotionEvent.AXIS_Y);
             int vert = hy != 0 ? hy : sy < -0.6f ? -1 : sy > 0.6f ? 1 : 0;
+            // the right stick moves the pointer where a screen has one; the D-pad and left stick the focus
+            if (usesPadCursor()) {  // Z/RZ on most controllers, RX/RY on some
+                float zx = ev.getAxisValue(android.view.MotionEvent.AXIS_Z), zy = ev.getAxisValue(android.view.MotionEvent.AXIS_RZ);
+                float rx = ev.getAxisValue(android.view.MotionEvent.AXIS_RX), ry = ev.getAxisValue(android.view.MotionEvent.AXIS_RY);
+                boolean z = Math.abs(zx) + Math.abs(zy) >= Math.abs(rx) + Math.abs(ry);
+                cursorStick(z ? zx : rx, z ? zy : ry);
+            }
+            if (hx != 0 || vert != 0) hideCursor();
             if (hx != mPadHatX) {
                 mPadHatX = hx;
                 if (hx != 0 && !onPadTab(hx, false)) {  // a panel's own left/right
                     View f = getCurrentFocus();
                     if (f != null) {
                         int code = hx < 0 ? KeyEvent.KEYCODE_DPAD_LEFT : KeyEvent.KEYCODE_DPAD_RIGHT;
-                        f.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
+                        boolean used = f.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
                         f.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
+                        // not the entry's own (a slider's): to the one beside it, as the D-pad's keys go
+                        View next = used ? null : f.focusSearch(hx < 0 ? View.FOCUS_LEFT : View.FOCUS_RIGHT);
+                        if (next != null) next.requestFocusFromTouch();
                     }
                 }
             }
@@ -403,6 +415,121 @@ public class AppActivity extends Activity {
         }
         return super.dispatchGenericMotionEvent(ev);
     }
+
+    // --- the pointer: a controller's right stick as a mouse ---------------------------
+    // (the mod screens: long pages with buttons below their text)
+    protected boolean usesPadCursor() { return false; }
+
+    // A round, half-clear spot over the screen; A touches where it is (held: a
+    // long press, moved while held: a drag that scrolls). It goes after a few
+    // seconds without use, or when the D-pad moves the focus again.
+
+    private View mCursor;
+    private boolean mCursorShown, mCursorDown;
+    private float mCursorX = -1, mCursorY, mStickX, mStickY;
+    private long mCursorDownTime, mCursorLastUse, mCursorFrame;
+
+    private final Runnable mCursorStep = new Runnable() {
+        @Override public void run() {
+            if (!mCursorShown) return;
+            long now = android.os.SystemClock.uptimeMillis();
+            float dt = Math.min(0.05f, (now - mCursorFrame) / 1000f);
+            mCursorFrame = now;
+            View root = getWindow().getDecorView();
+            if (mStickX != 0 || mStickY != 0) {
+                // faster the further it is pushed: a screen's width in about a second at full tilt
+                float speed = root.getWidth() * 1.1f;
+                mCursorX = Math.max(0, Math.min(root.getWidth() - 1, mCursorX + mStickX * Math.abs(mStickX) * speed * dt));
+                mCursorY = Math.max(0, Math.min(root.getHeight() - 1, mCursorY + mStickY * Math.abs(mStickY) * speed * dt));
+                placeCursor();
+                if (mCursorDown) cursorTouch(android.view.MotionEvent.ACTION_MOVE);
+                mCursorLastUse = now;
+            } else if (!mCursorDown && now - mCursorLastUse > 4000) {
+                hideCursor();
+                return;
+            }
+            mPadRepeat.postDelayed(this, 16);
+        }
+    };
+
+    private void cursorStick(float x, float y) {
+        final float dead = 0.2f;
+        mStickX = Math.abs(x) < dead ? 0 : (x - Math.signum(x) * dead) / (1 - dead);
+        mStickY = Math.abs(y) < dead ? 0 : (y - Math.signum(y) * dead) / (1 - dead);
+        if ((mStickX != 0 || mStickY != 0) && !mCursorShown) showCursor();
+    }
+
+    private void showCursor() {
+        android.view.ViewGroup root = (android.view.ViewGroup) getWindow().getDecorView();
+        if (mCursor == null) {
+            final float r = getResources().getDisplayMetrics().density * 14;
+            mCursor = new View(this) {
+                final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                final android.graphics.Paint ring = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                {
+                    fill.setColor(0x73FFFFFF);
+                    ring.setColor(0x99000000);
+                    ring.setStyle(android.graphics.Paint.Style.STROKE);
+                    ring.setStrokeWidth(r / 6);
+                }
+                @Override protected void onDraw(android.graphics.Canvas c) {
+                    float h = getWidth() / 2f;
+                    c.drawCircle(h, h, r, fill);
+                    c.drawCircle(h, h, r, ring);
+                }
+            };
+            mCursor.setFocusable(false);
+            mCursor.setClickable(false);
+            mCursor.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            int size = Math.round(r * 2 + r / 3);
+            root.addView(mCursor, new android.widget.FrameLayout.LayoutParams(size, size));
+            mCursor.setElevation(1000);
+        }
+        if (mCursorX < 0) {  // first time: the middle of the screen
+            mCursorX = root.getWidth() / 2f;
+            mCursorY = root.getHeight() / 2f;
+        }
+        mCursor.bringToFront();
+        mCursor.setVisibility(View.VISIBLE);
+        mCursorShown = true;
+        placeCursor();
+        mCursorFrame = mCursorLastUse = android.os.SystemClock.uptimeMillis();
+        mPadRepeat.removeCallbacks(mCursorStep);
+        mPadRepeat.post(mCursorStep);
+    }
+
+    private void placeCursor() {
+        if (mCursor == null) return;
+        mCursor.setTranslationX(mCursorX - mCursor.getWidth() / 2f);
+        mCursor.setTranslationY(mCursorY - mCursor.getHeight() / 2f);
+    }
+
+    private void hideCursor() {
+        if (mCursorDown) cursorTouch(android.view.MotionEvent.ACTION_CANCEL);
+        mCursorShown = false;
+        mPadRepeat.removeCallbacks(mCursorStep);
+        if (mCursor != null) mCursor.setVisibility(View.GONE);
+    }
+
+    // a finger at the pointer: down, moved, up (or cancelled)
+    private void cursorTouch(int action) {
+        long now = android.os.SystemClock.uptimeMillis();
+        if (action == android.view.MotionEvent.ACTION_DOWN) mCursorDownTime = now;
+        android.view.MotionEvent e = android.view.MotionEvent.obtain(mCursorDownTime, now, action, mCursorX, mCursorY, 0);
+        e.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
+        mCursorDown = action == android.view.MotionEvent.ACTION_DOWN || action == android.view.MotionEvent.ACTION_MOVE;
+        mCursorLastUse = now;
+        super.dispatchTouchEvent(e);
+        e.recycle();
+    }
+
+    // the entry A is held on, until it is let go or held long enough
+    private View mPadHeld;
+    private final Runnable mPadHold = () -> {
+        View held = mPadHeld;
+        mPadHeld = null;
+        if (held != null && !held.performLongClick() && held.isClickable()) held.performClick();  // nothing on a hold: a tap
+    };
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
@@ -422,10 +549,29 @@ public class AppActivity extends Activity {
             if (onPadTab(dir, false)) return true;
             return super.dispatchKeyEvent(ev);
         }
-        if (code == KeyEvent.KEYCODE_BUTTON_A) {  // presses the entry
+        if (code == KeyEvent.KEYCODE_BUTTON_A && (mCursorShown || mCursorDown)) {  // a touch where the pointer is
+            if (first) cursorTouch(android.view.MotionEvent.ACTION_DOWN);
+            else if (!down && mCursorDown) cursorTouch(android.view.MotionEvent.ACTION_UP);
+            return true;
+        }
+        if (down && (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
+                || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT)) hideCursor();
+        if (code == KeyEvent.KEYCODE_BUTTON_A) {  // presses the entry; held, as a long press does
             View f = getCurrentFocus();
+            if (!down) {
+                if (mPadHeld != null) {
+                    mPadRepeat.removeCallbacks(mPadHold);
+                    View held = mPadHeld;
+                    mPadHeld = null;
+                    if (held.isClickable()) held.performClick();
+                }
+                return true;
+            }
             if (first && f != null && onPadA(f)) return true;
-            if (first && f != null && f.isClickable()) f.performClick();
+            if (first && f != null && f.isLongClickable()) {
+                mPadHeld = f;  // a tap on release, the long press after a while
+                mPadRepeat.postDelayed(mPadHold, android.view.ViewConfiguration.getLongPressTimeout());
+            } else if (first && f != null && f.isClickable()) f.performClick();
             else if (first) onPadMove(1);  // nothing chosen yet: the first entry
             return true;
         }

@@ -586,10 +586,10 @@ public class ModPageActivity extends AppActivity {
             acts[i] = v.id.equals(cur) ? null : () -> choice(t("Change the game language?"),
                 t("The language is the game language of Settings (GAME → Game language): it changes to %1$s for "
                     + "Super Mario Sunshine and %2$s alike.", v.label, mMod.name),
-                new String[] {t("Change"), t("Cancel")}, new Runnable[] {() -> {
+                new String[] {t("Change")}, new Runnable[] {() -> {
                     Settings.put(this, "language", v.id);
                     changed();
-                }, null});
+                }});
         }
         choice(o.label, null, labels, acts);
     }
@@ -700,6 +700,7 @@ public class ModPageActivity extends AppActivity {
     // --- controller ------------------------------------------------------------------
 
     @Override protected boolean usesPadNav() { return true; }
+    @Override protected boolean usesPadCursor() { return true; }
 
     // L/R page through the buttons; the D-pad's left/right moves along them
     @Override

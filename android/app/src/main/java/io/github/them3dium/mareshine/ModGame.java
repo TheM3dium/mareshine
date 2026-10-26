@@ -109,6 +109,9 @@ final class ModGame {
             JSONObject o = new JSONObject(new String(java.nio.file.Files.readAllBytes(json.toPath()), StandardCharsets.UTF_8));
             o.remove("image");
             o.put("game", true).put("disc_id", id);
+            // what the app says of it now (its author: the Eclipse Team)
+            Mods.Release r = Mods.release(m.id);
+            if (r != null) o.put("author", r.author);
             TexturePackActivity.remove(files);
             if (!tmp.renameTo(files)) throw new IOException("cannot rename " + tmp);
             try (OutputStream out = new FileOutputStream(json)) {

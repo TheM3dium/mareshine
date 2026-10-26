@@ -36,12 +36,15 @@ final class Ratings {
     private static long sFetched;
 
     // the suns to show: the players' average, else the start value (-1: none)
-    static float shown(Mods.Mod m) {
+    static float shown(Mods.Mod m) { return shown(m.id, m.rating); }
+
+    // for a mod by its id (one not installed yet: the catalog's start value)
+    static float shown(String id, float start) {
         float[] v;
         synchronized (sVotes) {
-            v = sVotes.get(m.id);
+            v = sVotes.get(id);
         }
-        return v != null && v[1] > 0 ? v[0] / v[1] : m.rating;
+        return v != null && v[1] > 0 ? v[0] / v[1] : start;
     }
 
     static int votes(String id) {
