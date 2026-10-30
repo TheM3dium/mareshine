@@ -805,5 +805,22 @@
  "Save log": "Log speichern",
  "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Speichert das Log des Spiels und die letzten Absturzberichte als eine Datei, zum Beispiel in Downloads, um sie im Browser an einen Fehlerbericht anzuhängen.",
  "Log saved.": "Log gespeichert.",
- "The log could not be saved.": "Das Log konnte nicht gespeichert werden."
+ "The log could not be saved.": "Das Log konnte nicht gespeichert werden.",
+ "Send to developer": "An Entwickler senden",
+ "Sends the game's log and the latest crash and freeze reports straight to the developer, with the names of your files and folders taken out. You can add a note and see first what is sent.": "Schickt das Log des Spiels und die letzten Absturz- und Hänger-Berichte direkt an den Entwickler, ohne die Namen deiner Dateien und Ordner. Du kannst eine Notiz dazuschreiben und vorher sehen, was gesendet wird.",
+ "Sends the game's log and the latest crash and freeze reports to the developer, with the names of your files and folders taken out. Nothing is sent without this button.": "Schickt das Log des Spiels und die letzten Absturz- und Hänger-Berichte an den Entwickler, ohne die Namen deiner Dateien und Ordner. Ohne diesen Knopf wird nichts gesendet.",
+ "What happened? (optional, e.g. \"opened the Sound tab\")": "Was ist passiert? (optional, z. B. „Sound-Tab geöffnet“)",
+ "What is sent?": "Was wird gesendet?",
+ "Send": "Senden",
+ "Send…": "Senden…",
+ "Sending…": "Wird gesendet…",
+ "⚠️ The game crashed last time": "⚠️ Das Spiel ist beim letzten Mal abgestürzt",
+ "⚠️ Mareshine froze last time": "⚠️ Mareshine ist beim letzten Mal hängen geblieben",
+ "A report about it was saved. Send it to the developer? It helps to fix this.": "Dazu wurde ein Bericht gespeichert. An den Entwickler senden? Das hilft, den Fehler zu beheben.",
+ "Thank you! The report was sent.": "Danke! Der Bericht wurde gesendet.",
+ "Report code:": "Bericht-Code:",
+ "If you opened an issue on GitHub, you can add this code to it.": "Wenn du auf GitHub ein Issue geöffnet hast, kannst du diesen Code dort dazuschreiben.",
+ "Too many reports in a short time. Please try again in an hour.": "Zu viele Berichte in kurzer Zeit. Bitte versuch es in einer Stunde noch einmal.",
+ "The report could not be sent. Check the internet connection and try again.": "Der Bericht konnte nicht gesendet werden. Prüf die Internetverbindung und versuch es noch einmal.",
+ "Report sent": "Bericht gesendet"
 }

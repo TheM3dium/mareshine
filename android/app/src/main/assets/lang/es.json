@@ -804,5 +804,22 @@
  "Save log": "Guardar registro",
  "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Guarda el registro del juego y los últimos informes de fallos en un solo archivo, por ejemplo en Descargas, para adjuntarlo a un informe de errores desde el navegador.",
  "Log saved.": "Registro guardado.",
- "The log could not be saved.": "No se pudo guardar el registro."
+ "The log could not be saved.": "No se pudo guardar el registro.",
+ "Send to developer": "Enviar al desarrollador",
+ "Sends the game's log and the latest crash and freeze reports straight to the developer, with the names of your files and folders taken out. You can add a note and see first what is sent.": "Envía el registro del juego y los últimos informes de cierres y bloqueos directamente al desarrollador, sin los nombres de tus archivos y carpetas. Puedes añadir una nota y ver antes lo que se envía.",
+ "Sends the game's log and the latest crash and freeze reports to the developer, with the names of your files and folders taken out. Nothing is sent without this button.": "Envía el registro del juego y los últimos informes de cierres y bloqueos al desarrollador, sin los nombres de tus archivos y carpetas. No se envía nada sin este botón.",
+ "What happened? (optional, e.g. \"opened the Sound tab\")": "¿Qué ha pasado? (opcional, p. ej. «abrí la pestaña Sonido»)",
+ "What is sent?": "¿Qué se envía?",
+ "Send": "Enviar",
+ "Send…": "Enviar…",
+ "Sending…": "Enviando…",
+ "⚠️ The game crashed last time": "⚠️ El juego se cerró la última vez",
+ "⚠️ Mareshine froze last time": "⚠️ Mareshine se bloqueó la última vez",
+ "A report about it was saved. Send it to the developer? It helps to fix this.": "Se guardó un informe. ¿Enviarlo al desarrollador? Ayuda a solucionarlo.",
+ "Thank you! The report was sent.": "¡Gracias! El informe se ha enviado.",
+ "Report code:": "Código del informe:",
+ "If you opened an issue on GitHub, you can add this code to it.": "Si abriste un issue en GitHub, puedes añadir este código.",
+ "Too many reports in a short time. Please try again in an hour.": "Demasiados informes en poco tiempo. Vuelve a intentarlo dentro de una hora.",
+ "The report could not be sent. Check the internet connection and try again.": "No se pudo enviar el informe. Comprueba la conexión a internet e inténtalo de nuevo.",
+ "Report sent": "Informe enviado"
 }

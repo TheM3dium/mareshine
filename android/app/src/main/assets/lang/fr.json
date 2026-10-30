@@ -804,5 +804,22 @@
  "Save log": "Enregistrer le journal",
  "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Enregistre le journal du jeu et les derniers rapports de plantage dans un seul fichier, par exemple dans Téléchargements, pour le joindre à un rapport de bug depuis le navigateur.",
  "Log saved.": "Journal enregistré.",
- "The log could not be saved.": "Le journal n'a pas pu être enregistré."
+ "The log could not be saved.": "Le journal n'a pas pu être enregistré.",
+ "Send to developer": "Envoyer au développeur",
+ "Sends the game's log and the latest crash and freeze reports straight to the developer, with the names of your files and folders taken out. You can add a note and see first what is sent.": "Envoie le journal du jeu et les derniers rapports de plantage et de blocage directement au développeur, sans les noms de tes fichiers et dossiers. Tu peux ajouter une note et voir d'abord ce qui est envoyé.",
+ "Sends the game's log and the latest crash and freeze reports to the developer, with the names of your files and folders taken out. Nothing is sent without this button.": "Envoie le journal du jeu et les derniers rapports de plantage et de blocage au développeur, sans les noms de tes fichiers et dossiers. Rien n'est envoyé sans ce bouton.",
+ "What happened? (optional, e.g. \"opened the Sound tab\")": "Que s'est-il passé ? (facultatif, p. ex. « onglet Son ouvert »)",
+ "What is sent?": "Qu'est-ce qui est envoyé ?",
+ "Send": "Envoyer",
+ "Send…": "Envoyer…",
+ "Sending…": "Envoi…",
+ "⚠️ The game crashed last time": "⚠️ Le jeu a planté la dernière fois",
+ "⚠️ Mareshine froze last time": "⚠️ Mareshine s'est bloqué la dernière fois",
+ "A report about it was saved. Send it to the developer? It helps to fix this.": "Un rapport a été enregistré. L'envoyer au développeur ? Cela aide à corriger le problème.",
+ "Thank you! The report was sent.": "Merci ! Le rapport a été envoyé.",
+ "Report code:": "Code du rapport :",
+ "If you opened an issue on GitHub, you can add this code to it.": "Si tu as ouvert un ticket sur GitHub, tu peux y ajouter ce code.",
+ "Too many reports in a short time. Please try again in an hour.": "Trop de rapports en peu de temps. Réessaie dans une heure.",
+ "The report could not be sent. Check the internet connection and try again.": "Le rapport n'a pas pu être envoyé. Vérifie la connexion Internet et réessaie.",
+ "Report sent": "Rapport envoyé"
 }

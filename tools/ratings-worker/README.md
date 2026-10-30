@@ -14,6 +14,24 @@ A new version of a mod is a new entry there, with its download, checksums and pa
 npx wrangler kv key put --binding RATINGS --remote catalog --path catalog.json
 ```
 
+## Bug reports
+
+`POST /report` takes a player's report from the app (Send to developer: after a freeze, or Settings → OTHER → LOGS; `ReportSend.java`).
+The app removes file and folder names before sending; the report is the game's log, the newest crash, ANR and hang reports, the device and an optional note.
+It is kept 30 days in KV as `report:<id>` and announced in the developer's Discord channel with a link, `GET /r/<id>`; the 32-character id is only in that message.
+The player gets the first 8 characters, to quote in a GitHub issue.
+Against spam: at most 512 KB, and three reports an hour from one connection (a salted hash of its address, as for votes).
+
+The message goes through a Discord webhook (channel settings → Integrations → Webhooks).
+Its address is a secret, not in this repository; anyone who has it can post to the channel:
+
+```sh
+npx wrangler secret put REPORT_WEBHOOK    # the webhook's URL
+```
+
+Without it the reports are still kept, only not announced.
+The player's text sits in a code block with mentions switched off, so a note cannot ping anyone.
+
 ## Setting it up
 
 ```sh

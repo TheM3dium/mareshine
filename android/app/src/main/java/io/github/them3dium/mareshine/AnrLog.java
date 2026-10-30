@@ -26,15 +26,34 @@ final class AnrLog {
 
     private AnrLog() {}
 
+    private static final android.os.Handler sMain = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static boolean sCollected;  // on the main thread
+    private static final java.util.ArrayList<Runnable> sWaiting = new java.util.ArrayList<>();
+
     // in the background: reading the traces can take a moment
     static void collect(Context ctx) {
-        if (Build.VERSION.SDK_INT < 30) return;
+        if (Build.VERSION.SDK_INT < 30) {
+            sCollected = true;
+            return;
+        }
         final Context app = ctx.getApplicationContext();
         new Thread(() -> {
             try {
                 run(app);
             } catch (Throwable ignored) {}
+            sMain.post(() -> {
+                sCollected = true;
+                for (Runnable r : sWaiting) r.run();
+                sWaiting.clear();
+            });
         }, "AnrLog").start();
+    }
+
+    // `r` on the main thread once the reports are written (Send to developer
+    // offers them); at once when they already are
+    static void whenCollected(Runnable r) {
+        if (sCollected) r.run();
+        else sWaiting.add(r);
     }
 
     private static void run(Context c) throws Exception {

@@ -805,5 +805,22 @@
  "Save log": "Salva log",
  "Saves the game's log and the latest crash reports as one file, for example in Downloads, to attach it to a bug report from the browser.": "Salva il log del gioco e gli ultimi rapporti di crash in un unico file, per esempio in Download, per allegarlo a una segnalazione dal browser.",
  "Log saved.": "Log salvato.",
- "The log could not be saved.": "Impossibile salvare il log."
+ "The log could not be saved.": "Impossibile salvare il log.",
+ "Send to developer": "Invia allo sviluppatore",
+ "Sends the game's log and the latest crash and freeze reports straight to the developer, with the names of your files and folders taken out. You can add a note and see first what is sent.": "Invia il log del gioco e gli ultimi rapporti di crash e blocchi direttamente allo sviluppatore, senza i nomi dei tuoi file e cartelle. Puoi aggiungere una nota e vedere prima cosa viene inviato.",
+ "Sends the game's log and the latest crash and freeze reports to the developer, with the names of your files and folders taken out. Nothing is sent without this button.": "Invia il log del gioco e gli ultimi rapporti di crash e blocchi allo sviluppatore, senza i nomi dei tuoi file e cartelle. Senza questo pulsante non viene inviato nulla.",
+ "What happened? (optional, e.g. \"opened the Sound tab\")": "Cos'è successo? (facoltativo, ad es. «aperta la scheda Audio»)",
+ "What is sent?": "Cosa viene inviato?",
+ "Send": "Invia",
+ "Send…": "Invia…",
+ "Sending…": "Invio…",
+ "⚠️ The game crashed last time": "⚠️ L'ultima volta il gioco si è chiuso",
+ "⚠️ Mareshine froze last time": "⚠️ L'ultima volta Mareshine si è bloccato",
+ "A report about it was saved. Send it to the developer? It helps to fix this.": "È stato salvato un rapporto. Inviarlo allo sviluppatore? Aiuta a risolvere il problema.",
+ "Thank you! The report was sent.": "Grazie! Il rapporto è stato inviato.",
+ "Report code:": "Codice del rapporto:",
+ "If you opened an issue on GitHub, you can add this code to it.": "Se hai aperto una issue su GitHub, puoi aggiungere questo codice.",
+ "Too many reports in a short time. Please try again in an hour.": "Troppi rapporti in poco tempo. Riprova tra un'ora.",
+ "The report could not be sent. Check the internet connection and try again.": "Impossibile inviare il rapporto. Controlla la connessione a internet e riprova.",
+ "Report sent": "Rapporto inviato"
 }

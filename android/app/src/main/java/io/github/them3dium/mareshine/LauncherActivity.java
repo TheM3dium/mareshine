@@ -222,8 +222,13 @@ public class LauncherActivity extends AppActivity {
             new DlDialog(this)
                 .setTitle(t("⚠️ The game closed unexpectedly"))
                 .setMessage(problem)
-                .setPositiveButton(t("OK"), null)
+                .setPositiveButton(t("OK"), (d, w) -> ReportSend.offerAfterProblem(this))
                 .show();
+        } else {
+            // a freeze leaves no problem above: AnrLog reads it in the background
+            AnrLog.whenCollected(() -> {
+                if (!isFinishing() && !isDestroyed()) ReportSend.offerAfterProblem(this);
+            });
         }
     }
 

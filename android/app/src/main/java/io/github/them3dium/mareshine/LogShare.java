@@ -45,7 +45,7 @@ final class LogShare {
     // game.log, game.prev.log and the newest crash and ANR reports in one
     // file, each under a heading, where the provider serves it; null when
     // there is no log
-    private static File collect(Context c) throws IOException {
+    static File collect(Context c) throws IOException {
         File logs = CrashLog.dir(c);
         File out = shareDir(c);
         File[] old = out.listFiles();
@@ -57,7 +57,7 @@ final class LogShare {
             if (f.isFile() && f.length() > 0) picked.add(f);
         }
         File[] reports = logs.listFiles((d, n) -> (n.startsWith("crash") && n.endsWith(".log"))
-            || (n.startsWith("anr-") && n.endsWith(".txt")));
+            || ((n.startsWith("anr-") || n.startsWith("hang-")) && n.endsWith(".txt")));
         if (reports != null) {
             Arrays.sort(reports, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
             for (int i = 0; i < reports.length && i < CRASH_LOGS; i++) picked.add(reports[i]);

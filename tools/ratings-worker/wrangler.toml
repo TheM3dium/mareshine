@@ -6,3 +6,6 @@ compatibility_date = "2025-01-01"
 [[kv_namespaces]]
 binding = "RATINGS"
 id = "b111a5212a92434290d9fc9053f1f75d"
+
+# bug reports are announced through a Discord webhook in the REPORT_WEBHOOK
+# secret (README.md), not set here

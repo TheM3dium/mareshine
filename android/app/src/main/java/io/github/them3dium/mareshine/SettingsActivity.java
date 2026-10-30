@@ -2161,6 +2161,10 @@ public class SettingsActivity extends AppActivity {
         add(new Action("Copy log",
             "Copies the game's log to the clipboard, to paste it into a bug report.",
             () -> "", () -> LogShare.copy(this)));
+        if (!Ratings.URL.isEmpty()) add(new Action("Send to developer",
+            "Sends the game's log and the latest crash and freeze reports straight to the developer, with the "
+                + "names of your files and folders taken out. You can add a note and see first what is sent.",
+            () -> "", () -> ReportSend.ask(this, "manual")));
         section("RESET");
         add(new Action("Reset all settings",
             "Sets every setting back to its default: video (Recommended (HD)), controller, button mapping, "
