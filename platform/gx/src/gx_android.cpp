@@ -306,6 +306,12 @@ void install(void* (*getProc)(const char*)) {
     // same version, so a geometry shader needs the extension even on 3.2.
     geometryExtension = has("GL_EXT_geometry_shader") ? "GL_EXT_geometry_shader"
                         : has("GL_OES_geometry_shader") ? "GL_OES_geometry_shader" : nullptr;
+    // Adreno drivers fail the wide-line geometry shader (an internal compiler
+    // assertion on the 710, an empty log on the 740), and after that failure
+    // the 740 hangs the next time Android draws its own views, such as the
+    // menu (reports 2418eaf1, 3aea1ff5). Lines stay one pixel wide there.
+    const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    if (geometryExtension && renderer && strstr(renderer, "Adreno")) geometryExtension = nullptr;
     gx::gl::gx_glEnable = enableAdapter; gx::gl::gx_glDisable = disableAdapter;
     gx::gl::gx_glGetIntegerv = integerAdapter; gx::gl::gx_glUseProgram = programAdapter;
     gx::gl::gx_glDeleteProgram = deleteProgramAdapter; gx::gl::gx_glLinkProgram = linkProgramAdapter;
