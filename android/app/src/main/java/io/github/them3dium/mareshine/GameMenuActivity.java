@@ -263,29 +263,50 @@ public class GameMenuActivity extends AppActivity {
         row.requestApplyInsets();
     }
 
-    // the entries in one row: smaller text and padding when they do not fit
+    // the entries in one row: smaller text and padding when they do not fit.
+    // A Button keeps its 88dp minimum width however small its text gets, so on
+    // a narrow phone (Pixel, German labels) one pass left the row too wide and
+    // the last entry, MAIN MENU ✕, was squeezed under its neighbours: the
+    // minimum goes, and it shrinks again until the row fits.
     private void shrinkToFit(android.widget.LinearLayout row) {
         if (mBarFitted) return;
         int avail = row.getWidth() - row.getPaddingLeft() - row.getPaddingRight();
         if (avail <= 0) return;
+        mBarFitted = true;
+        float scale = 1f;
+        for (int pass = 0; pass < 4; pass++) {
+            int total = barWidth(row);
+            if (total <= avail || scale <= 0.35f) return;
+            float f = Math.max(0.35f / scale, (float) avail / total * 0.98f);
+            scale *= f;
+            for (int i = 0; i < row.getChildCount(); i++) {
+                View c = row.getChildAt(i);
+                if (c instanceof TextView) {
+                    TextView t = (TextView) c;
+                    t.setMinWidth(0);
+                    t.setMinimumWidth(0);
+                    t.setSingleLine(true);
+                    t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, t.getTextSize() * f);
+                    t.setPadding(Math.round(t.getPaddingLeft() * f), t.getPaddingTop(),
+                        Math.round(t.getPaddingRight() * f), t.getPaddingBottom());
+                }
+            }
+        }
+    }
+
+    // the entries' natural width side by side, margins included
+    private static int barWidth(android.widget.LinearLayout row) {
         int total = 0;
         for (int i = 0; i < row.getChildCount(); i++) {
             View c = row.getChildAt(i);
             c.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
             total += c.getMeasuredWidth();
-        }
-        mBarFitted = true;
-        if (total <= avail) return;
-        float f = Math.max(0.45f, (float) avail / total * 0.98f);
-        for (int i = 0; i < row.getChildCount(); i++) {
-            View c = row.getChildAt(i);
-            if (c instanceof TextView) {
-                TextView t = (TextView) c;
-                t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, t.getTextSize() * f);
-                t.setPadding(Math.round(t.getPaddingLeft() * f), t.getPaddingTop(), Math.round(t.getPaddingRight() * f),
-                    t.getPaddingBottom());
+            if (c.getLayoutParams() instanceof android.view.ViewGroup.MarginLayoutParams) {
+                android.view.ViewGroup.MarginLayoutParams lp = (android.view.ViewGroup.MarginLayoutParams) c.getLayoutParams();
+                total += lp.leftMargin + lp.rightMargin;
             }
         }
+        return total;
     }
 
     // A state was saved or a load asked for: back into the game, which carries
