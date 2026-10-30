@@ -126,12 +126,7 @@ public class LanguagePackActivity extends AppActivity {
             buttons.addView(b, lp);
         }
         panel.addView(buttons);
-        btnPick.setOnClickListener(v -> {
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("*/*");
-            startActivityForResult(i, REQUEST_PICK);
-        });
+        btnPick.setOnClickListener(v -> Pickers.openFile(this, REQUEST_PICK));
         btnBuild.setOnClickListener(v -> build());
         btnClose.setOnClickListener(v -> {
             if (mBusy) {

@@ -93,10 +93,7 @@ final class ModFlows {
     }
 
     static void pick(Activity a, int request) {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("*/*");
-        a.startActivityForResult(i, request);
+        Pickers.openFile(a, request);
     }
 
     // Which language: the installed ones are switched to, the others installed

@@ -269,12 +269,7 @@ public class ModsActivity extends AppActivity {
             mPage = 0;
             showList();
         });
-        mImport.setOnClickListener(v -> {
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("*/*");
-            startActivityForResult(i, REQUEST_IMPORT);
-        });
+        mImport.setOnClickListener(v -> Pickers.openFile(this, REQUEST_IMPORT));
         mClose.setOnClickListener(v -> leave());
         setContentView(root);
     }

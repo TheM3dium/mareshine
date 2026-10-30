@@ -367,8 +367,7 @@ public class LauncherActivity extends AppActivity {
     }
 
     private void openDataDirPicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        startActivityForResult(intent, REQUEST_PICK_DATA_DIR);
+        Pickers.start(this, new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_PICK_DATA_DIR);
     }
 
     private void applyDataDir(Uri treeUri) {
@@ -442,10 +441,7 @@ public class LauncherActivity extends AppActivity {
     }
 
     private void openFilePicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
-        startActivityForResult(intent, REQUEST_PICK_ISO);
+        Pickers.openFile(this, REQUEST_PICK_ISO);
     }
 
     @Override
