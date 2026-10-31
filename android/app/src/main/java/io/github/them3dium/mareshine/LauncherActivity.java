@@ -378,20 +378,28 @@ public class LauncherActivity extends AppActivity {
         }
         File old = DataDir.get(this);
         DataDir.set(this, dir);
-        if (!DataDir.ensureLayout(this)) {
-            DataDir.set(this, old);
-            new DlDialog(this)
-                .setTitle(t("Error"))
-                .setMessage(t("Cannot write to this folder:\n%s\n\nCheck \"All files access\" or choose another folder.",
-                    dir.getAbsolutePath()))
-                .setPositiveButton(t("OK"), null)
-                .show();
-            return;
-        }
-        DataDir.migrate(old, dir);
-        Toast.makeText(this, t("Data folder:\n%s", dir.getAbsolutePath()), Toast.LENGTH_LONG).show();
-        refreshDataDirUi();
-        checkIsoAndRefreshUi();
+        // the folders, the readme and the copied saves off the main thread: on
+        // slow storage they took over 3 s and froze the launcher (report 9ee13fbf)
+        new Thread(() -> {
+            boolean ok = DataDir.ensureLayout(this);
+            if (ok) DataDir.migrate(old, dir);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (!ok) {
+                    DataDir.set(this, old);
+                    new DlDialog(this)
+                        .setTitle(t("Error"))
+                        .setMessage(t("Cannot write to this folder:\n%s\n\nCheck \"All files access\" or choose another folder.",
+                            dir.getAbsolutePath()))
+                        .setPositiveButton(t("OK"), null)
+                        .show();
+                    return;
+                }
+                Toast.makeText(this, t("Data folder:\n%s", dir.getAbsolutePath()), Toast.LENGTH_LONG).show();
+                refreshDataDirUi();
+                checkIsoAndRefreshUi();
+            });
+        }, "DataDir").start();
     }
 
     private void checkIsoAndRefreshUi() {

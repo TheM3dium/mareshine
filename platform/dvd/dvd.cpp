@@ -707,6 +707,12 @@ static void apply_mods()
 			int replaced = 0, added = 0, inside = 0;
 			overlay_dir(std::string(game) + "/files", std::string(), &replaced, &added, &inside);
 			port_log("[dvd] game %s: %d disc files replaced, %d added\n", game, replaced, added);
+			// The header stays the player's disc, whose music streaming flag
+			// (byte 8) is off: retail SMS never streams. Sunburn's own disc
+			// has it on, and its engine (BetterSunshineEngine) panics at the
+			// first streamed music when it reads it off (file select, reports
+			// 07879066 and 35025a2f).
+			g_disk_id.streaming = 1;
 		}
 	if (const char* id = getenv("SMS_DISC_ID"))
 		if (strlen(id) == 6) {
