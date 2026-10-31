@@ -79,7 +79,7 @@
             <Button
                 android:id="@+id/btnQuit"
                 style="@style/DlBarItem"
-                android:text="MAIN MENU ✕" />
+                android:text="MAIN MENU" />
         </LinearLayout>
 
         <View

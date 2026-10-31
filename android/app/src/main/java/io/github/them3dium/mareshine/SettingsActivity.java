@@ -188,6 +188,7 @@ public class SettingsActivity extends AppActivity {
     private final List<String> mTabs = new ArrayList<>();
     private final List<TextView> mTabViews = new ArrayList<>();
     private final List<View> mTabBars = new ArrayList<>();
+    private android.widget.HorizontalScrollView mTabScroll;
     private int mTab = 0;
     private boolean mInGame;
     // opened from the main menu while the game still runs in the background
@@ -354,8 +355,18 @@ public class SettingsActivity extends AppActivity {
             mTabViews.add(t);
             mTabBars.add(bar);
         }
-        View spacer = new View(this);
-        tabs.addView(spacer, new LinearLayout.LayoutParams(0, dp(1), 1f));
+        // the tabs scroll sideways when they are wider than the panel (a
+        // narrow phone, longer labels), so they never push the ✕ off or
+        // cover it; the ✕ stays at the right end outside the scrolling part
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        mTabScroll = new android.widget.HorizontalScrollView(this);
+        mTabScroll.setHorizontalScrollBarEnabled(false);
+        mTabScroll.setFillViewport(true);
+        mTabScroll.addView(tabs, new ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        head.addView(mTabScroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         TextView close = new TextView(this);
         close.setText("✕");
         close.setTextColor(TEXT);
@@ -364,9 +375,10 @@ public class SettingsActivity extends AppActivity {
         close.setFocusable(false);  // B closes with a controller
         close.setBackgroundResource(R.drawable.dl_tab);
         close.setOnClickListener(v -> finish());
-        tabs.addView(close, new LinearLayout.LayoutParams(
+        head.setPadding(0, 0, dp(8), 0);
+        head.addView(close, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        panel.addView(tabs, new LinearLayout.LayoutParams(
+        panel.addView(head, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         View line = new View(this);
@@ -472,6 +484,17 @@ public class SettingsActivity extends AppActivity {
             boolean on = i == idx;
             mTabViews.get(i).setTextColor(on ? 0xFFFFFFFF : 0xFF8FB4D4);
             mTabBars.get(i).setBackgroundColor(on ? GOLD : 0x00000000);
+        }
+        // L/R can switch to a tab scrolled out of sight: bring it into view
+        if (mTabScroll != null && idx < mTabViews.size()) {
+            final View cell = (View) mTabViews.get(idx).getParent();
+            mTabScroll.post(() -> {
+                int x = cell.getLeft() - dp(16);
+                int right = cell.getRight() + dp(16) - mTabScroll.getWidth();
+                int sx = mTabScroll.getScrollX();
+                if (x < sx) mTabScroll.smoothScrollTo(Math.max(0, x), 0);
+                else if (right > sx) mTabScroll.smoothScrollTo(right, 0);
+            });
         }
         if (mOpen != null) closeOptions(false);
         mList.removeAllViews();

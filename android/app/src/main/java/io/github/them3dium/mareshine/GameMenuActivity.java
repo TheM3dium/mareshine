@@ -266,7 +266,7 @@ public class GameMenuActivity extends AppActivity {
     // the entries in one row: smaller text and padding when they do not fit.
     // A Button keeps its 88dp minimum width however small its text gets, so on
     // a narrow phone (Pixel, German labels) one pass left the row too wide and
-    // the last entry, MAIN MENU ✕, was squeezed under its neighbours: the
+    // the last entry, MAIN MENU, was squeezed under its neighbours: the
     // minimum goes, and it shrinks again until the row fits.
     private void shrinkToFit(android.widget.LinearLayout row) {
         if (mBarFitted) return;

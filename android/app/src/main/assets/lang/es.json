@@ -480,7 +480,7 @@
  "%d achievements unlocked": "%d logros desbloqueados",
  "Secret achievement unlocked": "Logro secreto desbloqueado",
  "RESTART": "REINICIAR",
- "MAIN MENU ✕": "MENÚ PRINCIPAL ✕",
+ "MAIN MENU": "MENÚ PRINCIPAL",
  "Show achievements": "Ver logros",
  "If you have already done something in an older save, you get the matching achievements as soon as you load it.\n\nOff: nothing is tracked or unlocked; what you have unlocked stays.\n\nApplies the next time the game starts.": "Si ya has conseguido algo en una partida anterior, recibes los logros correspondientes en cuanto la cargas.\n\nDesactivados: no se registra ni se desbloquea nada; lo desbloqueado se conserva.",
  "All achievements, what you have unlocked and how far you are. Secret ones show as ??? until unlocked. In the game they are in the quick menu too.": "Todos los logros, lo que has desbloqueado y cuánto te falta. Los secretos aparecen como ??? hasta desbloquearlos. En el juego también están en el menú rápido.",
