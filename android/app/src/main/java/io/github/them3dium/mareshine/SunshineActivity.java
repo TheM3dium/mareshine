@@ -229,6 +229,31 @@ public class SunshineActivity extends SDLActivity {
         watchdog.interrupt();
     }
 
+    // The game's frame rate as a vote for the screen's: phones that lower their
+    // refresh rate while nothing is touched (some Samsungs) made the game
+    // stutter as soon as the player let go, also with a controller (#15, #20).
+    @Override
+    protected org.libsdl.app.SDLSurface createSDLSurface(Context context) {
+        org.libsdl.app.SDLSurface surface = super.createSDLSurface(context);
+        if (Build.VERSION.SDK_INT < 30) return surface;
+        float fps = 30;
+        try {
+            fps = Float.parseFloat(Settings.read(this).getOrDefault("frame_rate", "30"));
+        } catch (NumberFormatException ignored) {}
+        final float rate = fps;
+        surface.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
+            @Override public void surfaceCreated(android.view.SurfaceHolder h) { vote(h); }
+            @Override public void surfaceChanged(android.view.SurfaceHolder h, int format, int w, int ht) { vote(h); }
+            @Override public void surfaceDestroyed(android.view.SurfaceHolder h) {}
+            private void vote(android.view.SurfaceHolder h) {
+                try {
+                    h.getSurface().setFrameRate(rate, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+                } catch (RuntimeException ignored) {}
+            }
+        });
+        return surface;
+    }
+
     // platform/pad's port_open_menu (SDL_AndroidSendMessage)
     private static final int COMMAND_OPEN_MENU = 0x8001;
     // platform/savestate/savestate_android.cpp: a save state message (code << 8 | slot)
