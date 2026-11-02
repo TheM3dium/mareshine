@@ -263,6 +263,19 @@
  
      picture->changeTexture(timg, 0);
  }
+--- a/bse/src/patches/water.cpp
++++ b/bse/src/patches/water.cpp
+@@ -703,7 +703,9 @@
+         return height;
+     }
+ 
+-    if (water && water->mType == 258 || water->mType == 259) {
++    // The port: the type test is bracketed. Without the brackets a camera over
++    // no water read the type from a null pointer, which only the GameCube survives.
++    if (water && (water->mType == 258 || water->mType == 259)) {
+         height += Min(objWave->getWaveHeight(x, z), 0.0f);
+     }
+ 
 --- a/bse/src/patches/yoshi.cpp
 +++ b/bse/src/patches/yoshi.cpp
 @@ -87,8 +87,9 @@
