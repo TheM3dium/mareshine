@@ -484,6 +484,8 @@ public class SunshineActivity extends SDLActivity {
     // as a key for the game). Not from a game controller: some send Back for B.
     @Override
     public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+        // a fingerprint sensor's keys are no input for the game
+        if (org.libsdl.app.SDLControllerManager.isFingerprintSensor(e.getDevice())) return true;
         if (e.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK) {
             int src = e.getSource();
             boolean pad = (src & android.view.InputDevice.SOURCE_GAMEPAD) == android.view.InputDevice.SOURCE_GAMEPAD

@@ -93,11 +93,29 @@ public class SDLControllerManager
     }
 
     // Check if a given device is considered a possible SDL joystick
+    // Mareshine: some phones' fingerprint sensors are input devices with a
+    // D-pad ("uinput-fpc" on Xiaomi's side sensors), and a thumb resting on
+    // one sends keys all the time; as a controller it froze the game (report
+    // 928c22cd).
+    public static boolean isFingerprintSensor(InputDevice device) {
+        if (device == null) return false;
+        String name = device.getName();
+        if (name == null) return false;
+        name = name.toLowerCase(java.util.Locale.ROOT);
+        return name.contains("fingerprint") || name.contains("uinput-fpc") || name.contains("uinput-goodix")
+            || name.contains("uinput-gf") || name.startsWith("fpc") || name.startsWith("goodix_fp")
+            || name.contains("silead_fp");
+    }
+
     public static boolean isDeviceSDLJoystick(int deviceId) {
         InputDevice device = InputDevice.getDevice(deviceId);
         // We cannot use InputDevice.isVirtual before API 16, so let's accept
         // only nonnegative device ids (VIRTUAL_KEYBOARD equals -1)
         if ((device == null) || (deviceId < 0)) {
+            return false;
+        }
+        // Mareshine: a fingerprint sensor that reports as a D-pad is no controller
+        if (isFingerprintSensor(device)) {
             return false;
         }
         int sources = device.getSources();
