@@ -1,7 +1,7 @@
 Reason: port: the warp menu (F8 / controller Select with the debug overlay open, platform/gx) lists every stage and episode on the disc and warps to the one picked
 --- a/src/System/Application.cpp
 +++ b/src/System/Application.cpp
-@@ -834,6 +834,166 @@
+@@ -834,6 +834,170 @@
  }
  #endif
  
@@ -156,6 +156,10 @@ Reason: port: the warp menu (F8 / controller Select with the debug overlay open,
 +	const bool ready = dir && dir->mState == TMarDirector::STATE_UNK4
 +	                   && !dir->checkUnk4CFlag(TMarDirector::DIRECTOR_FLAG_STAGE_TRANSITION_PENDING);
 +	port_warp_set_ready(ready);
++	if (dir)
++		port_warp_set_current(app->mCurrArea.getStage(), app->mCurrArea.getScenario());
++	else
++		port_warp_set_current(-1, -1);
 +	int area, episode;
 +	if (!port_warp_take(&area, &episode) || !ready)
 +		return;
@@ -168,7 +172,7 @@ Reason: port: the warp menu (F8 / controller Select with the debug overlay open,
  // TODO: frame 0x50 short (0x70 before the display's video was read through
  // getVideo()): retail's low region runs to 0xac (the TRect temp) where ours
  // ended at 0x38, i.e. inline temporaries from an expansion this body lacks;
-@@ -920,6 +1080,7 @@
+@@ -920,6 +1084,7 @@
  
  #ifdef TARGET_PC
  		ApplicationPresenceFrame(this);

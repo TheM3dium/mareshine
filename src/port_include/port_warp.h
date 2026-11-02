@@ -29,6 +29,7 @@ void port_warp_list_add(const char* world, const char* name, const char* scene, 
 void port_warp_list_end(void);
 void port_warp_set_ready(int ready);       // a warp can start now (in a stage)
 int port_warp_take(int* area, int* episode); // the warp picked, once
+void port_warp_set_current(int area, int episode); // the stage played, -1 outside one
 
 // The menu's side.
 void port_warp_want_list(void);
@@ -36,6 +37,10 @@ int port_warp_count(void);
 int port_warp_entry(int index, PortWarpEntry* out);
 int port_warp_ready(void);
 void port_warp_request(int area, int episode);
+
+// The debug overlay's line: the stage played (returns 0 outside one), and its list
+// entry once the list is built (out->scene empty until then; it asks for it).
+int port_warp_current(int* area, int* episode, PortWarpEntry* out);
 
 // Code mods that name episodes their own way (BetterSunshineEngine) set this:
 // the scenario name's index in scenarioname.bmg, or -1.

@@ -5,6 +5,7 @@
 #include "gx_internal.h"
 #include "gl_funcs.h"
 #include "sms_gx/gx_pc.h"
+#include "port_include/port_warp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -190,6 +191,15 @@ void GXPC_OverlayDraw(int winW, int winH) {
         GXPC_GetLastFrameStats(&st);
         double up = s_clock.last - s_clock.start;
 
+        // where the player is: TGameSequence's stage,scenario as the warp
+        // menu takes them, then the scene and its name once the list is built
+        char stage[160] = "";
+        int area, episode;
+        PortWarpEntry here;
+        if (port_warp_current(&area, &episode, &here))
+            snprintf(stage, sizeof stage, "stage %d,%d   %s%s%s%s%s\n", area, episode, here.scene,
+                     here.scene[0] ? "   " : "", here.world, here.name[0] ? " / " : "", here.name);
+
         char text[2048];
         snprintf(text, sizeof text,
                  "FPS %.1f (%.1f shown)   frame %.1f ms avg, %.1f ms worst   speed x%d\n"
@@ -200,6 +210,7 @@ void GXPC_OverlayDraw(int winW, int winH) {
                  "texture uploads %u   shader compiles %u\n"
                  "frames %u   up %d:%02d\n"
                  "window %dx%d%s\n"
+                 "%s"
                  "GL %s"
 #ifndef __ANDROID__  // a phone has no keyboard: the numbers only (Mareshine)
                  "\n"
@@ -220,7 +231,7 @@ void GXPC_OverlayDraw(int winW, int winH) {
                  s_clock.per.present, s_clock.per.swap, s_clock.per.idle, s_clock.per.vertices, s_clock.per.draws,
                  s_clock.per.textures, s_clock.per.copies, s_clock.per.peeks, s_clock.per.gpuWait, st.draws, st.vertices, st.efbCopies,
                  st.textureUploads, st.shaderCompiles, s_clock.total, int(up) / 60, int(up) % 60, winW, winH,
-                 port_mp4_showing && port_mp4_showing() ? "   movie: MP4" : "", s_renderer.c_str());
+                 port_mp4_showing && port_mp4_showing() ? "   movie: MP4" : "", stage, s_renderer.c_str());
 
         const int pad = 4;
         w = stb_easy_font_width(text) + pad * 2;

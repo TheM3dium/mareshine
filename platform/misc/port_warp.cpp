@@ -14,6 +14,7 @@ std::mutex g_lock;
 std::vector<PortWarpEntry> g_list, g_building;
 bool g_wanted, g_built, g_ready, g_pending;
 int g_area, g_episode;
+int g_currentArea = -1, g_currentEpisode = -1;
 
 void copy(char* dst, size_t n, const char* src)
 {
@@ -76,6 +77,31 @@ int port_warp_take(int* area, int* episode)
 	g_pending = false;
 	*area     = g_area;
 	*episode  = g_episode;
+	return 1;
+}
+
+void port_warp_set_current(int area, int episode)
+{
+	std::lock_guard<std::mutex> l(g_lock);
+	g_currentArea    = area;
+	g_currentEpisode = episode;
+}
+
+int port_warp_current(int* area, int* episode, PortWarpEntry* out)
+{
+	std::lock_guard<std::mutex> l(g_lock);
+	if (g_currentArea < 0)
+		return 0;
+	*area    = g_currentArea;
+	*episode = g_currentEpisode;
+	memset(out, 0, sizeof *out);
+	if (!g_built)
+		g_wanted = true;
+	for (const PortWarpEntry& e : g_list)
+		if (e.area == g_currentArea && e.episode == g_currentEpisode) {
+			*out = e;
+			break;
+		}
 	return 1;
 }
 
