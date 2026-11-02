@@ -206,6 +206,8 @@ uint32_t peekZ(int x, int y);      // 24-bit
 void pixMetricClear();
 uint32_t pixMetricRead();
 void pixMetricEnd();
+void nativeEfbBegin();  // the goop pass draws at the GameCube's own size (GXPC_NativeEfbBegin)
+void nativeEfbEnd();
 
 // ---------------------------------------------------------------- textures (gx_texture.cpp)
 struct TexKey;

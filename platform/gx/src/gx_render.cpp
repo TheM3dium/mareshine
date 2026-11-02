@@ -123,6 +123,15 @@ static GLuint s_efbFbo, s_efbColor, s_efbDepth;
 // s_efbResolveFbo, which holds s_efbColor and s_efbDepth.
 static int s_msaa = 0;
 static GLuint s_efbResolveFbo, s_efbMsColor, s_efbMsDepth;
+// nativeEfbBegin's EFB of the GameCube's own size, and the scaled one it stands in for
+static GLuint s_nativeFbo, s_nativeColor, s_nativeDepth;
+static struct {
+    bool on, ending;  // ending: nativeEfbEnd has run, the copy back is still to come
+    GLuint fbo, color, depth;
+    int msaa;
+    float scale;
+} s_native;
+static void nativeEfbRestore();
 static GLuint s_vao;
 static GLuint s_copyProg, s_copyVao;
 static GLint s_copyUMode, s_copyURect, s_copyUAlphaOne;
@@ -2065,6 +2074,7 @@ void flushBatch() {
         resetBatch();
         return;
     }
+    if (s_native.ending) nativeEfbRestore();
     GxTimer timer;
     GxTimer tf(&g_flushSeconds);
     s_xmap = drawXMap();
@@ -2344,6 +2354,76 @@ static GLuint efbReadFbo(int x0 = 0, int y0 = 0, int x1 = INT32_MAX, int y1 = IN
     s_resolvedRect[2] = x1;
     s_resolvedRect[3] = y1;
     return s_efbResolveFbo;
+}
+
+// The goop pass (TPollutionManager) draws each pollution layer into the EFB,
+// counts its pixels and copies it back over the layer's texture, every frame.
+// At a scale that is not a whole number the round trip resamples the layer
+// (a GameCube pixel spans one and a half), so the goop blurred away within
+// seconds and drifted with the copy's half-pixel offset, and the game's own
+// map of it followed: missing goop, goop that slid with the camera, bubbles
+// from clean ground (#17). The pass draws into an EFB of the GameCube's own
+// size instead, as on the GameCube; the layers are 256 texels or less, so
+// nothing is lost to the eye. Whole-number scales keep the scaled EFB: they
+// copy pixel for pixel already.
+
+void nativeEfbBegin() {
+    if (s_native.on) {
+        s_native.ending = false;
+        return;
+    }
+    if (!s_ready || s_scale == floorf(s_scale)) return;
+    flushBatch();
+    if (!s_nativeFbo) {
+        glGenTextures(1, &s_nativeColor);
+        glBindTexture(GL_TEXTURE_2D, s_nativeColor);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, s_efbW, EFB_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glGenTextures(1, &s_nativeDepth);
+        glBindTexture(GL_TEXTURE_2D, s_nativeDepth);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, s_efbW, EFB_H, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT,
+                     nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glGenFramebuffers(1, &s_nativeFbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, s_nativeFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_nativeColor, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, s_nativeDepth, 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) logmsg("native EFB framebuffer incomplete");
+    }
+    s_native = {true, false, s_efbFbo, s_efbColor, s_efbDepth, s_msaa, s_scale};
+    s_efbFbo = s_nativeFbo;
+    s_efbColor = s_nativeColor;
+    s_efbDepth = s_nativeDepth;
+    s_msaa = 0;
+    s_scale = 1;
+    s_resolvedGen = ~0u;
+    glcInvalidate();
+}
+
+// Back to the scaled EFB. The game copies each layer back right after the
+// pass, from another object: nativeEfbEnd leaves the native EFB bound until
+// that copy has taken it (executeCopy), or until anything is drawn first.
+static void nativeEfbRestore() {
+    s_efbFbo = s_native.fbo;
+    s_efbColor = s_native.color;
+    s_efbDepth = s_native.depth;
+    s_msaa = s_native.msaa;
+    s_scale = s_native.scale;
+    s_native.on = s_native.ending = false;
+    s_resolvedGen = ~0u;
+    glcInvalidate();
+}
+
+void nativeEfbEnd() {
+    if (!s_native.on) return;
+    flushBatch();
+    s_native.ending = true;
 }
 
 // x0 and x1: the scaled EFB's columns, as copyEfb works them out.
@@ -2752,7 +2832,9 @@ void executeCopy(uint32_t ctrl) {
     struct Resume { ~Resume() { pixMetricResume(); } } resume;
     const void* dest = g.copyDest;
     bool disp = (ctrl >> 14) & 1;
+    if (disp && s_native.on) nativeEfbRestore();
     copyEfb(ctrl);
+    if (s_native.ending) nativeEfbRestore();
     // presenting (the hook) is timed apart from sms_gx: GXPC_GetTimes
     if (disp && g_displayCopyHook) g_displayCopyHook(dest);
 #ifdef __ANDROID__

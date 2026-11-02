@@ -96,6 +96,13 @@ void GXPC_Shutdown(void);
  * the next scope. Ordinary GXReadPixMetric still keeps counting. */
 void GXPC_EndPixMetric(void);
 
+/* Draw into an EFB of the GameCube's own size until GXPC_NativeEfbEnd: for a
+ * pass that copies what it draws back over the texture it drew from (the goop
+ * layers), which a fractional internal resolution would resample every frame.
+ * Nothing changes at whole-number resolutions. */
+void GXPC_NativeEfbBegin(void);
+void GXPC_NativeEfbEnd(void);
+
 /* Before endian conversion, discover HD replacements in BTI, J3D TEX1 and
  * JPA resources. Thread-safe; hashes synchronously and keeps no game pointers.
  * PreloadTextures drains those requests on the GL thread before gameplay.
