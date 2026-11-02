@@ -164,12 +164,19 @@ final class ModFlows {
     // the picked file: which translation it is, by its size
     static void picked(AppActivity a, Uri uri) {
         long size = -1;
+        String name = "";
         try (android.database.Cursor c = a.getContentResolver().query(uri,
-                new String[] {android.provider.OpenableColumns.SIZE}, null, null, null)) {
-            if (c != null && c.moveToFirst() && !c.isNull(0)) size = c.getLong(0);
+                new String[] {android.provider.OpenableColumns.SIZE, android.provider.OpenableColumns.DISPLAY_NAME},
+                null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                if (!c.isNull(0)) size = c.getLong(0);
+                if (!c.isNull(1)) name = c.getString(1);
+            }
         } catch (Exception ignored) {
         }
-        Mods.Release r = Mods.pickedOfSize(size);
+        // or its patch, unpacked by another app (ModInstallActivity.tooLittleMemory)
+        Mods.Release r = name.toLowerCase(java.util.Locale.ROOT).endsWith(".xdelta") ? Mods.pickedPatch(name)
+            : Mods.pickedOfSize(size);
         if (r == null) {
             a.choice(t("Not a known file"), t("This file is none of the mods and translations listed. Pick the .7z "
                 + "file as downloaded from its page, not unpacked."), new String[] {t("OK")},

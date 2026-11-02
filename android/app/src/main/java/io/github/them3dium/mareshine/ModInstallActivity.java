@@ -40,6 +40,7 @@ import static io.github.them3dium.mareshine.L.t;
 // and picked (EXTRA_URI): it is recognised by its size and checked the same way.
 public class ModInstallActivity extends AppActivity {
     static final String EXTRA_ID = "release", EXTRA_URI = "uri";
+    private static final int PICK_PATCH = 21;
 
     private TextView tvStatus;
     private ProgressBar bar;
@@ -142,7 +143,47 @@ public class ModInstallActivity extends AppActivity {
 
     // --- the job ------------------------------------------------------------------
 
+    // A picked .xdelta: the patch, unpacked from the release's archive by
+    // another app, for devices that cannot unpack the archive here (tooLittleMemory)
+    private boolean isPatch(Uri picked) {
+        if (picked == null) return false;
+        String last = picked.getLastPathSegment();
+        if (last != null && last.toLowerCase(Locale.ROOT).endsWith(".xdelta")) return true;
+        try (android.database.Cursor c = getContentResolver().query(picked,
+                new String[] {android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            return c != null && c.moveToFirst() && !c.isNull(0) && c.getString(0).toLowerCase(Locale.ROOT).endsWith(".xdelta");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // Super Mario Eclipse's archive is LZMA2 with a 256 MB dictionary, which the
+    // Java decoder holds in one array: more than a phone with 2 GB of memory
+    // gives the app (moto e13, report 295bb6b2). Another app unpacks it, and the
+    // patch is picked here.
+    private void tooLittleMemory(Mods.Release r) {
+        String name = r.patch.substring(r.patch.lastIndexOf('/') + 1);
+        done(false, t("Not enough memory on this device to unpack %s here.", r.file));
+        runOnUiThread(() -> choice(t("Not enough memory"),
+            t("This device gives Mareshine too little memory to unpack %s. Unpack it with another app (for example "
+                + "ZArchiver), then pick the file %s from the unpacked folder here. The result is checked as usual.",
+                r.file, name),
+            new String[] {t("Pick unpacked file"), t("Close")},
+            new Runnable[] {() -> Pickers.openFile(this, PICK_PATCH), null}));
+    }
+
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != PICK_PATCH || result != RESULT_OK || data == null || data.getData() == null) return;
+        Mods.Release r = Mods.release(getIntent().getStringExtra(EXTRA_ID));
+        if (r == null) return;
+        start(this, r, data.getData());
+        finish();
+    }
+
     private void run(Mods.Release r, Uri picked) {
+        final boolean patchOnly = isPatch(picked);
         // Super Mario Eclipse's languages side by side in its folder (EclipseMod);
         // another mod in a folder of its own
         File mods = Mods.dir(this), dl = new File(mods, ".downloads");
@@ -172,13 +213,15 @@ public class ModInstallActivity extends AppActivity {
                     gb(need), gb(mods.getUsableSpace())));
                 return;
             }
-            if (picked == null) {
-                if (archive.length() != r.size) download(r, part, archive);
+            if (picked == null && archive.length() != r.size) {
+                download(r, part, archive);
                 if (mCancel) { done(false, t("Cancelled. The download continues next time from where it stopped.")); return; }
             }
-            String got;
-            try (InputStream in = open(picked, archive)) {
-                got = md5(in, picked != null ? r.size : archive.length(), t("Checking the download…"));
+            String got = r.md5;  // a picked patch: only the result is checked
+            if (!patchOnly) {
+                try (InputStream in = open(picked, archive)) {
+                    got = md5(in, picked != null ? r.size : archive.length(), t("Checking the download…"));
+                }
             }
             if (got == null) { done(false, t("Cancelled.")); return; }
             if (!r.md5.equalsIgnoreCase(got)) {
@@ -197,7 +240,12 @@ public class ModInstallActivity extends AppActivity {
             stage.mkdirs();
             File image = new File(stage, r.image);
             String result = null;
-            try (ParcelFileDescriptor pfd = picked != null ? getContentResolver().openFileDescriptor(picked, "r") : null;
+            if (patchOnly) {
+                try (InputStream in = getContentResolver().openInputStream(picked)) {
+                    if (in == null) throw new IOException("cannot open " + picked);
+                    result = applyPatch(r, iso, in, image);
+                }
+            } else try (ParcelFileDescriptor pfd = picked != null ? getContentResolver().openFileDescriptor(picked, "r") : null;
                  FileInputStream pin = pfd != null ? new FileInputStream(pfd.getFileDescriptor()) : null;
                  SevenZFile z = pin != null ? SevenZFile.builder().setSeekableByteChannel(pin.getChannel()).get()
                      : SevenZFile.builder().setFile(archive).get()) {
@@ -207,17 +255,7 @@ public class ModInstallActivity extends AppActivity {
                         @Override public int read() throws IOException { return z.read(); }
                         @Override public int read(byte[] b, int off, int len) throws IOException { return z.read(b, off, len); }
                     };
-                    long[] last = {0};
-                    result = Vcdiff.apply(iso, new java.io.BufferedInputStream(in, 1 << 20), image, written -> {
-                        long now = System.currentTimeMillis();
-                        if (now - last[0] > 250) {
-                            last[0] = now;
-                            status(t("Making %s from your disc… %s of %s", r.name, mb(written), mb(r.imageSize))
-                                + pct(written, r.imageSize));
-                            progress(Math.min(1.0, (double) written / r.imageSize));
-                        }
-                        return !mCancel;
-                    });
+                    result = applyPatch(r, iso, in, image);
                     break;
                 }
             }
@@ -267,7 +305,24 @@ public class ModInstallActivity extends AppActivity {
         } catch (Exception e) {
             TexturePackActivity.remove(stage);
             done(false, t(mCancel ? "Cancelled: %s" : "Failed: %s", e.getMessage()));
+        } catch (OutOfMemoryError e) {
+            TexturePackActivity.remove(stage);
+            tooLittleMemory(r);
         }
+    }
+
+    private String applyPatch(Mods.Release r, File iso, InputStream in, File image) throws IOException {
+        long[] last = {0};
+        return Vcdiff.apply(iso, new java.io.BufferedInputStream(in, 1 << 20), image, written -> {
+            long now = System.currentTimeMillis();
+            if (now - last[0] > 250) {
+                last[0] = now;
+                status(t("Making %s from your disc… %s of %s", r.name, mb(written), mb(r.imageSize))
+                    + pct(written, r.imageSize));
+                progress(Math.min(1.0, (double) written / r.imageSize));
+            }
+            return !mCancel;
+        });
     }
 
     private void download(Mods.Release r, File part, File archive) throws IOException {

@@ -736,6 +736,15 @@ public final class Mods {
 
     // the translation a picked file of this size is, or null
     // the release a picked file of this size is (one the player downloads by hand), or null
+    // a release by its patch's file name (an .xdelta unpacked from its archive)
+    public static Release pickedPatch(String name) {
+        synchronized (Mods.class) {
+            for (Release r : RELEASES)
+                if (r.patch != null && !r.patch.isEmpty() && r.patch.substring(r.patch.lastIndexOf('/') + 1).equalsIgnoreCase(name)) return r;
+        }
+        return null;
+    }
+
     public static Release pickedOfSize(long size) {
         synchronized (Mods.class) {
             for (Release r : RELEASES) if (r.urls.length == 0 && r.size == size) return r;
