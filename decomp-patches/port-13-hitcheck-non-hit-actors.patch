@@ -1,0 +1,114 @@
+Reason: port: the hit check leaves out objects listed as hit actors that are none (Super Mario Sunburn's Ricco Harbour THideObjInfo), and never fills its check list past the end
+--- a/src/Strategic/ObjHitCheck.cpp
++++ b/src/Strategic/ObjHitCheck.cpp
+@@ -10,6 +10,37 @@
+ 
+ TObjHitCheck* gpObjHitCheck;
+ 
++#ifdef TARGET_PC
++// Super Mario Sunburn's Ricco Harbour lists THideObjInfo objects (a TActor:
++// what an object switch reveals) among the hit actors. Retail reads their hit
++// fields past the 0x50-byte object, in the next heap block, where a pointer
++// gives an entry radius of almost 0 at 0x80000000. At a relocated MEM1
++// (Android) the same pointer is a huge radius: the actor enters every table
++// slot and the check list overflows into the next heap blocks. Leave objects
++// that are no THitActor out of the hit check.
++static bool portIsHitActorRef(JDrama::TNameRef* ref)
++{
++	return dynamic_cast<THitActor*>(ref) != nullptr;
++}
++
++static bool portIsHitActor(THitActor* actor)
++{
++	// The answer per class (vtable), direct-mapped: a stage has few classes.
++	static const void* s_vtables[64];
++	static bool s_answers[64];
++	const void* vtable = *reinterpret_cast<const void* const*>(actor);
++	u32 slot           = (u32)((uintptr_t)vtable >> 3) & 63;
++	if (s_vtables[slot] != vtable) {
++		s_answers[slot] = portIsHitActorRef(actor);
++		s_vtables[slot] = vtable;
++	}
++	return s_answers[slot];
++}
++
++// Entries in unk800 (7000 in retail, more for Eclipse).
++static u32 s_portCheckListCount;
++#endif
++
+ static bool checkDistance(const JGeometry::TVec3<f32>& param_1, f32 param_2,
+                           f32 param_3, const JGeometry::TVec3<f32>& param_4,
+                           f32 param_5, f32 param_6)
+@@ -141,6 +172,10 @@
+ 
+ void TObjHitCheck::entryActor(THitActor* actor, TObjCheckList* head)
+ {
++#ifdef TARGET_PC
++	if (unk804 >= s_portCheckListCount)
++		return;
++#endif
+ 	if (!actor->checkHitFlag(HIT_FLAG_CANNOT_ATTACK)
+ 	    || !actor->checkHitFlag(HIT_FLAG_CANNOT_GET_HIT)) {
+ 		TObjCheckList* newList = &unk800[unk804];
+@@ -174,6 +209,10 @@
+ 	TIdxGroupObj::iterator end = group->getChildren().end();
+ 	for (TIdxGroupObj::iterator it = group->getChildren().begin(); it != end;
+ 	     ++it) {
++#ifdef TARGET_PC
++		if (!portIsHitActor(*it))
++			continue;
++#endif
+ 		(*it)->mColCount = 0;
+ 
+ 		if ((*it)->checkHitFlag(HIT_FLAG_NO_COLLISION))
+@@ -206,6 +245,10 @@
+ 	TIdxGroupObj::iterator end                   = children.end();
+ 	for (TIdxGroupObj::iterator it = children.begin(); it != end;
+ 	     ++it) {
++#ifdef TARGET_PC
++		if (!portIsHitActor(*it))
++			continue;
++#endif
+ 		(*it)->mColCount = 0;
+ 
+ 		if ((*it)->checkHitFlag(HIT_FLAG_NO_COLLISION))
+@@ -231,6 +274,9 @@
+ 	TIdxGroupObj::iterator end                   = children.end();
+ 
+ 	for (TIdxGroupObj::iterator it = children.begin(); it != end; ++it)
++#ifdef TARGET_PC
++		if (portIsHitActor(*it))
++#endif
+ 		(*it)->mColCount = 0;
+ }
+ 
+@@ -242,6 +288,10 @@
+ 
+ 	for (TIdxGroupObj::iterator it = children.begin(); it != end;
+ 	     ++it) {
++#ifdef TARGET_PC
++		if (!portIsHitActor(*it))
++			continue;
++#endif
+ 		(*it)->mColCount = 0;
+ 		if ((*it)->checkHitFlag(HIT_FLAG_NO_COLLISION))
+ 			continue;
+@@ -262,6 +312,10 @@
+ 	TIdxGroupObj::iterator end = group->getChildren().end();
+ 	for (TIdxGroupObj::iterator it = group->getChildren().begin(); it != end;
+ 	     ++it) {
++#ifdef TARGET_PC
++		if (!portIsHitActor(*it))
++			continue;
++#endif
+ 		(*it)->mColCount = 0;
+ 
+ 		if ((*it)->checkHitFlag(HIT_FLAG_NO_COLLISION))
+@@ -348,6 +402,7 @@
+ 		if (sms_mod_word(0x8021B354, &w) && (w & 0xFFFF0000) == 0x38E00000)
+ 			count = (u32)(s32)(s16)(w & 0xFFFF);
+ 		unk800 = new TObjCheckList[count];
++		s_portCheckListCount = count;
+ 	}
+ #else
+ 	unk800 = new TObjCheckList[7000];
