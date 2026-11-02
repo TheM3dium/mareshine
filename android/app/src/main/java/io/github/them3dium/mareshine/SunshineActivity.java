@@ -209,7 +209,24 @@ public class SunshineActivity extends SDLActivity {
             try { unregisterReceiver(mShaderProgress); } catch (IllegalArgumentException ignored) {}
             mShaderProgress = null;
         }
+        // SDL sends the game its quit and then waits for the game thread with no
+        // limit. A game thread busy elsewhere (waiting on a surface already gone)
+        // never gets to it, and the main thread hung until Android reported the
+        // app as not responding (report bfbb0b0a, TECNO KL4). The game runs in a
+        // process of its own (":game"), so after 2 s it ends without waiting.
+        Thread watchdog = new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                return;
+            }
+            android.util.Log.w("SMS", "the game thread did not quit within 2 s; ending the game process");
+            android.os.Process.killProcess(android.os.Process.myPid());
+        }, "quit-watchdog");
+        watchdog.setDaemon(true);
+        watchdog.start();
         super.onDestroy();
+        watchdog.interrupt();
     }
 
     // platform/pad's port_open_menu (SDL_AndroidSendMessage)
