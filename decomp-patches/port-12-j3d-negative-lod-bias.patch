@@ -1,0 +1,18 @@
+Reason: port: a negative texture LOD bias is converted through s8, so ARM (which turns a negative float into u8 0) keeps it like the GameCube (black LED background in secret courses, #19)
+--- a/libs/JSystem/src/J3D/J3DGraphBase/J3DTevs.cpp
++++ b/libs/JSystem/src/J3D/J3DGraphBase/J3DTevs.cpp
+@@ -361,7 +361,14 @@
+ 		(magFilter == GX_LINEAR) << 4 |
+ 		(GX2HWFiltConv[minFilter]) << 5 |
+ 		(!edgeLOD) << 8 |
++#ifdef TARGET_PC
++		// port: through s8, as the GameCube's conversion wraps a negative bias
++		// to its two's complement byte; a float straight to u8 is 0 on ARM, which
++		// lost the LED backgrounds' bias in secret courses (#19)
++		((u8)(s8)(lodBias * 32.0f)) << 9 |
++#else
+ 		((u8)(lodBias * 32.0f)) << 9 |
++#endif
+ 		(maxAniso) << 19 |
+ 		(biasClamp) << 21 |
+ 		(GXTexMode0Ids[id] << 24);
