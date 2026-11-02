@@ -26,7 +26,7 @@ struct GlCache {
     GLenum frontFace, cullFace, depthFunc, logicOp;
     GLenum beq[2], bf[4];
     GLboolean depthMask, cmask[4];
-    float blendColor[4], pointSize, lineWidth;
+    float blendColor[4], pointSize, lineWidth, depthRange[2];
     int activeUnit;
     GLuint tex[8], sampler[8];
     GLuint vao, arrayBuffer, uniformBuffer;

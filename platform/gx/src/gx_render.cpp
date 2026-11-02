@@ -1572,7 +1572,22 @@ static void applyGlState() {
     bool clipOn = g.xfReg[0x05] == 0;
     glcCap(GL_CLIP_DISTANCE0, c.clip0, clipOn);
     glcCap(GL_CLIP_DISTANCE0 + 1, c.clip1, clipOn);
-    glcCap(GL_DEPTH_CLAMP, c.depthClamp, clipOn);
+    // Without clip distances GL's own clip is GX's (android::clipsByDepthRange),
+    // so a depth clamp may not switch it off; the depth range is the
+    // viewport's z: GX's depth at the far plane, and its scale down to the near.
+    const bool byRange = android::clipsByDepthRange();
+    glcCap(GL_DEPTH_CLAMP, c.depthClamp, clipOn && !byRange);
+    float range[2] = {0.0f, 1.0f};
+    if (byRange && clipOn) {
+        const float zScale = xff(XFR_VIEWPORT + 2), zFar = xff(XFR_VIEWPORT + 5);
+        range[0] = (zFar - zScale) / 16777215.0f;
+        range[1] = zFar / 16777215.0f;
+    }
+    if (!(c.depthRange[0] == range[0]) || !(c.depthRange[1] == range[1])) {
+        c.depthRange[0] = range[0];
+        c.depthRange[1] = range[1];
+        glDepthRange(range[0], range[1]);
+    }
     uint32_t lp = g.bp[BP_LPSIZE];
     float pt = float((lp >> 8) & 0xFF) / 6.0f * float(s_scale);
     if (pt < 1.0f) pt = 1.0f;

@@ -260,6 +260,7 @@ bool metricActive() { return metricOn; }
 bool geometryShaders() { return geometryExtension != nullptr; }
 void memoryBarrier(unsigned bits) { entry<PFNGLMEMORYBARRIERPROC>("glMemoryBarrier")(GLbitfield(bits)); }
 bool needsRebasedIndices() { return drawBase == rebaseDraw; }
+bool clipsByDepthRange() { return !clipDistance; }
 IndexRange::IndexRange(size_t sourceOffset, int count, int sourceBase, unsigned buffer, const uint32_t* src)
     : offset(sourceOffset), base(sourceBase) {
     if (drawBase != rebaseDraw || !base || count <= 0) return;
@@ -357,9 +358,15 @@ std::string shaderSource(const std::string& source, unsigned type) {
             replace(s, "  gl_ClipDistance[0] = clip.z + clip.w;\n  gl_ClipDistance[1] = -clip.z;\n", "");
             replace(s, "  gl_ClipDistance[0] = 1.0;\n  gl_ClipDistance[1] = 1.0;\n", "");
         }
-        if (!depthClamp && gxClip) {
-            replace(s, "  gl_Position.w = clip.w;\n", "  gl_Position.w = clip.w;\n  if (clip.w > 0.0) gl_Position.z = clamp(gl_Position.z, -clip.w, clip.w);\n");
-        }
+        // GX clips at clip.z = -w (near) and 0 (far). Clamping the depth
+        // instead (as before) clipped nothing: what lay past the far plane was
+        // drawn at the far end, and every triangle across a plane got bent
+        // depths, so the shadow volumes showed for a frame as dark wedges and
+        // the ground flickered in stripes on Mali (no clip distances there).
+        // Here GL's own clipping cuts at those planes, and the depth range
+        // turns the result into GX's depth.
+        if (!clipDistance && gxClip)
+            replace(s, "  gl_Position.z = zw * (2.0 / 16777215.0) - clip.w;\n", "  gl_Position.z = 2.0 * clip.z + clip.w;\n");
         auto at = s.find("void main()");
         if (at != std::string::npos) {
             s.insert(at, "uniform float u_smsPointSize;\n");

@@ -13,6 +13,10 @@ bool needsRebasedIndices();
 // Geometry shaders (GL_EXT/OES_geometry_shader): GX's wide lines need them.
 bool geometryShaders();
 void memoryBarrier(unsigned bits);
+// Without GL_EXT_clip_cull_distance GX's near and far clipping is GL's own:
+// clipping shaders put GX's clip planes at GL's, and the draw's depth range
+// (glDepthRange) gives the depth GX's viewport would (applyGlState).
+bool clipsByDepthRange();
 // Rebase an entire range once when GLES lacks base-vertex draws. Keep the
 // temporary element buffer bound for its ordered colour/depth/metric passes.
 struct IndexRange {
@@ -27,5 +31,6 @@ struct IndexRange {
 inline bool desktopEntry(const char*) { return false; }
 inline std::string shaderSource(const std::string& source, unsigned) { return source; }
 inline bool geometryShaders() { return true; }
+inline bool clipsByDepthRange() { return false; }
 #endif
 }}
