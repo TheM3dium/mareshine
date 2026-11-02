@@ -55,7 +55,7 @@ final class AngleOffer {
         if (on(a) || p.getBoolean(NEVER, false) || !available() || !log.contains("renderer Mali")) return;
         new DlDialog(a).setTitle(t("Try ANGLE?"))
             .setMessage(t("Your device has a Mali GPU. Mareshine can draw the game through ANGLE (Vulkan) instead of "
-                + "its own graphics driver. This is an untested alpha option: it may run better, the same or worse. "
+                + "its own graphics driver. This is an alpha option, only briefly tested so far: it may run better, the same or worse. "
                 + "You can switch it off any time under Settings, Video, Graphics driver."))
             .setNegativeButton(t("Don't ask again"), (d, w) -> p.edit().putBoolean(NEVER, true).apply())
             .setNeutralButton(t("Not now"), null)

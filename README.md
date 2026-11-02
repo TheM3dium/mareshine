@@ -11,6 +11,15 @@ and TVs. Since version 2.0 it runs on the Android branch of
 launcher, touch controls, menus and features on top. Versions 1.x were based on
 [jbcgames/sms-android](https://github.com/jbcgames/sms-android).
 
+> **Built on the work of the decompilation community.** Mareshine exists only because the
+> [Super Mario Sunshine decompilation](https://github.com/doldecomp/sms) turned the game back into
+> source code: years of careful, largely hand-done work by [its contributors](https://github.com/doldecomp/sms/graphs/contributors),
+> matching the original game function by function. Mareshine, like most other ports of the game I
+> know of, stands on that foundation.
+> Mareshine's own part is the Android app around it (launcher, controls, menus, mods) and the fixes
+> that make the game run well on phones, and these are built with the help of AI. I want to thank
+> them for that.
+
 **No game data is included.** You need your own copy of the game: the North American disc
 (GMSE01, revision 0) as an `.iso`. To play in a language other than English, you also need your
 own copy of the European release (GMSP01) as an `.iso`.
@@ -113,12 +122,14 @@ You need JDK 17 and the Android SDK with NDK and CMake. The APK ends up in
 
 ## Credits
 
+- **[doldecomp](https://github.com/doldecomp/sms) and [its contributors](https://github.com/doldecomp/sms/graphs/contributors)**:
+  the Super Mario Sunshine decompilation, years of work matching the game back to source code,
+  the foundation of Mareshine and of most other ports of the game I know of
 - **[chasem-dev](https://github.com/chasem-dev/sms-pc-port)**: the PC port and its Android branch
   that Mareshine runs on, its graphics layer, HD cutscene pack, shader warm-up, save states, cheats
   and framerate patches
 - **[jbcgames](https://github.com/jbcgames/sms-android)**: the Android port Mareshine 1.x was
   based on
-- **[doldecomp](https://github.com/doldecomp/sms)**: the Super Mario Sunshine decompilation
 - **[TwilitRealm](https://github.com/TwilitRealm/dusklight)**: Dusklight, whose launcher and data
   folder inspired Mareshine's
 - **qashto and razius**: the Super Mario Sunshine UHD texture pack

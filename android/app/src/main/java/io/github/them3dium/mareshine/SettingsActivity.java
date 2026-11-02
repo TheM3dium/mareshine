@@ -1183,7 +1183,7 @@ public class SettingsActivity extends AppActivity {
         section("GRAPHICS DRIVER");
         add(new Toggle("SMS_ANGLE", "ANGLE (Vulkan) – Alpha",
             AngleOffer.available()
-                ? "Draws the game through ANGLE on Vulkan instead of your device's own graphics driver. Untested: "
+                ? "Draws the game through ANGLE on Vulkan instead of your device's own graphics driver. Only briefly tested: "
                     + "it may help on devices whose driver shows glitches or runs slowly (often Mali GPUs), or make "
                     + "things worse. Turned off by itself if the game has a problem with it. Restart the game after "
                     + "changing this."
@@ -1847,6 +1847,22 @@ public class SettingsActivity extends AppActivity {
             .show();
     }
 
+    // Where Mareshine comes from, said plainly: the decompilation's years of work
+    // are the base, Mareshine's part is the app and its fixes, made with AI's help.
+    private void showFoundation() {
+        new DlDialog(this)
+            .setTitle(t("Built on the decompilation"))
+            .setMessage(t("Super Mario Sunshine runs in Mareshine because of the decompilation project "
+                + "(doldecomp/sms). Its contributors spent years turning the game back into source code, function by "
+                + "function, largely by hand, and naming what they found. That work is the base of Mareshine and of "
+                + "most other ports of Super Mario Sunshine I know of.\n\nMareshine's own part is the Android app around it: the launcher, "
+                + "controls, menus, mods and the fixes that make the game run well on phones. These are built with the "
+                + "help of AI.\n\nI want to thank them for that."))
+            .setNeutralButton(t("Open the project"), (d, w) -> ModFlows.openPage(this, "https://github.com/doldecomp/sms"))
+            .setPositiveButton(t("OK"), null)
+            .show();
+    }
+
     // each language in its own name; English, the default, says so (for support)
     private static String[] appLanguageNames() {
         String[] n = L.NAMES.clone();
@@ -2210,6 +2226,11 @@ public class SettingsActivity extends AppActivity {
             () -> CrashLog.BuildConfigInfo.version(ctx()), () -> {}));
 
         section("CREDITS");
+        add(new Action("Decompilation",
+            "The Super Mario Sunshine decompilation (doldecomp/sms): years of careful, largely hand-done work by "
+                + "its contributors, turning the game back into source code function by function. Mareshine, like "
+                + "most other ports of the game I know of, is built on it. I want to thank them for that.",
+            () -> "doldecomp", this::showFoundation));
         add(new Action("Android improvements",
             "Data folder, disc check, settings and menus, controller and stick options, touch layout editor, "
                 + "crash logs and Android fixes.",
@@ -2221,9 +2242,6 @@ public class SettingsActivity extends AppActivity {
             "The native PC port this Android version is built on (sms-pc-port), and the English decompilation "
                 + "fork it uses.",
             () -> "chasem-dev", () -> {}));
-        add(new Action("Decompilation",
-            "The Super Mario Sunshine decompilation project (doldecomp/sms) that made the port possible.",
-            () -> "doldecomp", () -> {}));
         add(new Action("GameCube button shapes",
             "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license).",
             () -> "Bkacjios", () -> {}));
