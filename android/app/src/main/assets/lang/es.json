@@ -821,5 +821,15 @@
  "If you opened an issue on GitHub, you can add this code to it.": "Si abriste un issue en GitHub, puedes añadir este código.",
  "Too many reports in a short time. Please try again in an hour.": "Demasiados informes en poco tiempo. Vuelve a intentarlo dentro de una hora.",
  "The report could not be sent. Check the internet connection and try again.": "No se pudo enviar el informe. Comprueba la conexión a internet e inténtalo de nuevo.",
- "Report sent": "Informe enviado"
+ "Report sent": "Informe enviado",
+ "GRAPHICS DRIVER": "CONTROLADOR GRÁFICO",
+ "ANGLE (Vulkan) – Alpha": "ANGLE (Vulkan) – Alfa",
+ "Draws the game through ANGLE on Vulkan instead of your device's own graphics driver. Untested: it may help on devices whose driver shows glitches or runs slowly (often Mali GPUs), or make things worse. Turned off by itself if the game has a problem with it. Restart the game after changing this.": "Dibuja el juego mediante ANGLE sobre Vulkan en lugar del controlador gráfico de tu dispositivo. Sin probar: puede ayudar en dispositivos cuyo controlador muestra fallos gráficos o va lento (a menudo GPU Mali), o empeorar las cosas. Se desactiva solo si el juego tiene problemas con él. Reinicia el juego tras cambiarlo.",
+ "Not available on this device: it needs the ANGLE that Android 15 and later carry. The game uses your device's own graphics driver.": "No disponible en este dispositivo: necesita el ANGLE que incluye Android 15 o posterior. El juego usa el controlador gráfico de tu dispositivo.",
+ "ANGLE switched off": "ANGLE desactivado",
+ "The game had a problem while ANGLE (Vulkan) was on, so Mareshine went back to your device's own graphics driver. You can switch ANGLE on again under Settings, Video, Graphics driver.": "El juego tuvo un problema con ANGLE (Vulkan) activado, así que Mareshine volvió al controlador gráfico de tu dispositivo. Puedes activar ANGLE de nuevo en Ajustes, Vídeo, Controlador gráfico.",
+ "Try ANGLE?": "¿Probar ANGLE?",
+ "Your device has a Mali GPU. Mareshine can draw the game through ANGLE (Vulkan) instead of its own graphics driver. This is an untested alpha option: it may run better, the same or worse. You can switch it off any time under Settings, Video, Graphics driver.": "Tu dispositivo tiene una GPU Mali. Mareshine puede dibujar el juego mediante ANGLE (Vulkan) en lugar de su propio controlador gráfico. Es una opción alfa sin probar: puede ir mejor, igual o peor. Puedes desactivarla cuando quieras en Ajustes, Vídeo, Controlador gráfico.",
+ "Try it": "Probar",
+ "Don't ask again": "No volver a preguntar"
 }

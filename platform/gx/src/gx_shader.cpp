@@ -715,7 +715,11 @@ static void programCacheLoad() {
     } else {
         std::string base = userCacheDir();
         if (base.empty()) return;
-        s_cachePath = base + (sizeof(void*) == 8 ? "/gx-programs-64.bin" : "/gx-programs-32.bin");
+        // ANGLE's programs apart from the device driver's: switching between
+        // them (Mareshine's ANGLE option) would otherwise empty the other's
+        const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+        const bool angle = renderer && strstr(renderer, "ANGLE");
+        s_cachePath = base + (sizeof(void*) == 8 ? "/gx-programs-64" : "/gx-programs-32") + (angle ? "-angle" : "") + ".bin";
     }
     const uint64_t driver = driverId();
     unsigned loaded = 0, stale = 0;

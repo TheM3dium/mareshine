@@ -35,6 +35,9 @@ extern "C" void port_android_performance_shutdown(void) __attribute__((weak));
 #ifdef SMS_GX_HAVE_SDL2
 #include <SDL.h>
 #ifdef __ANDROID__
+#include <dlfcn.h>
+#include <atomic>
+#include <dirent.h>
 #include "gx_android_controller_mapping.h"
 #include "gx_android_controller_profiles.h"
 #endif
@@ -309,6 +312,84 @@ static float fsrScale(float scale, float outW, float outH) {
     return s;
 }
 
+#ifdef __ANDROID__
+// ANGLE keeps what it builds from the game's shaders (its compiled programs
+// and the Vulkan pipelines) only through EGL_ANDROID_blob_cache, which
+// Android's loader would set up for a system-chosen ANGLE; ANGLE loaded by
+// the app gets this one: a file per entry under the app's storage, so a
+// shader is built for Vulkan once, not again in every session (the stutter
+// of a first draw). Bounded at 128 MB; past that, new entries are not kept.
+std::string s_angleCacheDir;  // set when ANGLE is loaded
+std::atomic<long long> s_angleCacheBytes{-1};
+
+std::string angleCacheFile(const void* key, long keySize) {
+    uint64_t h = 1469598103934665603ull;  // FNV-1a
+    for (long i = 0; i < keySize; i++) h = (h ^ static_cast<const uint8_t*>(key)[i]) * 1099511628211ull;
+    char name[32];
+    snprintf(name, sizeof name, "%016llx", (unsigned long long)h);
+    return s_angleCacheDir + name;
+}
+
+void angleCacheSet(const void* key, long keySize, const void* value, long valueSize) {
+    if (s_angleCacheBytes.load() < 0) {
+        long long total = 0;
+        if (DIR* d = opendir(s_angleCacheDir.c_str())) {
+            while (dirent* e = readdir(d)) {
+                struct stat st;
+                if (e->d_name[0] != '.' && stat((s_angleCacheDir + e->d_name).c_str(), &st) == 0) total += st.st_size;
+            }
+            closedir(d);
+        }
+        s_angleCacheBytes = total;
+    }
+    if (s_angleCacheBytes.load() + keySize + valueSize > (128ll << 20)) return;
+    const std::string path = angleCacheFile(key, keySize), part = path + ".part";
+    FILE* f = fopen(part.c_str(), "wb");
+    if (!f) return;
+    const uint32_t ks = uint32_t(keySize);
+    bool ok = fwrite(&ks, 4, 1, f) == 1 && fwrite(key, 1, size_t(keySize), f) == size_t(keySize) &&
+              fwrite(value, 1, size_t(valueSize), f) == size_t(valueSize);
+    if (fclose(f) != 0) ok = false;
+    if (ok && rename(part.c_str(), path.c_str()) == 0) s_angleCacheBytes += 4 + keySize + valueSize;
+    else remove(part.c_str());
+}
+
+long angleCacheGet(const void* key, long keySize, void* value, long valueSize) {
+    FILE* f = fopen(angleCacheFile(key, keySize).c_str(), "rb");
+    if (!f) return 0;
+    long found = 0;
+    uint32_t ks = 0;
+    std::vector<uint8_t> stored(static_cast<size_t>(keySize));
+    if (fread(&ks, 4, 1, f) == 1 && ks == uint32_t(keySize) && fread(stored.data(), 1, stored.size(), f) == stored.size() &&
+        memcmp(stored.data(), key, size_t(keySize)) == 0) {
+        const long at = ftell(f);
+        fseek(f, 0, SEEK_END);
+        found = ftell(f) - at;  // the size, also when the caller only asks for it
+        if (value && valueSize >= found) {
+            fseek(f, at, SEEK_SET);
+            if (fread(value, 1, size_t(found), f) != size_t(found)) found = 0;
+        }
+    }
+    fclose(f);
+    return found;
+}
+
+// After the context is made: hands the cache to ANGLE's display.
+void angleCacheInstall() {
+    if (s_angleCacheDir.empty()) return;
+    mkdir(s_angleCacheDir.c_str(), 0700);
+    using Install = void (*)(void*, void (*)(const void*, long, const void*, long), long (*)(const void*, long, void*, long));
+    auto current = reinterpret_cast<void* (*)()>(SDL_GL_GetProcAddress("eglGetCurrentDisplay"));
+    auto install = reinterpret_cast<Install>(SDL_GL_GetProcAddress("eglSetBlobCacheFuncsANDROID"));
+    if (!current || !install) {
+        logmsg("ANGLE: no EGL_ANDROID_blob_cache, shaders are built again each session");
+        return;
+    }
+    install(current(), angleCacheSet, angleCacheGet);
+    logmsg("ANGLE: shader cache in %s", s_angleCacheDir.c_str());
+}
+#endif
+
 bool openWindow(float scale) {
 #ifdef SDL_HINT_WINDOWS_DPI_SCALING
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "1");
@@ -341,6 +422,57 @@ bool openWindow(float scale) {
     // SDL's resizable-window default otherwise overrides the Activity's
     // landscape orientation with full sensor rotation.
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    // Mareshine's ANGLE option (SMS_ANGLE=1): GLES on Vulkan. Android 15 and
+    // later carry ANGLE in /system/lib64, but an app may not load from there
+    // (linker namespaces), so the two libraries are copied into the app's
+    // own storage, where it may; they need only the NDK's public libraries.
+    // SDL 2 loads the EGL and GLES libraries the two variables name, and
+    // every GL call goes through SDL_GL_GetProcAddress, so all reach ANGLE.
+    // The GLES library is loaded first and kept loaded: EGL's library needs
+    // it by name, which the app's search path would not find. Without ANGLE
+    // the device's own driver stays.
+    if (const char* a = getenv("SMS_ANGLE"); a && *a && strcmp(a, "0") != 0) {
+        std::string dir = SDL_AndroidGetInternalStoragePath() ? SDL_AndroidGetInternalStoragePath() : "";
+        dir += "/angle/";
+        mkdir(dir.c_str(), 0700);
+        bool copied = true;
+        for (const char* name : {"libGLESv2_angle.so", "libEGL_angle.so"}) {
+            const std::string from = std::string("/system/lib64/") + name, to = dir + name;
+            struct stat sf, st;
+            if (stat(from.c_str(), &sf) != 0) {
+                copied = false;
+                break;
+            }
+            if (stat(to.c_str(), &st) == 0 && st.st_size == sf.st_size && st.st_mtime >= sf.st_mtime) continue;
+            FILE* in = fopen(from.c_str(), "rb");
+            FILE* out = in ? fopen((to + ".part").c_str(), "wb") : nullptr;
+            char buf[1 << 16];
+            size_t n;
+            bool ok = in && out;
+            while (ok && (n = fread(buf, 1, sizeof buf, in)) > 0) ok = fwrite(buf, 1, n, out) == n;
+            if (in) fclose(in);
+            if (out && fclose(out) != 0) ok = false;
+            if (!ok || rename((to + ".part").c_str(), to.c_str()) != 0) {
+                remove((to + ".part").c_str());
+                copied = false;
+                break;
+            }
+        }
+        const std::string gles = dir + "libGLESv2_angle.so", egl = dir + "libEGL_angle.so";
+        void* g = copied ? dlopen(gles.c_str(), RTLD_NOW | RTLD_GLOBAL) : nullptr;
+        void* e = g ? dlopen(egl.c_str(), RTLD_NOW | RTLD_LOCAL) : nullptr;
+        if (e) {
+            dlclose(e);  // SDL opens it again; the GLES library stays loaded (g)
+            setenv("SDL_VIDEO_EGL_DRIVER", egl.c_str(), 1);
+            setenv("SDL_VIDEO_GL_DRIVER", gles.c_str(), 1);
+            logmsg("graphics driver: ANGLE (Vulkan), the system's, from %s", dir.c_str());
+            s_angleCacheDir = dir + "cache/";
+        } else {
+            if (g) dlclose(g);
+            logmsg("graphics driver: ANGLE is not available here (%s), the device's own",
+                   copied ? dlerror() : "no ANGLE in /system/lib64");
+        }
+    }
 #endif
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) {
         logmsg("SDL_Init failed: %s", SDL_GetError());
@@ -410,6 +542,9 @@ bool openWindow(float scale) {
         return false;
     }
     SDL_GL_MakeCurrent(s_window, s_glctx);
+#ifdef __ANDROID__
+    angleCacheInstall();
+#endif
     // adaptive vsync (-1) tears only when a frame is late; not every driver has it
     if (SDL_GL_SetSwapInterval(s_vsync) != 0 && s_vsync < 0) SDL_GL_SetSwapInterval(1);
     {  // the picture's size on screen, for FSR 1's modes: the window, or the display it will fill

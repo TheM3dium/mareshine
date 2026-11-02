@@ -1180,6 +1180,16 @@ public class SettingsActivity extends AppActivity {
         add(new Toggle("copy_writeback", "Copy write-back",
             "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.",
             true, false));
+        section("GRAPHICS DRIVER");
+        add(new Toggle("SMS_ANGLE", "ANGLE (Vulkan) – Alpha",
+            AngleOffer.available()
+                ? "Draws the game through ANGLE on Vulkan instead of your device's own graphics driver. Untested: "
+                    + "it may help on devices whose driver shows glitches or runs slowly (often Mali GPUs), or make "
+                    + "things worse. Turned off by itself if the game has a problem with it. Restart the game after "
+                    + "changing this."
+                : "Not available on this device: it needs the ANGLE that Android 15 and later carry. The game uses "
+                    + "your device's own graphics driver.",
+            false, false));
         section("RESET");
         add(new Action("Reset video settings", "Sets the VIDEO tab back to Recommended (HD).", () -> "", () -> {
             for (int k = 0; k < PRESET_KEYS.length; k++) mSettings.put(PRESET_KEYS[k], PRESETS[0][k + 1]);
