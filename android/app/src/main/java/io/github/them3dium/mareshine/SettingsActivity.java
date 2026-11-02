@@ -1883,8 +1883,10 @@ public class SettingsActivity extends AppActivity {
             .setTitle(t("Reset all settings?"))
             .setMessage(t("Every setting goes back to its default. Your disc image, data folder and save games are kept."))
             .setPositiveButton(t("Reset"), (d, w) -> {
+                Map<String, String> was = new LinkedHashMap<>(mSettings);
                 mSettings.clear();
-                for (String[] kv : Settings.DEFAULTS) mSettings.put(kv[0], kv[1]);
+                mSettings.putAll(Settings.defaults());
+                Intro.keepSeen(was, mSettings);
                 saved();
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(PREF_AUTOSTART).apply();
                 CrashLog.setEnabled(this, true);

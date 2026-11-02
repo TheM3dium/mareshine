@@ -54,6 +54,11 @@ final class Intro {
         for (String id : UPDATES_ONLY) add(m, SEEN, id);
     }
 
+    // for Settings' Reset all: the intros seen stay seen
+    static void keepSeen(Map<String, String> from, Map<String, String> to) {
+        if (from.containsKey(SEEN)) to.put(SEEN, from.get(SEEN));
+    }
+
     // for Settings.upgrade: this intro asks
     static void ask(Map<String, String> m, String id) { add(m, ASK, id); }
 
