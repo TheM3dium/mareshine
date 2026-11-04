@@ -447,6 +447,13 @@ BSE_FIXES = TEXTURE_FIXES + CARD_IMAGE_FIXES + optional([RAWADDR_FIX]) + [RAWDAT
      "BSE's console log formats its arguments"),
     ("src/logging.cpp", r"\bOSReport\(msg, vargs\);", r"sms_mod_vreport(msg, vargs);",
      "BSE's console log formats its arguments"),
+    # A position of NaN converts to 0x80000000: the console's 32-bit addresses
+    # wrap the grid cell's offset to the first cell, a 64-bit host faulted
+    # (Super Mario Eclipse's birds; decomp-patches/bounds-08-*).
+    ("src/patches/**/*.cpp",
+     r"(\w+(?:->|\.))(mMoveCollisionRoot|mStaticCollisionRoot)\[(cellX) \+ \((cellZ) \* \w+(?:->|\.)mBlockXCount\)\]",
+     r"(*(TBGCheckListRoot *)((char *)\1\2 + (u32)(\3 + \4 * \1mBlockXCount) * (u32)sizeof(TBGCheckListRoot)))",
+     "the collision grid's cell offset wraps at 32 bits, as on the console"),
 ] + FRAME_RATE_FIXES + ASPECT_RATIO_FIXES
 MOVESET_FIXES = optional(TEXTURE_FIXES + [RAWADDR_FIX]) + CARD_IMAGE_FIXES
 # Super Mario Sunburn: its card banner and icon, and green Yoshi's tongue

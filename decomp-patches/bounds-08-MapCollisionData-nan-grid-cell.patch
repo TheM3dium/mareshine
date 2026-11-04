@@ -1,0 +1,33 @@
+Reason: Retail 32-bit address arithmetic: a NaN position (0x80000000 after conversion) wraps the collision grid cell's offset to the first cell on the console; a 64-bit host faulted (Super Mario Eclipse's Peach's Castle)
+--- a/include/Map/MapCollisionData.hpp
++++ b/include/Map/MapCollisionData.hpp
+@@ -181,6 +181,21 @@
+ 
+ 	// fabricated
+ 	u32 getEntrySize(u16 entry_id) const { return unk40 - unk42[entry_id]; }
++#ifdef TARGET_PC
++	// A position of NaN passes the callers' bounds tests and converts to
++	// 0x80000000 (as fctiwz does on the console). Retail's 32-bit address
++	// arithmetic then wraps the cell's offset to 0 (the element is 36 bytes),
++	// so the console reads the first cell; a 64-bit host would add 64 GiB
++	// (Super Mario Eclipse's Peach's Castle, an enemy with a NaN position).
++	// The offset wraps at 32 bits here too.
++	static const TBGCheckListRoot& gridCell(const TBGCheckListRoot* cells, int x, int z, int width)
++	{
++		u32 offset = (u32)(x + z * width) * (u32)sizeof(TBGCheckListRoot);
++		return *(const TBGCheckListRoot*)((const char*)cells + offset);
++	}
++	const TBGCheckListRoot& getGridRoot14(int x, int z) const { return gridCell(unk14, x, z, unk8); }
++	const TBGCheckListRoot& getGridRoot18(int x, int z) const { return gridCell(unk18, x, z, unk8); }
++#else
+ 	const TBGCheckListRoot& getGridRoot14(int x, int z) const
+ 	{
+ 		return unk14[x + z * unk8];
+@@ -189,6 +204,7 @@
+ 	{
+ 		return unk18[x + z * unk8];
+ 	}
++#endif
+ 	void setGroundPlane(TMapCheckGroundPlane* plane) { mGroundPlane = plane; }
+ 
+ 	TBGCheckData* getCheckDataPoolTop() { return &unk28[unk34]; }
