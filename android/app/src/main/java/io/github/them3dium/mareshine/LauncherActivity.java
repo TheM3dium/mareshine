@@ -233,6 +233,7 @@ public class LauncherActivity extends AppActivity {
                 if (isFinishing() || isDestroyed()) return;
                 ReportSend.offerAfterProblem(this);
                 AngleOffer.afterProblem(this);
+                DeviceInfo.onLauncher(this);
             });
         }
     }

@@ -21,6 +21,9 @@
 //                              as "report:<id>", announced in the developer's
 //                              Discord channel; {"id": "<8 chars>"} for the
 //                              player to quote
+//   POST /device {"install": "<32 hex>", "version", "device", "android", "chip",
+//                 "gpu", "mod", "settings": {...}}   anonymous device info
+//                              200 {"ok": true}
 //   GET  /r/<id>               the report as text (the id is the secret: it is
 //                              only in the Discord message)
 
@@ -117,6 +120,32 @@ async function report(request, env, url) {
   return json({ id: id.slice(0, 8) });
 }
 
+// --- anonymous device info (the player said yes in the app; DeviceInfo.java) ------
+// One entry per install and version, "device:<install>:<version>"; no IP address.
+const DEVICE_DAYS = 400, DEVICE_BYTES = 4096;
+
+async function device(request, env) {
+  let d;
+  try {
+    const text = await request.text();
+    if (text.length > DEVICE_BYTES) return json({ error: "too big" }, 413);
+    d = JSON.parse(text);
+  } catch {
+    return json({ error: "bad json" }, 400);
+  }
+  if (!d || !INSTALL.test(d.install || "")) return json({ error: "bad install" }, 400);
+  const version = line(d.version, 40);
+  const key = "device:" + d.install + ":" + version;
+  if (await env.RATINGS.get(key)) return json({ ok: true });
+  const settings = {};
+  for (const k of ["render_scale", "frame_rate", "widescreen", "msaa"]) settings[k] = line(d.settings && d.settings[k], 20);
+  await env.RATINGS.put(key, JSON.stringify({
+    version, device: line(d.device), android: Number(d.android) || 0, chip: line(d.chip, 80), gpu: line(d.gpu, 80),
+    mod: line(d.mod, 64), settings, day: new Date().toISOString().slice(0, 10),
+  }), { expirationTtl: DEVICE_DAYS * 86400 });
+  return json({ ok: true });
+}
+
 async function agg(env, mod) {
   return (await env.RATINGS.get("agg:" + mod, "json")) || { sum: 0, count: 0 };
 }
@@ -171,6 +200,7 @@ export default {
       return json(a);
     }
     if (request.method === "POST" && url.pathname === "/report") return report(request, env, url);
+    if (request.method === "POST" && url.pathname === "/device") return device(request, env);
     if (request.method === "GET" && url.pathname.startsWith("/r/")) {
       const id = url.pathname.slice(3);
       if (!/^[0-9a-f]{32}$/.test(id)) return json({ error: "not found" }, 404);

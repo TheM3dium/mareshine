@@ -2216,6 +2216,9 @@ public class SettingsActivity extends AppActivity {
             "Sends the game's log and the latest crash and freeze reports straight to the developer, with the "
                 + "names of your files and folders taken out. You can add a note and see first what is sent.",
             () -> "", () -> ReportSend.ask(this, "manual")));
+        if (!Ratings.URL.isEmpty()) add(new Toggle(DeviceInfo.KEY, "Anonymous device info",
+            "Sends anonymous info about your device once after each install and update: phone model, graphics chip, "
+                + "Android and app version, a few settings and the active mod.", false, false));
         section("RESET");
         add(new Action("Reset all settings",
             "Sets every setting back to its default: video (Recommended (HD)), controller, button mapping, "
