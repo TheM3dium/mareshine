@@ -1854,7 +1854,7 @@ public class SettingsActivity extends AppActivity {
             .setTitle(t("Built on the decompilation"))
             .setMessage(t("Super Mario Sunshine runs in Mareshine because of the decompilation project "
                 + "(doldecomp/sms). Its contributors spent years turning the game back into source code, function by "
-                + "function, largely by hand, and naming what they found. That work is the base of Mareshine and of "
+                + "function, largely by hand, and naming its functions and variables. That work is the base of Mareshine and of "
                 + "most other ports of Super Mario Sunshine I know of.\n\nMareshine's own part is the Android app around it: the launcher, "
                 + "controls, menus, mods and the fixes that make the game run well on phones. These are built with the "
                 + "help of AI.\n\nI want to thank them for that."))
@@ -2236,23 +2236,26 @@ public class SettingsActivity extends AppActivity {
                 + "its contributors, turning the game back into source code function by function. Mareshine, like "
                 + "most other ports of the game I know of, is built on it. I want to thank them for that.",
             () -> "doldecomp", this::showFoundation));
-        add(new Action("Android improvements",
-            "Data folder, disc check, settings and menus, controller and stick options, touch layout editor, "
-                + "crash logs and Android fixes.",
-            () -> "TheM3dium", () -> {}));
-        add(new Action("Android port",
-            "The original Android port of the game (sms-android).",
-            () -> "jbcgames", () -> {}));
-        add(new Action("PC port",
-            "The native PC port this Android version is built on (sms-pc-port), and the English decompilation "
-                + "fork it uses.",
+        add(new Action("PC port and Android base",
+            "The native PC port and its Android branch, the base Mareshine runs on (sms-pc-port), and the English "
+                + "decompilation fork it uses.",
             () -> "chasem-dev", () -> {}));
+        add(new Action("Early Android port",
+            "The Android port Mareshine 1.x was based on (sms-android). Mareshine's launcher started from its code.",
+            () -> "jbcgames", () -> {}));
         add(new Action("GameCube button shapes",
-            "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license).",
+            "The shapes of the GameCube touch button style, traced from m-overlay's controller pictures (MIT license). "
+                + "L, R and R+ are Mareshine's own.",
             () -> "Bkacjios", () -> {}));
         add(new Action("Libraries",
             "SDL2 (input, audio, window), stb (images), Dear ImGui and bcdec (graphics layer).",
             () -> "SDL2, stb, ImGui", () -> {}));
+        add(new Action("Mareshine and improvements",
+            "The app around this Android port: the mod manager and the integration of hacks such as Super Mario Eclipse and "
+                + "Sunburn, major port fixes and improvements for a wide range of devices, the data folder, disc "
+                + "check, settings and menus, controller and stick options, touch layout editor, crash logs "
+                + "and everything else that makes Mareshine what it is.",
+            () -> "TheM3dium", () -> {}));
 
         section("LEGAL");
         add(new Action("Disclaimer",
