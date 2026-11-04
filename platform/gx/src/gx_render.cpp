@@ -1595,9 +1595,17 @@ static void applyGlState() {
         c.pointSize = pt;
         glPointSize(pt);
     }
-    if (!(c.lineWidth == 1.0f)) {
-        c.lineWidth = 1.0f;
-        glLineWidth(1.0f);
+    // Without geometry shaders (some GLES drivers) lines are GL's own: as wide
+    // as GX's, rounded up, or the iris wipes' black field (one line per row)
+    // shows the picture through stripes at a raised internal resolution.
+    float lw = 1.0f;
+    if (!android::geometryShaders()) {
+        lw = ceilf(float(lp & 0xFF) / 6.0f * float(s_scale));
+        if (lw < 1.0f) lw = 1.0f;
+    }
+    if (!(c.lineWidth == lw)) {
+        c.lineWidth = lw;
+        glLineWidth(lw);
     }
 }
 
