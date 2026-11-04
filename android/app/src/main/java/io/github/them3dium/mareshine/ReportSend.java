@@ -163,14 +163,21 @@ final class ReportSend {
         return s;
     }
 
-    // The played disc's MD5, for telling a damaged or different disc from a bug
-    // (the game only checks its header, a mod install the whole of it). Kept per
-    // file, size and date: reading a whole disc takes seconds, so the preview on
-    // the main thread only shows a known one, and sending reads it if need be.
+    // Which disc was played, for telling a damaged or different one from a bug.
+    // The player's own disc: the launcher's SHA-1 (it warns at a difference, and
+    // "Play anyway" goes on). A mod's disc: its MD5, kept per file, size and date;
+    // reading it takes seconds, so the preview on the main thread only shows a
+    // known one, and sending reads it if need be.
     private static String disc(Context c, boolean read) {
         Mods.Mod game = Mods.activeGame(c);
         File f = game != null ? game.image() : LauncherActivity.findIsoFile(c);
         if (f == null || !f.isFile()) return "";
+        if (game == null) {
+            String sha1 = DiscCheck.cachedSha1(c, f);
+            return "[report] disc sha1 " + (sha1 == null ? "(not checked)"
+                : sha1 + (DiscCheck.REDUMP_SHA1.equals(sha1) ? " (matches Redump)" : " (DIFFERS from Redump)"))
+                + ", " + f.length() + " bytes\n\n";
+        }
         SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String key = "disc_md5_" + f.getAbsolutePath() + "_" + f.length() + "_" + f.lastModified();
         String md5 = p.getString(key, null);
