@@ -453,6 +453,12 @@ MOVESET_FIXES = optional(TEXTURE_FIXES + [RAWADDR_FIX]) + CARD_IMAGE_FIXES
 # (the same retail floats as Eclipse's).
 SUNBURN_FIXES = optional(TEXTURE_FIXES + [RAWADDR_FIX, RAWDATA_FIX]) + CARD_IMAGE_FIXES + [RAWDATA_REGION_FIX]
 SHI_FIXES = BOOL_RET_FIXES + SHI_WORD_FIXES + SHI_GAME_TYPES + [
+    # The OS keeps these at the bottom of MEM1, which on Android may not be at
+    # 0x80000000 (0 here: no periodic alarm, so streamed music never started).
+    ("include/Dolphin/OS.h", r"\*\(OSTick \*\)(0x800000F[8C])", r"*(OSTick *)sms_mod_lowmem(\1)",
+     "the OS clocks are in the port's MEM1"),
+    ("include/Dolphin/OS.h", r"\*\(u32 \*\)(0x8000002C)", r"*(u32 *)sms_mod_lowmem(\1)",
+     "the OS clocks are in the port's MEM1"),
     # The SDK's OSMessage is a void *, as the port's OS keeps it; declared u32,
     # it was half the size in the 64-bit build. BSE's music streamer queues 16
     # of them in a u32 array, which the port wrote 8 bytes apiece, over the
