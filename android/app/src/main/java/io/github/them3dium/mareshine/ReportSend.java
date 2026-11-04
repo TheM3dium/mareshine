@@ -57,6 +57,7 @@ final class ReportSend {
             noLog(a);
             return;
         }
+        text = disc(a, false) + text;
         android.widget.ScrollView sv = new android.widget.ScrollView(a);
         android.widget.TextView tv = new android.widget.TextView(a);
         tv.setText(text.length() > 20000 ? text.substring(0, 20000) + "\n…" : text);
@@ -162,12 +163,40 @@ final class ReportSend {
         return s;
     }
 
+    // The played disc's MD5, for telling a damaged or different disc from a bug
+    // (the game only checks its header, a mod install the whole of it). Kept per
+    // file, size and date: reading a whole disc takes seconds, so the preview on
+    // the main thread only shows a known one, and sending reads it if need be.
+    private static String disc(Context c, boolean read) {
+        Mods.Mod game = Mods.activeGame(c);
+        File f = game != null ? game.image() : LauncherActivity.findIsoFile(c);
+        if (f == null || !f.isFile()) return "";
+        SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String key = "disc_md5_" + f.getAbsolutePath() + "_" + f.length() + "_" + f.lastModified();
+        String md5 = p.getString(key, null);
+        if (md5 == null && read) {
+            try (InputStream in = new java.io.FileInputStream(f)) {
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+                byte[] buf = new byte[1 << 20];
+                for (int n; (n = in.read(buf)) > 0; ) md.update(buf, 0, n);
+                StringBuilder hex = new StringBuilder();
+                for (byte b : md.digest()) hex.append(String.format("%02x", b));
+                md5 = hex.toString();
+                p.edit().putString(key, md5).apply();
+            } catch (Exception e) {
+                md5 = "unreadable";
+            }
+        }
+        return "[report] disc md5 " + (md5 != null ? md5 : "(read when sending)") + ", " + f.length() + " bytes\n\n";
+    }
+
     private static void send(Activity a, String reason, String note) {
         final Context app = a.getApplicationContext();
         final Handler main = new Handler(Looper.getMainLooper());
         Toast.makeText(a, t("Sending…"), Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             String text = build(app), result;
+            if (text != null) text = disc(app, true) + text;
             boolean ok = false;
             if (text == null) {
                 result = t("There is no log yet. Turn on logs, play until the problem happens, then try again.");
