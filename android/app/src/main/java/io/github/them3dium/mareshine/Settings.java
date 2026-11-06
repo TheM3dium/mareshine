@@ -94,20 +94,40 @@ public final class Settings {
     public static void ensureDefaults(Context ctx) {
         if (DataDir.settingsFile(ctx).exists()) {
             upgrade(ctx);
+            modernCameraXOnce(ctx);
             return;
         }
-        Map<String, String> m = defaults();
+        Map<String, String> m = defaults(ctx);
         Intro.newInstall(m);
         write(ctx, m);
     }
 
     // The defaults, up to date (a new install, and Settings' Reset all): an
     // upgrade must not take them for an older version's settings (#21).
-    public static Map<String, String> defaults() {
+    public static Map<String, String> defaults(Context ctx) {
         Map<String, String> m = new LinkedHashMap<>();
         for (String[] kv : DEFAULTS) m.put(kv[0], kv[1]);
         m.put(REV, Integer.toString(CURRENT_REV));
+        if (Warp.available(ctx)) modernCameraX(m);
         return m;
+    }
+
+    // Test builds: the C-stick and the touch C-stick turn the view the way they
+    // are pushed left and right, as in modern games (the game's own way is reversed).
+    private static final String CAMERA_X_DONE = "SMS_LAUNCHER_DEV_CAMERA_X";
+
+    private static void modernCameraX(Map<String, String> m) {
+        m.put("SMS_CAMERA_INVERT_X", "1");
+        m.put(CAMERA_X_DONE, "1");
+    }
+
+    // Once on a test device with older settings; changed by hand after that, it stays.
+    private static void modernCameraXOnce(Context ctx) {
+        if (!Warp.available(ctx)) return;
+        Map<String, String> m = read(ctx);
+        if (m.containsKey(CAMERA_X_DONE)) return;
+        modernCameraX(m);
+        write(ctx, m);
     }
 
     // Settings written by older versions, brought up to date once (the

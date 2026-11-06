@@ -1885,7 +1885,7 @@ public class SettingsActivity extends AppActivity {
             .setPositiveButton(t("Reset"), (d, w) -> {
                 Map<String, String> was = new LinkedHashMap<>(mSettings);
                 mSettings.clear();
-                mSettings.putAll(Settings.defaults());
+                mSettings.putAll(Settings.defaults(this));
                 Intro.keepSeen(was, mSettings);
                 saved();
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(PREF_AUTOSTART).apply();
