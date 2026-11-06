@@ -58,6 +58,9 @@ public class GameMenuActivity extends AppActivity {
         L.translate(findViewById(android.R.id.content));
         tvNote = findViewById(R.id.tvNote);
         findViewById(R.id.btnResume).setOnClickListener(v -> finish());
+        btnPause = findViewById(R.id.btnPause);
+        btnPause.setContentDescription(t("PAUSE"));
+        btnPause.setOnClickListener(v -> setPaused(!mPaused));
         findViewById(R.id.dim).setOnClickListener(v -> finish());
         findViewById(R.id.btnSaveStates).setOnClickListener(v ->
             startActivityForResult(new Intent(this, SaveStatesActivity.class), REQUEST_STATES));
@@ -455,8 +458,41 @@ public class GameMenuActivity extends AppActivity {
         return true;
     }
 
-    // up and down have nothing to move through in the bar
-    @Override protected java.util.List<View> padItems() { return new java.util.ArrayList<>(); }
+    // down from the bar reaches the pause button in the middle, up goes back
+    private View mBarFocus;
+
+    @Override protected java.util.List<View> padItems() {
+        View cur = getCurrentFocus();
+        if (cur != null && cur != btnPause) mBarFocus = cur;
+        java.util.List<View> items = new java.util.ArrayList<>();
+        items.add(mBarFocus != null ? mBarFocus : findViewById(R.id.btnResume));
+        items.add(btnPause);
+        return items;
+    }
+
+    // --- pause ----------------------------------------------------------------
+
+    private static native void nativeSetPaused(boolean paused);
+
+    private android.widget.ImageButton btnPause;
+    private boolean mPaused;
+
+    private void setPaused(boolean paused) {
+        try {
+            nativeSetPaused(paused);
+        } catch (UnsatisfiedLinkError e) {
+            return;
+        }
+        mPaused = paused;
+        btnPause.setImageResource(paused ? R.drawable.ic_game_play : R.drawable.ic_game_pause);
+        btnPause.setContentDescription(t(paused ? "RESUME" : "PAUSE"));
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mPaused) setPaused(false);  // the game never stays frozen without its menu
+        super.onDestroy();
+    }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {

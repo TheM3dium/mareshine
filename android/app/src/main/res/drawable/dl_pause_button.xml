@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The quick menu's round pause button, over the game: see-through with the menu's edge. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#CCFFC531" />
+            <stroke android:width="3dp" android:color="#FFFFD45A" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="#99FFC531" />
+            <stroke android:width="4dp" android:color="#FFFFC531" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#800A1B30" />
+            <stroke android:width="3dp" android:color="#FF2FB8C9" />
+        </shape>
+    </item>
+</selector>

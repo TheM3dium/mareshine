@@ -147,6 +147,7 @@ public class IntroActivity extends AppActivity {
             case Intro.GAMECUBE_TOUCH: gamecubeTouch(); break;
             case Intro.EDITOR_FOLD: editorFold(); break;
             case Intro.MOD_MANAGER: modManager(); break;
+            case Intro.SKIP_MOVIES: skipMovies(); break;
             default: break;
         }
     }
@@ -231,6 +232,28 @@ public class IntroActivity extends AppActivity {
         done.asks = true;
         done.back = true;
         mPages.add(done);
+    }
+
+    private void skipMovies() {
+        mPages.add(new Page(t("New: skip the movies"),
+            t("Seen them all? Settings, VIDEO, Cutscene settings, Skip movies: the game's movies end at once. Your disc and your HD cutscenes stay as they are, and you can switch it back at any time."),
+            this::drawSkip));
+    }
+
+    // two triangles and a bar: the sign for skipping ahead
+    private void drawSkip(Canvas c, Paint p, float w, float h, long ms) {
+        float s = Math.min(w, h) * 0.22f, x = w / 2f - s * 1.1f, y = h * 0.62f;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xFFF4C430);
+        for (int i = 0; i < 2; i++) {
+            android.graphics.Path t = new android.graphics.Path();
+            t.moveTo(x + i * s, y - s * 0.6f);
+            t.lineTo(x + i * s + s, y);
+            t.lineTo(x + i * s, y + s * 0.6f);
+            t.close();
+            c.drawPath(t, p);
+        }
+        c.drawRect(x + 2 * s + s * 0.1f, y - s * 0.6f, x + 2 * s + s * 0.3f, y + s * 0.6f, p);
     }
 
     private void editorFold() {

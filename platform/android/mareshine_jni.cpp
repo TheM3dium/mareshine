@@ -12,6 +12,12 @@ extern "C" void port_log(const char* fmt, ...);
 extern "C" __attribute__((weak)) void* SDL_AndroidGetJNIEnv(void);
 extern "C" __attribute__((weak)) void* SDL_AndroidGetActivity(void);
 
+extern "C" void port_pause_set(int pause);
+extern "C" JNIEXPORT void JNICALL Java_io_github_them3dium_mareshine_GameMenuActivity_nativeSetPaused(JNIEnv*, jclass, jboolean paused)
+{
+	port_pause_set(paused);
+}
+
 #define SAVESTATES(name) Java_io_github_them3dium_mareshine_SaveStates_##name
 extern "C" {
 __attribute__((weak)) jstring SAVESTATES(nativeSlotInfo)(JNIEnv*, jclass, jint);
@@ -47,6 +53,7 @@ const Native kNatives[] = {
 	{ "SaveStates", { "nativeQuickSlot", "()I", (void*)SAVESTATES(nativeQuickSlot) } },
 	{ "SaveStates", { "nativeReady", "()I", (void*)SAVESTATES(nativeReady) } },
 	{ "GameAudio", { "nativeSetVolume", "(II)V", (void*)Java_io_github_them3dium_mareshine_GameAudio_nativeSetVolume } },
+	{ "GameMenuActivity", { "nativeSetPaused", "(Z)V", (void*)Java_io_github_them3dium_mareshine_GameMenuActivity_nativeSetPaused } },
 	{ "Warp", { "nativeList", "()[Ljava/lang/String;", (void*)Java_io_github_them3dium_mareshine_Warp_nativeList } },
 	{ "Warp", { "nativeReady", "()I", (void*)Java_io_github_them3dium_mareshine_Warp_nativeReady } },
 	{ "Warp", { "nativeGo", "(II)V", (void*)Java_io_github_them3dium_mareshine_Warp_nativeGo } },

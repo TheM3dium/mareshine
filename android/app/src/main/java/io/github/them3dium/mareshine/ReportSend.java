@@ -94,10 +94,18 @@ final class ReportSend {
         boolean crash = pick.getName().startsWith("crash");
         final String reason = crash ? "crash" : "freeze";
         new DlDialog(a).setTitle(crash ? t("⚠️ The game crashed last time") : t("⚠️ Mareshine froze last time"))
-            .setMessage(t("A report about it was saved. Send it to the developer? It helps to fix this."))
+            .setMessage(modWarning(a) + t("A report about it was saved. Send it to the developer? It helps to fix this."))
             .setNegativeButton(t("Not now"), null)
             .setPositiveButton(t("Send…"), (d, w) -> ask(a, reason))
             .show();
+    }
+
+    // Switched-on mods we do not offer can be the cause: said first, sending stays possible.
+    private static String modWarning(Activity a) {
+        java.util.List<String> names = Mods.unapprovedOn(a);
+        if (names.isEmpty()) return "";
+        return t("Unsupported mod detected: %s. Switch off mods that are not approved and try again.",
+            String.join(", ", names)) + "\n\n";
     }
 
     // --- building and sending ------------------------------------------------------

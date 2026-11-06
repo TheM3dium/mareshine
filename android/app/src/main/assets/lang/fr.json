@@ -933,5 +933,10 @@
  "Downloading %s… %s of %s": "Téléchargement de %s… %s sur %s",
  "%s HD textures": "Textures HD de %s",
  "There are no Dolphin textures (tex1_….png or .dds) in this file.": "Ce fichier ne contient pas de textures Dolphin (tex1_….png ou .dds).",
- "Cannot move the textures into their folder.": "Impossible de déplacer les textures dans leur dossier."
+ "Cannot move the textures into their folder.": "Impossible de déplacer les textures dans leur dossier.",
+ "Unsupported mod detected: %s. Switch off mods that are not approved and try again.": "Mod non pris en charge détecté : %s. Désactive les mods non approuvés et réessaie.",
+ "Skip movies": "Passer les vidéos",
+ "New: skip the movies": "Nouveau : passer les vidéos",
+ "Seen them all? Settings, VIDEO, Cutscene settings, Skip movies: the game's movies end at once. Your disc and your HD cutscenes stay as they are, and you can switch it back at any time.": "Tu les as toutes vues ? Paramètres, VIDÉO, Paramètres des cinématiques, Passer les vidéos : les vidéos du jeu s'arrêtent aussitôt. Ton disque et tes cinématiques HD restent inchangés, et tu peux revenir en arrière à tout moment.",
+ "PAUSE": "PAUSE"
 }

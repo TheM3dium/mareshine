@@ -1,0 +1,22 @@
+Reason: port (Mareshine): the quick menu pause holds the game thread at the top of its loop.
+--- a/src/System/Application.cpp
++++ b/src/System/Application.cpp
+@@ -1790,11 +1790,18 @@
+ // getVideo()): retail's low region runs to 0xac (the TRect temp) where ours
+ // ended at 0x38, i.e. inline temporaries from an expansion this body lacks;
+ // plus the gpMSound reload noted below.
++#ifdef TARGET_PC
++extern "C" void port_pause_wait(void); // the quick menu's pause (platform)
++#endif
++
+ int TApplication::gameLoop()
+ {
+ 	u32 nextState = APP_STATE_DEFAULT;
+ 	while (nextState <= APP_STATE_DEFAULT) {
+ #ifdef TARGET_PC
++		port_pause_wait();
++#endif
++#ifdef TARGET_PC
+ 		ApplicationSaveStateFrame(this);
+ 		ApplicationSweepFrame(this);
+ 		if (port_ach_game_frame)

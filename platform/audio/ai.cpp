@@ -63,6 +63,9 @@ typedef uint32_t (*PFN_SDL_OpenAudioDevice)(const char*, int, const SdlAudioSpec
 typedef void (*PFN_SDL_PauseAudioDevice)(uint32_t, int);
 typedef const char* (*PFN_SDL_GetError)(void);
 
+PFN_SDL_PauseAudioDevice g_pause_device; // the quick menu's pause holds the output
+uint32_t g_device;
+
 const u32 kRate = 32000;
 const u32 kBlockFrames = 560; // JAudio's DAC block (0x460 samples), 17.5 ms
 const int kBaseBlocks  = 3;   // blocks the output keeps queued
@@ -270,6 +273,8 @@ bool open_sdl()
 		return false;
 	}
 	pa(dev, 0);
+	g_pause_device = pa;
+	g_device       = dev;
 	port_log("[audio] SDL output: %d Hz, %u-frame device buffer\n", have.freq, have.samples);
 	return true;
 }
@@ -424,6 +429,12 @@ void ai_poll()
 }
 
 } // namespace
+
+extern "C" void port_audio_output_pause(int pause)
+{
+	if (g_pause_device)
+		g_pause_device(g_device, pause);
+}
 
 // Called by platform/vi once per retrace. In deterministic mode each retrace
 // owes 32000 * 1001 / 60000 samples; whole DMA blocks become due.

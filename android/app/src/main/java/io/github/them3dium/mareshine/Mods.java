@@ -238,6 +238,15 @@ public final class Mods {
         save(ctx, all);
     }
 
+    // The names of the switched-on mods we do not offer: not the app's own, not in the catalog.
+    public static List<String> unapprovedOn(Context ctx) {
+        java.util.Set<String> approved = new java.util.HashSet<>(java.util.Arrays.asList("eclipse", "sunburn"));
+        for (Release r : catalog(ctx)) approved.add(r.id);
+        List<String> out = new ArrayList<>();
+        for (Mod m : list(ctx)) if (m.enabled && !approved.contains(m.id)) out.add(m.name);
+        return out;
+    }
+
     // The switched-on mods that clash with this one: named as incompatible by
     // either, or another with its own disc image (one game is played)
     public static List<Mod> conflicts(Context ctx, Mod mod) {

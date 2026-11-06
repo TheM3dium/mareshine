@@ -65,6 +65,25 @@ int port_disc_explicit = 0;
 // SMS_SKIP_MOVIES=1 skips cutscenes; looping world textures still play (0016).
 extern "C" int port_skip_movies;
 int port_skip_movies = 0;
+// The quick menu's pause: the game thread waits at the top of its loop, and with
+// it every emulated thread, which only run when it gives up the CPU.
+extern "C" void port_audio_output_pause(int pause);
+static volatile int g_game_paused = 0;
+extern "C" void port_pause_set(int pause)
+{
+	g_game_paused = pause;
+	port_audio_output_pause(pause);
+}
+extern "C" void port_pause_wait(void)
+{
+	while (g_game_paused) {
+#ifdef _WIN32
+		Sleep(10);
+#else
+		usleep(10000);
+#endif
+	}
+}
 // SMS_HEAT_HAZE=0 turns off the heat-wave shimmer (patch zzz-heat-haze-01).
 extern "C" int port_heat_haze;
 int port_heat_haze = 1;

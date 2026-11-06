@@ -88,6 +88,17 @@
             android:background="#FF2FB8C9" />
     </LinearLayout>
 
+    <!-- freezes the game until pressed again or the menu closes -->
+    <ImageButton
+        android:id="@+id/btnPause"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:layout_gravity="center"
+        android:background="@drawable/dl_pause_button"
+        android:contentDescription="PAUSE"
+        android:scaleType="center"
+        android:src="@drawable/ic_game_pause" />
+
     <TextView
         android:id="@+id/tvNote"
         android:layout_width="wrap_content"

@@ -1424,13 +1424,14 @@ public class SettingsActivity extends AppActivity {
         p.intro = CUTSCENE_INTRO;
         p.more = CUTSCENE_MORE;
         p.labels = new String[] {"HD cutscenes", "Download HD cutscenes", "Convert to MP4 (for weaker devices)",
-            "Frame around cutscenes", "Wide movies across the screen"};
+            "Frame around cutscenes", "Wide movies across the screen", "Skip movies"};
         p.values = new java.util.function.Supplier[] {this::cutsceneModeLabel, this::cutsceneState, this::mp4State,
-            () -> frameOn() ? "On" : "Off", () -> fillOn() ? "On" : "Off"};
+            () -> frameOn() ? "On" : "Off", () -> fillOn() ? "On" : "Off", () -> skipMoviesOn() ? "On" : "Off"};
         p.gold = new java.util.function.BooleanSupplier[] {() -> mp4On() || cutscenesOn(), () -> false, () -> false,
-            this::frameOn, this::fillOn};
+            this::frameOn, this::fillOn, this::skipMoviesOn};
         p.acts = new Runnable[] {this::nextCutsceneMode, this::chooseCutscenes, this::chooseMp4, this::toggleFrame,
-            () -> { mSettings.put(FILL_SETTING, fillOn() ? "0" : "1"); saved(); }};
+            () -> { mSettings.put(FILL_SETTING, fillOn() ? "0" : "1"); saved(); },
+            () -> { mSettings.put(SKIP_MOVIES_SETTING, skipMoviesOn() ? "0" : "1"); saved(); }};
         return p;
     }
 
@@ -1438,6 +1439,10 @@ public class SettingsActivity extends AppActivity {
 
     static final String FRAME_SETTING = "SMS_CUTSCENE_FRAME";
     static final String FILL_SETTING = "SMS_MOVIE_FILL"; // wide (2:1) movies across the widened screen; on by default
+
+    static final String SKIP_MOVIES_SETTING = "SMS_SKIP_MOVIES"; // the game's movies end at once; off by default
+
+    private boolean skipMoviesOn() { return "1".equals(mSettings.get(SKIP_MOVIES_SETTING)); }
 
     private boolean fillOn() { return !"0".equals(mSettings.getOrDefault(FILL_SETTING, "1")); }
 
