@@ -23,4 +23,5 @@ That is why the stable version a beta goes back to has a versionCode far above t
 | 2.1.0-beta.2 | 22 |
 | 2.0.2 (as 2.0.1, above every beta to come) | 1000 |
 | betas of 2.1 | 23 to 999 |
-| 2.1.0 | 1001 |
+| test builds of 2.1.0 | 1001 |
+| 2.1.0 | 1002 |
