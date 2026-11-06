@@ -1,0 +1,33 @@
+Reason: port (Mareshine): a mod's model may lack a material the game looks up by name, or have a joint without a child; a 64-bit host faults on both (Galoomba mod, report 0ce13961). The joint guard no longer needs a code mod on.
+--- a/src/MarioUtil/PacketUtil.cpp
++++ b/src/MarioUtil/PacketUtil.cpp
+@@ -336,6 +336,14 @@
+ 
+ static J3DShapePacket* InitPacket_Sub(J3DModel* model, u16 mat_idx)
+ {
++#ifdef TARGET_PC
++	// A mod's model may lack the material the game looks up by name: the
++	// lookup's -1 then indexes past the list. The effect is left out instead.
++	if (mat_idx >= model->getModelData()->getMaterialNum()) {
++		static J3DShapePacket unused;
++		return &unused;
++	}
++#endif
+ 	J3DMaterial* mat = model->getModelData()->getMaterialNodePointer(mat_idx);
+ 	return model->getShapePacket(mat->getShape()->getIndex());
+ }
+--- a/src/MarioUtil/ShadowUtil.cpp
++++ b/src/MarioUtil/ShadowUtil.cpp
+@@ -52,9 +52,9 @@
+ #ifdef TARGET_PC
+ 	// BetterSunshineEngine (shadowCrashPatch and fixShadowPartsCrash, both
+ 	// at retail 0x802320E0 over the child's joint-number load): a joint with
+-	// no child takes joint number 0 instead of reading through null.
+-	if (SMS_MOD_SITE(0x802320E0)
+-	    && !param_1->getModelData()->getJointNodePointer(param_2)->getChild())
++	// no child takes joint number 0 instead of reading through null. Always,
++	// as a mod's model can have such a joint without any code mod on.
++	if (!param_1->getModelData()->getJointNodePointer(param_2)->getChild())
+ 		mChildMtx = param_1->getAnmMtx(0);
+ 	else
+ #endif
