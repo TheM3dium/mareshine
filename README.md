@@ -25,18 +25,43 @@ launcher, touch controls, menus and features on top. Versions 1.x were based on
 own copy of the European release (GMSP01) as an `.iso`.
 
 <p align="center">
-  <img src="docs/screenshots/launcher.jpg" alt="Launcher" width="32%">
-  <img src="docs/screenshots/settings.jpg" alt="Settings" width="32%">
-  <img src="docs/screenshots/touch-layout.jpg" alt="Touch layout editor" width="32%">
+  <img src="docs/screenshots/launcher.jpg" alt="Launcher" width="49%">
+  <img src="docs/screenshots/settings.jpg" alt="Settings" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/mod-manager.jpg" alt="Mod manager with Super Mario Sunburn and Super Mario Eclipse" width="49%">
+  <img src="docs/screenshots/mods-intro.jpg" alt="The discs of Super Mario Eclipse and Super Mario Sunburn in the app's intro" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/touch-layout.jpg" alt="Touch layout editor with the GameCube button style" width="49%">
+  <img src="docs/screenshots/quick-menu.jpg" alt="Quick menu with the round pause button" width="49%">
 </p>
 
 ## Features
+
+### New
+
+- **New: Mod manager**: find mods, switch them on or off, set their order, pick a mod's language and
+  HD textures on its page, rate mods with up to five suns, install mod updates and import your own
+- **New: Super Mario Sunburn and Super Mario Eclipse**: both run in Mareshine, made from your own
+  North American disc
+- **New: ANGLE support** (experimental): draws the game through Vulkan instead of your device's own
+  graphics driver, on Android 15 and newer
+- **New: Deactivate movies**: the game's movies end at once if you want them to; your disc and HD
+  cutscenes stay as they are
+- **New: Proper crash reports right in the app**: share, save or copy your log, or send it to the
+  developer with one tap. Names of your files and folders are taken out, and nothing is sent unless
+  you press **Send**
+- **New: Pause button**: a round button in the quick menu freezes the game and its sound
+- **New: GameCube button style for touch**: the touch buttons in the shapes, colours and places of
+  the GameCube controller, with R and R+ on one button
+- **New: The main menu keeps the game running**: go back to it with RESUME, or start over with RESTART
 
 ### Mareshine
 
 - **Modern UI** inspired by [Dusklight](https://github.com/TwilitRealm/dusklight): a launcher, tabbed
   settings (Game, Video, Input, Cheats, Achievements, Other) with a description for every option,
-  usable with a remote, a controller or touch, and an in-game quick menu (resume, save states,
+  usable with a remote, a controller or touch, and an in-game quick menu (resume, pause, save states,
   achievements, sound, settings, restart, quit), opened with Select pressed twice
 - **Data folder** (as in Dusklight): one folder of your choice holds your settings, saves, disc
   image, texture packs, cutscenes, language packs and logs, and stays when the app is reinstalled
@@ -122,9 +147,12 @@ You need JDK 17 and the Android SDK with NDK and CMake. The APK ends up in
 
 ## Credits
 
-- **[doldecomp](https://github.com/doldecomp/sms) and [its contributors](https://github.com/doldecomp/sms/graphs/contributors)**:
-  the Super Mario Sunshine decompilation, years of work matching the game back to source code,
-  the foundation of Mareshine and of most other ports of the game I know of
+> **Built on the decompilation: [doldecomp](https://github.com/doldecomp/sms) and [its contributors](https://github.com/doldecomp/sms/graphs/contributors).
+> Super Mario Sunshine runs in Mareshine because of the decompilation project. Its contributors spent
+> years turning the game back into source code, function by function, largely by hand, and naming its
+> functions and variables. That work is the base of Mareshine and of most other ports of Super Mario
+> Sunshine I know of. I want to thank them for that.**
+
 - **[chasem-dev](https://github.com/chasem-dev/sms-pc-port)**: the PC port and its Android branch
   that Mareshine runs on, its graphics layer, HD cutscene pack, shader warm-up, save states, cheats
   and framerate patches
