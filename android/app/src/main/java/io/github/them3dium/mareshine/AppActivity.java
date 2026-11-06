@@ -386,9 +386,11 @@ public class AppActivity extends Activity {
     public boolean dispatchGenericMotionEvent(android.view.MotionEvent ev) {
         if (usesPadNav() && ev.isFromSource(android.view.InputDevice.SOURCE_JOYSTICK)
                 && ev.getAction() == android.view.MotionEvent.ACTION_MOVE) {
-            int hx = Math.round(ev.getAxisValue(android.view.MotionEvent.AXIS_HAT_X));
+            int hatX = Math.round(ev.getAxisValue(android.view.MotionEvent.AXIS_HAT_X));
             int hy = Math.round(ev.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y));
+            float sx = ev.getAxisValue(android.view.MotionEvent.AXIS_X);
             float sy = ev.getAxisValue(android.view.MotionEvent.AXIS_Y);
+            int hx = hatX != 0 ? hatX : sx < -0.6f ? -1 : sx > 0.6f ? 1 : 0;  // one step per push, as the D-pad
             int vert = hy != 0 ? hy : sy < -0.6f ? -1 : sy > 0.6f ? 1 : 0;
             // the right stick moves the pointer where a screen has one; the D-pad and left stick the focus
             if (usesPadCursor()) {  // Z/RZ on most controllers, RX/RY on some
