@@ -112,7 +112,6 @@
  "MOVE STICK": "BEWEGUNGS-STICK",
  "Dead zone": "Totzone",
  "How far the stick can move before Mario reacts, in percent of the full throw. Raise it if Mario walks on his own (a worn or drifting stick); lower it for finer control.": "Wie weit sich der Stick bewegen kann, bevor Mario reagiert, in Prozent des vollen Weges. Erhöhe sie, wenn Mario von allein läuft (abgenutzter oder driftender Stick); senke sie für feinere Kontrolle.",
- "Sensitivity": "Empfindlichkeit",
  "Above 100% Mario reaches full speed with less stick movement; below 100% the stick needs to go further. Useful when a controller's sticks do not reach the rim.": "Über 100% erreicht Mario mit weniger Stickweg volle Geschwindigkeit; unter 100% muss der Stick weiter gedrückt werden. Nützlich, wenn die Sticks eines Controllers den Rand nicht erreichen.",
  "CAMERA STICK": "KAMERA-STICK",
  "How far the camera stick can move before the camera turns, in percent of the full throw.": "Wie weit sich der Kamera-Stick bewegen kann, bevor sich die Kamera dreht, in Prozent des vollen Weges.",
@@ -942,7 +941,6 @@
  "PAUSE": "PAUSE",
  "GYROSCOPE": "GYROSKOP",
  "Gyro aiming": "Gyro-Zielen",
- "Gyro sensitivity": "Gyro-Empfindlichkeit",
  "Not available on this device: it needs a gyroscope.": "Auf diesem Gerät nicht verfügbar: Es braucht ein Gyroskop.",
  "How far FLUDD turns when you turn your phone. A higher value aims faster, as far as the game lets it turn.": "Wie weit sich FLUDD dreht, wenn du dein Handy drehst. Ein höherer Wert zielt schneller, soweit das Spiel die Drehung zulässt.",
  "Calibrate gyro": "Gyro kalibrieren",
@@ -1004,7 +1002,6 @@
  "There is nothing new to show on this device right now.": "Auf diesem Gerät gibt es gerade nichts Neues zu zeigen.",
  "TOUR": "TOUR",
  "Here you can invert each direction, if the aim moves the wrong way for you.": "Hier kannst du jede Richtung umkehren, falls das Ziel für dich falsch herum läuft.",
- "Swipe down to the sensitivity: the slider goes in steps of 10, and Exact value takes any number.": "Wische nach unten zur Empfindlichkeit: Der Regler geht in 10er-Schritten, der exakte Wert nimmt jede Zahl.",
  "You choose": "Du wählst",
  "The complete tour, only the newest features, or nothing for now.": "Die komplette Tour, nur die neuesten Funktionen oder erstmal nichts.",
  "Look around (Y) sensitivity": "Empfindlichkeit beim Umschauen (Y)",
@@ -1012,5 +1009,7 @@
  "Reset gyro settings": "Gyro-Einstellungen zurücksetzen",
  "Looking around has its own sensitivity. The game lets FLUDD turn only 42 degrees a second, but the view can turn as fast as you like. That is why this one starts at 50%.": "Das Umschauen hat eine eigene Empfindlichkeit. Das Spiel lässt FLUDD nur 42 Grad pro Sekunde drehen, die Ansicht aber beliebig schnell. Deshalb startet dieser Wert bei 50 %.",
  "How far the view turns when you turn your phone while looking around with Y. The game lets FLUDD turn only 42 degrees a second, but the view can turn as fast as you like. That is why this one starts at 50%.": "Wie weit sich die Ansicht dreht, wenn du dein Handy beim Umschauen mit Y drehst. Das Spiel lässt FLUDD nur 42 Grad pro Sekunde drehen, die Ansicht aber beliebig schnell. Deshalb startet dieser Wert bei 50 %.",
- "Calibration is only needed if FLUDD drifts while you hold your phone still.": "Kalibrieren ist nur nötig, wenn FLUDD wegdriftet, obwohl du dein Handy ruhig hältst."
+ "Calibration is only needed if FLUDD drifts while you hold your phone still.": "Kalibrieren ist nur nötig, wenn FLUDD wegdriftet, obwohl du dein Handy ruhig hältst.",
+ "FLUDD sensitivity": "FLUDD-Empfindlichkeit",
+ "Swipe down to FLUDD's sensitivity: the slider goes in steps of 10, and Exact value takes any number.": "Wische nach unten zur Empfindlichkeit von FLUDD: Der Regler geht in 10er-Schritten, der exakte Wert nimmt jede Zahl."
 }

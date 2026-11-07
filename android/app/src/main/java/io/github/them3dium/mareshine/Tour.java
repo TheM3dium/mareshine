@@ -118,8 +118,8 @@ final class Tour {
                 text = t("Looking around has its own sensitivity. The game lets FLUDD turn only 42 degrees a second, but the view can turn as fast as you like. That is why this one starts at 50%.");
                 break;
             case GYRO_SENSITIVITY:
-                title = t("Sensitivity");
-                text = t("Swipe down to the sensitivity: the slider goes in steps of 10, and Exact value takes any number.");
+                title = t("FLUDD sensitivity");
+                text = t("Swipe down to FLUDD's sensitivity: the slider goes in steps of 10, and Exact value takes any number.");
                 break;
             case GYRO_CALIBRATE:
                 title = t("If the aim drifts");

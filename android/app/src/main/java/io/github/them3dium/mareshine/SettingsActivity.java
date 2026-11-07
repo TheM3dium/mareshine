@@ -1951,7 +1951,7 @@ public class SettingsActivity extends AppActivity {
             };
         }
         // steps of 10%; the slider's own number field takes any value in between
-        p.inlineSlider = new Slider("SMS_GYRO_SENSITIVITY", "Gyro sensitivity", "How far FLUDD turns when you turn your phone. A higher value aims faster, as far as the game lets it turn.", 100, 10, 300, 10);
+        p.inlineSlider = new Slider("SMS_GYRO_SENSITIVITY", "FLUDD sensitivity", "How far FLUDD turns when you turn your phone. A higher value aims faster, as far as the game lets it turn.", 100, 10, 300, 10);
         p.inlineAfter = 2;
         // back to the defaults; a calibration and the on/off switch stay
         p.values[3] = () -> "";
