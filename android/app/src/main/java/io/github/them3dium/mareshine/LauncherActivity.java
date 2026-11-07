@@ -681,8 +681,9 @@ public class LauncherActivity extends AppActivity {
     }
 
     // A hash that differs: first each game file is compared with the good
-    // dump. Broken files (a bad dump or a damaged copy) stop the game, since
-    // it would crash; files changed on purpose (a mod) only get the warning.
+    // dump. Broken files (a bad dump or a damaged copy) get a strong warning,
+    // since the game would most likely crash; files changed on purpose (a mod)
+    // get the mild one.
     private void confirmMismatch(String sha1) {
         String broken = mFoundIsoFile == null ? "" : DiscCheck.cachedBroken(this, mFoundIsoFile);
         if (broken == null) {
@@ -704,18 +705,31 @@ public class LauncherActivity extends AppActivity {
             .show();
     }
 
+    // Broken files: a clear warning, the list one tap away, and the choice
+    // to play anyway stays with the player.
     private void showDamaged(java.util.List<String> broken) {
+        new DlDialog(this)
+            .setTitle(t("❌ This ISO is damaged"))
+            .setMessage(t("Some of the game's files in this disc image are broken (%d). The game will most likely crash or not start.\n\n"
+                + "This happens when a disc was dumped badly, the file was damaged while copying, or an unknown or modified ISO file is used. "
+                + "Dump your disc again or copy the file again, then pick the new one under Settings → GAME → Disc image.",
+                broken.size()))
+            .setNegativeButton(t("Cancel"), null)
+            .setNeutralButton(t("Show broken files"), (d, w) -> showBrokenList(broken))
+            .setPositiveButton(t("Play anyway"), (d, w) -> startGame())
+            .show();
+    }
+
+    private void showBrokenList(java.util.List<String> broken) {
         StringBuilder list = new StringBuilder();
-        int shown = Math.min(5, broken.size());
+        int shown = Math.min(20, broken.size());
         for (int i = 0; i < shown; i++) list.append("• ").append(broken.get(i)).append('\n');
         if (broken.size() > shown) list.append(t("…and %d more", broken.size() - shown)).append('\n');
         new DlDialog(this)
-            .setTitle(t("❌ This ISO is damaged"))
-            .setMessage(t("Some of the game's files in this disc image are broken, so the game would crash:\n\n%s\n"
-                + "This happens when a disc was dumped badly or the file was damaged while copying. "
-                + "Dump your disc again or copy the file again, then pick the new one under Settings → GAME → Disc image.",
-                list.toString()))
-            .setPositiveButton(t("OK"), null)
+            .setTitle(t("Broken files"))
+            .setMessage(list.toString().trim())
+            .setNegativeButton(t("Back"), (d, w) -> showDamaged(broken))
+            .setPositiveButton(t("Play anyway"), (d, w) -> startGame())
             .show();
     }
 
