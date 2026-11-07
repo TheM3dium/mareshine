@@ -41,6 +41,10 @@ own copy of the European release (GMSP01) as an `.iso`.
 
 ### New
 
+- **New: Gyro aiming**: while you aim FLUDD with R+ or look around with Y, turn your phone to move the
+  aim, with its own settings and a guided calibration
+- **New: Swap A and B in menus**: B confirms and A goes back, as on a Nintendo controller
+- **New: Tours**: the app shows you around on its real screens, and you can watch them again at any time
 - **New: Mod manager**: find mods, switch them on or off, set their order, pick a mod's language and
   HD textures on its page, rate mods with up to five suns, install mod updates and import your own
 - **New: Super Mario Sunburn and Super Mario Eclipse**: both run in Mareshine, made from your own
