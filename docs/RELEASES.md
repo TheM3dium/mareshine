@@ -28,3 +28,5 @@ That is why the stable version a beta goes back to has a versionCode far above t
 | 2.1.1 | 1010 |
 | 2.1.2 | 1012 |
 | 2.1.3 | 1014 |
+| test builds of 2.1.3 | 1015 |
+| 2.1.4 | 1016 |
