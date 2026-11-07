@@ -301,15 +301,22 @@ public class SettingsActivity extends AppActivity {
             return;
         }
         if (Tour.GYRO_LOOK.equals(step)) {
-            tourFinger(Gravity.START | Gravity.BOTTOM, "Look around (Y) sensitivity");
-            // scrolled to where the slider's step left off, and on to the row
-            mRightScroll.post(() -> {
-                View target = Tour.pressable(Tour.withText(findViewById(android.R.id.content), t("Look around (Y) sensitivity")));
-                if (target != null) mRightScroll.scrollTo(0, Math.max(0, target.getTop() + mOptList.getTop() - dp(70)));
-            });
+            // the view's own slider, the panel's second
+            View bar = mLastInlineBar;
+            mTour = new Tour(this);
+            mTour.show(Gravity.START | Gravity.BOTTOM, 0.42f, (c, p, ms) ->
+                mTour.tap(c, p, mTour.rectOf(bar), Tour.loop(ms, 2600), 0.45f));
+            mRightScroll.post(() -> mRightScroll.scrollTo(0, Math.max(0, bar.getTop() + mOptList.getTop() - dp(150))));
             return;
         }
         tourFinger(Gravity.START | Gravity.BOTTOM, Tour.GYRO_BEHAVIOR.equals(step) ? "Invert horizontal (X)" : "Calibrate gyro");
+        if (Tour.GYRO_BEHAVIOR.equals(step)) {
+            // the invert rows are below the calibration's hint
+            mRightScroll.post(() -> {
+                View target = Tour.pressable(Tour.withText(findViewById(android.R.id.content), t("Invert horizontal (X)")));
+                if (target != null) mRightScroll.scrollTo(0, Math.max(0, target.getTop() + mOptList.getTop() - dp(70)));
+            });
+        }
     }
 
     // a finger swipes the open panel down to its slider, the panel going along, and
