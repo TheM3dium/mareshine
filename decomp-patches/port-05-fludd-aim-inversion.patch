@@ -61,8 +61,8 @@ Reason: port: invert FLUDD aim only at stationary-spray and first-person aim rea
  	f32 stickX = -unk120->mCompSPos[4];
  	f32 stickY = -unk120->mCompSPos[5];
 +#ifdef TARGET_PC
-+	stickX = port_fludd_aim_axis(stickX, 0);
-+	stickY = port_fludd_aim_axis(stickY, 1);
++	stickX = port_fludd_look_axis(stickX, 0, (f32)CLBLinearInbetween(mCurrentParams->mYAngleManualSpeedXMin, mCurrentParams->mYAngleManualSpeedXMax, mCurrentTarget.unk28));
++	stickY = port_fludd_look_axis(stickY, 1, mCurrentParams->mXRotRatioManualSpeed);
 +#endif
  
  	if (mTargetFreezeFrames == 0) {

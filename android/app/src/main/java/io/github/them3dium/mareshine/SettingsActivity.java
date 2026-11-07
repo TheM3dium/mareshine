@@ -649,7 +649,13 @@ public class SettingsActivity extends AppActivity {
         mRightScroll.scrollTo(0, 0);
         showDescription(sl.desc);
         mOptList.removeAllViews();
+        View bar = addSliderControls(sl);
+        mOptList.setVisibility(View.VISIBLE);
+        bar.requestFocus();
+    }
 
+    // A slider's number, bar and exact field, added to the open list; returns the bar.
+    private View addSliderControls(Slider sl) {
         TextView big = new TextView(this);
         big.setTextColor(0xFFFFC531);
         big.setTypeface(condensed(true));
@@ -765,10 +771,21 @@ public class SettingsActivity extends AppActivity {
             show.run();
             return true;
         });
+        // a controller's left/right steps by one here, where the bar goes in whole steps
+        field.setOnKeyListener((v, code, ev) -> {
+            if (back.onKey(v, code, ev)) return true;
+            int dir = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : 0;
+            if (dir == 0) return false;
+            if (ev.getAction() != KeyEvent.ACTION_DOWN) return true;
+            int now = sl.get();
+            sl.set(dir < 0 && now <= sl.min ? sl.max : dir > 0 && now >= sl.max ? sl.min : now + dir);
+            field.setText(Integer.toString(sl.get()));
+            show.run();
+            return true;
+        });
         mExactField = field;
         mExactPick = () -> pickExact(sl, show, bar, field);
-        mOptList.setVisibility(View.VISIBLE);
-        bar.requestFocus();
+        return bar;
     }
 
     // The exact value with a controller (its keyboard cannot be worked with
@@ -1234,6 +1251,8 @@ public class SettingsActivity extends AppActivity {
         java.util.function.BooleanSupplier[] gold; // the value is shown gold (switched on)
         Runnable[] acts;
         boolean orderedNavigation;
+        Slider inlineSlider;   // shown in the panel itself, under a heading of its own name
+        int inlineAfter;       // after this row
     }
 
     private Panel mPanel;
@@ -1273,7 +1292,7 @@ public class SettingsActivity extends AppActivity {
         showDescription(t(p.intro));
         mOptList.removeAllViews();
         mPanelValues = new TextView[p.labels.length];
-        mPanelItems = new View[p.labels.length];
+        List<View> items = new ArrayList<>();
         View first = null;
         for (int i = 0; i < p.labels.length; i++) {
             final int idx = i;
@@ -1309,7 +1328,7 @@ public class SettingsActivity extends AppActivity {
             v.setTextSize(18);
             v.setGravity(Gravity.END);
             o.addView(v, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            mPanelItems[i] = o;
+            items.add(o);
             if (p.orderedNavigation) o.setOnFocusChangeListener((item, focused) -> {
                 if (focused) item.post(() -> item.requestRectangleOnScreen(
                     new android.graphics.Rect(0, 0, item.getWidth(), item.getHeight()), true));
@@ -1329,7 +1348,27 @@ public class SettingsActivity extends AppActivity {
             lp.topMargin = dp(6);
             mOptList.addView(o, lp);
             if (i == focusIndex) first = o;
+            if (p.inlineSlider != null && p.inlineAfter == i) {
+                TextView heading = new TextView(this);
+                heading.setText(t(p.inlineSlider.label));
+                heading.setTextColor(0xFF5ED3DD);
+                heading.setTypeface(condensed(true));
+                heading.setTextSize(20);
+                heading.setPadding(0, dp(18), 0, dp(6));
+                heading.setFocusable(false);
+                mOptList.addView(heading);
+                TextView about = new TextView(this);
+                about.setText(t(p.inlineSlider.desc));
+                about.setTextColor(DIM);
+                about.setTypeface(condensed(false));
+                about.setTextSize(15);
+                about.setPadding(0, 0, 0, dp(4));
+                mOptList.addView(about);
+                items.add(addSliderControls(p.inlineSlider));
+                items.add(mExactField);
+            }
         }
+        mPanelItems = items.toArray(new View[0]);
         TextView more = new TextView(this);
         more.setText(t(p.more) + (p.note != null ? "\n\n" + t(p.note) : ""));
         more.setTextColor(DIM);
@@ -1737,6 +1776,38 @@ public class SettingsActivity extends AppActivity {
         return p;
     }
 
+    @SuppressWarnings("unchecked")
+    private Panel gyroBehaviorPanel(Row row) {
+        Panel p = new Panel();
+        p.row = row;
+        p.orderedNavigation = true;
+        p.intro = "Inversion, sensitivity and calibration of gyro aiming.";
+        p.more = "Calibrate only if FLUDD drifts while you hold your phone still.";
+        p.labels = new String[] {"Calibrate gyro", "Invert horizontal (X)", "Invert vertical (Y)"};
+        p.sections = new String[] {"Calibration", "Gyroscope", null};
+        p.values = new java.util.function.Supplier[3];
+        p.gold = new java.util.function.BooleanSupplier[3];
+        p.acts = new Runnable[3];
+        String[] keys = {"SMS_GYRO_INVERT_X", "SMS_GYRO_INVERT_Y"};
+        for (int i = 0; i < keys.length; i++) {
+            final String key = keys[i];
+            final int index = i + 1;
+            p.gold[index] = () -> !"0".equals(mSettings.getOrDefault(key, "0"));
+            p.values[index] = () -> p.gold[index].getAsBoolean() ? "On" : "Off";
+            p.acts[index] = () -> {
+                mSettings.put(key, p.gold[index].getAsBoolean() ? "0" : "1");
+                saved();
+            };
+        }
+        // steps of 10%; the slider's own number field takes any value in between
+        p.inlineSlider = new Slider("SMS_GYRO_SENSITIVITY", "Gyro sensitivity", "How far FLUDD turns when you turn your phone. A higher value aims faster, as far as the game lets it turn.", 100, 10, 300, 10);
+        p.inlineAfter = 2;
+        p.values[0] = () -> mSettings.containsKey("SMS_GYRO_OFFSET") ? "Calibrated" : "Not calibrated";
+        p.gold[0] = () -> false;
+        p.acts[0] = () -> startActivity(new Intent(this, GyroCalibrateActivity.class));
+        return p;
+    }
+
     private void buildInput() {
         section("CONTROLLER");
         add(new Choice("SMS_PAD_DEVICE", "Controller",
@@ -1792,6 +1863,16 @@ public class SettingsActivity extends AppActivity {
                 + "slide out of its circle for R+). Drag with a finger or the mouse; pinch or use Size −/+ to resize.",
             () -> TouchDraw.isDefault(mSettings) ? "Default" : "Custom",
             () -> startActivity(new Intent(this, TouchLayoutActivity.class))));
+
+        // the phone's gyroscope aims FLUDD and looks around (platform/pad/pad.cpp)
+        section("GYROSCOPE");
+        boolean gyro = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_GYROSCOPE);
+        add(new Toggle("SMS_GYRO_AIM", "Gyro aiming", gyro ? "While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone." : "Not available on this device: it needs a gyroscope.", false, false));
+        if (gyro)
+            add(new Row("Gyroscope behavior", "Inversion, sensitivity and calibration of gyro aiming.") {
+                @Override void click() { openPanel(gyroBehaviorPanel(this)); }
+                @Override boolean hasArrow() { return true; }
+            });
 
         // both follow the game's own rumble option (platform/pad/rumble_game.cpp)
         section("VIBRATION");

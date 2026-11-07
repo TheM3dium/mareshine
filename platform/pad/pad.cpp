@@ -14,6 +14,7 @@
 #include "gc_adapter.h"
 #include "touch.h"
 #include <dolphin/pad.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <strings.h>
@@ -268,6 +269,33 @@ struct StickAxis {
 StickAxis g_stickAxis[2][2] = { { { -1, 1 }, { -1, 1 } }, { { -1, 1 }, { -1, 1 } } };
 // SMS_FLUDD_INVERT_X / _Y: FLUDD's aim, apart from the camera (port_fludd_aim_axis)
 bool g_invert_aim_x, g_invert_aim_y;
+
+// SMS_GYRO_AIM: turning the phone aims FLUDD while R+ is held and looks around
+// in the Y camera (Android, the phone's own gyroscope). SMS_GYRO_INVERT_X / _Y
+// turn its axes round. SMS_GYRO_SENSITIVITY in percent: at 100 a slow turn
+// aims one to one and a fast one twice as far, within the game's limits.
+// SMS_GYRO_OFFSET: x,y,z in rad/s, what the phone read at rest (Calibrate gyro).
+bool g_gyro_on;
+float g_gyro_sens = 1.0f;
+bool g_gyro_held;             // this frame: R+ down
+bool g_gyro_invert_x, g_gyro_invert_y;
+unsigned g_gyro_frame, g_gyro_looked; // pad reads; the last one with the Y camera's look
+float g_gyro_aim[2];          // this frame: the turn in rad/s, in the aim's directions
+float g_gyro_offset[3];
+bool env_on(const char* name);
+void gyro_read_settings()
+{
+	g_gyro_on       = env_on("SMS_GYRO_AIM");
+	g_gyro_invert_x = env_on("SMS_GYRO_INVERT_X");
+	g_gyro_invert_y = env_on("SMS_GYRO_INVERT_Y");
+	const char* e   = getenv("SMS_GYRO_SENSITIVITY");
+	const float pct = e && atof(e) > 0 ? (float)atof(e) : 100.0f;
+	g_gyro_sens     = pct / 100.0f;
+	const char* off = getenv("SMS_GYRO_OFFSET");
+	if (!off || sscanf(off, "%f,%f,%f", &g_gyro_offset[0], &g_gyro_offset[1], &g_gyro_offset[2]) != 3)
+		g_gyro_offset[0] = g_gyro_offset[1] = g_gyro_offset[2] = 0;
+}
+
 // The MENU button's controller buttons (SMS_PAD_MAP MENU, Select by default):
 // tapped twice, they open the in-game menu.
 int g_menuButtons[4], g_nMenuButtons;
@@ -824,6 +852,7 @@ void init()
 	g_invert_cy = env_on("SMS_CAMERA_INVERT_Y");
 	g_invert_aim_x = env_on("SMS_FLUDD_INVERT_X");
 	g_invert_aim_y = env_on("SMS_FLUDD_INVERT_Y");
+	gyro_read_settings();
 	if (g_invert_cx || g_invert_cy)
 		port_log("[pad] camera inverted:%s%s\n", g_invert_cx ? " X" : "", g_invert_cy ? " Y" : "");
 	const char* path = getenv("SMS_BINDINGS");
@@ -871,6 +900,7 @@ void reload_pad_settings()
 	g_invert_cy    = env_on("SMS_CAMERA_INVERT_Y");
 	g_invert_aim_x = env_on("SMS_FLUDD_INVERT_X");
 	g_invert_aim_y = env_on("SMS_FLUDD_INVERT_Y");
+	gyro_read_settings();
 	port_log("[pad] controller settings changed in the app: applied\n");
 }
 
@@ -1106,6 +1136,135 @@ extern "C" void PADControlAllMotors(const u32* commands) { PADControlMotor(0, co
 
 extern "C" __attribute__((weak)) int port_trace_pad_read(struct PADStatus* status);
 
+#ifdef __ANDROID__
+// SDL's sensor API, found at run time as the rest of this file finds SDL.
+namespace {
+struct GyroApi {
+	int (*wasInit)(uint32_t);
+	int (*initSub)(uint32_t);
+	int (*num)(void);
+	int (*type)(int);
+	void* (*open)(int);
+	void (*close)(void*);
+	void (*update)(void);
+	int (*data)(void*, float*, int);
+	int (*orientation)(int);
+};
+
+// Device axes (x right, y up, as in portrait) to the screen's: the turn about
+// its up axis aims sideways, about its right axis up and down. A positive turn
+// about up takes the phone's back to the left; about right, upward.
+void gyro_screen_axes(int orientation, const float* v, float* aboutUp, float* aboutRight)
+{
+	const bool flipped = orientation == 2; // SDL_ORIENTATION_LANDSCAPE_FLIPPED
+	*aboutUp           = flipped ? -v[0] : v[0];
+	*aboutRight        = flipped ? v[1] : -v[1];
+}
+
+// A steady aim with no dead point, after Jibb Smart's GyroWiki ("Good gyro
+// controls", "Soft tiered smoothing"): slow turns (hand shake) are averaged and
+// fade towards nothing at a standstill, while fast turns pass as they are. Slow,
+// meant turns still count, which a hard cut-off would swallow.
+const float kGyroSmoothTo = 0.14f; // rad/s (8 degrees a second): from here on, not averaged
+const float kGyroSoft     = 0.087f; // rad/s (5 degrees a second): from here on, not faded
+const float kGyroFast     = 1.31f;  // rad/s (75 degrees a second): from here on, twice as far
+enum { kGyroSmoothFrames = 6 };
+float g_gyroSmooth[kGyroSmoothFrames][2];
+int g_gyroSmoothAt;
+
+void gyro_steady(float* aim)
+{
+	const float mag    = sqrtf(aim[0] * aim[0] + aim[1] * aim[1]);
+	const float direct = std::max(0.0f, std::min(1.0f, (mag - kGyroSmoothTo / 2) / (kGyroSmoothTo / 2)));
+	float avg[2]       = { 0, 0 };
+	for (int a = 0; a < 2; a++)
+		g_gyroSmooth[g_gyroSmoothAt][a] = aim[a] * (1 - direct);
+	g_gyroSmoothAt = (g_gyroSmoothAt + 1) % kGyroSmoothFrames;
+	for (const auto& past : g_gyroSmooth) {
+		avg[0] += past[0] / kGyroSmoothFrames;
+		avg[1] += past[1] / kGyroSmoothFrames;
+	}
+	aim[0] = aim[0] * direct + avg[0];
+	aim[1] = aim[1] * direct + avg[1];
+	const float out = sqrtf(aim[0] * aim[0] + aim[1] * aim[1]);
+	if (out < kGyroSoft) {
+		aim[0] *= out / kGyroSoft;
+		aim[1] *= out / kGyroSoft;
+	}
+	// finer when slow, further when fast
+	const float gain = 1.0f + std::min(out / kGyroFast, 1.0f);
+	aim[0] *= gain;
+	aim[1] *= gain;
+}
+
+void gyro_update()
+{
+	static GyroApi api;
+	static void* sensor;
+	static bool looked, failed;
+	g_gyro_aim[0] = g_gyro_aim[1] = 0;
+	if (!g_gyro_on || failed) {
+		if (!g_gyro_on && sensor) {
+			api.close(sensor);
+			sensor = nullptr;
+		}
+		return;
+	}
+	if (!looked) {
+		looked = true;
+		*(void**)&api.wasInit     = dlsym(RTLD_DEFAULT, "SDL_WasInit");
+		*(void**)&api.initSub     = dlsym(RTLD_DEFAULT, "SDL_InitSubSystem");
+		*(void**)&api.num         = dlsym(RTLD_DEFAULT, "SDL_NumSensors");
+		*(void**)&api.type        = dlsym(RTLD_DEFAULT, "SDL_SensorGetDeviceType");
+		*(void**)&api.open        = dlsym(RTLD_DEFAULT, "SDL_SensorOpen");
+		*(void**)&api.close       = dlsym(RTLD_DEFAULT, "SDL_SensorClose");
+		*(void**)&api.update      = dlsym(RTLD_DEFAULT, "SDL_SensorUpdate");
+		*(void**)&api.data        = dlsym(RTLD_DEFAULT, "SDL_SensorGetData");
+		*(void**)&api.orientation = dlsym(RTLD_DEFAULT, "SDL_GetDisplayOrientation");
+		if (!api.wasInit || !api.initSub || !api.num || !api.type || !api.open || !api.close || !api.update
+		    || !api.data || !api.orientation) {
+			port_log("[pad] gyro aiming: SDL's sensor functions are missing\n");
+			failed = true;
+			return;
+		}
+	}
+	if (!sensor) {
+		if (!api.wasInit(0x20u /* SDL_INIT_VIDEO */))
+			return; // the window comes first
+		if (api.initSub(0x8000u /* SDL_INIT_SENSOR */) != 0) {
+			port_log("[pad] gyro aiming: no sensors here\n");
+			failed = true;
+			return;
+		}
+		for (int i = 0, n = api.num(); i < n && !sensor; i++)
+			if (api.type(i) == 2 /* SDL_SENSOR_GYRO */)
+				sensor = api.open(i);
+		port_log("[pad] gyro aiming: %s\n", sensor ? "on" : "this device has no gyroscope");
+		if (!sensor) {
+			failed = true;
+			return;
+		}
+	}
+	api.update();
+	float v[3];
+	if (api.data(sensor, v, 3) != 0)
+		return;
+	for (int i = 0; i < 3; i++)
+		v[i] -= g_gyro_offset[i];
+	float aboutUp, aboutRight;
+	gyro_screen_axes(api.orientation(0), v, &aboutUp, &aboutRight);
+	float aim[2] = { -aboutUp, -aboutRight }; // tipping the top away aims down, as players expect
+	gyro_steady(aim);
+	g_gyro_aim[0] = (g_gyro_invert_x ? -aim[0] : aim[0]) * g_gyro_sens;
+	g_gyro_aim[1] = (g_gyro_invert_y ? -aim[1] : aim[1]) * g_gyro_sens;
+}
+} // namespace
+#else
+namespace {
+void gyro_update() {}
+} // namespace
+#endif
+
 extern "C" u32 PADRead(PADStatus* status)
 {
 	// A .dtm movie (platform/trace, SMS_MOVIE) replaces live input.
@@ -1173,8 +1332,11 @@ extern "C" u32 PADRead(PADStatus* status)
 		port_savestate_hotkey(PORT_SAVESTATE_HOTKEY_LOAD_NEWEST);
 	wasSave = save;
 	wasLoad = load;
-	if (blocked)
+	if (blocked) {
+		g_gyro_held   = false;
+		g_gyro_aim[0] = g_gyro_aim[1] = 0;
 		return PAD_CHAN0_BIT;
+	}
 	PADStatus& s = status[0];
 	u16 b        = 0;
 	static const struct {
@@ -1255,6 +1417,9 @@ extern "C" u32 PADRead(PADStatus* status)
 	s.substickX = (s8)(g_invert_cx ? -cx : cx);
 	s.substickY = (s8)(g_invert_cy ? -cy : cy);
 	touch_controls_pad(&s);
+	g_gyro_held = (s.button & PAD_TRIGGER_R) != 0;
+	g_gyro_frame++;
+	gyro_update();
 	// SMS_SWEEP's presses (System/Application.cpp, port_sweep_input)
 	if (g_sweepButtons) {
 		s.button |= g_sweepButtons;
@@ -1351,7 +1516,41 @@ extern "C" float port_fludd_aim_axis(float value, int axis)
 {
 	init();
 	const bool flip = axis == 0 ? g_invert_aim_x : axis == 1 && g_invert_aim_y;
-	return flip ? -value : value;
+	value           = flip ? -value : value;
+	// the Y camera has its own reads (port_fludd_look_axis), and the stick moves it alone there
+	if (!g_gyro_held || (axis != 0 && axis != 1) || g_gyro_aim[axis] == 0.0f || g_gyro_frame - g_gyro_looked <= 1)
+		return value;
+	// rad/s to the aim's value, for the game's 30 steps a second (1 rad/s is
+	// 347.7 of its angle units a step). The stick and the phone add up, up to
+	// a stick's full deflection.
+	const float step = g_gyro_aim[axis] * 347.7f;
+	float out;
+	if (axis == 0) {
+		// sideways: TMario::squating turns 0x100 a step at full, and undoes here
+		// its slow first part (mSquatRotMid*: 0.05 of that speed at 0.7 of the stick)
+		const float mid = 0.7f, midVal = 0.05f;
+		const float rot = std::min(fabsf(step) / 256.0f, 1.0f);
+		out             = rot < midVal ? mid * rot / midVal : mid + (1.0f - mid) * (rot - midVal) / (1.0f - midVal);
+		if (step < 0.0f)
+			out = -out;
+	} else {
+		// up and down: calcGunAngle moves a tenth of value * mRButtonMult (10000) a step
+		out = step / 1000.0f;
+	}
+	return std::max(-1.0f, std::min(1.0f, value + out));
+}
+
+extern "C" float port_fludd_look_axis(float value, int axis, float speed)
+{
+	value         = port_fludd_aim_axis(value, axis);
+	g_gyro_looked = g_gyro_frame;
+	if ((axis != 0 && axis != 1) || g_gyro_aim[axis] == 0.0f || speed <= 0.0f)
+		return value;
+	// a stick to the right or up reads negative here (ctrlLButtonCamera_). Sideways
+	// the speed is in angle units a step; up and down the camera's whole range is
+	// 0 to 1, taken as about 90 degrees: 0.0212 of it a step for 1 rad/s.
+	const float step = axis == 0 ? g_gyro_aim[0] * 347.7f : g_gyro_aim[1] * 0.0212f;
+	return value - step / speed;
 }
 
 // PADClamp comes from the decomp (libs/dolphin/src/pad/Padclamp.c, see CMakeLists.txt).
