@@ -974,5 +974,11 @@
  "Angle": "Angolo",
  "Good": "Buono",
  "Bad": "Cattivo",
- "(Take this info with a pinch of salt: if your phone really lies flat, you're good to go.)": "(Prendilo con le pinze: se il telefono è davvero in piano, va tutto bene.)"
+ "(Take this info with a pinch of salt: if your phone really lies flat, you're good to go.)": "(Prendilo con le pinze: se il telefono è davvero in piano, va tutto bene.)",
+ "Swap A and B in menus": "Scambia A e B nei menu",
+ "For Nintendo-style controllers: B confirms and A goes back in the app's menus. The game's own buttons stay as they are.": "Per i controller in stile Nintendo: nei menu dell'app B conferma e A torna indietro. I pulsanti del gioco restano invariati.",
+ "◀ ▶  ±1     ▲ ▼  ±10     B  OK     A  Cancel": "◀ ▶  ±1     ▲ ▼  ±10     B  OK     A  Annulla",
+ "In SEARCH MODS, tap a mod (or press B). The app downloads it and makes it from your disc. For some mods you pick the downloaded file instead.": "In CERCA MOD, tocca una mod (o premi B). L'app la scarica e la crea dal tuo disco. Per alcune mod scegli invece il file scaricato.",
+ "Tap the suns at the top (or press B on them) and give the mod one to five suns. Everyone sees the average of all players' ratings. You can change yours once an hour.": "Tocca i soli in alto (o premi B su di essi) e dai alla mod da uno a cinque soli. Tutti vedono la media dei voti dei giocatori. Puoi cambiare il tuo una volta all'ora.",
+ "Tap a mod shortly (or press B) to open its own page with all its settings.": "Tocca brevemente una mod (o premi B) per aprire la sua pagina con tutte le sue impostazioni."
 }

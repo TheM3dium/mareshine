@@ -30,6 +30,12 @@ public class AppActivity extends Activity {
     static final int REF_WIDTH_DP = 960, REF_HEIGHT_DP = 540;
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        MenuKeys.load(this);
+    }
+
+    @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
         Configuration c = scaledConfiguration(base);
@@ -194,7 +200,7 @@ public class AppActivity extends Activity {
     // `dimmed[i]`: the entry shows greyed out (its action says why it cannot be done now)
     android.app.Dialog choice(String title, String message, String[] labels, Runnable[] actions, boolean[] dimmed) {
         final float d = getResources().getDisplayMetrics().density;
-        final android.app.Dialog dlg = new android.app.Dialog(this);
+        final android.app.Dialog dlg = new MenuDialog(this);
         dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         android.widget.LinearLayout panel = new android.widget.LinearLayout(this);
         panel.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -543,7 +549,8 @@ public class AppActivity extends Activity {
     };
 
     @Override
-    public boolean dispatchKeyEvent(KeyEvent ev) {
+    public boolean dispatchKeyEvent(KeyEvent original) {
+        KeyEvent ev = MenuKeys.apply(original);
         if (!usesPadNav()) return super.dispatchKeyEvent(ev);
         int code = ev.getKeyCode();
         boolean down = ev.getAction() == KeyEvent.ACTION_DOWN, first = down && ev.getRepeatCount() == 0;

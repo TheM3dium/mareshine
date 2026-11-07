@@ -86,8 +86,9 @@ final class Tour {
                 break;
             case SEARCH:
                 title = t("Finding mods");
-                text = t("In SEARCH MODS, tap a mod (or press A). The app downloads it and makes it from your disc. For "
-                    + "some mods you pick the downloaded file instead.");
+                text = t(MenuKeys.swapped()
+                    ? "In SEARCH MODS, tap a mod (or press B). The app downloads it and makes it from your disc. For some mods you pick the downloaded file instead."
+                    : "In SEARCH MODS, tap a mod (or press A). The app downloads it and makes it from your disc. For some mods you pick the downloaded file instead.");
                 break;
             case INSTALLED:
                 title = t("Managing them");
@@ -95,8 +96,9 @@ final class Tour {
                 break;
             case RATE:
                 title = t("Rating mods");
-                text = t("Tap the suns at the top (or press A on them) and give the mod one to five suns. Everyone sees "
-                    + "the average of all players' ratings. You can change yours once an hour.");
+                text = t(MenuKeys.swapped()
+                    ? "Tap the suns at the top (or press B on them) and give the mod one to five suns. Everyone sees the average of all players' ratings. You can change yours once an hour."
+                    : "Tap the suns at the top (or press A on them) and give the mod one to five suns. Everyone sees the average of all players' ratings. You can change yours once an hour.");
                 break;
             default:
                 title = t("The mod's page");

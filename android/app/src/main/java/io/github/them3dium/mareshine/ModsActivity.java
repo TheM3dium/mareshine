@@ -110,8 +110,9 @@ public class ModsActivity extends AppActivity {
         });
         if (search) return;
         // then: a short tap opens a mod's page; Next shows it, waits, and opens the example's
-        mTour.then(t("A mod's own page"), t("Tap a mod shortly (or press A) to open its own page with all its "
-            + "settings."), (c, p, ms) -> {
+        mTour.then(t("A mod's own page"), t(MenuKeys.swapped()
+            ? "Tap a mod shortly (or press B) to open its own page with all its settings."
+            : "Tap a mod shortly (or press A) to open its own page with all its settings."), (c, p, ms) -> {
             closeTourMenu();
             android.graphics.RectF r = mTour.rectOf(mRows.isEmpty() ? null : mRows.get(0));
             if (r != null) mTour.focused(c, r, 0.5f + 0.5f * (float) Math.sin(ms / 400.0));

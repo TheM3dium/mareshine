@@ -793,7 +793,7 @@ public class SettingsActivity extends AppActivity {
     private void pickExact(Slider sl, Runnable show, View back, android.widget.EditText field) {
         final float d = getResources().getDisplayMetrics().density;
         final int[] v = {sl.get()};
-        final android.app.Dialog dlg = new android.app.Dialog(this);
+        final android.app.Dialog dlg = new MenuDialog(this);
         dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
@@ -819,7 +819,7 @@ public class SettingsActivity extends AppActivity {
         nlp.topMargin = nlp.bottomMargin = dp(10);
         panel.addView(num, nlp);
         TextView hint = new TextView(this);
-        hint.setText(t("◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel"));
+        hint.setText(t(MenuKeys.swapped() ? "◀ ▶  ±1     ▲ ▼  ±10     B  OK     A  Cancel" : "◀ ▶  ±1     ▲ ▼  ±10     A  OK     B  Cancel"));
         hint.setTextColor(DIM);
         hint.setTextSize(15);
         panel.addView(hint);
@@ -2182,6 +2182,17 @@ public class SettingsActivity extends AppActivity {
     }
 
     private void buildInterface() {
+        section("CONTROLLER");
+        add(new Toggle(MenuKeys.KEY, "Swap A and B in menus", "For Nintendo-style controllers: B confirms and A goes back in the app's menus. The game's own buttons stay as they are.", false, false) {
+            @Override void click() {
+                super.click();
+                MenuKeys.set("1".equals(mSettings.get(MenuKeys.KEY)));
+            }
+            @Override void step(int dir) {
+                super.step(dir);
+                MenuKeys.set("1".equals(mSettings.get(MenuKeys.KEY)));
+            }
+        });
         section("APP LANGUAGE");
         add(new Choice("", "App language",
             "The language of this app's menus and settings. System follows the device's language. The game's own "

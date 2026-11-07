@@ -55,7 +55,7 @@ final class DlDialog {
 
     Dialog create() {
         final float d = mContext.getResources().getDisplayMetrics().density;
-        final Dialog dlg = new Dialog(mContext);
+        final Dialog dlg = new MenuDialog(mContext);
         dlg.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dlg.setCancelable(mCancelable);
         dlg.setCanceledOnTouchOutside(mCancelable);

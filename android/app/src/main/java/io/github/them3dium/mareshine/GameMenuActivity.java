@@ -170,7 +170,7 @@ public class GameMenuActivity extends AppActivity {
 
     private void showSound() {
         final float d = getResources().getDisplayMetrics().density;
-        final android.app.Dialog dlg = new android.app.Dialog(this);
+        final android.app.Dialog dlg = new MenuDialog(this);
         dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
