@@ -1105,3 +1105,26 @@
                                         *(u32 **)(anmSound + bckId), 1, 0.0f);
          if (yoshi->mActor->mBckInfo) {
              yoshi->mActor->mBckInfo->setMotionBlendRatio(0.0f);
+--- a/sunburn/src/episode_select.cpp
++++ b/sunburn/src/episode_select.cpp
+@@ -6,8 +6,11 @@
+ 
+ // 0x80299230
+ // extern -> SME.cpp
++// The port: the game's call (MarDirectorDirect.cpp, decideNextStageOfExit)
++// gives the flag's value, as Eclipse's assignExitAreaDestination takes it; a
++// TFlagT<u16> taken by value would be read through a pointer there.
+ static void setStageOnExit(TGameSequence *gpSequence, s8 stage, s8 episode,
+-                           JDrama::TFlagT<u16> flag) {
++                           u16 flag) {
+     TMarioGamePad *gpGamePad = gpApplication.mGamePads[0];
+ 
+     if (gpGamePad->mButtons.mInput & TMarioGamePad::EButtons::Z) {
+@@ -17,6 +20,6 @@
+             stage = gpApplication.mCurrentScene.mAreaID;
+         episode = -1;
+     }
+-    gpSequence->set(stage, episode, flag);
++    gpSequence->set(stage, episode, JDrama::TFlagT<u16>(flag));
+ }
+ SMS_PATCH_BL(SMS_PORT_REGION(0x80299230, 0x802910C8, 0, 0), setStageOnExit);
