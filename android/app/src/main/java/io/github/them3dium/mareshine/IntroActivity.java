@@ -32,6 +32,7 @@ import static io.github.them3dium.mareshine.L.t;
 // straight to it.
 public class IntroActivity extends AppActivity {
     static final String EXTRA_ID = "intro";
+    static final String EXTRA_BEFORE = "intro_before";  // the intro this one came right after
 
     // one page: its text, its picture (drawn every frame, ms since the page
     // came), and its choices (none: Next)
@@ -83,10 +84,11 @@ public class IntroActivity extends AppActivity {
         L.init(this);
         mId = getIntent().getStringExtra(EXTRA_ID);
         if (mId == null) { finish(); return; }
-        mAsks = Intro.asks(this, mId);
+        mAsks = Intro.asks(this, mId) || Intro.WELCOME.equals(mId);
         pages();
         for (int i = mPages.size() - 1; i >= 0; i--) if (mPages.get(i).asks && !mAsks) mPages.remove(i);
         if (mPages.isEmpty()) { finishIntro(); return; }
+        if (getIntent().getStringExtra(EXTRA_BEFORE) != null && mPages.get(0).choices.isEmpty()) mPages.get(0).back = true;
         buildUi();
         hideSystemUi();
         show(0);
@@ -148,6 +150,10 @@ public class IntroActivity extends AppActivity {
             case Intro.EDITOR_FOLD: editorFold(); break;
             case Intro.MOD_MANAGER: modManager(); break;
             case Intro.SKIP_MOVIES: skipMovies(); break;
+            case Intro.GYRO_AIMING: gyroAiming(); break;
+            case Intro.SWAP_AB: swapAb(); break;
+            case Intro.TOUR_AGAIN: tourAgain(); break;
+            case Intro.WELCOME: welcome(); break;
             default: break;
         }
     }
@@ -156,6 +162,7 @@ public class IntroActivity extends AppActivity {
 
     private android.graphics.Bitmap mEclipseDisc, mSunburnDisc;  // loaded once
     private int mTourAfter = -1;  // the page Tour's steps on the real screens follow (-1: none)
+    private String[] mTourSteps = Tour.MODS;
     private boolean mTouring;
     private static final int REQUEST_TOUR = 1;
 
@@ -254,6 +261,94 @@ public class IntroActivity extends AppActivity {
             c.drawPath(t, p);
         }
         c.drawRect(x + 2 * s + s * 0.1f, y - s * 0.6f, x + 2 * s + s * 0.3f, y + s * 0.6f, p);
+    }
+
+    private void gyroAiming() {
+        mPages.add(new Page(t("New: gyro aiming"), t("While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone. Your stick still works as well."), this::drawGyroPhone));
+        mTourAfter = 0;
+        mTourSteps = Tour.GYRO;
+    }
+
+    private void welcome() {
+        Page page = new Page(t("Welcome to Mareshine!"), t("Mareshine can show you its features since version 2.1 in a short tour. Do you want to see all of it, only the newest features, or skip it? You can watch the tour at any time under OTHER, Tour."), this::drawLogo);
+        page.choice(t("Complete tour"), () -> chooseTours(true, false));
+        page.choice(t("Newest features"), () -> chooseTours(false, true));
+        page.choice(t("Skip for now"), () -> chooseTours(false, false));
+        mPages.add(page);
+    }
+
+    private void chooseTours(boolean all, boolean newest) {
+        Intro.choose(this, all, newest);
+        finishIntro();
+    }
+
+    private void tourAgain() {
+        mPages.add(new Page(t("Missed a tour?"), t("You can watch every tour again at any time."), this::drawLogo));
+        mTourAfter = 0;
+        mTourSteps = Tour.AGAIN;
+    }
+
+    private android.graphics.Bitmap mLogo;
+
+    private void drawLogo(Canvas c, Paint p, float w, float h, long ms) {
+        if (mLogo == null) mLogo = android.graphics.BitmapFactory.decodeResource(getResources(), R.drawable.mareshine_logo);
+        if (mLogo == null) return;
+        float bw = dp(230), bh = bw * mLogo.getHeight() / mLogo.getWidth(), cy = h * 0.67f;
+        cy += (float) Math.sin(ms / 900.0) * dp(4);
+        c.drawBitmap(mLogo, null, new android.graphics.RectF(w / 2 - bw / 2, cy - bh / 2, w / 2 + bw / 2, cy + bh / 2), p);
+    }
+
+    private void swapAb() {
+        mPages.add(new Page(t("New: swap A and B"), t("Would you rather confirm with B and go back with A, as on a Nintendo controller? The game's own buttons stay as they are."), this::drawSwapAb));
+        mTourAfter = 0;
+        mTourSteps = Tour.AB;
+    }
+
+    // a phone seen from the front, turning from side to side, its aim going along
+    private void drawGyroPhone(Canvas c, Paint p, float w, float h, long ms) {
+        float cx = w / 2f, cy = h * 0.7f, pw = dp(190), ph = dp(88);
+        float swing = (float) Math.sin(ms / 900.0);
+        c.save();
+        c.translate(cx, cy);
+        c.scale(1f - 0.16f * Math.abs(swing), 1f);
+        c.rotate(swing * 4f);
+        android.graphics.RectF r = new android.graphics.RectF(-pw / 2, -ph / 2, pw / 2, ph / 2);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xFFD6E0EA);
+        c.drawRoundRect(r, dp(14), dp(14), p);
+        r.inset(dp(7), dp(7));
+        p.setColor(0xFF10304C);
+        c.drawRoundRect(r, dp(8), dp(8), p);
+        float ax = swing * pw * 0.3f;
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(dp(3));
+        p.setColor(0xFFFFC531);
+        c.drawCircle(ax, 0, dp(13), p);
+        c.drawLine(ax - dp(20), 0, ax - dp(8), 0, p);
+        c.drawLine(ax + dp(8), 0, ax + dp(20), 0, p);
+        c.drawLine(ax, -dp(20), ax, -dp(8), p);
+        c.drawLine(ax, dp(8), ax, dp(20), p);
+        p.setStyle(Paint.Style.FILL);
+        c.restore();
+    }
+
+    // A and B changing places
+    private void drawSwapAb(Canvas c, Paint p, float w, float h, long ms) {
+        float loop = (ms % 3600) / 3600f;
+        float t = loop < 0.3f ? 0f : loop < 0.5f ? (loop - 0.3f) / 0.2f : loop < 0.8f ? 1f : 1f - (loop - 0.8f) / 0.2f;
+        t = t * t * (3 - 2 * t);
+        float cy = h * 0.72f, gap = dp(70), rad = dp(34);
+        float lift = (float) Math.sin(t * Math.PI) * dp(26);
+        float ax = w / 2f + gap * (2 * t - 1), bx = w / 2f - gap * (2 * t - 1);
+        button(c, p, ax, cy - lift, rad, 0xFF2FB56A, "A");
+        button(c, p, bx, cy + lift, rad, 0xFFE5534B, "B");
+    }
+
+    private void button(Canvas c, Paint p, float x, float y, float rad, int color, String label) {
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(color);
+        c.drawCircle(x, y, rad, p);
+        text(c, p, label, x, y + rad * 0.42f, rad * 1.2f, 0xFFFFFFFF, Paint.Align.CENTER);
     }
 
     private void editorFold() {
@@ -727,7 +822,7 @@ public class IntroActivity extends AppActivity {
                 if (first == null) first = b;
             }
         } else {
-            boolean last = index == mPages.size() - 1;
+            boolean last = index == mPages.size() - 1 && index != mTourAfter;
             if (page.back) {
                 Button back = button(t("Back"), false);
                 back.setOnClickListener(v -> back());
@@ -772,8 +867,15 @@ public class IntroActivity extends AppActivity {
 
     // Back: to the choice before this page, else the page before
     private void back() {
+        String before = getIntent().getStringExtra(EXTRA_BEFORE);
+        if (mIndex == 0 && before != null) {  // the first page: the intro before this one
+            startActivity(new android.content.Intent(this, IntroActivity.class).putExtra(EXTRA_ID, before));
+            finish();
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+            return;
+        }
         if (mTourAfter >= 0 && mIndex == mTourAfter + 1) {  // the page after the steps: their last again
-            startTour(Tour.count() - 1);
+            startTour(mTourSteps.length - 1);
             return;
         }
         for (int i = mIndex - 1; i >= 0; i--)
@@ -795,8 +897,8 @@ public class IntroActivity extends AppActivity {
     private void startTour(int step) {
         if (mTouring) return;
         mTouring = true;
-        Mods.tourStart(this);
-        startActivityForResult(Tour.intent(this, step), REQUEST_TOUR);
+        if (mTourSteps == Tour.MODS) Mods.tourStart(this);
+        startActivityForResult(Tour.intent(this, mTourSteps, step), REQUEST_TOUR);
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
@@ -804,7 +906,7 @@ public class IntroActivity extends AppActivity {
     protected void onActivityResult(int request, int result, android.content.Intent data) {
         super.onActivityResult(request, result, data);
         if (request != REQUEST_TOUR) return;
-        Mods.tourEnd(this);
+        if (mTourSteps == Tour.MODS) Mods.tourEnd(this);
         mTouring = false;
         if (result == Tour.RESULT_BACK) {  // Back on its first step: the page before the steps
             if (mIndex != mTourAfter) show(mTourAfter);
@@ -823,7 +925,7 @@ public class IntroActivity extends AppActivity {
         String next = Intro.pending(this);
         View root = findViewById(android.R.id.content);
         if (mView == null || root == null) {
-            if (next != null) startActivity(new android.content.Intent(this, IntroActivity.class).putExtra(EXTRA_ID, next));
+            if (next != null) startActivity(new android.content.Intent(this, IntroActivity.class).putExtra(EXTRA_ID, next).putExtra(EXTRA_BEFORE, mId));
             finish();
             overridePendingTransition(0, 0);
             return;
@@ -831,7 +933,7 @@ public class IntroActivity extends AppActivity {
         mButtons.setEnabled(false);
         root.animate().alpha(0f).setDuration(450).withEndAction(() -> {
             if (next != null) {
-                startActivity(new android.content.Intent(this, IntroActivity.class).putExtra(EXTRA_ID, next));
+                startActivity(new android.content.Intent(this, IntroActivity.class).putExtra(EXTRA_ID, next).putExtra(EXTRA_BEFORE, mId));
                 finish();
                 overridePendingTransition(0, 0);
             } else {

@@ -277,6 +277,9 @@ bool g_invert_aim_x, g_invert_aim_y;
 // SMS_GYRO_OFFSET: x,y,z in rad/s, what the phone read at rest (Calibrate gyro).
 bool g_gyro_on;
 float g_gyro_sens = 1.0f;
+// SMS_GYRO_LOOK_SENSITIVITY: the Y camera's own, in percent. It is set lower than
+// FLUDD's because the game limits that one's speed (TMario::squating) and not this.
+float g_gyro_look_sens = 1.0f;
 bool g_gyro_held;             // this frame: R+ down
 bool g_gyro_invert_x, g_gyro_invert_y;
 unsigned g_gyro_frame, g_gyro_looked; // pad reads; the last one with the Y camera's look
@@ -291,6 +294,8 @@ void gyro_read_settings()
 	const char* e   = getenv("SMS_GYRO_SENSITIVITY");
 	const float pct = e && atof(e) > 0 ? (float)atof(e) : 100.0f;
 	g_gyro_sens     = pct / 100.0f;
+	const char* look = getenv("SMS_GYRO_LOOK_SENSITIVITY");
+	g_gyro_look_sens = (look && atof(look) > 0 ? (float)atof(look) : 50.0f) / 100.0f;
 	const char* off = getenv("SMS_GYRO_OFFSET");
 	if (!off || sscanf(off, "%f,%f,%f", &g_gyro_offset[0], &g_gyro_offset[1], &g_gyro_offset[2]) != 3)
 		g_gyro_offset[0] = g_gyro_offset[1] = g_gyro_offset[2] = 0;
@@ -1255,8 +1260,8 @@ void gyro_update()
 	gyro_screen_axes(api.orientation(0), v, &aboutUp, &aboutRight);
 	float aim[2] = { -aboutUp, -aboutRight }; // tipping the top away aims down, as players expect
 	gyro_steady(aim);
-	g_gyro_aim[0] = (g_gyro_invert_x ? -aim[0] : aim[0]) * g_gyro_sens;
-	g_gyro_aim[1] = (g_gyro_invert_y ? -aim[1] : aim[1]) * g_gyro_sens;
+	g_gyro_aim[0] = g_gyro_invert_x ? -aim[0] : aim[0];
+	g_gyro_aim[1] = g_gyro_invert_y ? -aim[1] : aim[1];
 }
 } // namespace
 #else
@@ -1523,7 +1528,7 @@ extern "C" float port_fludd_aim_axis(float value, int axis)
 	// rad/s to the aim's value, for the game's 30 steps a second (1 rad/s is
 	// 347.7 of its angle units a step). The stick and the phone add up, up to
 	// a stick's full deflection.
-	const float step = g_gyro_aim[axis] * 347.7f;
+	const float step = g_gyro_aim[axis] * g_gyro_sens * 347.7f;
 	float out;
 	if (axis == 0) {
 		// sideways: TMario::squating turns 0x100 a step at full, and undoes here
@@ -1549,7 +1554,7 @@ extern "C" float port_fludd_look_axis(float value, int axis, float speed)
 	// a stick to the right or up reads negative here (ctrlLButtonCamera_). Sideways
 	// the speed is in angle units a step; up and down the camera's whole range is
 	// 0 to 1, taken as about 90 degrees: 0.0212 of it a step for 1 rad/s.
-	const float step = axis == 0 ? g_gyro_aim[0] * 347.7f : g_gyro_aim[1] * 0.0212f;
+	const float step = (axis == 0 ? g_gyro_aim[0] * 347.7f : g_gyro_aim[1] * 0.0212f) * g_gyro_look_sens;
 	return value - step / speed;
 }
 

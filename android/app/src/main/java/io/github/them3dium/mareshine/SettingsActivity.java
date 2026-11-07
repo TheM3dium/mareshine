@@ -207,6 +207,7 @@ public class SettingsActivity extends AppActivity {
     private final List<Row> mRows = new ArrayList<>();
     private View mExactField;     // the open slider's exact-value field, and its controller picker
     private Runnable mExactPick;
+    private final Map<View, Runnable> mExactPicks = new java.util.HashMap<>();  // a panel can hold two sliders
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -223,8 +224,48 @@ public class SettingsActivity extends AppActivity {
 
     // the mod manager's intro (Tour): the MODS tab, a finger tapping Open mods
     private Tour mTour;
+    private android.app.Dialog mTourDialog;
+    private View mInlineBar;  // the open panel's slider, if it has one
 
     private void tour() {
+        String step = Tour.step(this);
+        if (Tour.GYRO_SWITCH.equals(step) || Tour.GYRO_BEHAVIOR.equals(step) || Tour.GYRO_CALIBRATE.equals(step)
+                || Tour.GYRO_SENSITIVITY.equals(step) || Tour.GYRO_LOOK.equals(step)) {
+            tourGyro(step);
+            return;
+        }
+        if (Tour.TOUR_ROW.equals(step)) {
+            showTab(mTabs.indexOf("OTHER"));
+            tourFinger(Gravity.END | Gravity.BOTTOM, "Tour");
+            for (Row r : mRows) {
+                if (!r.label.equals("Tour")) continue;
+                View row = r.view;
+                mTour.beforeNext(1000, (c, p, ms) -> mTour.tap(c, p, mTour.rectOf(row), ms / 1000f, 0.5f));
+            }
+            return;
+        }
+        if (Tour.TOUR_CHOICE.equals(step)) {
+            showTab(mTabs.indexOf("OTHER"));
+            mTour = new Tour(this);
+            mTour.show(Gravity.END | Gravity.BOTTOM, 0.42f, (c, p, ms) -> {});
+            // the real dialog, only shown: touches and keys go to the tour's buttons
+            mTourDialog = tourDialog().show();
+            android.view.Window w = mTourDialog.getWindow();
+            if (w != null) {
+                w.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    | android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+                w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                android.view.WindowManager.LayoutParams at = w.getAttributes();
+                at.y = -dp(46);  // clear of the step's text
+                w.setAttributes(at);
+            }
+            return;
+        }
+        if (Tour.AB_SWITCH.equals(step)) {
+            showTab(mTabs.indexOf("OTHER"));
+            tourFinger(Gravity.END | Gravity.BOTTOM, "Swap A and B in menus");
+            return;
+        }
         int mods = mTabs.indexOf("MODS");
         if (mods >= 0) showTab(mods);
         mTour = new Tour(this);
@@ -232,6 +273,83 @@ public class SettingsActivity extends AppActivity {
         mTour.show(Gravity.END | Gravity.BOTTOM, 0.42f, (c, p, ms) -> {
             View open = Tour.withText(root, t("Open mods"));
             mTour.tap(c, p, mTour.rectOf(open), Tour.loop(ms, 2600), 0.45f);
+        });
+    }
+
+    // gyro aiming's intro: its rows in INPUT, then the real panel, opened
+    private void tourGyro(String step) {
+        showTab(mTabs.indexOf("INPUT"));
+        Row aiming = null, behavior = null;
+        for (Row r : mRows) {
+            if (r.label.equals("Gyro aiming")) aiming = r;
+            if (r.label.equals("Gyroscope behavior")) behavior = r;
+        }
+        if (behavior == null) { finish(); return; }
+        // the rows are near the end of the tab: scrolled to, as a hand would
+        View row = (aiming != null ? aiming : behavior).view;
+        row.post(() -> row.requestRectangleOnScreen(new android.graphics.Rect(0, 0, row.getWidth(), row.getHeight() * 3), true));
+        if (Tour.GYRO_SWITCH.equals(step)) {
+            tourFinger(Gravity.END | Gravity.BOTTOM, "Gyro aiming");
+            // Next: a tap on the row that opens the next step's panel
+            View open = behavior.view;
+            mTour.beforeNext(1000, (c, p, ms) -> mTour.tap(c, p, mTour.rectOf(open), ms / 1000f, 0.5f));
+            return;
+        }
+        openPanel(gyroBehaviorPanel(behavior));
+        if (Tour.GYRO_SENSITIVITY.equals(step)) {
+            tourSwipeToSlider();
+            return;
+        }
+        if (Tour.GYRO_LOOK.equals(step)) {
+            tourFinger(Gravity.START | Gravity.BOTTOM, "Look around (Y) sensitivity");
+            // scrolled to where the slider's step left off, and on to the row
+            mRightScroll.post(() -> {
+                View target = Tour.pressable(Tour.withText(findViewById(android.R.id.content), t("Look around (Y) sensitivity")));
+                if (target != null) mRightScroll.scrollTo(0, Math.max(0, target.getTop() + mOptList.getTop() - dp(70)));
+            });
+            return;
+        }
+        tourFinger(Gravity.START | Gravity.BOTTOM, Tour.GYRO_BEHAVIOR.equals(step) ? "Invert horizontal (X)" : "Calibrate gyro");
+    }
+
+    // a finger swipes the open panel down to its slider, the panel going along, and
+    // then moves along the slider, which stays as it is
+    private void tourSwipeToSlider() {
+        mTour = new Tour(this);
+        final long swipe = 1400;
+        mTour.show(Gravity.START | Gravity.BOTTOM, 0.42f, (c, p, ms) -> {
+            int[] at = new int[2];
+            mRightScroll.getLocationInWindow(at);
+            android.graphics.RectF pane = mTour.rectOf(mRightScroll);
+            if (pane == null) return;
+            // far enough to show the first slider, whatever follows it
+            int most = Math.min(mRightScroll.getChildAt(0).getHeight() - mRightScroll.getHeight(),
+                mInlineBar.getTop() + mOptList.getTop() - dp(110));
+            if (ms < swipe + 600) {
+                float k = Tour.ease(ms, 300, swipe);
+                mRightScroll.scrollTo(0, Math.round(most * k));
+                float y = pane.bottom - mTour.dp(30) - (pane.height() - mTour.dp(60)) * k;
+                mTour.finger(c, p, pane.centerX(), y, Math.min(1f, ms / 200f) * (ms > swipe + 300 ? Math.max(0f, 1f - (ms - swipe - 300) / 300f) : 1f), ms > 300 && ms < swipe, 0);
+                return;
+            }
+            android.graphics.RectF bar = mTour.rectOf(mInlineBar);
+            if (bar == null) return;
+            float t = Tour.loop(ms - swipe - 600, 2600);
+            float x = bar.left + bar.width() * (0.4f + 0.28f * (float) Math.sin(t * Math.PI * 2));
+            mTour.finger(c, p, x, bar.centerY(), 1f, true, 0);
+        });
+    }
+
+    // the step's text at `gravity`, a finger tapping the row of this label
+    private void tourFinger(int gravity, String label) {
+        mTour = new Tour(this);
+        View root = findViewById(android.R.id.content);
+        mTour.show(gravity, 0.42f, (c, p, ms) -> {
+            // the row itself: a section can have the same name
+            View at = null;
+            for (Row r : mRows) if (r.label.equals(label)) at = r.view;
+            if (at == null) at = Tour.pressable(Tour.withText(root, t(label)));
+            mTour.tap(c, p, mTour.rectOf(at), Tour.loop(ms, 2600), 0.45f);
         });
     }
 
@@ -785,6 +903,7 @@ public class SettingsActivity extends AppActivity {
         });
         mExactField = field;
         mExactPick = () -> pickExact(sl, show, bar, field);
+        mExactPicks.put(field, mExactPick);
         return bar;
     }
 
@@ -866,8 +985,9 @@ public class SettingsActivity extends AppActivity {
 
     @Override
     protected boolean onPadA(View focused) {
-        if (focused != null && focused == mExactField && mExactPick != null) {
-            mExactPick.run();
+        Runnable pick = focused == null ? null : mExactPicks.get(focused);
+        if (pick != null) {
+            pick.run();
             return true;
         }
         return false;
@@ -879,6 +999,7 @@ public class SettingsActivity extends AppActivity {
         mReturnPanel = null;
         mExactField = null;
         mExactPick = null;
+        mExactPicks.clear();
         Row c = mOpen;
         mOpen = null;
         mOptList.removeAllViews();
@@ -1253,6 +1374,9 @@ public class SettingsActivity extends AppActivity {
         boolean orderedNavigation;
         Slider inlineSlider;   // shown in the panel itself, under a heading of its own name
         int inlineAfter;       // after this row
+        String rowNote;        // a line under the first row
+        Slider inlineSlider2;  // a second one, after inlineAfter2 (null: none now)
+        int inlineAfter2;
     }
 
     private Panel mPanel;
@@ -1348,35 +1472,32 @@ public class SettingsActivity extends AppActivity {
             lp.topMargin = dp(6);
             mOptList.addView(o, lp);
             if (i == focusIndex) first = o;
-            if (p.inlineSlider != null && p.inlineAfter == i) {
-                TextView heading = new TextView(this);
-                heading.setText(t(p.inlineSlider.label));
-                heading.setTextColor(0xFF5ED3DD);
-                heading.setTypeface(condensed(true));
-                heading.setTextSize(20);
-                heading.setPadding(0, dp(18), 0, dp(6));
-                heading.setFocusable(false);
-                mOptList.addView(heading);
-                TextView about = new TextView(this);
-                about.setText(t(p.inlineSlider.desc));
-                about.setTextColor(DIM);
-                about.setTypeface(condensed(false));
-                about.setTextSize(15);
-                about.setPadding(0, 0, 0, dp(4));
-                mOptList.addView(about);
-                items.add(addSliderControls(p.inlineSlider));
-                items.add(mExactField);
+            if (p.rowNote != null && i == 0) {
+                TextView note = new TextView(this);
+                note.setText(t(p.rowNote));
+                note.setTextColor(DIM);
+                note.setTypeface(condensed(false));
+                note.setTextSize(15);
+                note.setPadding(0, dp(6), 0, 0);
+                mOptList.addView(note);
             }
+            if (p.inlineSlider != null && p.inlineAfter == i) {
+                addInlineSlider(p.inlineSlider, items);
+                mInlineBar = mLastInlineBar;
+            }
+            if (p.inlineSlider2 != null && p.inlineAfter2 == i) addInlineSlider(p.inlineSlider2, items);
         }
         mPanelItems = items.toArray(new View[0]);
-        TextView more = new TextView(this);
-        more.setText(t(p.more) + (p.note != null ? "\n\n" + t(p.note) : ""));
-        more.setTextColor(DIM);
-        more.setTypeface(condensed(false));
-        more.setTextSize(17);
-        more.setLineSpacing(0, 1.2f);
-        more.setPadding(0, dp(16), 0, 0);
-        mOptList.addView(more);
+        if (p.more != null) {
+            TextView more = new TextView(this);
+            more.setText(t(p.more) + (p.note != null ? "\n\n" + t(p.note) : ""));
+            more.setTextColor(DIM);
+            more.setTypeface(condensed(false));
+            more.setTextSize(17);
+            more.setLineSpacing(0, 1.2f);
+            more.setPadding(0, dp(16), 0, 0);
+            mOptList.addView(more);
+        }
         updatePanel();
         mOptList.setVisibility(View.VISIBLE);
         // Joystick motion does not leave Android touch mode, so a controller
@@ -1387,6 +1508,29 @@ public class SettingsActivity extends AppActivity {
             else first.requestFocusFromTouch();
         }
         mRightScroll.post(this::updateScrollArrows);
+    }
+
+    private View mLastInlineBar;
+
+    private void addInlineSlider(Slider sl, List<View> items) {
+        TextView heading = new TextView(this);
+        heading.setText(t(sl.label));
+        heading.setTextColor(0xFF5ED3DD);
+        heading.setTypeface(condensed(true));
+        heading.setTextSize(20);
+        heading.setPadding(0, dp(18), 0, dp(6));
+        heading.setFocusable(false);
+        mOptList.addView(heading);
+        TextView about = new TextView(this);
+        about.setText(t(sl.desc));
+        about.setTextColor(DIM);
+        about.setTypeface(condensed(false));
+        about.setTextSize(15);
+        about.setPadding(0, 0, 0, dp(4));
+        mOptList.addView(about);
+        mLastInlineBar = addSliderControls(sl);
+        items.add(mLastInlineBar);
+        items.add(mExactField);
     }
 
     private void updatePanel() {
@@ -1782,12 +1926,12 @@ public class SettingsActivity extends AppActivity {
         p.row = row;
         p.orderedNavigation = true;
         p.intro = "Inversion, sensitivity and calibration of gyro aiming.";
-        p.more = "Calibrate only if FLUDD drifts while you hold your phone still.";
-        p.labels = new String[] {"Calibrate gyro", "Invert horizontal (X)", "Invert vertical (Y)"};
-        p.sections = new String[] {"Calibration", "Gyroscope", null};
-        p.values = new java.util.function.Supplier[3];
-        p.gold = new java.util.function.BooleanSupplier[3];
-        p.acts = new Runnable[3];
+        p.rowNote = "Calibration is only needed if FLUDD drifts while you hold your phone still.";  // under its first row
+        p.labels = new String[] {"Calibrate gyro", "Invert horizontal (X)", "Invert vertical (Y)", "Reset gyro settings"};
+        p.sections = new String[] {"Calibration", "Gyroscope", null, "RESET"};
+        p.values = new java.util.function.Supplier[4];
+        p.gold = new java.util.function.BooleanSupplier[4];
+        p.acts = new Runnable[4];
         String[] keys = {"SMS_GYRO_INVERT_X", "SMS_GYRO_INVERT_Y"};
         for (int i = 0; i < keys.length; i++) {
             final String key = keys[i];
@@ -1802,6 +1946,19 @@ public class SettingsActivity extends AppActivity {
         // steps of 10%; the slider's own number field takes any value in between
         p.inlineSlider = new Slider("SMS_GYRO_SENSITIVITY", "Gyro sensitivity", "How far FLUDD turns when you turn your phone. A higher value aims faster, as far as the game lets it turn.", 100, 10, 300, 10);
         p.inlineAfter = 2;
+        // back to the defaults; a calibration and the on/off switch stay
+        p.values[3] = () -> "";
+        p.gold[3] = () -> false;
+        p.acts[3] = () -> {
+            for (String key : new String[] {"SMS_GYRO_INVERT_X", "SMS_GYRO_INVERT_Y", "SMS_GYRO_SENSITIVITY",
+                    "SMS_GYRO_LOOK_SENSITIVITY"}) mSettings.remove(key);
+            saved();
+            openPanel(gyroBehaviorPanel(row), 3);
+        };
+        {
+            p.inlineSlider2 = new Slider("SMS_GYRO_LOOK_SENSITIVITY", "Look around (Y) sensitivity", "How far the view turns when you turn your phone while looking around with Y. The game lets FLUDD turn only 42 degrees a second, but the view can turn as fast as you like. That is why this one starts at 50%.", 50, 10, 300, 10);
+            p.inlineAfter2 = 2;
+        }
         p.values[0] = () -> mSettings.containsKey("SMS_GYRO_OFFSET") ? "Calibrated" : "Not calibrated";
         p.gold[0] = () -> false;
         p.acts[0] = () -> startActivity(new Intent(this, GyroCalibrateActivity.class));
@@ -2181,7 +2338,39 @@ public class SettingsActivity extends AppActivity {
             () -> startActivity(new Intent(ctx(), AchievementsActivity.class))));
     }
 
+    // the intros again, as a new install is offered them (not while the game runs)
+    @Override
+    protected void onDestroy() {
+        if (mTourDialog != null) mTourDialog.dismiss();
+        super.onDestroy();
+    }
+
+    private void askTour() { tourDialog().show(); }
+
+    private DlDialog tourDialog() {
+        return new DlDialog(this)
+            .setTitle(t("Tour"))
+            .setMessage(t("Do you want to see the complete tour, only the newest features, or skip it for now?"))
+            .setPositiveButton(t("Complete tour"), (d, w) -> startTours(true, false))
+            .setNeutralButton(t("Newest features"), (d, w) -> startTours(false, true))
+            .setNegativeButton(t("Skip for now"), null);
+    }
+
+    private void startTours(boolean all, boolean newest) {
+        Intro.choose(this, all, newest);
+        String first = Intro.pending(this);
+        if (first == null) {
+            android.widget.Toast.makeText(this, t("There is nothing new to show on this device right now."), android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        startActivity(new Intent(this, IntroActivity.class).putExtra(IntroActivity.EXTRA_ID, first));
+    }
+
     private void buildInterface() {
+        if (!mInGame) {
+            section("TOUR");
+            add(new Action("Tour", "Watch the app's tour again: all of it or only the newest features.", null, this::askTour));
+        }
         section("CONTROLLER");
         add(new Toggle(MenuKeys.KEY, "Swap A and B in menus", "For Nintendo-style controllers: B confirms and A goes back in the app's menus. The game's own buttons stay as they are.", false, false) {
             @Override void click() {

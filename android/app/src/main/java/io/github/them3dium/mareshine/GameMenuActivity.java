@@ -332,7 +332,7 @@ public class GameMenuActivity extends AppActivity {
         "SMS_PAD_MAP", "SMS_R1_SOFT_SPRAY", "SMS_STICK_DEADZONE", "SMS_CSTICK_DEADZONE", "SMS_STICK_SENSITIVITY",
         "SMS_CSTICK_SENSITIVITY", "SMS_CAL_LEFT", "SMS_CAL_RIGHT", "SMS_FLUDD_INVERT_X", "SMS_FLUDD_INVERT_Y",
         "SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y", "SMS_GYRO_AIM", "SMS_GYRO_SENSITIVITY", "SMS_GYRO_OFFSET",
-        "SMS_GYRO_INVERT_X", "SMS_GYRO_INVERT_Y"};
+        "SMS_GYRO_INVERT_X", "SMS_GYRO_INVERT_Y", "SMS_GYRO_LOOK_SENSITIVITY"};
     private static int sTouchRev;
 
     // The game is paused while this menu shows, so its environment can be

@@ -24,7 +24,8 @@ import java.util.List;
 
 import static io.github.them3dium.mareshine.L.t;
 
-// The mod manager's intro on the app's real screens (IntroActivity starts it
+// An intro on the app's real screens: the mod manager's, gyro aiming's and the
+// A and B swap's (IntroActivity starts it
 // after its first page): each step is the screen as it is, with the example
 // mod (Mods.tourStart) among the installed ones, a layer over it that takes
 // every touch and key (nothing on the screen can be pressed, Back does
@@ -36,7 +37,18 @@ final class Tour {
     static final String EXTRA = "tour";  // the step, as the screen knows it
     static final String SETTINGS = "settings", SEARCH = "search", INSTALLED = "installed", PAGE = "page",
         RATE = "rate";
-    private static final String[] STEPS = {SETTINGS, SEARCH, INSTALLED, PAGE, RATE};
+    static final String GYRO_SWITCH = "gyro_switch", GYRO_BEHAVIOR = "gyro_behavior", GYRO_CALIBRATE = "gyro_calibrate",
+        GYRO_SENSITIVITY = "gyro_sensitivity", GYRO_LOOK = "gyro_look", AB_SWITCH = "ab_switch", TOUR_ROW = "tour_row", TOUR_CHOICE = "tour_choice";
+    static final String[] MODS = {SETTINGS, SEARCH, INSTALLED, PAGE, RATE};
+    static final String[] GYRO = {GYRO_SWITCH, GYRO_CALIBRATE, GYRO_BEHAVIOR, GYRO_SENSITIVITY, GYRO_LOOK};
+    static final String[] AB = {AB_SWITCH};
+    static final String[] AGAIN = {TOUR_ROW, TOUR_CHOICE};
+    private static final String[][] TOURS = {MODS, GYRO, AB, AGAIN};
+
+    private static String[] tourOf(String step) {
+        for (String[] tour : TOURS) for (String s : tour) if (s.equals(step)) return tour;
+        return MODS;
+    }
 
     interface Picture {
         void draw(Canvas c, Paint p, long ms);
@@ -55,21 +67,20 @@ final class Tour {
     // the step this screen shows, or null (not in the tour)
     static String step(Activity a) { return a.getIntent().getStringExtra(EXTRA); }
 
-    static Intent intent(Activity from, int index) {
-        String step = STEPS[index];
+    static Intent intent(Activity from, String[] tour, int index) {
+        String step = tour[index];
         boolean page = step.equals(PAGE) || step.equals(RATE);
-        Class<?> screen = step.equals(SETTINGS) ? SettingsActivity.class
+        Class<?> screen = step.equals(SETTINGS) || tour != MODS ? SettingsActivity.class
             : page ? ModPageActivity.class : ModsActivity.class;
         Intent i = new Intent(from, screen).putExtra(EXTRA, step);
         if (page) i.putExtra(ModPageActivity.EXTRA_ID, Mods.TOUR_ID).putExtra(ModPageActivity.EXTRA_PAGE, "");
         return i;
     }
 
-    static int count() { return STEPS.length; }
-
     private static int index(String step) {
-        for (int i = 0; i < STEPS.length; i++) if (STEPS[i].equals(step)) return i;
-        return STEPS.length - 1;
+        String[] tour = tourOf(step);
+        for (int i = 0; i < tour.length; i++) if (tour[i].equals(step)) return i;
+        return tour.length - 1;
     }
 
     // Shows the step's layer, its text where `gravity` puts it (`width` of the
@@ -94,6 +105,38 @@ final class Tour {
                 title = t("Managing them");
                 text = t("In INSTALLED, hold a mod (or hold A) to switch it on or off, move it or delete it.");
                 break;
+            case GYRO_SWITCH:
+                title = t("Switch it on");
+                text = t("Settings, INPUT, GYROSCOPE: Gyro aiming switches it on or off.");
+                break;
+            case GYRO_BEHAVIOR:
+                title = t("Gyroscope behavior");
+                text = t("Here you can invert each direction, if the aim moves the wrong way for you.");
+                break;
+            case GYRO_LOOK:
+                title = t("Looking around (Y)");
+                text = t("Looking around has its own sensitivity. The game lets FLUDD turn only 42 degrees a second, but the view can turn as fast as you like. That is why this one starts at 50%.");
+                break;
+            case GYRO_SENSITIVITY:
+                title = t("Sensitivity");
+                text = t("Swipe down to the sensitivity: the slider goes in steps of 10, and Exact value takes any number.");
+                break;
+            case GYRO_CALIBRATE:
+                title = t("If the aim drifts");
+                text = t("Does FLUDD turn on its own while you hold your phone still? Calibrate gyro shows you step by step how to fix that.");
+                break;
+            case TOUR_CHOICE:
+                title = t("You choose");
+                text = t("The complete tour, only the newest features, or nothing for now.");
+                break;
+            case TOUR_ROW:
+                title = t("Where to find it");
+                text = t("Settings, OTHER, Tour.");
+                break;
+            case AB_SWITCH:
+                title = t("Where to find it");
+                text = t("Settings, OTHER: Swap A and B in menus.");
+                break;
             case RATE:
                 title = t("Rating mods");
                 text = t(MenuKeys.swapped()
@@ -107,7 +150,9 @@ final class Tour {
                     + "buttons.");
                 break;
         }
-        show(title, text, false, gravity, width, lift, picture);
+        // the mods' tour goes on to a page after its steps; these two end on their last
+        String[] tour = tourOf(step);
+        show(title, text, tour != MODS && index(step) == tour.length - 1, gravity, width, lift, picture);
     }
 
     float dp(float v) { return v * mA.getResources().getDisplayMetrics().density; }
@@ -299,13 +344,14 @@ final class Tour {
     }
 
     private void open() {
-        if (index(step(mA)) == STEPS.length - 1) {  // the last: IntroActivity's page after the steps
+        String[] tour = tourOf(step(mA));
+        if (index(step(mA)) == tour.length - 1) {  // the last: IntroActivity's page after the steps
             mA.setResult(RESULT_DONE);
             mA.finish();
             mA.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
             return;
         }
-        mA.startActivity(intent(mA, index(step(mA)) + 1).addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT));
+        mA.startActivity(intent(mA, tour, index(step(mA)) + 1).addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT));
         mA.finish();
         mA.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
@@ -321,7 +367,7 @@ final class Tour {
         mLeaving = true;
         int at = index(step(mA));
         if (at == 0) mA.setResult(RESULT_BACK);
-        else mA.startActivity(intent(mA, at - 1).addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT));
+        else mA.startActivity(intent(mA, tourOf(step(mA)), at - 1).addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT));
         mA.finish();
         mA.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
