@@ -264,7 +264,7 @@ public class IntroActivity extends AppActivity {
     }
 
     private void gyroAiming() {
-        mPages.add(new Page(t("New: gyro aiming"), t("While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone. Your stick still works as well."), this::drawGyroPhone));
+        mPages.add(new Page(t("New: gyro aiming"), t("Turn your phone to aim FLUDD with R+ or to look around with Y. Your stick still works as well."), this::drawGyroPhone));
         mTourAfter = 0;
         mTourSteps = Tour.GYRO;
     }

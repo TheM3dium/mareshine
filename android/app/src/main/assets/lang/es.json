@@ -206,6 +206,10 @@
  "The header says GMSE01 revision 0, but the file differs from the known good dump.\n\nYours:    %s\nExpected: %s\n\nIt may be modified (a mod or patch) or a bad dump. The game may crash or misbehave.": "La cabecera dice GMSE01 revisión 0, pero el archivo es distinto del volcado correcto conocido.\n\nTuyo:     %s\nEsperado: %s\n\nPuede estar modificado (un mod o parche) o ser un volcado defectuoso. El juego puede cerrarse o fallar.",
  "Play anyway": "Jugar de todos modos",
  "Checking ISO hash... %d%% (tap to cancel)": "Comprobando el hash de la ISO… %d%% (toca para cancelar)",
+ "…and %d more": "…y %d más",
+ "❌ This ISO is damaged": "❌ Esta ISO está dañada",
+ "Some of the game's files in this disc image are broken, so the game would crash:\n\n%s\nThis happens when a disc was dumped badly or the file was damaged while copying. Dump your disc again or copy the file again, then pick the new one under Settings → GAME → Disc image.": "Algunos archivos del juego en esta imagen de disco están rotos, así que el juego fallaría:\n\n%s\nEsto pasa cuando un disco se volcó mal o el archivo se dañó al copiarlo. Vuelve a volcar tu disco o copia el archivo de nuevo, y elige el nuevo en Ajustes → JUEGO → Imagen de disco.",
+ "Checking the game files... %d%% (tap to cancel)": "Comprobando los archivos del juego... %d%% (toca para cancelar)",
  "Error reading the ISO": "Error al leer la ISO",
  "✅ ISO verified: matches the Redump dump.": "✅ ISO verificada: coincide con el volcado de Redump.",
  "⚠️ Data folder not writable": "⚠️ No se puede escribir en la carpeta de datos",
@@ -946,7 +950,6 @@
  "Gyro calibrated.": "Giroscopio calibrado.",
  "Gyroscope behavior": "Comportamiento del giroscopio",
  "Gyroscope": "Giroscopio",
- "While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone.": "Mientras apuntas con FLUDD con R+ o miras alrededor con Y, también puedes mover el objetivo girando el teléfono.",
  "Inversion, sensitivity and calibration of gyro aiming.": "Inversión, sensibilidad y calibración del giroscopio.",
  "Lay your phone flat": "Coloca el teléfono en plano",
  "Put your phone on a surface that is as flat as you can find, such as a table.": "Pon el teléfono sobre una superficie lo más plana posible, como una mesa.",
@@ -978,7 +981,6 @@
  "Tap the suns at the top (or press B on them) and give the mod one to five suns. Everyone sees the average of all players' ratings. You can change yours once an hour.": "Toca los soles de arriba (o pulsa B sobre ellos) y dale al mod de uno a cinco soles. Todos ven la media de las valoraciones de los jugadores. Puedes cambiar la tuya una vez por hora.",
  "Tap a mod shortly (or press B) to open its own page with all its settings.": "Toca un mod brevemente (o pulsa B) para abrir su propia página con todos sus ajustes.",
  "New: gyro aiming": "Nuevo: apuntar con giroscopio",
- "While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone. Your stick still works as well.": "Mientras apuntas con FLUDD con R+ o miras alrededor con Y, también puedes mover el objetivo girando el teléfono. El stick sigue funcionando.",
  "Switch it on": "Actívalo",
  "If the aim drifts": "Si el objetivo se desvía",
  "New: swap A and B": "Nuevo: intercambiar A y B",
@@ -1010,5 +1012,7 @@
  "How far the view turns when you turn your phone while looking around with Y. The game lets FLUDD turn only 42 degrees a second, but the view can turn as fast as you like. That is why this one starts at 50%.": "Cuánto gira la vista al girar el teléfono mientras miras alrededor con Y. El juego solo deja girar a FLUDD 42 grados por segundo, pero la vista puede girar tan rápido como quieras. Por eso este valor empieza en el 50 %.",
  "Calibration is only needed if FLUDD drifts while you hold your phone still.": "Solo hace falta calibrar si FLUDD se desvía mientras sujetas el teléfono quieto.",
  "FLUDD sensitivity": "Sensibilidad de FLUDD",
- "Swipe down to FLUDD's sensitivity: the slider goes in steps of 10, and Exact value takes any number.": "Desliza hacia abajo hasta la sensibilidad de FLUDD: el control va de 10 en 10 y el valor exacto admite cualquier número."
+ "Swipe down to FLUDD's sensitivity: the slider goes in steps of 10, and Exact value takes any number.": "Desliza hacia abajo hasta la sensibilidad de FLUDD: el control va de 10 en 10 y el valor exacto admite cualquier número.",
+ "Turn your phone to aim FLUDD with R+ or to look around with Y.": "Gira el teléfono para apuntar con FLUDD con R+ o para mirar alrededor con Y.",
+ "Turn your phone to aim FLUDD with R+ or to look around with Y. Your stick still works as well.": "Gira el teléfono para apuntar con FLUDD con R+ o para mirar alrededor con Y. El stick sigue funcionando."
 }

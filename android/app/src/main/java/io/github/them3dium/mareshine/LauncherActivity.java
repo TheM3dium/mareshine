@@ -680,7 +680,19 @@ public class LauncherActivity extends AppActivity {
         }
     }
 
+    // A hash that differs: first each game file is compared with the good
+    // dump. Broken files (a bad dump or a damaged copy) stop the game, since
+    // it would crash; files changed on purpose (a mod) only get the warning.
     private void confirmMismatch(String sha1) {
+        String broken = mFoundIsoFile == null ? "" : DiscCheck.cachedBroken(this, mFoundIsoFile);
+        if (broken == null) {
+            checkFiles(sha1);
+            return;
+        }
+        if (!broken.isEmpty()) {
+            showDamaged(java.util.Arrays.asList(broken.split("\n")));
+            return;
+        }
         new DlDialog(this)
             .setTitle(t("⚠️ ISO hash does not match"))
             .setMessage(t("The header says GMSE01 revision 0, but the file differs from the known good dump.\n\n"
@@ -690,6 +702,75 @@ public class LauncherActivity extends AppActivity {
             .setPositiveButton(t("Play anyway"), (d, w) -> startGame())
             .setNegativeButton(t("Cancel"), null)
             .show();
+    }
+
+    private void showDamaged(java.util.List<String> broken) {
+        StringBuilder list = new StringBuilder();
+        int shown = Math.min(5, broken.size());
+        for (int i = 0; i < shown; i++) list.append("• ").append(broken.get(i)).append('\n');
+        if (broken.size() > shown) list.append(t("…and %d more", broken.size() - shown)).append('\n');
+        new DlDialog(this)
+            .setTitle(t("❌ This ISO is damaged"))
+            .setMessage(t("Some of the game's files in this disc image are broken, so the game would crash:\n\n%s\n"
+                + "This happens when a disc was dumped badly or the file was damaged while copying. "
+                + "Dump your disc again or copy the file again, then pick the new one under Settings → GAME → Disc image.",
+                list.toString()))
+            .setPositiveButton(t("OK"), null)
+            .show();
+    }
+
+    private void checkFiles(String sha1) {
+        final File iso = mFoundIsoFile;
+        if (iso == null) return;
+        mVerifyCancelled = false;
+        tvProgress.setVisibility(View.VISIBLE);
+        progressBar.setVisibility(View.VISIBLE);
+        progressBar.setIndeterminate(false);
+        progressBar.setProgress(0);
+        tvProgress.setText(t("Checking the game files... %d%% (tap to cancel)", 0));
+        panelInfo.setVisibility(View.VISIBLE);
+        tvProgress.setOnClickListener(v -> mVerifyCancelled = true);
+        btnPlay.setEnabled(false);
+        btnSettings.setEnabled(false);
+        Executors.newSingleThreadExecutor().execute(() -> {
+            java.util.List<String> broken = null;
+            String error = null;
+            try {
+                final long[] last = {0};
+                broken = DiscCheck.brokenFiles(this, iso, new DiscCheck.Progress() {
+                    @Override public void onProgress(long done, long total) {
+                        long now = System.currentTimeMillis();
+                        if (now - last[0] < 150) return;
+                        last[0] = now;
+                        int pct = (int) (done * 100 / Math.max(1, total));
+                        runOnUiThread(() -> {
+                            progressBar.setProgress(pct);
+                            tvProgress.setText(t("Checking the game files... %d%% (tap to cancel)", pct));
+                        });
+                    }
+                    @Override public boolean cancelled() { return mVerifyCancelled; }
+                });
+            } catch (IOException e) {
+                error = e.getMessage();
+            }
+            final java.util.List<String> result = broken;
+            final String err = error;
+            runOnUiThread(() -> {
+                tvProgress.setVisibility(View.GONE);
+                tvProgress.setOnClickListener(null);
+                progressBar.setVisibility(View.GONE);
+                btnSettings.setEnabled(true);
+                checkIsoAndRefreshUi();
+                if (err != null) {
+                    new DlDialog(this).setTitle(t("Error reading the ISO")).setMessage(err)
+                        .setPositiveButton(t("OK"), null).show();
+                    return;
+                }
+                if (result == null) return; // cancelled
+                DiscCheck.cacheBroken(this, iso, result);
+                confirmMismatch(sha1);
+            });
+        });
     }
 
     private volatile boolean mVerifyCancelled;

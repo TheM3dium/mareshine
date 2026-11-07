@@ -2031,7 +2031,7 @@ public class SettingsActivity extends AppActivity {
         // the phone's gyroscope aims FLUDD and looks around (platform/pad/pad.cpp)
         section("GYROSCOPE");
         boolean gyro = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_GYROSCOPE);
-        add(new Toggle("SMS_GYRO_AIM", "Gyro aiming", gyro ? "While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone." : "Not available on this device: it needs a gyroscope.", false, false));
+        add(new Toggle("SMS_GYRO_AIM", "Gyro aiming", gyro ? "Turn your phone to aim FLUDD with R+ or to look around with Y." : "Not available on this device: it needs a gyroscope.", false, false));
         if (gyro)
             add(new Row("Gyroscope behavior", "Inversion, sensitivity and calibration of gyro aiming.") {
                 @Override void click() { openPanel(gyroBehaviorPanel(this)); }

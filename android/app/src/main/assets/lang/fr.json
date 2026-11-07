@@ -206,6 +206,10 @@
  "The header says GMSE01 revision 0, but the file differs from the known good dump.\n\nYours:    %s\nExpected: %s\n\nIt may be modified (a mod or patch) or a bad dump. The game may crash or misbehave.": "L'en-tête indique GMSE01 révision 0, mais le fichier diffère du dump de référence.\n\nLe tien :  %s\nAttendu :  %s\n\nIl est peut-être modifié (un mod ou un patch) ou c'est un dump défectueux. Le jeu peut planter ou mal fonctionner.",
  "Play anyway": "Jouer quand même",
  "Checking ISO hash... %d%% (tap to cancel)": "Vérification du hash de l'ISO… %d%% (touche pour annuler)",
+ "…and %d more": "…et %d de plus",
+ "❌ This ISO is damaged": "❌ Cet ISO est endommagé",
+ "Some of the game's files in this disc image are broken, so the game would crash:\n\n%s\nThis happens when a disc was dumped badly or the file was damaged while copying. Dump your disc again or copy the file again, then pick the new one under Settings → GAME → Disc image.": "Certains fichiers du jeu dans cette image disque sont abîmés, le jeu planterait :\n\n%s\nCela arrive quand un disque a été mal extrait ou que le fichier a été endommagé pendant la copie. Extrayez à nouveau votre disque ou recopiez le fichier, puis choisissez le nouveau dans Paramètres → JEU → Image disque.",
+ "Checking the game files... %d%% (tap to cancel)": "Vérification des fichiers du jeu... %d%% (touchez pour annuler)",
  "Error reading the ISO": "Erreur de lecture de l'ISO",
  "✅ ISO verified: matches the Redump dump.": "✅ ISO vérifiée : identique au dump Redump.",
  "⚠️ Data folder not writable": "⚠️ Impossible d'écrire dans le dossier de données",
@@ -946,7 +950,6 @@
  "Gyro calibrated.": "Gyroscope calibré.",
  "Gyroscope behavior": "Comportement du gyroscope",
  "Gyroscope": "Gyroscope",
- "While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone.": "Quand vous visez avec J.E.T. via R+ ou regardez autour de vous avec Y, vous pouvez aussi déplacer la visée en tournant le téléphone.",
  "Inversion, sensitivity and calibration of gyro aiming.": "Inversion, sensibilité et calibrage de la visée au gyroscope.",
  "Lay your phone flat": "Posez le téléphone à plat",
  "Put your phone on a surface that is as flat as you can find, such as a table.": "Posez le téléphone sur une surface aussi plane que possible, comme une table.",
@@ -978,7 +981,6 @@
  "Tap the suns at the top (or press B on them) and give the mod one to five suns. Everyone sees the average of all players' ratings. You can change yours once an hour.": "Touche les soleils en haut (ou appuie sur B dessus) et donne au mod de un à cinq soleils. Tout le monde voit la moyenne des notes des joueurs. Tu peux changer la tienne une fois par heure.",
  "Tap a mod shortly (or press B) to open its own page with all its settings.": "Touche brièvement un mod (ou appuie sur B) pour ouvrir sa propre page avec tous ses réglages.",
  "New: gyro aiming": "Nouveau : visée au gyroscope",
- "While you aim FLUDD with R+ or look around with Y, you can also move the aim by turning your phone. Your stick still works as well.": "Quand vous visez avec J.E.T. via R+ ou regardez autour de vous avec Y, vous pouvez aussi déplacer la visée en tournant le téléphone. Le stick fonctionne toujours.",
  "Switch it on": "Activez-la",
  "If the aim drifts": "Si la visée dérive",
  "New: swap A and B": "Nouveau : inverser A et B",
@@ -1010,5 +1012,7 @@
  "How far the view turns when you turn your phone while looking around with Y. The game lets FLUDD turn only 42 degrees a second, but the view can turn as fast as you like. That is why this one starts at 50%.": "De combien la vue tourne quand vous tournez le téléphone en regardant autour de vous avec Y. Le jeu ne laisse J.E.T. tourner que de 42 degrés par seconde, mais la vue peut tourner aussi vite que vous voulez. C'est pourquoi cette valeur commence à 50 %.",
  "Calibration is only needed if FLUDD drifts while you hold your phone still.": "Le calibrage n'est nécessaire que si J.E.T. dérive alors que vous tenez le téléphone immobile.",
  "FLUDD sensitivity": "Sensibilité de J.E.T.",
- "Swipe down to FLUDD's sensitivity: the slider goes in steps of 10, and Exact value takes any number.": "Faites défiler jusqu'à la sensibilité de J.E.T. : le curseur avance par pas de 10, et la valeur exacte accepte n'importe quel nombre."
+ "Swipe down to FLUDD's sensitivity: the slider goes in steps of 10, and Exact value takes any number.": "Faites défiler jusqu'à la sensibilité de J.E.T. : le curseur avance par pas de 10, et la valeur exacte accepte n'importe quel nombre.",
+ "Turn your phone to aim FLUDD with R+ or to look around with Y.": "Tournez le téléphone pour viser avec J.E.T. via R+ ou pour regarder autour de vous avec Y.",
+ "Turn your phone to aim FLUDD with R+ or to look around with Y. Your stick still works as well.": "Tournez le téléphone pour viser avec J.E.T. via R+ ou pour regarder autour de vous avec Y. Le stick fonctionne toujours."
 }

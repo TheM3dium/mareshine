@@ -145,6 +145,123 @@ public final class DiscCheck {
         return sb.toString();
     }
 
+    // For an image whose hash differs: compares every game file with the good
+    // dump (assets/disc-files-gmse01.txt: path, size, SHA-1). A file that is
+    // missing, lies past the end of the image, or has the original size but
+    // other content is broken (a bad dump or a damaged copy); a file with
+    // another size is taken as changed on purpose (a mod). Returns the broken
+    // paths (empty when none), or null when cancelled.
+    public static java.util.List<String> brokenFiles(Context ctx, File iso, Progress progress) throws IOException {
+        java.util.List<String[]> good = new java.util.ArrayList<>();
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(
+                ctx.getAssets().open("disc-files-gmse01.txt"), java.nio.charset.StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (line.startsWith("#") || line.isEmpty()) continue;
+                String[] p = line.split("\t");
+                if (p.length == 3) good.add(p);
+            }
+        }
+        java.util.List<String> broken = new java.util.ArrayList<>();
+        java.util.Map<String, long[]> files = readFst(iso);
+        if (files == null) {
+            for (String[] g : good) broken.add(g[0]);
+            return broken;
+        }
+        MessageDigest md;
+        try {
+            md = MessageDigest.getInstance("SHA-1");
+        } catch (Exception e) {
+            throw new IOException("SHA-1 is not available");
+        }
+        long length = iso.length(), total = 0, done = 0;
+        for (String[] g : good) {
+            long[] e = files.get(g[0]);
+            if (e != null && e[1] == Long.parseLong(g[1])) total += e[1];
+        }
+        byte[] buf = new byte[1 << 20];
+        try (RandomAccessFile f = new RandomAccessFile(iso, "r")) {
+            for (String[] g : good) {
+                long[] e = files.get(g[0]);
+                if (e == null || e[0] + e[1] > length) {
+                    broken.add(g[0]);
+                    continue;
+                }
+                if (e[1] != Long.parseLong(g[1])) continue; // changed on purpose
+                md.reset();
+                f.seek(e[0]);
+                long left = e[1];
+                while (left > 0) {
+                    int r = f.read(buf, 0, (int) Math.min(buf.length, left));
+                    if (r <= 0) break;
+                    md.update(buf, 0, r);
+                    left -= r;
+                    done += r;
+                    if (progress != null) {
+                        if (progress.cancelled()) return null;
+                        progress.onProgress(done, total);
+                    }
+                }
+                StringBuilder sb = new StringBuilder();
+                for (byte b : md.digest()) sb.append(String.format(Locale.ROOT, "%02x", b));
+                if (left > 0 || !sb.toString().equals(g[2])) broken.add(g[0]);
+            }
+        }
+        return broken;
+    }
+
+    // The disc's file table: path -> {offset, size}, or null when it is unreadable.
+    private static java.util.Map<String, long[]> readFst(File iso) {
+        try (RandomAccessFile f = new RandomAccessFile(iso, "r")) {
+            f.seek(0x424);
+            long off = f.readInt() & 0xFFFFFFFFL, size = f.readInt() & 0xFFFFFFFFL;
+            if (size < 12 || size > (8 << 20) || off + size > f.length()) return null;
+            byte[] d = new byte[(int) size];
+            f.seek(off);
+            f.readFully(d);
+            java.nio.ByteBuffer b = java.nio.ByteBuffer.wrap(d); // big-endian
+            int n = b.getInt(8);
+            if (n < 1 || (long) n * 12 > size) return null;
+            int strings = n * 12;
+            java.util.Map<String, long[]> out = new java.util.HashMap<>();
+            String[] dirs = new String[n];
+            int[] dirEnd = new int[n];
+            int depth = 0;
+            for (int i = 1; i < n; i++) {
+                while (depth > 0 && i >= dirEnd[depth - 1]) depth--;
+                int word = b.getInt(i * 12);
+                int nameOff = strings + (word & 0xFFFFFF);
+                if (nameOff >= d.length) return null;
+                int end = nameOff;
+                while (end < d.length && d[end] != 0) end++;
+                String name = new String(d, nameOff, end - nameOff, java.nio.charset.StandardCharsets.US_ASCII);
+                String path = (depth > 0 ? dirs[depth - 1] : "") + name;
+                long a = b.getInt(i * 12 + 4) & 0xFFFFFFFFL, c = b.getInt(i * 12 + 8) & 0xFFFFFFFFL;
+                if ((word >>> 24) != 0) {
+                    if (depth >= n) return null;
+                    dirs[depth] = path + "/";
+                    dirEnd[depth] = (int) Math.min(c, n);
+                    depth++;
+                } else {
+                    out.put(path, new long[] {a, c});
+                }
+            }
+            return out;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    // Remembered file check: the broken paths joined by "\n" ("" for none).
+    public static String cachedBroken(Context ctx, File f) {
+        return ctx.getSharedPreferences("disc_check", Context.MODE_PRIVATE).getString("files|" + key(f), null);
+    }
+
+    public static void cacheBroken(Context ctx, File f, java.util.List<String> broken) {
+        ctx.getSharedPreferences("disc_check", Context.MODE_PRIVATE).edit()
+            .putString("files|" + key(f), String.join("\n", broken)).apply();
+    }
+
     // Remembered hash results, so each file is hashed once (until it changes).
     private static String key(File f) {
         return f.getAbsolutePath() + "|" + f.length() + "|" + f.lastModified();
