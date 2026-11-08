@@ -32,12 +32,20 @@ namespace {
 struct Def {
 	const char* id;
 	int target;
+	bool secret; // in a mod's list (Sunshine's: ach_game.cpp's own ranges)
 };
 const Def kDefs[PORT_ACH_COUNT] = {
-#define ACH(e, id, target) { id, target },
+#define ACH(e, id, target) { id, target, false },
+#define ACH_SECRET(e, id, target) { id, target, true },
 #include "achievements_list.h"
+#include "achievements_list_sunburn.h"
+#include "achievements_list_eclipse.h"
+#undef ACH_SECRET
 #undef ACH
 };
+
+// the games with achievements, as SMS_ACHIEVEMENTS_GAME names them
+const char* const kGames[] = { "sms", "sunburn", "eclipse" };
 
 // SunshineActivity.COMMAND_ACHIEVEMENTS; param = how many were unlocked
 const unsigned kCommandAchievements = 0x8004;
@@ -254,6 +262,9 @@ struct Run {
 
 bool s_enabled = false;
 bool s_inited = false;
+std::string s_game = "sms"; // the game being played (kGames)
+// a Sunshine achievement -> the running game's of the same name (-1: none)
+int s_map[PORT_ACH_SMS_COUNT];
 std::string s_dir, s_version = "unknown";
 Unlock s_unlock[PORT_ACH_COUNT];
 int s_progress[PORT_ACH_COUNT];
@@ -267,15 +278,37 @@ time_t s_runs_saved = 0;
 Run s_runs[PORT_ACH_SLOTS];
 unsigned long long s_total_ms = 0;
 
-std::string unlocked_path() { return s_dir + "/unlocked.json"; }
-std::string runs_path() { return s_dir + "/runs.json"; }
+// Sunshine's in unlocked.json (the shared format's file), a mod's in its own:
+// unlocked-sunburn.json, unlocked-eclipse.json (and runs-<game>.json)
+std::string unlocked_path() { return s_dir + (s_game == "sms" ? "/unlocked.json" : "/unlocked-" + s_game + ".json"); }
+std::string runs_path() { return s_dir + (s_game == "sms" ? "/runs.json" : "/runs-" + s_game + ".json"); }
+
+// an achievement of the running game
+bool ours(int i)
+{
+	const char* id = kDefs[i].id;
+	size_t n = s_game.size();
+	return !strncmp(id, s_game.c_str(), n) && id[n] == '.';
+}
 
 int index_of(const std::string& id)
 {
 	for (int i = 0; i < PORT_ACH_COUNT; i++)
 		if (id == kDefs[i].id)
-			return i;
+			return ours(i) ? i : -1;
 	return -1;
+}
+
+// what the game side asked for -> the running game's achievement, -1 for none:
+// Sunshine's checks (ach_game.cpp) name Sunshine's, which in a mod stand for
+// the mod's of the same name (sms.boss.petey.nohit -> eclipse.boss.petey.nohit)
+int resolve(int a)
+{
+	if (a < 0 || a >= PORT_ACH_COUNT)
+		return -1;
+	if (a < PORT_ACH_SMS_COUNT && s_game != "sms")
+		return s_map[a];
+	return ours(a) ? a : -1;
 }
 
 // unlocked.json's entries into ours: union, the earliest unlock wins
@@ -315,11 +348,13 @@ void save_unlocked()
 	merge_from(file);
 	file.at("format") = Json::string("achievements");
 	file.at("schema") = Json::number(1);
-	file.at("game") = Json::string("sms");
+	file.at("game") = Json::string(s_game);
 	// (at() may add to file.obj: take each reference only while it is used)
 	if (file.at("unlocked").type != Json::OBJ) file.at("unlocked") = Json::object();
 	if (file.at("progress").type != Json::OBJ) file.at("progress") = Json::object();
 	for (int i = 0; i < PORT_ACH_COUNT; i++) {
+		if (!ours(i))
+			continue;
 		Json& u = file.at("unlocked");
 		if (s_unlock[i].on) {
 			Json* e = u.find(kDefs[i].id);
@@ -393,9 +428,27 @@ extern "C" void port_ach_init(void)
 	s_inited = true;
 	const char* e = getenv("SMS_ACHIEVEMENTS");
 	s_enabled = !e || strcmp(e, "0") != 0;
+	if (const char* g = getenv("SMS_ACHIEVEMENTS_GAME")) {
+		if (*g)
+			s_game = g;
+	}
+	bool known = false;
+	for (const char* g : kGames)
+		known |= s_game == g;
+	if (s_enabled && !known) {
+		port_log("[achievements] no achievements for game \"%s\"\n", s_game.c_str());
+		s_enabled = false;
+	}
 	if (!s_enabled) {
 		port_log("[achievements] off\n");
 		return;
+	}
+	for (int i = 0; i < PORT_ACH_SMS_COUNT; i++) {
+		s_map[i] = -1;
+		if (s_game == "sms")
+			continue;
+		std::string id = s_game + strchr(kDefs[i].id, '.');
+		s_map[i] = index_of(id);
 	}
 	if (const char* info = getenv("SMS_DEVICE_INFO")) { // "app 1.4.0, ..."
 		if (!strncmp(info, "app ", 4)) {
@@ -415,16 +468,23 @@ extern "C" void port_ach_init(void)
 	if (read_file(unlocked_path(), file))
 		merge_from(file);
 	load_runs();
-	int n = 0;
+	int n = 0, all = 0;
 	for (int i = 0; i < PORT_ACH_COUNT; i++)
-		n += s_unlock[i].on;
-	port_log("[achievements] %d of %d unlocked (%s)\n", n, (int)PORT_ACH_COUNT, s_dir.c_str());
+		if (ours(i)) {
+			n += s_unlock[i].on;
+			all++;
+		}
+	port_log("[achievements] %s: %d of %d unlocked (%s)\n", s_game.c_str(), n, all, unlocked_path().c_str());
 }
 
 extern "C" int port_ach_enabled(void) { return s_enabled; }
-extern "C" const char* port_ach_id(int a) { return a >= 0 && a < PORT_ACH_COUNT ? kDefs[a].id : ""; }
-extern "C" int port_ach_target(int a) { return a >= 0 && a < PORT_ACH_COUNT ? kDefs[a].target : 0; }
-extern "C" int port_ach_is_unlocked(int a) { return a >= 0 && a < PORT_ACH_COUNT && s_unlock[a].on; }
+extern "C" const char* port_ach_game(void) { return s_game.c_str(); }
+// a dev build of the app ("2.1.4-dev-..."): for SMS_ACH_TEST
+extern "C" int port_ach_dev_build(void) { return s_version.find("dev") != std::string::npos; }
+extern "C" const char* port_ach_id(int a) { a = resolve(a); return a >= 0 ? kDefs[a].id : ""; }
+extern "C" int port_ach_target(int a) { a = resolve(a); return a >= 0 ? kDefs[a].target : 0; }
+extern "C" int port_ach_is_unlocked(int a) { a = resolve(a); return a >= 0 && s_unlock[a].on; }
+extern "C" int port_ach_is_secret(int a) { return a >= 0 && a < PORT_ACH_COUNT && kDefs[a].secret; }
 
 extern "C" int port_ach_cheats_active(void)
 {
@@ -434,7 +494,8 @@ extern "C" int port_ach_cheats_active(void)
 
 extern "C" void port_ach_unlock(int a)
 {
-	if (!s_enabled || a < 0 || a >= PORT_ACH_COUNT || s_unlock[a].on)
+	a = resolve(a);
+	if (!s_enabled || a < 0 || s_unlock[a].on)
 		return;
 	s_unlock[a].on = true;
 	s_unlock[a].at = (long long)time(nullptr);
@@ -450,13 +511,17 @@ extern "C" void port_ach_unlock(int a)
 
 extern "C" void port_ach_unlock_id(const char* id)
 {
-	if (id)
-		port_ach_unlock(index_of(id));
+	if (id) {
+		int a = index_of(id);
+		if (a >= 0)
+			port_ach_unlock(a);
+	}
 }
 
 extern "C" void port_ach_progress(int a, int value)
 {
-	if (!s_enabled || a < 0 || a >= PORT_ACH_COUNT)
+	a = resolve(a);
+	if (!s_enabled || a < 0)
 		return;
 	if (kDefs[a].target > 0 && value > s_progress[a]) {
 		s_progress[a] = value < kDefs[a].target ? value : kDefs[a].target;
@@ -533,4 +598,64 @@ extern "C" unsigned long long port_ach_run_ms(int slot)
 extern "C" int port_ach_run_clean(int slot)
 {
 	return slot >= 0 && slot < PORT_ACH_SLOTS && s_runs[slot].clean;
+}
+
+// --- the mods' games (platform/mods/eclipse/ach-hooks.patch) -----------------
+
+namespace {
+struct ModState {
+	char key[32];
+	int value;
+};
+ModState s_mod_states[16];
+char s_mod_boss[32]; // a boss of the mod's own just beaten, until taken
+} // namespace
+
+extern "C" void port_ach_add_id(const char* id, int amount)
+{
+	int a = id ? index_of(id) : -1;
+	if (a >= 0 && kDefs[a].target > 0)
+		port_ach_progress(a, s_progress[a] + amount);
+}
+
+extern "C" int port_ach_progress_of(int a)
+{
+	a = resolve(a);
+	return a >= 0 ? s_progress[a] : 0;
+}
+
+extern "C" void port_ach_mod_state(const char* key, int value)
+{
+	for (ModState& s : s_mod_states)
+		if (!s.key[0] || !strcmp(s.key, key)) {
+			snprintf(s.key, sizeof s.key, "%s", key);
+			s.value = value;
+			return;
+		}
+}
+
+// what the mod's code said last (`missing` if nothing yet); `clear` takes it
+extern "C" int port_ach_mod_get(const char* key, int missing, int clear)
+{
+	for (ModState& s : s_mod_states)
+		if (s.key[0] && !strcmp(s.key, key)) {
+			int v = s.value;
+			if (clear)
+				s.value = missing;
+			return v;
+		}
+	return missing;
+}
+
+extern "C" void port_ach_mod_boss(const char* boss)
+{
+	snprintf(s_mod_boss, sizeof s_mod_boss, "%s", boss ? boss : "");
+}
+
+extern "C" const char* port_ach_mod_take_boss(void)
+{
+	static char taken[32];
+	snprintf(taken, sizeof taken, "%s", s_mod_boss);
+	s_mod_boss[0] = 0;
+	return taken;
 }

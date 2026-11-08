@@ -22,10 +22,17 @@ import static io.github.them3dium.mareshine.L.t;
 
 // Anonymous info about the device, with the player's consent: asked once, then
 // sent once after each install and update (to the ratings worker's /device),
-// under a random id of its own. On or off in Settings -> OTHER.
+// under a random id of its own. On or off in Settings -> OTHER. With the same
+// consent the achievements unlocked are sent as they unlock (/achievement:
+// which game and id, whether a cheat was on), so ones that never unlock stand
+// out. The question was extended for that (CONSENT 2): a player who said yes
+// to the first one is asked once more.
 final class DeviceInfo {
     static final String KEY = "SMS_DEVICE_INFO";
     private static final String PREFS = "device_info", ASKED = "asked", SENT = "sent_version";
+    // the question's version: 2 added the achievements
+    private static final String CONSENT = "consent_version", PENDING = "achievements_pending";
+    private static final int CONSENT_NOW = 2;
     private static final Pattern RENDERER = Pattern.compile("renderer ([^\\n(]+)");
     private static boolean tried;  // once per start of the app: an unreachable server is not asked again and again
 
@@ -35,11 +42,15 @@ final class DeviceInfo {
     static void onLauncher(Activity a) {
         if (Ratings.URL.isEmpty()) return;
         SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        if (!p.getBoolean(ASKED, false)) {
+        // asked before the question named the achievements: a yes is asked again, a no stays
+        if (p.getBoolean(ASKED, false) && p.getInt(CONSENT, 1) < CONSENT_NOW && !on(a))
+            p.edit().putInt(CONSENT, CONSENT_NOW).apply();
+        if (!p.getBoolean(ASKED, false) || p.getInt(CONSENT, 1) < CONSENT_NOW) {
             if (LauncherActivity.findIsoFile(a) != null) ask(a);
             return;
         }
         send(a.getApplicationContext());
+        flushAchievements(a.getApplicationContext());
     }
 
     private static boolean on(Context c) { return "1".equals(Settings.read(c).get(KEY)); }
@@ -48,7 +59,8 @@ final class DeviceInfo {
         new DlDialog(a).setTitle(t("Send anonymous device info?"))
             .setMessage(t("To see which phones and graphics chips have problems, Mareshine can send anonymous info "
                 + "about your device once after each install and update: phone model, graphics chip, Android and app "
-                + "version, a few settings and the active mod. No names and no files, and your IP address is not "
+                + "version, a few settings and the active mod. It also sends which achievement you unlock, so "
+                + "achievements that do not work stand out. No names and no files, and your IP address is not "
                 + "kept. You can change this at any time in Settings, under OTHER."))
             .setCancelable(false)
             .setNegativeButton(t("No"), (d, w) -> answer(a, false))
@@ -71,7 +83,8 @@ final class DeviceInfo {
     }
 
     private static void answer(Activity a, boolean yes) {
-        a.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(ASKED, true).apply();
+        a.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(ASKED, true)
+            .putInt(CONSENT, CONSENT_NOW).apply();
         Settings.put(a, KEY, yes ? "1" : "0");
         if (yes) send(a.getApplicationContext());
     }
@@ -103,6 +116,71 @@ final class DeviceInfo {
                 // the next start of the app tries again
             }
         }, "device-info").start();
+    }
+
+    // --- achievements --------------------------------------------------------------
+
+    private static boolean achTried; // a failed send waits for the next unlock or start of the app
+
+    // Achievements just unlocked (SunshineActivity): kept until the server has them.
+    static void queueAchievements(Context c, java.util.List<String> ids) {
+        if (Ratings.URL.isEmpty() || !on(c) || c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(CONSENT, 1)
+            < CONSENT_NOW) return;
+        JSONObject state = Achievements.state(c);
+        JSONObject un = state == null ? null : state.optJSONObject("unlocked");
+        SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        java.util.Set<String> pending = new java.util.HashSet<>(p.getStringSet(PENDING, new java.util.HashSet<>()));
+        for (String id : ids) {
+            JSONObject e = un == null ? null : un.optJSONObject(id);
+            boolean cheats = e != null && e.optBoolean("cheats", false);
+            if (pending.size() < 500) pending.add(id + (cheats ? "|cheats" : ""));
+        }
+        p.edit().putStringSet(PENDING, pending).apply();
+        achTried = false;
+        flushAchievements(c.getApplicationContext());
+    }
+
+    private static synchronized void flushAchievements(Context c) {
+        if (achTried || !on(c)) return;
+        SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        java.util.Set<String> pending = new java.util.HashSet<>(p.getStringSet(PENDING, new java.util.HashSet<>()));
+        if (pending.isEmpty()) return;
+        achTried = true;
+        new Thread(() -> {
+            try {
+                org.json.JSONArray items = new org.json.JSONArray();
+                for (String e : pending) {
+                    String[] parts = e.split("\\|");
+                    items.put(new JSONObject().put("id", parts[0]).put("cheats", parts.length > 1));
+                }
+                JSONObject body = new JSONObject().put("install", install(c))
+                    .put("version", CrashLog.BuildConfigInfo.version(c)).put("unlocked", items);
+                HttpURLConnection h = (HttpURLConnection) new URL(Ratings.URL + "/achievement").openConnection();
+                h.setRequestMethod("POST");
+                h.setConnectTimeout(10000);
+                h.setReadTimeout(30000);
+                h.setRequestProperty("User-Agent", "Mareshine");
+                h.setRequestProperty("Content-Type", "application/json");
+                h.setDoOutput(true);
+                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                h.setFixedLengthStreamingMode(bytes.length);
+                try (java.io.OutputStream out = h.getOutputStream()) {
+                    out.write(bytes);
+                }
+                if (h.getResponseCode() == 200) {
+                    synchronized (DeviceInfo.class) {
+                        java.util.Set<String> now = new java.util.HashSet<>(
+                            p.getStringSet(PENDING, new java.util.HashSet<>()));
+                        now.removeAll(pending);
+                        p.edit().putStringSet(PENDING, now).apply();
+                    }
+                    achTried = false;
+                }
+                h.disconnect();
+            } catch (Exception ignored) {
+                // kept: sent with the next unlock or start of the app
+            }
+        }, "achievements-info").start();
     }
 
     private static JSONObject build(Context c) throws Exception {

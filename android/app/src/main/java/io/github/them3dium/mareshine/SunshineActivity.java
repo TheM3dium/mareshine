@@ -113,10 +113,14 @@ public class SunshineActivity extends SDLActivity {
             // code built into the app (Super Mario Eclipse's) only for the mod that needs it
             // its name: the shared modules and that game mod's run (platform/mods/modhooks.cpp)
             nativeSetenv("SMS_CODE_MODS", image != null && image.code ? image.id : "0");
-            // Mareshine's achievements and language packs are Sunshine's: not in
-            // a mod's own game (a pack would replace the mod's own text)
+            // the achievements of the game being played: a mod's own game has its
+            // own list (Achievements.game) or none
+            String achGame = Achievements.game(this);
+            if (achGame == null) nativeSetenv("SMS_ACHIEVEMENTS", "0");
+            else if (!achGame.equals("sms")) nativeSetenv("SMS_ACHIEVEMENTS_GAME", achGame);
+            // Mareshine's language packs are Sunshine's: not in a mod's own game
+            // (a pack would replace the mod's own text)
             if (image != null) {
-                nativeSetenv("SMS_ACHIEVEMENTS", "0");
                 // a pack only where the mod left the disc's text (ModLanguage; the launcher made the list)
                 String code = ModLanguage.code(this, image);
                 File skip = code != null ? ModLanguage.skipFile(image, code) : null;
@@ -314,6 +318,7 @@ public class SunshineActivity extends SDLActivity {
         for (String id : now) if (!mAchKnown.contains(id)) fresh.add(id);
         mAchKnown = now;
         if (fresh.isEmpty()) return;
+        DeviceInfo.queueAchievements(this, fresh); // with the player's consent (anonymous: which ones unlock)
         java.util.Map<String, Achievements.Def> defs = new java.util.HashMap<>();
         for (Achievements.Category k : Achievements.load(this))
             for (Achievements.Def d : k.items) defs.put(d.id, d);

@@ -1,0 +1,160 @@
+Mareshine's achievements in the mods' own games: where Super Mario Sunburn's and Super Mario Eclipse's
+code tells what happened (platform/achievements/ach_mods.cpp; the calls are platform/mods/eclipse/shim/sms_mod_prelude.h's).
+Applied last, to the parent of the sources (eclipse/..., sunburn/...).
+--- a/eclipse/src/camera/2d_camera.cpp
++++ b/eclipse/src/camera/2d_camera.cpp
+@@ -12,6 +12,7 @@
+ #define CAMERA_FOLLOW_LERP 0.07f
+ 
+ void ControlCamera2D(CPolarSubCamera *camera) {
++    sms_mod_ach_state("eclipse.camera_2d", 1);  // Mareshine: achievements (ach_mods.cpp: a 2D section)
+     f32 c_stick_x = gpMarioAddress->mController->mCStick.mStickX;
+     f32 c_stick_y = gpMarioAddress->mController->mCStick.mStickY;
+ 
+--- a/eclipse/src/enemy/bowser_car.cpp
++++ b/eclipse/src/enemy/bowser_car.cpp
+@@ -1712,6 +1712,7 @@
+ 
+     if (bowser->mActorData->isCurAnmAlreadyEnd(MActor::BCK)) {
+         if (bowser->isDefeated()) {
++            sms_mod_ach_boss("bowser_car");  // Mareshine: achievements
+             spine->pushNerve(&s_bowser_nerve_prekill);
+         } else {
+             spine->pushNerve(&s_bowser_nerve_recover);
+--- a/eclipse/src/enemy/dark_zhine.cpp
++++ b/eclipse/src/enemy/dark_zhine.cpp
+@@ -714,6 +714,7 @@
+         zhine->mStateFlags.asU32 |= 0x100;
+         zhine->mStateFlags.asU32 &= ~0x8;
+         zhine->spawnShine();
++        sms_mod_ach_boss("dark_zhine");  // Mareshine: achievements
+ 
+         s_msg_finish.show();
+     }
+--- a/eclipse/src/enemy/firey_petey.cpp
++++ b/eclipse/src/enemy/firey_petey.cpp
+@@ -542,6 +542,7 @@
+     if (mHealth == 0) {
+         if (mSpineBase->getLatestNerve() !=
+             reinterpret_cast<TNerveBase<TLiveActor> *>(theNerve__14TNerveBPPreDieFv())) {
++            sms_mod_ach_boss("fiery_petey");  // Mareshine: achievements
+             mSpineBase->setNerve(
+                 reinterpret_cast<TNerveBase<TLiveActor> *>(theNerve__14TNerveBPPreDieFv()));
+             if (gpMSound->gateCheck(0x284e)) {
+--- a/eclipse/src/object/emario_portal.cpp
++++ b/eclipse/src/object/emario_portal.cpp
+@@ -507,6 +507,7 @@
+                           new_look_at.z + new_offset.z};
+ 
+     gpCamera->warpPosAndAt(new_camera_pos, new_look_at);
++    sms_mod_ach("eclipse.fun.portal");  // Mareshine: achievements
+ 
+     if (gpMSound->gateCheck(MSD_SE_MA_WARP_EX)) {
+         JAISound *sound = MSoundSE::startSoundActor(
+--- a/eclipse/src/object/launch_star.cpp
++++ b/eclipse/src/object/launch_star.cpp
+@@ -134,6 +134,7 @@
+             player->mSpeed = TVec3f::up();
+             player->mSpeed.scale(mTravelSpeed);
+             player->changePlayerStatus(PlayerLaunchStarLaunch, 0, false);
++            sms_mod_ach("eclipse.fun.launch_star");  // Mareshine: achievements
+             player->startVoice(TMario::VOICE_CANNON_WAIL);
+         }
+         mPlayer        = nullptr;
+--- a/eclipse/src/object/pizzabox.cpp
++++ b/eclipse/src/object/pizzabox.cpp
+@@ -166,5 +166,6 @@
+     if (player->canTake(self)) {
+         player->mGrabTarget = (TTakeActor *)self;
+         player->changePlayerStatus(899, 0, false);
++        sms_mod_ach("eclipse.fun.pizza_box");  // Mareshine: achievements
+     }
+ }
+\ Kein Zeilenumbruch am Dateiende.
+--- a/eclipse/src/object/star_bit.cpp
++++ b/eclipse/src/object/star_bit.cpp
+@@ -235,6 +235,7 @@
+ #define MESSAGE_TOUCH_WATER 15
+ int TStarBit::receiveMessage(THitActor *sender, u32 message) {
+     if (TCoin::receiveMessage(sender, message)) {
++        sms_mod_ach_add("eclipse.fun.star_bits_100", 1);  // Mareshine: achievements
+         return true;
+     }
+ 
+--- a/eclipse/src/player/cold.cpp
++++ b/eclipse/src/player/cold.cpp
+@@ -1,4 +1,5 @@
+ #include "player.hxx"
++#include "globals.hxx"
+ #include <SMS/GC2D/SunGlass.hxx>
+ #include <SMS/MSound/MSound.hxx>
+ #include <SMS/Manager/MarioParticleManager.hxx>
+@@ -34,9 +35,16 @@
+     data->mColdTimerStart = timer;
+ }
+ 
++// Mareshine: the mini cruiser (stage/behavior.cpp), for achievements; looked
++// for once a stage runs, as the sunglass is (not yet there at its init)
++static void *sAchCruiser = nullptr;
++static bool sAchCruiserTried = false;
++
+ BETTER_SMS_FOR_CALLBACK void initColdState(TMarDirector *director) {
+     sSunGlassRef = nullptr;
+     sTriedToFind = false;
++    sAchCruiser      = nullptr;
++    sAchCruiserTried = false;
+ }
+ 
+ BETTER_SMS_FOR_CALLBACK void processColdState(TMario *player, bool isMario) {
+@@ -58,7 +66,17 @@
+     }
+ 
+     auto *data = SME::Player::getEclipseData(player);
++    // Mareshine: achievements (platform/achievements/ach_mods.cpp)
++    sms_mod_ach_state("eclipse.character", (int)SME::TGlobals::getCharacterIDFromPlayer(player));
++    if (!sAchCruiserTried) {
++        sAchCruiser = TMarNameRefGen::getInstance()->getRootNameRef()->searchF(
++            JDrama::TNameRef::calcKeyCode("mini_cruiser"), "mini_cruiser");
++        sAchCruiserTried = true;
++    }
++    if (sAchCruiser && player->mFloorTriangle && (void *)player->mFloorTriangle->mOwner == sAchCruiser)
++        sms_mod_ach("eclipse.fun.cruise");
+     if (data->mColdTimer > 0) {
++        sms_mod_ach("eclipse.fun.frozen");
+         if ((data->mColdTimer % 60) == 0) {
+             player->startVoiceIfNoVoice(MSD_SE_MV02_DAMAGE_MID_04);
+         }
+--- a/eclipse/src/yoshi/green_mode.cpp
++++ b/eclipse/src/yoshi/green_mode.cpp
+@@ -178,6 +178,8 @@
+         return;
+ 
+     if (Yoshi::isGreenYoshi(player->mYoshi)) {
++        if (player->mYoshi->mState == TYoshi::MOUNTED)
++            sms_mod_ach("eclipse.fun.green_yoshi");  // Mareshine: achievements
+         *(f32 *)sms_mod_rawdata(0x80415F4C) = 480.0f;  // tongue
+         *(f32 *)sms_mod_rawdata(0x80415F68) = 16384.0f;
+     } else {
+--- a/sunburn/src/episode_select.cpp
++++ b/sunburn/src/episode_select.cpp
+@@ -19,6 +19,8 @@
+         else
+             stage = gpApplication.mCurrentScene.mAreaID;
+         episode = -1;
++        // Mareshine: achievements (platform/achievements/ach_mods.cpp)
++        sms_mod_ach("sunburn.fun.z_exit");
+     }
+     gpSequence->set(stage, episode, JDrama::TFlagT<u16>(flag));
+ }
+--- a/sunburn/src/gameplus.cpp
++++ b/sunburn/src/gameplus.cpp
+@@ -14,6 +14,9 @@
+ extern GamePlusSetting sGamePlusMode;
+ 
+ BETTER_SMS_FOR_CALLBACK void checkFor120ShinesCollected(TMarDirector *director) {
++    // Mareshine: achievements (platform/achievements/ach_mods.cpp)
++    sms_mod_ach_state("sunburn.ngplus", isGamePlusMode() ? 1 : 0);
++    sms_mod_ach_state("sunburn.win", (int)getWinCondition());
+     if (!sGamePlusMode.isUnlocked()) {
+         if (TFlagManager::smInstance->getFlag(0x40000) >= 120) {
+             sGamePlusMode.unlock();

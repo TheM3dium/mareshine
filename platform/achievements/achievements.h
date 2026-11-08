@@ -10,9 +10,19 @@
 extern "C" {
 #endif
 
+// Every game's achievements in one list: Super Mario Sunshine's, then those of
+// the mods with a game of their own (tools/achievements/mod_defs.py). Only the
+// running game's count (port_ach_game); one of Sunshine's that the running
+// game has too (the same id after the game's name) stands for that one.
 enum {
 #define ACH(e, id, target) PORT_ACH_##e,
+#define ACH_SECRET ACH
 #include "achievements_list.h"
+	PORT_ACH_SMS_COUNT,
+	PORT_ACH_MODS_FIRST = PORT_ACH_SMS_COUNT - 1,
+#include "achievements_list_sunburn.h"
+#include "achievements_list_eclipse.h"
+#undef ACH_SECRET
 #undef ACH
 	PORT_ACH_COUNT
 };
@@ -22,6 +32,25 @@ enum {
 
 void port_ach_init(void);
 int port_ach_enabled(void);
+// the game whose achievements count: "sms", "sunburn" or "eclipse"
+// (SMS_ACHIEVEMENTS_GAME, set by the app for the mod being played)
+const char* port_ach_game(void);
+// a dev build of the app (its version says "dev"): SMS_ACH_TEST works only there
+int port_ach_dev_build(void);
+// a secret one (the bigger sound)
+int port_ach_is_secret(int a);
+// how far it is now
+int port_ach_progress_of(int a);
+
+// The mods' games (platform/mods/eclipse/ach-hooks.patch): their code reports
+// states (port_ach_mod_state: New Game Plus on, the character played, ...),
+// adds to an achievement by id (port_ach_add_id) and names a boss of its own
+// just beaten (port_ach_mod_boss); ach_mods.cpp reads them.
+void port_ach_add_id(const char* id, int amount);
+void port_ach_mod_state(const char* key, int value);
+int port_ach_mod_get(const char* key, int missing, int clear);
+void port_ach_mod_boss(const char* boss);
+const char* port_ach_mod_take_boss(void);
 const char* port_ach_id(int a);
 int port_ach_target(int a);
 int port_ach_is_unlocked(int a);

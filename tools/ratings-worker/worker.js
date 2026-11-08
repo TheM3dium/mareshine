@@ -146,6 +146,42 @@ async function device(request, env) {
   return json({ ok: true });
 }
 
+// Achievements unlocked (DeviceInfo, with the device-info consent): counted per
+// achievement, each install once per id, so ones that never unlock stand out.
+// GET /achievements gives the counts (no installs, nothing personal).
+const ACH_ID = /^(sms|sunburn|eclipse|tf)\.[a-z0-9._]{1,80}$/;
+const ACH_BYTES = 32768;
+async function achievement(request, env) {
+  let d;
+  try {
+    const text = await request.text();
+    if (text.length > ACH_BYTES) return json({ error: "too big" }, 413);
+    d = JSON.parse(text);
+  } catch {
+    return json({ error: "bad json" }, 400);
+  }
+  if (!d || !INSTALL.test(d.install || "") || !Array.isArray(d.unlocked)) return json({ error: "bad request" }, 400);
+  const counts = (await env.RATINGS.get("achcount", "json")) || {};
+  let changed = false;
+  for (const u of d.unlocked.slice(0, 500)) {
+    const id = u && typeof u.id === "string" ? u.id : "";
+    if (!ACH_ID.test(id)) continue;
+    const key = "ach:" + d.install + ":" + id;
+    if (await env.RATINGS.get(key)) continue;  // this install's already
+    await env.RATINGS.put(key, "1", { expirationTtl: DEVICE_DAYS * 86400 });
+    const c = counts[id] || { n: 0, cheats: 0, first: "", last: "" };
+    const day = new Date().toISOString().slice(0, 10);
+    if (u.cheats) c.cheats++; else c.n++;
+    if (!c.first) c.first = day;
+    c.last = day;
+    c.version = line(d.version, 40);
+    counts[id] = c;
+    changed = true;
+  }
+  if (changed) await env.RATINGS.put("achcount", JSON.stringify(counts));
+  return json({ ok: true });
+}
+
 async function agg(env, mod) {
   return (await env.RATINGS.get("agg:" + mod, "json")) || { sum: 0, count: 0 };
 }
@@ -201,6 +237,10 @@ export default {
     }
     if (request.method === "POST" && url.pathname === "/report") return report(request, env, url);
     if (request.method === "POST" && url.pathname === "/device") return device(request, env);
+    if (request.method === "POST" && url.pathname === "/achievement") return achievement(request, env);
+    if (request.method === "GET" && url.pathname === "/achievements") {
+      return json((await env.RATINGS.get("achcount", "json")) || {});
+    }
     if (request.method === "GET" && url.pathname.startsWith("/r/")) {
       const id = url.pathname.slice(3);
       if (!/^[0-9a-f]{32}$/.test(id)) return json({ error: "not found" }, 404);

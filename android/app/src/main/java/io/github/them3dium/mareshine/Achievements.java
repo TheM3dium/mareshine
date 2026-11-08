@@ -15,10 +15,14 @@ import java.util.List;
 import java.util.Map;
 
 // The achievements (platform/achievements): their definitions with the texts
-// in every language (assets/achievements/sms.json) and what the game has
+// in every language (assets/achievements/<game>.json) and what the game has
 // unlocked, <data folder>/achievements/unlocked.json, which the game writes
 // (docs/ACHIEVEMENTS-FORMAT.md). The app writes it only for what happens in
 // its own screens (Fine-Tuner), merging as the format says.
+//
+// Every game has its own: Super Mario Sunshine's ("sms"), and those of the mods
+// with a game of their own (game(): the mod being played), in unlocked-<game>.json.
+// A mod's game without a list of its own has none.
 final class Achievements {
     static final String SETTING = "SMS_ACHIEVEMENTS";
 
@@ -45,8 +49,38 @@ final class Achievements {
         return !"0".equals(Settings.read(c).getOrDefault(SETTING, "1"));
     }
 
+    // the mods' games with achievements: mod id -> game (platform/achievements)
+    private static final String[][] MOD_GAMES = {{"sunburn", "sunburn"}, {"eclipse", "eclipse"}};
+    private static final String[][] DISC_GAMES = {{"GMSE03", "sunburn"}, {"GMSE04", "eclipse"}};
+
+    // The game whose achievements count now: "sms", a mod's game, or null for a
+    // mod's game that has none (the mod being played: Mods.activeGame)
+    static String game(Context c) {
+        Mods.Mod m = Mods.activeGame(c);
+        if (m == null) return "sms";
+        for (String[] g : MOD_GAMES) if (g[0].equals(m.id)) return g[1];
+        for (String[] g : DISC_GAMES) if (g[0].equals(m.discId)) return g[1];
+        return null;
+    }
+
+    // its name, as the list shows it ("Super Mario Sunburn")
+    static String gameTitle(Context c) {
+        String g = game(c);
+        if (g == null || g.equals("sms")) return "Super Mario Sunshine";
+        try (InputStream in = c.getAssets().open("achievements/" + g + ".json")) {
+            return new JSONObject(read(in)).optString("title", g);
+        } catch (Exception e) {
+            return g;
+        }
+    }
+
     static File unlockedFile(Context c) {
-        return new File(new File(DataDir.get(c), "achievements"), "unlocked.json");
+        return unlockedFile(c, game(c));
+    }
+
+    static File unlockedFile(Context c, String game) {
+        String name = game == null || game.equals("sms") ? "unlocked.json" : "unlocked-" + game + ".json";
+        return new File(new File(DataDir.get(c), "achievements"), name);
     }
 
     private static String text(JSONObject texts, String lang) {
@@ -68,7 +102,9 @@ final class Achievements {
         List<Category> cats = new ArrayList<>();
         String lang = L.current(c);
         Map<String, Category> byId = new HashMap<>();
-        try (InputStream in = c.getAssets().open("achievements/sms.json")) {
+        String game = game(c);
+        if (game == null) return cats;
+        try (InputStream in = c.getAssets().open("achievements/" + game + ".json")) {
             JSONObject j = new JSONObject(read(in));
             JSONArray ca = j.getJSONArray("categories");
             for (int i = 0; i < ca.length(); i++) {
@@ -114,7 +150,10 @@ final class Achievements {
     }
 
     static JSONObject state(Context c) {
-        File f = unlockedFile(c);
+        return state(unlockedFile(c));
+    }
+
+    static JSONObject state(File f) {
         if (!f.isFile()) return null;
         try (InputStream in = new FileInputStream(f)) {
             return new JSONObject(read(in));
@@ -150,8 +189,8 @@ final class Achievements {
     static synchronized boolean addProgress(Context c, String id, int delta, int target) {
         if (!enabled(c)) return false;
         try {
-            File f = unlockedFile(c);
-            JSONObject j = state(c);
+            File f = unlockedFile(c, "sms"); // the app's own (Fine-Tuner) are Sunshine's
+            JSONObject j = state(f);
             if (j == null) {
                 j = new JSONObject();
                 j.put("format", "achievements");

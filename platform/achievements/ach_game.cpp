@@ -25,6 +25,10 @@
 #define COUNT(a) (int)(sizeof(a) / sizeof((a)[0]))
 
 extern "C" unsigned int SDL_GetTicks(void);
+// ach_mods.cpp: the mods' own checks, and SMS_ACH_TEST
+extern "C" void port_ach_mods_save_file(int shines);
+extern "C" void port_ach_mods_playing(void);
+extern "C" void port_ach_mods_boss_won(int nohit);
 
 namespace {
 
@@ -227,6 +231,8 @@ void checkSaveFile()
 	int glitches = port_ach_is_unlocked(PORT_ACH_GLITCH_OOB) + port_ach_is_unlocked(PORT_ACH_GLITCH_UNDERFLOOR)
 	    + port_ach_is_unlocked(PORT_ACH_GLITCH_SPEED) + port_ach_is_unlocked(PORT_ACH_GLITCH_SKY);
 	port_ach_progress(PORT_ACH_GLITCH_HUNTER, glitches);
+
+	port_ach_mods_save_file(shines);
 }
 
 // --- every frame -------------------------------------------------------------
@@ -315,6 +321,8 @@ void checkBossFight(TMario* m)
 	bool has = shine(fightShine(b, stage, episode));
 	if (has && !s_had && !s_hit)
 		port_ach_unlock(b.nohit);
+	if (has && !s_had)
+		port_ach_mods_boss_won(!s_hit); // a mod's (Luigi beat it, New Game Plus without a hit)
 	s_had = has;
 	// Bowser's shine only comes with the epilogue movie, after the fight
 	s_bowserClean = b.shine == kBowserShine && !s_hit;
@@ -360,6 +368,7 @@ void checkFrame()
 	}
 	if (!playing())
 		return;
+	port_ach_mods_playing();
 	if (port_ach_cheats_active())
 		port_ach_unlock(PORT_ACH_PRO_HACKER);
 	port_ach_progress(PORT_ACH_FUN_COINS300, flags()->getFlag(kCoinsFlag));
@@ -379,6 +388,8 @@ void checkFrame()
 // the secret ones get the bigger sound
 bool secret(int a)
 {
+	if (a >= PORT_ACH_SMS_COUNT)
+		return port_ach_is_secret(a); // a mod's
 	return a == PORT_ACH_FUN_GAME_OVER || a == PORT_ACH_FUN_IMPATIENT || a == PORT_ACH_FUN_JUICE || a == PORT_ACH_FUN_TUNER
 	    || (a >= PORT_ACH_PRO_VETERAN && a <= PORT_ACH_GLITCH_HUNTER);
 }

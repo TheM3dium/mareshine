@@ -2531,7 +2531,8 @@ public class SettingsActivity extends AppActivity {
             () -> "", () -> ReportSend.ask(this, "manual")));
         if (!Ratings.URL.isEmpty()) add(new Toggle(DeviceInfo.KEY, "Anonymous device info",
             "Sends anonymous info about your device once after each install and update: phone model, graphics chip, "
-                + "Android and app version, a few settings and the active mod.", false, false));
+                + "Android and app version, a few settings and the active mod; and which achievements you unlock, "
+                + "to find ones that do not work.", false, false));
         section("RESET");
         add(new Action("Reset all settings",
             "Sets every setting back to its default: video (Recommended (HD)), controller, button mapping, "

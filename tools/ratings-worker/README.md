@@ -32,6 +32,14 @@ npx wrangler secret put REPORT_WEBHOOK    # the webhook's URL
 Without it the reports are still kept, only not announced.
 The player's text sits in a code block with mentions switched off, so a note cannot ping anyone.
 
+## Achievements unlocked
+
+With the player's consent to the anonymous device info (`DeviceInfo.java`), the app sends `POST /achievement`
+when achievements unlock: the random install id, the app version and the ids (and whether a cheat was on).
+Each install counts once per achievement (`ach:<install>:<id>`, kept 400 days); the counts are one KV entry,
+`achcount`. `GET /achievements` shows them, per id: `n` (without cheats), `cheats`, the first and last day and the
+last version. An achievement that stays at 0 while others of its kind add up likely does not work.
+
 ## Setting it up
 
 ```sh

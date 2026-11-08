@@ -87,7 +87,15 @@ Any program may write the file. To keep everyone's unlocks:
 
 So the same achievement unlocked in two programs is one entry, and nothing is ever lost or unlocked twice.
 
+## Other games: the mods with a game of their own
+
+A mod that is a game of its own (Super Mario Sunburn, Super Mario Eclipse) has its own achievements,
+with its own game part in the ids (`sunburn.…`, `eclipse.…`), its own definitions
+(`achievements/sunburn.json`, `achievements/eclipse.json`, which also give the game's `"title"`) and its own file
+of what was unlocked, `<data folder>/achievements/unlocked-<game>.json`, in the same format with `"game"` set to it.
+`unlocked.json` stays Super Mario Sunshine's alone. Mareshine shows and counts only the list of the game being played.
+
 ## Mareshine's own files
 
-`<data folder>/achievements/runs.json` holds Mareshine's play-time timers for the timed achievements
-(per save file A/B/C). It is not part of the shared format.
+`<data folder>/achievements/runs.json` (a mod's game: `runs-<game>.json`) holds Mareshine's play-time timers for the
+timed achievements (per save file A/B/C). It is not part of the shared format.

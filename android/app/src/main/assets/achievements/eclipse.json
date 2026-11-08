@@ -1,0 +1,2156 @@
+{
+ "format": "achievement-definitions",
+ "schema": 1,
+ "game": "eclipse",
+ "title": "Super Mario Eclipse",
+ "games": [
+  "GMSE04"
+ ],
+ "categories": [
+  {
+   "id": "story",
+   "icon": "🌟",
+   "title": {
+    "en": "Story",
+    "de": "Story",
+    "es": "Historia",
+    "fr": "Histoire",
+    "it": "Storia"
+   }
+  },
+  {
+   "id": "boss",
+   "icon": "👑",
+   "title": {
+    "en": "Bosses",
+    "de": "Bosse",
+    "es": "Jefes",
+    "fr": "Boss",
+    "it": "Boss"
+   }
+  },
+  {
+   "id": "char",
+   "icon": "🎭",
+   "title": {
+    "en": "Characters",
+    "de": "Charaktere"
+   }
+  },
+  {
+   "id": "shines",
+   "icon": "☀️",
+   "title": {
+    "en": "Milestones",
+    "de": "Meilensteine",
+    "es": "Hitos",
+    "fr": "Étapes",
+    "it": "Traguardi"
+   }
+  },
+  {
+   "id": "worlds",
+   "icon": "🏝️",
+   "title": {
+    "en": "Worlds",
+    "de": "Welten",
+    "es": "Mundos",
+    "fr": "Mondes",
+    "it": "Mondi"
+   }
+  },
+  {
+   "id": "areas",
+   "icon": "🗺️",
+   "title": {
+    "en": "New areas",
+    "de": "Neue Gebiete"
+   }
+  },
+  {
+   "id": "plaza",
+   "icon": "⛲",
+   "title": {
+    "en": "Delfino Plaza & extras",
+    "de": "Delfino Plaza & Extras",
+    "es": "Plaza Delfino y extras",
+    "fr": "Place Delfino et extras",
+    "it": "Piazza Delfino ed extra"
+   }
+  },
+  {
+   "id": "fun",
+   "icon": "🤡",
+   "title": {
+    "en": "Fun",
+    "de": "Spaß",
+    "es": "Diversión",
+    "fr": "Pour rire",
+    "it": "Divertimento"
+   }
+  },
+  {
+   "id": "pro",
+   "icon": "⏱️",
+   "title": {
+    "en": "For pros",
+    "de": "Für Profis",
+    "es": "Para expertos",
+    "fr": "Pour les pros",
+    "it": "Per esperti"
+   }
+  },
+  {
+   "id": "glitch",
+   "icon": "👾",
+   "title": {
+    "en": "Glitches",
+    "de": "Glitches",
+    "es": "Glitches",
+    "fr": "Glitchs",
+    "it": "Glitch"
+   }
+  }
+ ],
+ "achievements": [
+  {
+   "id": "eclipse.story.first_shine",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Old Island, New Luck",
+    "de": "Alte Insel, neues Glück"
+   },
+   "description": {
+    "en": "Get the first Shine Sprite at the Delfino Airstrip.",
+    "de": "Hol den ersten Shine am Flughafen von Delfino.",
+    "es": "Consigue el primer Sol en el aeródromo de Delfino.",
+    "fr": "Obtiens le premier Soleil sur l'aéroport de Delfino.",
+    "it": "Ottieni il primo Sole all'aeroporto di Delfino."
+   }
+  },
+  {
+   "id": "eclipse.story.yoshi",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Old Friend",
+    "de": "Alter Freund",
+    "es": "Viejo amigo",
+    "fr": "Vieil ami",
+    "it": "Vecchio amico"
+   },
+   "description": {
+    "en": "Free Yoshi in Delfino Plaza.",
+    "de": "Befreie Yoshi in Delfino Plaza.",
+    "es": "Libera a Yoshi en la Plaza Delfino.",
+    "fr": "Libère Yoshi sur la place Delfino.",
+    "it": "Libera Yoshi in Piazza Delfino."
+   }
+  },
+  {
+   "id": "eclipse.story.rocket_nozzle",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Lift-Off",
+    "de": "Abheben",
+    "es": "Despegue",
+    "fr": "Décollage",
+    "it": "Decollo"
+   },
+   "description": {
+    "en": "Unlock the Rocket Nozzle in Delfino Plaza.",
+    "de": "Schalte die Raketendüse in Delfino Plaza frei.",
+    "es": "Desbloquea la boquilla cohete en la Plaza Delfino.",
+    "fr": "Débloque la buse fusée sur la place Delfino.",
+    "it": "Sblocca l'ugello razzo in Piazza Delfino."
+   }
+  },
+  {
+   "id": "eclipse.story.turbo_nozzle",
+   "category": "story",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Full Throttle",
+    "de": "Vollgas",
+    "es": "A toda máquina",
+    "fr": "Plein gaz",
+    "it": "A tutto gas"
+   },
+   "description": {
+    "en": "Unlock the Turbo Nozzle in Delfino Plaza.",
+    "de": "Schalte die Turbodüse in Delfino Plaza frei.",
+    "es": "Desbloquea la boquilla turbo en la Plaza Delfino.",
+    "fr": "Débloque la buse turbo sur la place Delfino.",
+    "it": "Sblocca l'ugello turbo in Piazza Delfino."
+   }
+  },
+  {
+   "id": "eclipse.story.shadow_mario_all",
+   "category": "story",
+   "target": 7,
+   "secret": false,
+   "title": {
+    "en": "Shadows Chased Away",
+    "de": "Schatten vertrieben",
+    "es": "Sombras ahuyentadas",
+    "fr": "Ombres chassées",
+    "it": "Ombre scacciate"
+   },
+   "description": {
+    "en": "Catch Shadow Mario in episode 7 of all seven worlds.",
+    "de": "Fang Shadow Mario in allen sieben Welten in Episode 7.",
+    "es": "Atrapa a Mario Oscuro en el episodio 7 de los siete mundos.",
+    "fr": "Attrape Mario Ombre dans l'épisode 7 des sept mondes.",
+    "it": "Cattura Mario Ombra nell'episodio 7 di tutti e sette i mondi."
+   }
+  },
+  {
+   "id": "eclipse.boss.petey.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Weeded Out",
+    "de": "Unkraut gejätet",
+    "es": "Malas hierbas fuera",
+    "fr": "Mauvaise herbe arrachée",
+    "it": "Erbaccia estirpata"
+   },
+   "description": {
+    "en": "Defeat Petey Piranha.",
+    "de": "Besiege Petey Piranha.",
+    "es": "Derrota a Peta Piraña.",
+    "fr": "Bats Flora Piranha.",
+    "it": "Sconfiggi Pipino Piranha."
+   }
+  },
+  {
+   "id": "eclipse.boss.petey.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Master Gardener",
+    "de": "Gärtnermeister",
+    "es": "Maestro jardinero",
+    "fr": "Maître jardinier",
+    "it": "Maestro giardiniere"
+   },
+   "description": {
+    "en": "Defeat Petey Piranha without taking a hit in the fight.",
+    "de": "Besiege Petey Piranha, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Peta Piraña sin recibir daño en el combate.",
+    "fr": "Bats Flora Piranha sans être touché pendant le combat.",
+    "it": "Sconfiggi Pipino Piranha senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.gooper.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Calamari Night",
+    "de": "Tintenfisch-Sushi",
+    "es": "Noche de calamares",
+    "fr": "Soirée calamars",
+    "it": "Serata di calamari"
+   },
+   "description": {
+    "en": "Defeat Gooper Blooper.",
+    "de": "Besiege Gooper Blooper.",
+    "es": "Derrota a Gooper Blooper.",
+    "fr": "Bats Gooper Blooper.",
+    "it": "Sconfiggi Gooper Blooper."
+   }
+  },
+  {
+   "id": "eclipse.boss.gooper.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Not a Drop of Ink",
+    "de": "Kein Kratzer, keine Tinte",
+    "es": "Ni una gota de tinta",
+    "fr": "Pas une goutte d'encre",
+    "it": "Neanche una goccia d'inchiostro"
+   },
+   "description": {
+    "en": "Defeat Gooper Blooper without taking a hit in the fight.",
+    "de": "Besiege Gooper Blooper, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Gooper Blooper sin recibir daño en el combate.",
+    "fr": "Bats Gooper Blooper sans être touché pendant le combat.",
+    "it": "Sconfiggi Gooper Blooper senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.wiggler.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Bug Tamer",
+    "de": "Raupe gezähmt",
+    "es": "Domador de orugas",
+    "fr": "Dresseur de chenille",
+    "it": "Domatore di bruchi"
+   },
+   "description": {
+    "en": "Defeat Wiggler.",
+    "de": "Besiege Wiggler.",
+    "es": "Derrota a Floruga.",
+    "fr": "Bats Wiggler.",
+    "it": "Sconfiggi Torcibruco."
+   }
+  },
+  {
+   "id": "eclipse.boss.wiggler.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Barefoot on the Sand",
+    "de": "Barfuß über den Sand",
+    "es": "Descalzo en la arena",
+    "fr": "Pieds nus sur le sable",
+    "it": "A piedi nudi sulla sabbia"
+   },
+   "description": {
+    "en": "Defeat Wiggler without taking a hit in the fight.",
+    "de": "Besiege Wiggler, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Floruga sin recibir daño en el combate.",
+    "fr": "Bats Wiggler sans être touché pendant le combat.",
+    "it": "Sconfiggi Torcibruco senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.mecha_bowser.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Roller Coaster Duel",
+    "de": "Achterbahn-Duell",
+    "es": "Duelo en la montaña rusa",
+    "fr": "Duel sur les montagnes russes",
+    "it": "Duello sulle montagne russe"
+   },
+   "description": {
+    "en": "Defeat Mecha-Bowser.",
+    "de": "Besiege Mecha-Bowser.",
+    "es": "Derrota a Mecha-Bowser.",
+    "fr": "Bats Mécha-Bowser.",
+    "it": "Sconfiggi Mecha-Bowser."
+   }
+  },
+  {
+   "id": "eclipse.boss.mecha_bowser.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Free Ride",
+    "de": "Freifahrt",
+    "es": "Viaje gratis",
+    "fr": "Tour gratuit",
+    "it": "Giro gratis"
+   },
+   "description": {
+    "en": "Defeat Mecha-Bowser without taking a hit in the fight.",
+    "de": "Besiege Mecha-Bowser, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Mecha-Bowser sin recibir daño en el combate.",
+    "fr": "Bats Mécha-Bowser sans être touché pendant le combat.",
+    "it": "Sconfiggi Mecha-Bowser senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.phantamanta.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Divide and Conquer",
+    "de": "Mantas geteilt",
+    "es": "Divide y vencerás",
+    "fr": "Diviser pour régner",
+    "it": "Dividi e conquista"
+   },
+   "description": {
+    "en": "Defeat Phantamanta.",
+    "de": "Besiege Phantamanta.",
+    "es": "Derrota a Phantamanta.",
+    "fr": "Bats Phantamanta.",
+    "it": "Sconfiggi Phantamanta."
+   }
+  },
+  {
+   "id": "eclipse.boss.phantamanta.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Dry Feet",
+    "de": "Trockener Fuß",
+    "es": "Pies secos",
+    "fr": "Pieds au sec",
+    "it": "Piedi asciutti"
+   },
+   "description": {
+    "en": "Defeat Phantamanta without taking a hit in the fight.",
+    "de": "Besiege Phantamanta, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Phantamanta sin recibir daño en el combate.",
+    "fr": "Bats Phantamanta sans être touché pendant le combat.",
+    "it": "Sconfiggi Phantamanta senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.king_boo.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Debts Settled",
+    "de": "Spielschulden beglichen",
+    "es": "Deudas saldadas",
+    "fr": "Dettes réglées",
+    "it": "Debiti saldati"
+   },
+   "description": {
+    "en": "Defeat King Boo.",
+    "de": "Besiege König Buu Huu.",
+    "es": "Derrota a el Rey Boo.",
+    "fr": "Bats le Roi Boo.",
+    "it": "Sconfiggi Re Boo."
+   }
+  },
+  {
+   "id": "eclipse.boss.king_boo.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Broke the Bank",
+    "de": "Bank gesprengt",
+    "es": "Banca rota",
+    "fr": "La banque a sauté",
+    "it": "Banco sbancato"
+   },
+   "description": {
+    "en": "Defeat King Boo without taking a hit in the fight.",
+    "de": "Besiege König Buu Huu, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a el Rey Boo sin recibir daño en el combate.",
+    "fr": "Bats le Roi Boo sans être touché pendant le combat.",
+    "it": "Sconfiggi Re Boo senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.eely_mouth.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Dentist Appointment",
+    "de": "Zahnarzt-Termin",
+    "es": "Cita con el dentista",
+    "fr": "Rendez-vous chez le dentiste",
+    "it": "Appuntamento dal dentista"
+   },
+   "description": {
+    "en": "Defeat Eely-Mouth.",
+    "de": "Besiege Eely-Mouth.",
+    "es": "Derrota a Eely-Mouth.",
+    "fr": "Bats Eely-Mouth.",
+    "it": "Sconfiggi Eely-Mouth."
+   }
+  },
+  {
+   "id": "eclipse.boss.eely_mouth.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "No Anaesthetic Needed",
+    "de": "Ohne Betäubung",
+    "es": "Sin anestesia",
+    "fr": "Sans anesthésie",
+    "it": "Senza anestesia"
+   },
+   "description": {
+    "en": "Defeat Eely-Mouth without taking a hit in the fight.",
+    "de": "Besiege Eely-Mouth, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Eely-Mouth sin recibir daño en el combate.",
+    "fr": "Bats Eely-Mouth sans être touché pendant le combat.",
+    "it": "Sconfiggi Eely-Mouth senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.bowser.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Family Reunion",
+    "de": "Familientreffen",
+    "es": "Reunión familiar",
+    "fr": "Réunion de famille",
+    "it": "Riunione di famiglia"
+   },
+   "description": {
+    "en": "Defeat Bowser and Bowser Jr. on Corona Mountain.",
+    "de": "Besiege Bowser und Bowser Jr. auf dem Corona-Berg.",
+    "es": "Derrota a Bowser y Bowser Jr. en el Monte Corona.",
+    "fr": "Bats Bowser et Bowser Jr. sur le mont Corona.",
+    "it": "Sconfiggi Bowser e Bowser Junior sul Monte Corona."
+   }
+  },
+  {
+   "id": "eclipse.boss.bowser.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Bathtub Champion",
+    "de": "Badewannen-Meister",
+    "es": "Campeón de la bañera",
+    "fr": "Champion de la baignoire",
+    "it": "Campione della vasca"
+   },
+   "description": {
+    "en": "Defeat Bowser and Bowser Jr. on Corona Mountain without taking a hit in the fight.",
+    "de": "Besiege Bowser und Bowser Jr. auf dem Corona-Berg, ohne im Kampf getroffen zu werden.",
+    "es": "Derrota a Bowser y Bowser Jr. en el Monte Corona sin recibir daño en el combate.",
+    "fr": "Bats Bowser et Bowser Jr. sur le mont Corona sans être touché pendant le combat.",
+    "it": "Sconfiggi Bowser e Bowser Junior sul Monte Corona senza subire colpi nello scontro."
+   }
+  },
+  {
+   "id": "eclipse.boss.dark_zhine.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Dark Sun",
+    "de": "Dunkle Sonne"
+   },
+   "description": {
+    "en": "Defeat Dark Zhine.",
+    "de": "Besiege Dark Zhine."
+   }
+  },
+  {
+   "id": "eclipse.boss.dark_zhine.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Silver Lining",
+    "de": "Lichtblick"
+   },
+   "description": {
+    "en": "Defeat Dark Zhine without taking damage in the fight.",
+    "de": "Besiege Dark Zhine, ohne im Kampf Schaden zu nehmen."
+   }
+  },
+  {
+   "id": "eclipse.boss.fiery_petey.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Hot Veggies",
+    "de": "Heißes Gemüse"
+   },
+   "description": {
+    "en": "Defeat Fiery Petey.",
+    "de": "Besiege Feuer-Petey."
+   }
+  },
+  {
+   "id": "eclipse.boss.fiery_petey.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Fireproof",
+    "de": "Feuerfest"
+   },
+   "description": {
+    "en": "Defeat Fiery Petey without taking damage in the fight.",
+    "de": "Besiege Feuer-Petey, ohne im Kampf Schaden zu nehmen."
+   }
+  },
+  {
+   "id": "eclipse.boss.bowser_car.defeat",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Kart Duel",
+    "de": "Kart-Duell"
+   },
+   "description": {
+    "en": "Defeat Bowser's Kart.",
+    "de": "Besiege Bowsers Kart."
+   }
+  },
+  {
+   "id": "eclipse.boss.bowser_car.nohit",
+   "category": "boss",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Pole Position",
+    "de": "Pole-Position"
+   },
+   "description": {
+    "en": "Defeat Bowser's Kart without taking damage in the fight.",
+    "de": "Besiege Bowsers Kart, ohne im Kampf Schaden zu nehmen."
+   }
+  },
+  {
+   "id": "eclipse.char.luigi",
+   "category": "char",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "The Green Brother",
+    "de": "Der grüne Bruder"
+   },
+   "description": {
+    "en": "Unlock Luigi.",
+    "de": "Schalte Luigi frei."
+   }
+  },
+  {
+   "id": "eclipse.char.piantissimo",
+   "category": "char",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "The Champion",
+    "de": "Der Champion"
+   },
+   "description": {
+    "en": "Unlock Piantissimo.",
+    "de": "Schalte Piantissimo frei."
+   }
+  },
+  {
+   "id": "eclipse.char.all_played",
+   "category": "char",
+   "target": 4,
+   "secret": false,
+   "title": {
+    "en": "Role Play",
+    "de": "Rollenspiel"
+   },
+   "description": {
+    "en": "Play as all four characters.",
+    "de": "Spiel mit allen vier Figuren."
+   }
+  },
+  {
+   "id": "eclipse.shines.10",
+   "category": "shines",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Getting Brighter",
+    "de": "Es wird hell",
+    "es": "Cada vez más luz",
+    "fr": "Ça s'éclaircit",
+    "it": "Si fa luce"
+   },
+   "description": {
+    "en": "Collect 10 Shine Sprites.",
+    "de": "Sammle 10 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.30",
+   "category": "shines",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Beaming",
+    "de": "Strahlemann",
+    "es": "Radiante",
+    "fr": "Rayonnant",
+    "it": "Raggiante"
+   },
+   "description": {
+    "en": "Collect 30 Shine Sprites.",
+    "de": "Sammle 30 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.60",
+   "category": "shines",
+   "target": 60,
+   "secret": false,
+   "title": {
+    "en": "Daybreak",
+    "de": "Morgengrauen"
+   },
+   "description": {
+    "en": "Collect 60 Shine Sprites.",
+    "de": "Sammle 60 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.90",
+   "category": "shines",
+   "target": 90,
+   "secret": false,
+   "title": {
+    "en": "Sunrise",
+    "de": "Sonnenaufgang"
+   },
+   "description": {
+    "en": "Collect 90 Shine Sprites.",
+    "de": "Sammle 90 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.120",
+   "category": "shines",
+   "target": 120,
+   "secret": false,
+   "title": {
+    "en": "Full Sun",
+    "de": "Volle Sonne",
+    "es": "Sol pleno",
+    "fr": "Plein soleil",
+    "it": "Pieno sole"
+   },
+   "description": {
+    "en": "Collect 120 Shine Sprites.",
+    "de": "Sammle 120 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.150",
+   "category": "shines",
+   "target": 150,
+   "secret": false,
+   "title": {
+    "en": "Midday Sun",
+    "de": "Mittagssonne"
+   },
+   "description": {
+    "en": "Collect 150 Shine Sprites.",
+    "de": "Sammle 150 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.180",
+   "category": "shines",
+   "target": 180,
+   "secret": false,
+   "title": {
+    "en": "Heatwave",
+    "de": "Hitzewelle"
+   },
+   "description": {
+    "en": "Collect 180 Shine Sprites.",
+    "de": "Sammle 180 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.210",
+   "category": "shines",
+   "target": 210,
+   "secret": false,
+   "title": {
+    "en": "Dazzling",
+    "de": "Gleißend"
+   },
+   "description": {
+    "en": "Collect 210 Shine Sprites.",
+    "de": "Sammle 210 Shines."
+   }
+  },
+  {
+   "id": "eclipse.shines.240",
+   "category": "shines",
+   "target": 240,
+   "secret": false,
+   "title": {
+    "en": "Everlasting Light",
+    "de": "Ewiges Licht"
+   },
+   "description": {
+    "en": "Collect 240 Shine Sprites.",
+    "de": "Sammle 240 Shines."
+   }
+  },
+  {
+   "id": "eclipse.blue_coins.50",
+   "category": "shines",
+   "target": 50,
+   "secret": false,
+   "title": {
+    "en": "Feeling Blue",
+    "de": "Blaues Wunder",
+    "es": "Todo azul",
+    "fr": "Bleu de bleu",
+    "it": "Tutto blu"
+   },
+   "description": {
+    "en": "Collect 50 Blue Coins.",
+    "de": "Sammle 50 blaue Münzen.",
+    "es": "Reúne 50 monedas azules.",
+    "fr": "Récupère 50 pièces bleues.",
+    "it": "Raccogli 50 monete blu."
+   }
+  },
+  {
+   "id": "eclipse.blue_coins.100",
+   "category": "shines",
+   "target": 100,
+   "secret": false,
+   "title": {
+    "en": "Coin Collector",
+    "de": "Münzsammler",
+    "es": "Coleccionista",
+    "fr": "Collectionneur",
+    "it": "Collezionista"
+   },
+   "description": {
+    "en": "Collect 100 Blue Coins.",
+    "de": "Sammle 100 blaue Münzen.",
+    "es": "Reúne 100 monedas azules.",
+    "fr": "Récupère 100 pièces bleues.",
+    "it": "Raccogli 100 monete blu."
+   }
+  },
+  {
+   "id": "eclipse.blue_coins.200",
+   "category": "shines",
+   "target": 200,
+   "secret": false,
+   "title": {
+    "en": "Blue Hour",
+    "de": "Blaue Stunde"
+   },
+   "description": {
+    "en": "Collect 200 blue coins.",
+    "de": "Sammle 200 blaue Münzen."
+   }
+  },
+  {
+   "id": "eclipse.blue_coins.300",
+   "category": "shines",
+   "target": 300,
+   "secret": false,
+   "title": {
+    "en": "Deep Blue",
+    "de": "Tiefblau"
+   },
+   "description": {
+    "en": "Collect 300 blue coins.",
+    "de": "Sammle 300 blaue Münzen."
+   }
+  },
+  {
+   "id": "eclipse.blue_coins.420",
+   "category": "shines",
+   "target": 420,
+   "secret": false,
+   "title": {
+    "en": "All the Blues",
+    "de": "Alle Blauen"
+   },
+   "description": {
+    "en": "Collect all 420 blue coins.",
+    "de": "Sammle alle 420 blauen Münzen."
+   }
+  },
+  {
+   "id": "eclipse.blue_coins.trade_all",
+   "category": "shines",
+   "target": 42,
+   "secret": false,
+   "title": {
+    "en": "The Big Trade",
+    "de": "Großer Tausch",
+    "es": "El gran trueque",
+    "fr": "Le grand échange",
+    "it": "Il grande scambio"
+   },
+   "description": {
+    "en": "Trade blue coins for all 42 Shine Sprites.",
+    "de": "Tausche blaue Münzen gegen alle 42 Shines."
+   }
+  },
+  {
+   "id": "eclipse.world.bianco.shines",
+   "category": "worlds",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Windmill Saviour",
+    "de": "Windmühlen-Retter",
+    "es": "Salvador del molino",
+    "fr": "Sauveur du moulin",
+    "it": "Salvatore del mulino"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Bianco Hills.",
+    "de": "Sammle alle 10 Shines in Bianco Hills."
+   }
+  },
+  {
+   "id": "eclipse.world.bianco.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Bianco Treasure",
+    "de": "Bianco-Schatz",
+    "es": "Tesoro de Bianco",
+    "fr": "Trésor de Bianco",
+    "it": "Tesoro di Bianco"
+   },
+   "description": {
+    "en": "Collect 100 coins in Bianco Hills and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Bianco Hills und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Bianco Hills y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Bianco Hills et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Bianco Hills e ottieni il Sole."
+   }
+  },
+  {
+   "id": "eclipse.world.bianco.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Hills Combed Through",
+    "de": "Hügel abgegrast",
+    "es": "Colinas peinadas",
+    "fr": "Collines passées au peigne fin",
+    "it": "Colli setacciati"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Bianco Hills.",
+    "de": "Sammle alle 30 blauen Münzen in Bianco Hills.",
+    "es": "Reúne las 30 monedas azules de Bianco Hills.",
+    "fr": "Récupère les 30 pièces bleues de Bianco Hills.",
+    "it": "Raccogli tutte le 30 monete blu di Bianco Hills."
+   }
+  },
+  {
+   "id": "eclipse.world.ricco.shines",
+   "category": "worlds",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Harbour Master",
+    "de": "Hafenmeister",
+    "es": "Capitán del puerto",
+    "fr": "Capitaine du port",
+    "it": "Capitano di porto"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Ricco Harbor.",
+    "de": "Sammle alle 10 Shines in Ricco Harbor."
+   }
+  },
+  {
+   "id": "eclipse.world.ricco.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Harbour Till",
+    "de": "Hafenkasse",
+    "es": "Caja del puerto",
+    "fr": "Caisse du port",
+    "it": "Cassa del porto"
+   },
+   "description": {
+    "en": "Collect 100 coins in Ricco Harbor and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Ricco Harbor und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Ricco Harbor y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Ricco Harbor et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Ricco Harbor e ottieni il Sole."
+   }
+  },
+  {
+   "id": "eclipse.world.ricco.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Container",
+    "de": "Jeder Container",
+    "es": "Cada contenedor",
+    "fr": "Chaque conteneur",
+    "it": "Ogni container"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Ricco Harbor.",
+    "de": "Sammle alle 30 blauen Münzen in Ricco Harbor.",
+    "es": "Reúne las 30 monedas azules de Ricco Harbor.",
+    "fr": "Récupère les 30 pièces bleues de Ricco Harbor.",
+    "it": "Raccogli tutte le 30 monete blu di Ricco Harbor."
+   }
+  },
+  {
+   "id": "eclipse.world.gelato.shines",
+   "category": "worlds",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Beach Warden",
+    "de": "Strandwärter",
+    "es": "Vigilante de la playa",
+    "fr": "Gardien de la plage",
+    "it": "Guardiano della spiaggia"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Gelato Beach.",
+    "de": "Sammle alle 10 Shines in Gelato Beach."
+   }
+  },
+  {
+   "id": "eclipse.world.gelato.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Shell Money",
+    "de": "Muschelgeld",
+    "es": "Dinero de conchas",
+    "fr": "Monnaie de coquillages",
+    "it": "Soldi di conchiglie"
+   },
+   "description": {
+    "en": "Collect 100 coins in Gelato Beach and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Gelato Beach und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Gelato Beach y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Gelato Beach et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Gelato Beach e ottieni il Sole."
+   }
+  },
+  {
+   "id": "eclipse.world.gelato.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Grain of Sand",
+    "de": "Jedes Sandkorn",
+    "es": "Cada grano de arena",
+    "fr": "Chaque grain de sable",
+    "it": "Ogni granello di sabbia"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Gelato Beach.",
+    "de": "Sammle alle 30 blauen Münzen in Gelato Beach.",
+    "es": "Reúne las 30 monedas azules de Gelato Beach.",
+    "fr": "Récupère les 30 pièces bleues de Gelato Beach.",
+    "it": "Raccogli tutte le 30 monete blu di Gelato Beach."
+   }
+  },
+  {
+   "id": "eclipse.world.pinna.shines",
+   "category": "worlds",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Park Director",
+    "de": "Parkdirektor",
+    "es": "Director del parque",
+    "fr": "Directeur du parc",
+    "it": "Direttore del parco"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Pinna Park.",
+    "de": "Sammle alle 10 Shines in Pinna Park."
+   }
+  },
+  {
+   "id": "eclipse.world.pinna.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Funfair Takings",
+    "de": "Kirmes-Kasse",
+    "es": "Caja de la feria",
+    "fr": "Recette de la fête foraine",
+    "it": "Incasso del luna park"
+   },
+   "description": {
+    "en": "Collect 100 coins in Pinna Park and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Pinna Park und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Pinna Park y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Pinna Park et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Pinna Park e ottieni il Sole."
+   }
+  },
+  {
+   "id": "eclipse.world.pinna.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Ride",
+    "de": "Jede Attraktion",
+    "es": "Cada atracción",
+    "fr": "Chaque attraction",
+    "it": "Ogni attrazione"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Pinna Park.",
+    "de": "Sammle alle 30 blauen Münzen in Pinna Park.",
+    "es": "Reúne las 30 monedas azules de Pinna Park.",
+    "fr": "Récupère les 30 pièces bleues de Pinna Park.",
+    "it": "Raccogli tutte le 30 monete blu di Pinna Park."
+   }
+  },
+  {
+   "id": "eclipse.world.sirena.shines",
+   "category": "worlds",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Guest of the Year",
+    "de": "Hotelgast des Jahres",
+    "es": "Huésped del año",
+    "fr": "Client de l'année",
+    "it": "Ospite dell'anno"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Sirena Beach.",
+    "de": "Sammle alle 10 Shines in Sirena Beach."
+   }
+  },
+  {
+   "id": "eclipse.world.sirena.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Tip for the Staff",
+    "de": "Trinkgeld",
+    "es": "Propina",
+    "fr": "Pourboire",
+    "it": "Mancia"
+   },
+   "description": {
+    "en": "Collect 100 coins in Sirena Beach and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Sirena Beach und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Sirena Beach y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Sirena Beach et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Sirena Beach e ottieni il Sole."
+   }
+  },
+  {
+   "id": "eclipse.world.sirena.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Under Every Bed",
+    "de": "Unter jedem Bett",
+    "es": "Bajo cada cama",
+    "fr": "Sous chaque lit",
+    "it": "Sotto ogni letto"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Sirena Beach.",
+    "de": "Sammle alle 30 blauen Münzen in Sirena Beach.",
+    "es": "Reúne las 30 monedas azules de Sirena Beach.",
+    "fr": "Récupère les 30 pièces bleues de Sirena Beach.",
+    "it": "Raccogli tutte le 30 monete blu di Sirena Beach."
+   }
+  },
+  {
+   "id": "eclipse.world.noki.shines",
+   "category": "worlds",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Bay Diver",
+    "de": "Taucher der Bucht",
+    "es": "Buzo de la bahía",
+    "fr": "Plongeur de la baie",
+    "it": "Sub della baia"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Noki Bay.",
+    "de": "Sammle alle 10 Shines in Noki Bay."
+   }
+  },
+  {
+   "id": "eclipse.world.noki.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Deep-Sea Treasure",
+    "de": "Tiefsee-Schatz",
+    "es": "Tesoro de las profundidades",
+    "fr": "Trésor des abysses",
+    "it": "Tesoro degli abissi"
+   },
+   "description": {
+    "en": "Collect 100 coins in Noki Bay and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Noki Bay und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Noki Bay y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Noki Bay et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Noki Bay e ottieni il Sole."
+   }
+  },
+  {
+   "id": "eclipse.world.noki.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Waterfall",
+    "de": "Jeder Wasserfall",
+    "es": "Cada cascada",
+    "fr": "Chaque cascade",
+    "it": "Ogni cascata"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Noki Bay.",
+    "de": "Sammle alle 30 blauen Münzen in Noki Bay.",
+    "es": "Reúne las 30 monedas azules de Noki Bay.",
+    "fr": "Récupère les 30 pièces bleues de Noki Bay.",
+    "it": "Raccogli tutte le 30 monete blu di Noki Bay."
+   }
+  },
+  {
+   "id": "eclipse.world.pianta.shines",
+   "category": "worlds",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Honorary Citizen",
+    "de": "Ehrenbürger",
+    "es": "Ciudadano de honor",
+    "fr": "Citoyen d'honneur",
+    "it": "Cittadino onorario"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Pianta Village.",
+    "de": "Sammle alle 10 Shines in Pianta Village."
+   }
+  },
+  {
+   "id": "eclipse.world.pianta.coins100",
+   "category": "worlds",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Mushroom Money",
+    "de": "Pilzgeld",
+    "es": "Dinero de setas",
+    "fr": "Argent des champignons",
+    "it": "Soldi dei funghi"
+   },
+   "description": {
+    "en": "Collect 100 coins in Pianta Village and get the Shine Sprite.",
+    "de": "Sammle 100 Münzen in Pianta Village und hol dir den Shine.",
+    "es": "Reúne 100 monedas en Pianta Village y consigue el Sol.",
+    "fr": "Récupère 100 pièces à Pianta Village et obtiens le Soleil.",
+    "it": "Raccogli 100 monete a Pianta Village e ottieni il Sole."
+   }
+  },
+  {
+   "id": "eclipse.world.pianta.blue_coins",
+   "category": "worlds",
+   "target": 30,
+   "secret": false,
+   "title": {
+    "en": "Every Tree Trunk",
+    "de": "Jeder Baumstamm",
+    "es": "Cada tronco",
+    "fr": "Chaque tronc",
+    "it": "Ogni tronco"
+   },
+   "description": {
+    "en": "Collect all 30 Blue Coins in Pianta Village.",
+    "de": "Sammle alle 30 blauen Münzen in Pianta Village.",
+    "es": "Reúne las 30 monedas azules de Pianta Village.",
+    "fr": "Récupère les 30 pièces bleues de Pianta Village.",
+    "it": "Raccogli tutte le 30 monete blu di Pianta Village."
+   }
+  },
+  {
+   "id": "eclipse.area.erto",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Erto Complete",
+    "de": "Erto komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite in Erto, its 100-coin Shine included.",
+    "de": "Sammle alle Shines in Erto, den 100-Münzen-Shine eingeschlossen."
+   }
+  },
+  {
+   "id": "eclipse.area.erto.blue_coins",
+   "category": "areas",
+   "target": 20,
+   "secret": false,
+   "title": {
+    "en": "Erto in Blue",
+    "de": "Erto in Blau"
+   },
+   "description": {
+    "en": "Collect all 20 blue coins in Erto.",
+    "de": "Sammle alle 20 blauen Münzen in Erto."
+   }
+  },
+  {
+   "id": "eclipse.area.erto.secret",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Erto: Secret Level",
+    "de": "Erto: Geheimlevel"
+   },
+   "description": {
+    "en": "Get the Shine Sprite of Erto's secret level.",
+    "de": "Hol den Shine im Geheimlevel von Erto."
+   }
+  },
+  {
+   "id": "eclipse.area.lighthouse",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Lighthouse Complete",
+    "de": "Leuchtturm komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite in Lighthouse, its 100-coin Shine included.",
+    "de": "Sammle alle Shines in Leuchtturm, den 100-Münzen-Shine eingeschlossen."
+   }
+  },
+  {
+   "id": "eclipse.area.lighthouse.blue_coins",
+   "category": "areas",
+   "target": 20,
+   "secret": false,
+   "title": {
+    "en": "Blue Beacon",
+    "de": "Blaues Leuchtfeuer"
+   },
+   "description": {
+    "en": "Collect all 20 blue coins in Lighthouse.",
+    "de": "Sammle alle 20 blauen Münzen in Leuchtturm."
+   }
+  },
+  {
+   "id": "eclipse.area.lighthouse.secret",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Lighthouse: Secret Level",
+    "de": "Leuchtturm: Geheimlevel"
+   },
+   "description": {
+    "en": "Get the Shine Sprite of Lighthouse's secret level.",
+    "de": "Hol den Shine im Geheimlevel von Leuchtturm."
+   }
+  },
+  {
+   "id": "eclipse.area.warship",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Warship Complete",
+    "de": "Kriegsschiff komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite in Warship, its 100-coin Shine included.",
+    "de": "Sammle alle Shines in Kriegsschiff, den 100-Münzen-Shine eingeschlossen."
+   }
+  },
+  {
+   "id": "eclipse.area.warship.blue_coins",
+   "category": "areas",
+   "target": 20,
+   "secret": false,
+   "title": {
+    "en": "Blue Fleet",
+    "de": "Blaue Flotte"
+   },
+   "description": {
+    "en": "Collect all 20 blue coins in Warship.",
+    "de": "Sammle alle 20 blauen Münzen in Kriegsschiff."
+   }
+  },
+  {
+   "id": "eclipse.area.warship.secret",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Warship: Secret Level",
+    "de": "Kriegsschiff: Geheimlevel"
+   },
+   "description": {
+    "en": "Get the Shine Sprite of Warship's secret level.",
+    "de": "Hol den Shine im Geheimlevel von Kriegsschiff."
+   }
+  },
+  {
+   "id": "eclipse.area.lacrima",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Lacrima Complete",
+    "de": "Lacrima komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite in Lacrima, its 100-coin Shine included.",
+    "de": "Sammle alle Shines in Lacrima, den 100-Münzen-Shine eingeschlossen."
+   }
+  },
+  {
+   "id": "eclipse.area.lacrima.blue_coins",
+   "category": "areas",
+   "target": 20,
+   "secret": false,
+   "title": {
+    "en": "Blue Tears",
+    "de": "Blaue Tränen"
+   },
+   "description": {
+    "en": "Collect all 20 blue coins in Lacrima.",
+    "de": "Sammle alle 20 blauen Münzen in Lacrima."
+   }
+  },
+  {
+   "id": "eclipse.area.lacrima.secret",
+   "category": "areas",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Lacrima: Secret Level",
+    "de": "Lacrima: Geheimlevel"
+   },
+   "description": {
+    "en": "Get the Shine Sprite of Lacrima's secret level.",
+    "de": "Hol den Shine im Geheimlevel von Lacrima."
+   }
+  },
+  {
+   "id": "eclipse.area.cruiser",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Cruiser Complete",
+    "de": "Kreuzer komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite in Cruiser, its 100-coin Shine included.",
+    "de": "Sammle alle Shines in Kreuzer, den 100-Münzen-Shine eingeschlossen."
+   }
+  },
+  {
+   "id": "eclipse.area.cruiser.blue_coins",
+   "category": "areas",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Blue Deck",
+    "de": "Blaues Deck"
+   },
+   "description": {
+    "en": "Collect all 10 blue coins in Cruiser.",
+    "de": "Sammle alle 10 blauen Münzen in Kreuzer."
+   }
+  },
+  {
+   "id": "eclipse.area.cruiser.secret",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Cruiser: Secret Level",
+    "de": "Kreuzer: Geheimlevel"
+   },
+   "description": {
+    "en": "Get the Shine Sprite of Cruiser's secret level.",
+    "de": "Hol den Shine im Geheimlevel von Kreuzer."
+   }
+  },
+  {
+   "id": "eclipse.area.pianta_pit",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Pianta Pit Complete",
+    "de": "Pianta-Grube komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite in Pianta Pit, its 100-coin Shine included.",
+    "de": "Sammle alle Shines in Pianta-Grube, den 100-Münzen-Shine eingeschlossen."
+   }
+  },
+  {
+   "id": "eclipse.area.pianta_pit.blue_coins",
+   "category": "areas",
+   "target": 20,
+   "secret": false,
+   "title": {
+    "en": "Blue Depths",
+    "de": "Blaue Tiefe"
+   },
+   "description": {
+    "en": "Collect all 20 blue coins in Pianta Pit.",
+    "de": "Sammle alle 20 blauen Münzen in Pianta-Grube."
+   }
+  },
+  {
+   "id": "eclipse.area.mario_dream",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Mario's Dream Complete",
+    "de": "Marios Traum komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite and every blue coin in Mario's Dream.",
+    "de": "Sammle alle Shines und alle blauen Münzen in Marios Traum."
+   }
+  },
+  {
+   "id": "eclipse.area.lancia",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Lancia Complete",
+    "de": "Lancia komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite and every blue coin in Lancia.",
+    "de": "Sammle alle Shines und alle blauen Münzen in Lancia."
+   }
+  },
+  {
+   "id": "eclipse.area.vaporwave",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Vaporwave Complete",
+    "de": "Vaporwave komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite and every blue coin in Vaporwave.",
+    "de": "Sammle alle Shines und alle blauen Münzen in Vaporwave."
+   }
+  },
+  {
+   "id": "eclipse.area.yoshi_village",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Yoshi Village Complete",
+    "de": "Yoshi-Dorf komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite and every blue coin in Yoshi Village.",
+    "de": "Sammle alle Shines und alle blauen Münzen in Yoshi-Dorf."
+   }
+  },
+  {
+   "id": "eclipse.area.red_lily",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Red Lily Complete",
+    "de": "Red Lily komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite and every blue coin in Red Lily.",
+    "de": "Sammle alle Shines und alle blauen Münzen in Red Lily."
+   }
+  },
+  {
+   "id": "eclipse.area.peach_beach",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Peach Beach Complete",
+    "de": "Peach Beach komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite and every blue coin in Peach Beach.",
+    "de": "Sammle alle Shines und alle blauen Münzen in Peach Beach."
+   }
+  },
+  {
+   "id": "eclipse.area.spettro",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Spettro Casino Complete",
+    "de": "Spettro-Casino komplett"
+   },
+   "description": {
+    "en": "Collect every Shine Sprite and every blue coin in Spettro Casino.",
+    "de": "Sammle alle Shines und alle blauen Münzen in Spettro-Casino."
+   }
+  },
+  {
+   "id": "eclipse.area.isle_delfino",
+   "category": "areas",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Island Tour",
+    "de": "Inselrundfahrt"
+   },
+   "description": {
+    "en": "Collect all 8 Shine Sprites of Isle Delfino and the one in the train car.",
+    "de": "Sammle alle 8 Shines von Isle Delfino und den im Zugwaggon."
+   }
+  },
+  {
+   "id": "eclipse.area.all_secrets",
+   "category": "areas",
+   "target": 12,
+   "secret": false,
+   "title": {
+    "en": "Around Every Corner",
+    "de": "Hinter jeder Ecke"
+   },
+   "description": {
+    "en": "Get the Shine Sprites of all 12 secret levels.",
+    "de": "Hol die Shines aller 12 Geheimlevel."
+   }
+  },
+  {
+   "id": "eclipse.area.all_complete",
+   "category": "areas",
+   "target": 14,
+   "secret": false,
+   "title": {
+    "en": "Globetrotter",
+    "de": "Weltenbummler"
+   },
+   "description": {
+    "en": "Complete all 14 new areas.",
+    "de": "Schließ alle 14 neuen Gebiete ab."
+   }
+  },
+  {
+   "id": "eclipse.plaza.shines",
+   "category": "plaza",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Plaza Cleaner",
+    "de": "Plaza-Putzkraft",
+    "es": "Limpiador de la plaza",
+    "fr": "Agent d'entretien de la place",
+    "it": "Addetto alle pulizie della piazza"
+   },
+   "description": {
+    "en": "Collect all 10 Shine Sprites in Delfino Plaza.",
+    "de": "Sammle alle 10 Shines in Delfino Plaza.",
+    "es": "Reúne los 10 Soles de la Plaza Delfino.",
+    "fr": "Récupère les 10 Soleils de la place Delfino.",
+    "it": "Raccogli tutti i 10 Soli di Piazza Delfino."
+   }
+  },
+  {
+   "id": "eclipse.plaza.coins100",
+   "category": "plaza",
+   "target": 2,
+   "secret": false,
+   "title": {
+    "en": "Plaza Millionaire",
+    "de": "Plaza-Millionär"
+   },
+   "description": {
+    "en": "Get both 100-coin Shines of Delfino Plaza.",
+    "de": "Hol beide 100-Münzen-Shines der Delfino-Plaza."
+   }
+  },
+  {
+   "id": "eclipse.plaza.blue_coins",
+   "category": "plaza",
+   "target": 20,
+   "secret": false,
+   "title": {
+    "en": "Blue Cobblestones",
+    "de": "Pflasterblau",
+    "es": "Adoquines azules",
+    "fr": "Pavés bleus",
+    "it": "Ciottoli blu"
+   },
+   "description": {
+    "en": "Collect all 20 blue coins in Delfino Plaza.",
+    "de": "Sammle alle 20 blauen Münzen in Delfino Plaza."
+   }
+  },
+  {
+   "id": "eclipse.corona.blue_coins",
+   "category": "plaza",
+   "target": 10,
+   "secret": false,
+   "title": {
+    "en": "Summit Savings",
+    "de": "Gipfelgeld",
+    "es": "Ahorros de la cumbre",
+    "fr": "Économies du sommet",
+    "it": "Risparmi della vetta"
+   },
+   "description": {
+    "en": "Collect all 10 Blue Coins on Corona Mountain.",
+    "de": "Sammle alle 10 blauen Münzen auf dem Corona-Berg.",
+    "es": "Reúne las 10 monedas azules del Monte Corona.",
+    "fr": "Récupère les 10 pièces bleues du mont Corona.",
+    "it": "Raccogli tutte le 10 monete blu del Monte Corona."
+   }
+  },
+  {
+   "id": "eclipse.fun.frozen",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Icicle",
+    "de": "Eiszapfen"
+   },
+   "description": {
+    "en": "Freeze in the cold.",
+    "de": "Frier in der Kälte ein."
+   }
+  },
+  {
+   "id": "eclipse.fun.pizza_box",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Delivery Service",
+    "de": "Lieferservice"
+   },
+   "description": {
+    "en": "Bump into a pizza box.",
+    "de": "Stoß eine Pizzaschachtel an."
+   }
+  },
+  {
+   "id": "eclipse.fun.star_bits_100",
+   "category": "fun",
+   "target": 100,
+   "secret": false,
+   "title": {
+    "en": "Stardust",
+    "de": "Sternenstaub"
+   },
+   "description": {
+    "en": "Collect 100 Star Bits.",
+    "de": "Sammle 100 Sternenteile."
+   }
+  },
+  {
+   "id": "eclipse.fun.launch_star",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Star Flight",
+    "de": "Sternenflug"
+   },
+   "description": {
+    "en": "Fly with a Launch Star.",
+    "de": "Flieg mit einem Startstern."
+   }
+  },
+  {
+   "id": "eclipse.fun.green_yoshi",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Green Light",
+    "de": "Grünes Licht"
+   },
+   "description": {
+    "en": "Ride the green Yoshi.",
+    "de": "Reite den grünen Yoshi."
+   }
+  },
+  {
+   "id": "eclipse.fun.flat_2d",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Thinking Flat",
+    "de": "Flach gedacht"
+   },
+   "description": {
+    "en": "Play through a 2D section.",
+    "de": "Spiel einen 2D-Abschnitt durch."
+   }
+  },
+  {
+   "id": "eclipse.fun.portal",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Where Am I?",
+    "de": "Wo bin ich?"
+   },
+   "description": {
+    "en": "Travel through a portal.",
+    "de": "Reise durch ein Portal."
+   }
+  },
+  {
+   "id": "eclipse.fun.cruise",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Cruise",
+    "de": "Kreuzfahrt"
+   },
+   "description": {
+    "en": "Ride the mini cruiser.",
+    "de": "Fahr mit dem Mini-Kreuzer."
+   }
+  },
+  {
+   "id": "eclipse.fun.luigi_boss",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Sibling Rivalry",
+    "de": "Bruderduell"
+   },
+   "description": {
+    "en": "Defeat a boss as Luigi.",
+    "de": "Besiege als Luigi einen Boss."
+   }
+  },
+  {
+   "id": "eclipse.fun.shadow_shine",
+   "category": "fun",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Evil Twin",
+    "de": "Böser Zwilling"
+   },
+   "description": {
+    "en": "Get a Shine Sprite as Shadow Mario.",
+    "de": "Hol als Shadow Mario einen Shine."
+   }
+  },
+  {
+   "id": "eclipse.fun.stuck_in_goop",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Sticky Situation",
+    "de": "Klebefalle",
+    "es": "Situación pegajosa",
+    "fr": "Situation collante",
+    "it": "Situazione appiccicosa"
+   },
+   "description": {
+    "en": "Get stuck in the brown goop for the first time.",
+    "de": "Bleib das erste Mal im braunen Schleim kleben.",
+    "es": "Quédate pegado en el pringue marrón por primera vez.",
+    "fr": "Reste collé dans la boue marron pour la première fois.",
+    "it": "Resta incollato nella melma marrone per la prima volta."
+   }
+  },
+  {
+   "id": "eclipse.fun.on_fire",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Hot Pants",
+    "de": "Feuer unterm Hintern",
+    "es": "Culo en llamas",
+    "fr": "Le feu aux fesses",
+    "it": "Fuoco sotto il sedere"
+   },
+   "description": {
+    "en": "Get set on fire by fire goop.",
+    "de": "Lass dich vom Feuerschleim anzünden.",
+    "es": "Prende fuego con el pringue de fuego.",
+    "fr": "Prends feu à cause de la boue enflammée.",
+    "it": "Prendi fuoco per la melma infuocata."
+   }
+  },
+  {
+   "id": "eclipse.fun.electrocuted",
+   "category": "fun",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Live Wire",
+    "de": "Unter Strom",
+    "es": "Bajo tensión",
+    "fr": "Sous tension",
+    "it": "Sotto tensione"
+   },
+   "description": {
+    "en": "Get an electric shock.",
+    "de": "Kassier einen Stromschlag.",
+    "es": "Recibe una descarga eléctrica.",
+    "fr": "Prends une décharge électrique.",
+    "it": "Prendi una scossa elettrica."
+   }
+  },
+  {
+   "id": "eclipse.fun.lives_99",
+   "category": "fun",
+   "target": 99,
+   "secret": false,
+   "title": {
+    "en": "Nine Lives Times Eleven",
+    "de": "Katzenleben",
+    "es": "Vidas de gato",
+    "fr": "Neuf vies fois onze",
+    "it": "Vite da gatto"
+   },
+   "description": {
+    "en": "Have 99 lives.",
+    "de": "Hab 99 Leben.",
+    "es": "Ten 99 vidas.",
+    "fr": "Aie 99 vies.",
+    "it": "Abbi 99 vite."
+   }
+  },
+  {
+   "id": "eclipse.fun.coins_300",
+   "category": "fun",
+   "target": 300,
+   "secret": false,
+   "title": {
+    "en": "Scrooge",
+    "de": "Dagobert",
+    "es": "Tío Gilito",
+    "fr": "Picsou",
+    "it": "Paperone"
+   },
+   "description": {
+    "en": "Collect 300 coins in one visit to a world.",
+    "de": "Sammle 300 Münzen in einem Besuch einer Welt.",
+    "es": "Reúne 300 monedas en una sola visita a un mundo.",
+    "fr": "Récupère 300 pièces en une seule visite d'un monde.",
+    "it": "Raccogli 300 monete in una sola visita a un mondo."
+   }
+  },
+  {
+   "id": "eclipse.fun.game_over",
+   "category": "fun",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Game Over",
+    "de": "Game Over",
+    "es": "Game Over",
+    "fr": "Game Over",
+    "it": "Game Over"
+   },
+   "description": {
+    "en": "Lose all your lives.",
+    "de": "Verlier alle Leben.",
+    "es": "Pierde todas tus vidas.",
+    "fr": "Perds toutes tes vies.",
+    "it": "Perdi tutte le vite."
+   }
+  },
+  {
+   "id": "eclipse.fun.yoshi_juice",
+   "category": "fun",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Juicer",
+    "de": "Saftpresse",
+    "es": "Exprimidor",
+    "fr": "Presse-agrumes",
+    "it": "Spremiagrumi"
+   },
+   "description": {
+    "en": "Let Yoshi turn into juice in the water.",
+    "de": "Lass Yoshi im Wasser zu Saft werden.",
+    "es": "Deja que Yoshi se convierta en zumo en el agua.",
+    "fr": "Laisse Yoshi se transformer en jus dans l'eau.",
+    "it": "Lascia che Yoshi diventi succo nell'acqua."
+   }
+  },
+  {
+   "id": "eclipse.pro.hacker",
+   "category": "fun",
+   "target": 0,
+   "secret": true,
+   "title": {
+    "en": "Hacker",
+    "de": "Hacker",
+    "es": "Hacker",
+    "fr": "Hacker",
+    "it": "Hacker"
+   },
+   "description": {
+    "en": "Play with a cheat turned on.",
+    "de": "Spiel mit einem eingeschalteten Cheat.",
+    "es": "Juega con un truco activado.",
+    "fr": "Joue avec un code de triche activé.",
+    "it": "Gioca con un trucco attivo."
+   }
+  },
+  {
+   "id": "eclipse.pro.speedrun_240",
+   "category": "pro",
+   "target": 0,
+   "secret": false,
+   "title": {
+    "en": "Eclipse Sprint",
+    "de": "Finsternis-Sprint"
+   },
+   "description": {
+    "en": "Have all 240 Shine Sprites within 12 hours of play time in one save file.",
+    "de": "Hab alle 240 Shines innerhalb von 12 Stunden Spielzeit in einem Spielstand."
+   }
+  },
+  {
+   "id": "eclipse.glitch.out_of_bounds",
+   "category": "glitch",
+   "target": 0,
+   "secret": "description",
+   "title": {
+    "en": "Border Crosser",
+    "de": "Grenzgänger",
+    "es": "Cruzafronteras",
+    "fr": "Passe-muraille",
+    "it": "Oltreconfine"
+   },
+   "description": {
+    "en": "Be alive outside the level's bounds.",
+    "de": "Sei lebendig außerhalb der Levelgrenzen.",
+    "es": "Sigue vivo fuera de los límites del nivel.",
+    "fr": "Sois en vie hors des limites du niveau.",
+    "it": "Resta vivo fuori dai confini del livello."
+   }
+  },
+  {
+   "id": "eclipse.glitch.under_floor",
+   "category": "glitch",
+   "target": 0,
+   "secret": "description",
+   "title": {
+    "en": "Through the Floor",
+    "de": "Durch den Boden",
+    "es": "A través del suelo",
+    "fr": "À travers le sol",
+    "it": "Attraverso il pavimento"
+   },
+   "description": {
+    "en": "Get under the floor without dying straight away.",
+    "de": "Komm unter den Boden, ohne sofort zu sterben.",
+    "es": "Métete bajo el suelo sin morir al instante.",
+    "fr": "Passe sous le sol sans mourir aussitôt.",
+    "it": "Finisci sotto il pavimento senza morire subito."
+   }
+  },
+  {
+   "id": "eclipse.glitch.too_fast",
+   "category": "glitch",
+   "target": 0,
+   "secret": "description",
+   "title": {
+    "en": "Sound Barrier",
+    "de": "Schallmauer",
+    "es": "Barrera del sonido",
+    "fr": "Mur du son",
+    "it": "Muro del suono"
+   },
+   "description": {
+    "en": "Move faster than the game's physics normally allow.",
+    "de": "Sei schneller, als die Physik des Spiels es normalerweise erlaubt.",
+    "es": "Muévete más rápido de lo que permite la física del juego.",
+    "fr": "Va plus vite que la physique du jeu ne le permet normalement.",
+    "it": "Muoviti più veloce di quanto la fisica del gioco consenta."
+   }
+  },
+  {
+   "id": "eclipse.glitch.too_high",
+   "category": "glitch",
+   "target": 0,
+   "secret": "description",
+   "title": {
+    "en": "Sky Climber",
+    "de": "Himmelsstürmer",
+    "es": "Escalacielos",
+    "fr": "Grimpeur céleste",
+    "it": "Scalacieli"
+   },
+   "description": {
+    "en": "Get higher than any normal platform in the level.",
+    "de": "Komm höher als jede normale Plattform im Level.",
+    "es": "Llega más alto que cualquier plataforma normal del nivel.",
+    "fr": "Monte plus haut que toute plateforme normale du niveau.",
+    "it": "Arriva più in alto di qualsiasi piattaforma normale del livello."
+   }
+  },
+  {
+   "id": "eclipse.glitch.hunter",
+   "category": "glitch",
+   "target": 4,
+   "secret": false,
+   "title": {
+    "en": "Glitchhunter",
+    "de": "Glitchhunter",
+    "es": "Cazaglitches",
+    "fr": "Chasseur de glitchs",
+    "it": "Cacciatore di glitch"
+   },
+   "description": {
+    "en": "Get all four glitch achievements.",
+    "de": "Hol dir alle vier Glitch-Achievements.",
+    "es": "Consigue los cuatro logros de glitches.",
+    "fr": "Obtiens les quatre succès de glitchs.",
+    "it": "Ottieni tutti e quattro gli obiettivi dei glitch."
+   }
+  }
+ ]
+}

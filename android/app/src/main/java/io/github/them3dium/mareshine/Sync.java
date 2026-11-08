@@ -57,7 +57,10 @@ import static io.github.them3dium.mareshine.L.t;
 final class Sync {
     private static final String PREFS = "sync";
     static final String SETTING_STATES = "SMS_SYNC_STATES"; // settings.txt: 0 leaves the save states out
-    private static final String CARD = "card", STATES = "states/", ACH = "achievements/unlocked.json";
+    private static final String CARD = "card", STATES = "states/";
+    // every game's achievements (Achievements.unlockedFile): Sunshine's and the mods'
+    private static final String[] ACH = {"achievements/unlocked.json", "achievements/unlocked-sunburn.json",
+        "achievements/unlocked-eclipse.json"};
     private static final String MANIFEST = "manifest.json";
     private static final int KEEP_BACKUPS = 5;
 
@@ -388,16 +391,18 @@ final class Sync {
             }
         }
 
-        // the achievements: merged both ways
-        File achLocal = new File(data, ACH);
-        File achRemote = remoteFiles.get(ACH);
-        JSONObject a = readJson(achLocal), b = readJson(achRemote);
-        JSONObject merged = mergeAchievements(a, b);
-        String mergedText = merged.toString(2) + "\n";
-        if (merged.optJSONObject("unlocked") != null || merged.optJSONObject("progress") != null) {
+        // the achievements, every game's file: merged both ways
+        File[] achLocal = new File[ACH.length];
+        String[] mergedText = new String[ACH.length]; // null: nothing in either
+        for (int i = 0; i < ACH.length; i++) {
+            achLocal[i] = new File(data, ACH[i]);
+            JSONObject a = readJson(achLocal[i]), b = readJson(remoteFiles.get(ACH[i]));
+            JSONObject merged = mergeAchievements(a, b);
+            if (merged.optJSONObject("unlocked") == null && merged.optJSONObject("progress") == null) continue;
+            mergedText[i] = merged.toString(2) + "\n";
             if (!same(a, merged) && !inGame) { // in the game: at the next sync in the main menu
-                achLocal.getParentFile().mkdirs();
-                writeText(achLocal, mergedText);
+                achLocal[i].getParentFile().mkdirs();
+                writeText(achLocal[i], mergedText[i]);
                 res.achievements = true;
             }
             if (!same(b, merged)) {
@@ -418,9 +423,10 @@ final class Sync {
                 put(z, MANIFEST, man.toString(2).getBytes("UTF-8"));
                 for (Map<String, File> files : outFiles.values())
                     for (Map.Entry<String, File> f : files.entrySet()) put(z, f.getKey(), f.getValue());
-                if (inGame && (merged.optJSONObject("unlocked") != null || merged.optJSONObject("progress") != null))
-                    put(z, ACH, mergedText.getBytes("UTF-8"));
-                else if (achLocal.isFile()) put(z, ACH, achLocal);
+                for (int i = 0; i < ACH.length; i++) {
+                    if (inGame && mergedText[i] != null) put(z, ACH[i], mergedText[i].getBytes("UTF-8"));
+                    else if (achLocal[i].isFile()) put(z, ACH[i], achLocal[i]);
+                }
             }
             side.write(tmp);
             tmp.delete();
@@ -508,7 +514,7 @@ final class Sync {
         JSONObject out = new JSONObject(a.toString());
         if (!out.has("format")) out.put("format", "achievements");
         if (!out.has("schema")) out.put("schema", 1);
-        if (!out.has("game")) out.put("game", "sms");
+        if (!out.has("game")) out.put("game", b.optString("game", "sms")); // a mod's file names its game
         JSONObject ua = out.optJSONObject("unlocked");
         if (ua == null) { ua = new JSONObject(); out.put("unlocked", ua); }
         JSONObject ub = b.optJSONObject("unlocked");

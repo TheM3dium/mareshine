@@ -1,0 +1,23 @@
+Reason: port (Mareshine): log the Shine Sprites a stage places, for comparing a mod's levels (SMS_SHINE_MAP)
+--- a/src/MoveBG/Item.cpp
++++ b/src/MoveBG/Item.cpp
+@@ -999,10 +999,19 @@
+ 	unk178 = 240;
+ }
+ 
++#ifdef TARGET_PC
++extern "C" __attribute__((weak)) void port_shine_loaded(int id, int kind); // Android only
++#endif
++
+ void TShine::loadAfter()
+ {
+ 	TMapObjGeneral::loadAfter();
+ #ifdef TARGET_PC
++	// Mareshine: which Shine Sprites a stage places (SMS_SHINE_MAP, platform/achievements/ach_mods.cpp)
++	if (port_shine_loaded)
++		port_shine_loaded((int)mEventId, (int)unk154);
++#endif
++#ifdef TARGET_PC
+ 	// BetterSunshineEngine (loadAfterMaskState, retail 0x801BCD20, with the
+ 	// words at 0x801BCD24 (cmplwi r3, 2) and 0x801BCD40 (cmplwi r3, 1)):
+ 	// both tests read the type through the mod (this in r31), which masks

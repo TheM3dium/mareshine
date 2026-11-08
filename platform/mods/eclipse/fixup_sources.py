@@ -6,7 +6,7 @@ a regular expression and its replacement, and why. Entries with the same why
 form a group, which must match at least once (unless marked OPTIONAL), so an
 upstream change that makes a rule miss stops the build instead of passing
 silently. The sources are reset to their checkouts first, then fixed up and
-patched (shi-layout.patch, mods-port.patch); a marker records the state, so
+patched (shi-layout.patch, mods-port.patch, ach-hooks.patch); a marker records the state, so
 an unchanged checkout is not redone.
 
     fixup_sources.py ECLIPSE_ROOT BSE_ROOT SHI_ROOT [MOVESET_ROOT [SUNBURN_ROOT]]
@@ -738,7 +738,7 @@ if __name__ == "__main__":
     roots = [os.path.abspath(a) for a in sys.argv[1:]]
     here = os.path.dirname(os.path.abspath(__file__))
     patches = [os.path.join(here, "shi-layout.patch"), os.path.join(here, "mods-port.patch"),
-               os.path.join(here, "sunburn-v2.patch")]
+               os.path.join(here, "sunburn-v2.patch"), os.path.join(here, "ach-hooks.patch")]
     marker = os.path.join(os.path.dirname(roots[1]), ".sms_port_fixups")
     digest = state(roots, [os.path.abspath(__file__)] + patches)
     if os.path.exists(marker) and open(marker).read().strip() == digest:
@@ -764,6 +764,10 @@ if __name__ == "__main__":
     # address by retail offset (SMS_OFFSET, tools/mods/shi_layout/offsets.py).
     if len(roots) >= 4 and os.path.exists(patches[1]):
         n += apply_patch(os.path.dirname(roots[0]), patches[1])
+    # Mareshine's achievements: calls where the mods' code tells what happened
+    # (ach-hooks.patch, Sunburn's as well as Eclipse's)
+    if len(roots) == 5:
+        n += apply_patch(os.path.dirname(roots[0]), patches[3])
     with open(marker, "w") as f:
         f.write(digest + "\n")
     print("fixup_sources: %d replacements" % n)

@@ -18,7 +18,9 @@ import static io.github.them3dium.mareshine.L.t;
 // The achievements (Achievements.java): every category with its achievements,
 // unlocked ones bright with their date, the others dim with their progress; a
 // secret one shows as ??? until it is unlocked (or only its title). Two tabs:
-// ALL, and UNLOCKED with only the ones unlocked, in the same order. From
+// ALL, and UNLOCKED with only the ones unlocked, in the same order. The list
+// is the game's being played (Achievements.game: a mod's own, or Sunshine's),
+// named under the title. From
 // Settings → ACHIEVEMENTS (which also turns them on or off) and from the quick
 // menu in the game.
 public class AchievementsActivity extends AppActivity {
@@ -58,6 +60,13 @@ public class AchievementsActivity extends AppActivity {
         head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         head.addView(closeButton());
         panel.addView(head);
+        // the game whose list this is: the mod being played, or Sunshine
+        TextView game = new TextView(this);
+        game.setText(Achievements.gameTitle(this));
+        game.setTextColor(0xFFFFFFFF);
+        game.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        game.setTextSize(16);
+        panel.addView(game);
         closeOnOutsideTap(this, root, panel);
 
         // the tabs, as in Settings (L1 / R1 switch them too)
