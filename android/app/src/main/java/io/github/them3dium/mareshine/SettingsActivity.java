@@ -1384,6 +1384,8 @@ public class SettingsActivity extends AppActivity {
         String rowNote;        // a line under the first row
         Slider inlineSlider2;  // a second one, after inlineAfter2 (null: none now)
         int inlineAfter2;
+        Slider inlineSlider3;  // a third one, after inlineAfter3
+        int inlineAfter3;
     }
 
     private Panel mPanel;
@@ -1493,6 +1495,7 @@ public class SettingsActivity extends AppActivity {
                 mInlineBar = mLastInlineBar;
             }
             if (p.inlineSlider2 != null && p.inlineAfter2 == i) addInlineSlider(p.inlineSlider2, items);
+            if (p.inlineSlider3 != null && p.inlineAfter3 == i) addInlineSlider(p.inlineSlider3, items);
         }
         mPanelItems = items.toArray(new View[0]);
         if (p.more != null) {
@@ -1843,7 +1846,8 @@ public class SettingsActivity extends AppActivity {
         p.row = row;
         p.orderedNavigation = true;
         p.intro = "Stick assignment, inversion, dead zones and sensitivity.";
-        p.more = "Camera X inversion is on by default. FLUDD inversion is off by default. Restart the game after changing these settings.";
+        p.more = "Camera X inversion is on by default. FLUDD inversion is off by default. The C-stick's inversion "
+            + "also applies to the touch C-stick and to swiping, the sensitivities to the touch sticks.";
         String[] keys = {"SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y", "SMS_FLUDD_INVERT_X", "SMS_FLUDD_INVERT_Y"};
         p.labels = new String[] {"Swap sticks", "Left stick: dead zone", "Left stick: sensitivity",
             "C-stick: dead zone", "C-stick: sensitivity", "C-stick: horizontal (X)", "C-stick: vertical (Y)",
@@ -1898,32 +1902,48 @@ public class SettingsActivity extends AppActivity {
         Panel p = new Panel();
         p.row = row;
         p.orderedNavigation = true;
-        p.intro = "Hiding when idle, the swipe camera's inversion and button feedback.";
-        p.more = "Swiping on the free part of the screen turns the camera, with an inversion of its own apart from "
-            + "the C-stick's. Button feedback pauses while the game itself vibrates and stays off when the "
-            + "smartphone's vibration is set to 0%.";
+        p.intro = "Hiding when idle, the camera's inversion, button feedback and the sensitivity of FLUDD, the C-stick and swiping.";
+        p.more = "Swiping on the free part of the screen turns the camera with the finger. The inversion is the "
+            + "C-stick's (also under Stick Behavior) and counts for the touch C-stick, swiping and controllers "
+            + "alike; the C-stick's and FLUDD's sensitivity count for controllers too. Button feedback pauses "
+            + "while the game itself vibrates and stays off when the smartphone's vibration is set to 0%.";
         p.labels = new String[] {"Hide when idle", "Invert horizontal (X)", "Invert vertical (Y)", "Button feedback"};
-        p.sections = new String[] {"Display", "Swipe camera", null, "Feedback"};
+        p.sections = new String[] {"Display", "Camera (C-stick and swipe)", null, "Feedback"};
         p.values = new java.util.function.Supplier[4];
         p.gold = new java.util.function.BooleanSupplier[4];
         p.acts = new Runnable[4];
+        // the C-stick's own switches (Stick Behavior shows the same)
+        String[] camKeys = {"SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y"};
+        for (int i = 0; i < camKeys.length; i++) {
+            final String key = camKeys[i];
+            final int index = i + 1;
+            p.gold[index] = () -> StickBehavior.inverted(mSettings, key);
+            p.values[index] = () -> p.gold[index].getAsBoolean() ? "On" : "Off";
+            p.acts[index] = () -> { StickBehavior.toggleInversion(mSettings, key); saved(); };
+        }
+        // in the panel itself, as the gyroscope's, under the switches
+        p.inlineSlider = new Slider("SMS_FLUDD_SENSITIVITY", "FLUDD aiming: sensitivity",
+            "How far the stick has to go while you aim with R+: above 100% FLUDD turns fast with less "
+                + "movement. The game limits how fast it can turn.", 100, 25, 300, 5);
+        p.inlineAfter = 3;
+        p.inlineSlider2 = new Slider("SMS_CSTICK_SENSITIVITY", "C-stick: sensitivity",
+            "How fast the touch C-stick turns the camera: above 100% it reaches full speed with less "
+                + "movement.", 100, 25, 300, 5);
+        p.inlineAfter2 = 3;
+        p.inlineSlider3 = new Slider("SMS_SWIPE_SENSITIVITY", "Swipe camera: sensitivity",
+            "How far a swipe turns the camera: above 100% a shorter swipe turns it as far.", 100, 25, 300, 5);
+        p.inlineAfter3 = 3;
         Choice hide = new Choice("SMS_TOUCH_AUTOHIDE", "Hide when idle", "", "0",
             new String[] {"0", "3", "5", "10"}, new String[] {"Never", "After 3 s", "After 5 s", "After 10 s"});
         p.values[0] = hide::value;
         p.gold[0] = () -> hide.index() != 0;
         p.acts[0] = () -> hide.step(1);
-        String[] keys = {"SMS_SWIPE_INVERT_X", "SMS_SWIPE_INVERT_Y", "SMS_TOUCH_HAPTIC"};
-        String[] defs = {"1", "0", "0"};
-        for (int i = 0; i < keys.length; i++) {
-            final String key = keys[i], def = defs[i];
-            final int index = i + 1;
-            p.gold[index] = () -> !"0".equals(mSettings.getOrDefault(key, def));
-            p.values[index] = () -> p.gold[index].getAsBoolean() ? "On" : "Off";
-            p.acts[index] = () -> {
-                mSettings.put(key, p.gold[index].getAsBoolean() ? "0" : "1");
-                saved();
-            };
-        }
+        p.gold[3] = () -> !"0".equals(mSettings.getOrDefault("SMS_TOUCH_HAPTIC", "0"));
+        p.values[3] = () -> p.gold[3].getAsBoolean() ? "On" : "Off";
+        p.acts[3] = () -> {
+            mSettings.put("SMS_TOUCH_HAPTIC", p.gold[3].getAsBoolean() ? "0" : "1");
+            saved();
+        };
         return p;
     }
 
@@ -2018,7 +2038,7 @@ public class SettingsActivity extends AppActivity {
                 return v.equals("on") || v.equals("1") ? 1 : v.equals("off") || v.equals("0") ? 2 : 0;
             }
         });
-        add(new Row("Touch behavior", "Hiding when idle, the swipe camera's inversion and button feedback.") {
+        add(new Row("Touch behavior", "Hiding when idle, the camera's inversion, button feedback and the sensitivity of FLUDD, the C-stick and swiping.") {
             @Override void click() { openPanel(touchBehaviorPanel(this)); }
             @Override boolean hasArrow() { return true; }
         });

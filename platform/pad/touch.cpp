@@ -17,8 +17,11 @@
 //                         SMS_TOUCH_R_SLIDE (of the screen height) it is R+ (on by default;
 //                         off, R+ is a button of its own)
 //   SMS_TOUCH_HAPTIC      a tick for every button pressed
-//   SMS_SWIPE_INVERT_X/Y  the swipe camera's own inversion (X on by default);
-//                         the touch C-stick follows SMS_CAMERA_INVERT_X/Y
+//   SMS_CAMERA_INVERT_X/Y the touch C-stick and the swipe camera turn as the
+//                         controller's C-stick does
+//   SMS_STICK_SENSITIVITY / SMS_CSTICK_SENSITIVITY  percent, as for a controller:
+//                         the touch sticks
+//   SMS_SWIPE_SENSITIVITY percent: how fast a swipe turns the camera
 //   SMS_SAVESTATE_DELAY=0 SAVE and LOAD act at once instead of once held
 #include "touch.h"
 #include "touch_gamecube.h"
@@ -104,7 +107,8 @@ struct Config {
 	float opacity = 0.7f, autoHide = 0, rSlide = 0.06f;
 	bool rSlider = false, haptic = false, stateDelay = true;
 	int style = 1;  // 0 classic discs (SMS_TOUCH_STYLE=classic), 1 GameCube outlines
-	bool swipeX = true, swipeY = false, camX = false, camY = false;
+	bool camX = false, camY = false;
+	float sens[3] = { 1, 1, 1 };  // the left stick, the C-stick, the swipe camera
 	Place place[ID_COUNT];
 };
 
@@ -140,8 +144,11 @@ void readConfig(Config& c)
 	c.rSlide = slide < 0.02f ? 0.02f : slide > 0.4f ? 0.4f : slide;
 	c.haptic = envOn("SMS_TOUCH_HAPTIC", false);
 	c.stateDelay = envOn("SMS_SAVESTATE_DELAY", true);
-	c.swipeX = envOn("SMS_SWIPE_INVERT_X", true);
-	c.swipeY = envOn("SMS_SWIPE_INVERT_Y", false);
+	const char* sens[3] = { "SMS_STICK_SENSITIVITY", "SMS_CSTICK_SENSITIVITY", "SMS_SWIPE_SENSITIVITY" };
+	for (int i = 0; i < 3; i++) {
+		const float v = envFloat(sens[i], 100) / 100;
+		c.sens[i] = v < 0.25f ? 0.25f : v > 3.0f ? 3.0f : v;
+	}
 	c.camX = envOn("SMS_CAMERA_INVERT_X", false);
 	c.camY = envOn("SMS_CAMERA_INVERT_Y", false);
 	for (int i = 0; i < ID_COUNT; i++)
@@ -205,7 +212,10 @@ Finger g_fingers[10];
 int g_fingerCount;
 bool g_hideOthers, g_hiddenByPad, g_rDeep;
 uint32_t g_tapped;               // buttons touched since the last pad read (touch_controls_pad)
-float g_swipeX, g_swipeY;         // the camera swipe's last movement (C-stick units)
+float g_swipeDX, g_swipeDY;       // the camera swipe's movement since the last pad read (pixels)
+float g_swipeX, g_swipeY;         // what it gave the C-stick last time (-100..100)
+double g_swipeRead;               // when the pad was last read with a swipe going on
+unsigned g_padReads, g_swipeTaken = ~0u; // pad reads; the last one the camera took the swipe at
 double g_lastTouch, g_stateSince[2] = { -1, -1 };
 bool g_stateFired[2];
 bool g_spritesDirty = true;
@@ -373,8 +383,10 @@ void move(int64_t id, float x, float y)
 	f->x = x;
 	f->y = y;
 	if (f->holds == CAMERA) {
-		g_swipeX = fmaxf(-100, fminf(100, dx * 4));
-		g_swipeY = fmaxf(-100, fminf(100, -dy * 4));
+		// every movement counts: the screen reports up to 120 times a second,
+		// the game reads the pad 30 times
+		g_swipeDX += dx;
+		g_swipeDY -= dy;
 	} else if (f->holds == BTN_R && g_cfg.rSlider) {
 		slideR(*f);
 	} else if (f->holds >= BTN_A && f->holds < ID_COUNT) {
@@ -400,7 +412,7 @@ void up(int64_t id)
 	if (f->holds == BTN_R)
 		g_rDeep = false;
 	if (f->holds == CAMERA)
-		g_swipeX = g_swipeY = 0;
+		g_swipeX = g_swipeY = 0;  // what moved before the finger left still goes to the camera
 	*f = g_fingers[--g_fingerCount];
 }
 
@@ -423,8 +435,11 @@ bool stickValue(int id, int& vx, int& vy, float& kx, float& ky)
 		if (d < reach * 0.1f) {
 			vx = vy = 0;
 		} else {
-			vx = (int)lroundf(dx / reach * 100);
-			vy = (int)lroundf(-dy / reach * 100);
+			// the stick's sensitivity, as for a controller: above 100% the rim
+			// is reached with less movement
+			const float k = fminf(g_cfg.sens[id == CSTICK ? 1 : 0], reach / d) / reach * 100;
+			vx = (int)lroundf(dx * k);
+			vy = (int)lroundf(-dy * k);
 		}
 		return true;
 	}
@@ -866,9 +881,28 @@ extern "C" void touch_controls_controller_used(void)
 		up(g_fingers[0].id);
 }
 
+extern "C" int touch_controls_take_swipe(float* dx, float* dy)
+{
+	Lock lock;
+	*dx = *dy = 0;
+	g_swipeTaken = g_padReads;
+	if (!g_swipeDX && !g_swipeDY)
+		return 0;
+	// a swipe the screen's height long turns as far as the C-stick held at full
+	// for 60 frames, two seconds (SMS_SWIPE_SENSITIVITY scales it); the finger to
+	// the right gives what the touch C-stick to the right gives
+	const float k = g_cfg.sens[2] * 60.0f / g_h;
+	const float x = g_swipeDX * k, y = g_swipeDY * k;
+	g_swipeDX = g_swipeDY = 0;
+	*dx = g_cfg.camX ? -x : x;
+	*dy = g_cfg.camY ? -y : y;
+	return 1;
+}
+
 extern "C" void touch_controls_pad(PADStatus* s)
 {
 	Lock lock;
+	g_padReads++;
 	refreshConfig();
 	if (!visible())
 		return;
@@ -915,12 +949,28 @@ extern "C" void touch_controls_pad(PADStatus* s)
 	if (stickValue(CSTICK, vx, vy, kx, ky) && (vx || vy)) {
 		s->substickX = (s8)(g_cfg.camX ? -vx : vx);
 		s->substickY = (s8)(g_cfg.camY ? -vy : vy);
+	} else if (held(CAMERA) && g_padReads - g_swipeTaken <= 2) {
+		// the normal camera turns by the swipe itself (touch_controls_take_swipe)
 	} else if (held(CAMERA)) {
-		s->substickX = (s8)(g_cfg.swipeX ? -g_swipeX : g_swipeX);
-		s->substickY = (s8)(g_cfg.swipeY ? -g_swipeY : g_swipeY);
-		// a swipe turns the camera while the finger moves
-		g_swipeX = g_swipeX * 2 / 3;
-		g_swipeY = g_swipeY * 2 / 3;
+		// Other cameras: the swipe's speed as a C-stick: at 100% a finger moving a third of the
+		// screen's height in a second turns the camera at full speed, measured
+		// against the time since the last read (the game's frame rate varies).
+		const double t = now();
+		const float dt = g_swipeRead > 0 ? (float)fmin(fmax(t - g_swipeRead, 1 / 120.0), 0.1) : 1 / 30.0f;
+		g_swipeRead = t;
+		const float k = g_cfg.sens[2] * 100 / (g_h / 3 * dt);
+		const float x = fmaxf(-100, fminf(100, g_swipeDX * k)), y = fmaxf(-100, fminf(100, g_swipeDY * k));
+		g_swipeDX = g_swipeDY = 0;
+		// while the finger rests the camera slows down instead of stopping dead,
+		// so a slow swipe whose reports miss a frame does not stutter
+		g_swipeX = fabsf(x) >= fabsf(g_swipeX) * 2 / 3 ? x : g_swipeX * 2 / 3;
+		g_swipeY = fabsf(y) >= fabsf(g_swipeY) * 2 / 3 ? y : g_swipeY * 2 / 3;
+		s->substickX = (s8)lroundf(g_cfg.camX ? -g_swipeX : g_swipeX);
+		s->substickY = (s8)lroundf(g_cfg.camY ? -g_swipeY : g_swipeY);
+	} else {
+		g_swipeRead = 0;
+		if (g_padReads - g_swipeTaken > 2)
+			g_swipeDX = g_swipeDY = 0;
 	}
 }
 

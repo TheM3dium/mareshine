@@ -258,6 +258,9 @@ struct StickCal {
 StickCal g_cal[2];
 float g_dz[2]   = { 0.08f, 0.08f }; // [0] move stick, [1] camera stick
 float g_sens[2] = { 1.0f, 1.0f };
+// SMS_FLUDD_SENSITIVITY: percent, how far the stick has to go for FLUDD's aim
+// (port_fludd_aim_axis); above 100 the game's fast turning comes earlier
+float g_fludd_sens = 1.0f;
 // Which controller axes each stick reads: the first of a pair (0 left, 2
 // right, -1 none), or (STICK_X=jN and the like) single raw axes set by hand,
 // for controllers whose sticks SDL's mapping gets wrong.
@@ -631,6 +634,11 @@ void stick_init()
 			float v = (float)atof(e) / 100.0f;
 			g_sens[i] = v < 0.25f ? 0.25f : v > 3.0f ? 3.0f : v;
 		}
+	}
+	g_fludd_sens = 1.0f;
+	if (const char* e = getenv("SMS_FLUDD_SENSITIVITY"); e && *e) {
+		float v = (float)atof(e) / 100.0f;
+		g_fludd_sens = v < 0.25f ? 0.25f : v > 3.0f ? 3.0f : v;
 	}
 	const char* cal[2] = { "SMS_CAL_LEFT", "SMS_CAL_RIGHT" };
 	for (int i = 0; i < 2; i++) {
@@ -1442,8 +1450,14 @@ extern "C" u32 PADRead(PADStatus* status)
 extern "C" int port_camera_take_mouse(f32* dx, f32* dy)
 {
 	*dx = *dy = 0.0f;
-	if (!g_mouseDX && !g_mouseDY)
-		return 0;
+	// a camera swipe on the touchscreen turns the normal camera the same way
+	float sx, sy;
+	const int swiped = touch_controls_take_swipe(&sx, &sy);
+	if (!g_mouseDX && !g_mouseDY) {
+		*dx = sx;
+		*dy = sy;
+		return swiped;
+	}
 	const float k = 0.02f * g_mouseSens;
 	// moving the mouse right turns the view right, as the C-stick pushed left does
 	*dx = -(float)g_mouseDX * k;
@@ -1452,6 +1466,8 @@ extern "C" int port_camera_take_mouse(f32* dx, f32* dy)
 		*dx = -*dx;
 	if (g_invert_cy)
 		*dy = -*dy;
+	*dx += sx;
+	*dy += sy;
 	g_mouseDX = g_mouseDY = 0;
 	return 1;
 }
@@ -1517,7 +1533,20 @@ extern "C" void port_sweep_heartbeat(void)
 
 // FLUDD's aim is turned where the game reads it (decomp-patches/port-05),
 // never in PADRead: the same left stick walks, strafes and works the menus.
+namespace {
+float fludd_axis(float value, int axis);
+}
+
 extern "C" float port_fludd_aim_axis(float value, int axis)
+{
+	// the stick's sensitivity for aiming; the Y camera's look keeps the stick as it is
+	if (axis == 0 || axis == 1)
+		value = std::max(-1.0f, std::min(1.0f, value * g_fludd_sens));
+	return fludd_axis(value, axis);
+}
+
+namespace {
+float fludd_axis(float value, int axis)
 {
 	init();
 	const bool flip = axis == 0 ? g_invert_aim_x : axis == 1 && g_invert_aim_y;
@@ -1544,10 +1573,11 @@ extern "C" float port_fludd_aim_axis(float value, int axis)
 	}
 	return std::max(-1.0f, std::min(1.0f, value + out));
 }
+} // namespace
 
 extern "C" float port_fludd_look_axis(float value, int axis, float speed)
 {
-	value         = port_fludd_aim_axis(value, axis);
+	value         = fludd_axis(value, axis);
 	g_gyro_looked = g_gyro_frame;
 	if ((axis != 0 && axis != 1) || g_gyro_aim[axis] == 0.0f || speed <= 0.0f)
 		return value;

@@ -17,6 +17,9 @@ void touch_controls_finger(int64_t finger, int phase, float x, float y); // phas
 void touch_controls_controller_used(void);
 // Adds what the fingers hold to `status` (after the controller's own).
 void touch_controls_pad(PADStatus* status);
+// The camera swipe since the last call, for the normal camera to turn by
+// directly (as mouse look), in C-stick units and its signs; 0 without one.
+int touch_controls_take_swipe(float* dx, float* dy);
 // Draws them (the GX layer, while a frame is presented).
 void touch_controls_draw(int winW, int winH);
 

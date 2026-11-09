@@ -325,14 +325,15 @@ public class GameMenuActivity extends AppActivity {
     // --- touch controls (live) -------------------------------------------
 
     private static final String[] TOUCH_KEYS = {
-        "SMS_TOUCH_CONTROLS", "SMS_TOUCH_OPACITY", "SMS_TOUCH_AUTOHIDE", "SMS_TOUCH_LAYOUT", "SMS_TOUCH_STYLE", "SMS_TOUCH_LAYOUT_GAMECUBE"};
+        "SMS_TOUCH_CONTROLS", "SMS_TOUCH_OPACITY", "SMS_TOUCH_AUTOHIDE", "SMS_TOUCH_LAYOUT", "SMS_TOUCH_STYLE", "SMS_TOUCH_LAYOUT_GAMECUBE",
+        "SMS_SWIPE_SENSITIVITY"};
     // the controller's (platform/pad/pad.cpp reads them again on SMS_PAD_REV);
     // a key not set goes as "", which the game takes as its default
     private static final String[] PAD_KEYS = {
         "SMS_PAD_MAP", "SMS_R1_SOFT_SPRAY", "SMS_STICK_DEADZONE", "SMS_CSTICK_DEADZONE", "SMS_STICK_SENSITIVITY",
         "SMS_CSTICK_SENSITIVITY", "SMS_CAL_LEFT", "SMS_CAL_RIGHT", "SMS_FLUDD_INVERT_X", "SMS_FLUDD_INVERT_Y",
         "SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y", "SMS_GYRO_AIM", "SMS_GYRO_SENSITIVITY", "SMS_GYRO_OFFSET",
-        "SMS_GYRO_INVERT_X", "SMS_GYRO_INVERT_Y", "SMS_GYRO_LOOK_SENSITIVITY"};
+        "SMS_GYRO_INVERT_X", "SMS_GYRO_INVERT_Y", "SMS_GYRO_LOOK_SENSITIVITY", "SMS_FLUDD_SENSITIVITY"};
     private static int sTouchRev;
 
     // The game is paused while this menu shows, so its environment can be
