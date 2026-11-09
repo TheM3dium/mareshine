@@ -9,9 +9,12 @@ public class SunshineApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        StartLog.tidy(this);
+        StartLog.mark(this, "app starting" + (android.os.Build.VERSION.SDK_INT >= 28 ? " (" + getProcessName() + ")" : ""));
         L.init(this);
         HangWatch.start(this);
         if (android.os.Build.VERSION.SDK_INT >= 28 && getPackageName().equals(getProcessName()))
             AnrLog.collect(this);
+        StartLog.mark(this, "app started");
     }
 }

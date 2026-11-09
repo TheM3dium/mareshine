@@ -76,6 +76,9 @@ final class AnrLog {
                     + "process " + e.getProcessName() + ", pid " + e.getPid() + "\n"
                     + "reason: " + e.getDescription() + "\n\n";
                 o.write(head.getBytes("UTF-8"));
+                String start = StartLog.of(c, e.getPid());
+                if (start != null)
+                    o.write(("the process's start (ms since Android started it):\n" + start + "\n").getBytes("UTF-8"));
                 try (InputStream in = e.getTraceInputStream()) {
                     if (in == null) {
                         o.write("(Android kept no thread stacks for this one)\n".getBytes("UTF-8"));

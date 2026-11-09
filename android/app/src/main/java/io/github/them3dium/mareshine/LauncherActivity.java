@@ -50,10 +50,12 @@ public class LauncherActivity extends AppActivity {
     private TextView tvDataDir;
 
     private File mFoundIsoFile = null;
+    private static boolean sStartMarked;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        StartLog.mark(this, "launcher opening");
         CrashLog.install(this);
         L.init(this);
         mLang = L.current(this);
@@ -257,6 +259,9 @@ public class LauncherActivity extends AppActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        final boolean firstStart = !sStartMarked;  // the process's first launcher: StartLog
+        sStartMarked = true;
+        if (firstStart) StartLog.mark(this, "launcher resuming");
         L.init(this);
         if (!L.current(this).equals(mLang)) { recreate(); return; } // the app language changed
         IntentFilter progress = new IntentFilter(ShaderService.ACTION_PROGRESS);
@@ -265,8 +270,13 @@ public class LauncherActivity extends AppActivity {
         ShaderService.start(this);
         Updates.autoCheck(this, this::showUpdateBadge);
         modUpdates();
+        if (firstStart) StartLog.mark(this, "launcher: services and update check started");
         checkIsoAndRefreshUi();
         gameButtons();
+        if (firstStart) {
+            StartLog.mark(this, "launcher: disc looked at");
+            getWindow().getDecorView().post(() -> StartLog.mark(this, "launcher shown"));
+        }
         View first = btnPlay.getVisibility() == View.VISIBLE && btnPlay.isEnabled() ? btnPlay : btnSettings;
         if (getCurrentFocus() == null || getCurrentFocus().getVisibility() != View.VISIBLE) first.requestFocus();
         String problem = CrashLog.isEnabled(this) ? CrashLog.takeLastSessionProblem(this) : null;

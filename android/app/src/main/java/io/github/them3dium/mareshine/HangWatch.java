@@ -23,7 +23,10 @@ import java.util.Map;
 // the app's processes asks its main thread every half second whether it is
 // still there; when it has not answered for 3 s (Android gives up after 5),
 // what every thread is doing goes to logs/hang-<date>-<time>.txt (with logs
-// on), which Share log and Send to developer take along.
+// on), which Share log and Send to developer take along. When the whole
+// process stood still for that long (this watch too) while it was in the
+// foreground, that goes there as well: a freeze the main thread alone does
+// not show.
 final class HangWatch {
     private static final long STEP_MS = 500, HANG_MS = 3000;
     private static final long FROZEN_MS = 1500;  // a step this late: the process itself was stopped
@@ -50,8 +53,14 @@ final class HangWatch {
                     return;
                 }
                 long now = SystemClock.uptimeMillis();
-                // Android froze the whole process (in the background): not a hang
+                // Android froze the whole process (in the background): not a hang;
+                // but in the foreground, a stall of the whole process is noted
                 if (now - before > STEP_MS + FROZEN_MS || Debug.isDebuggerConnected()) {
+                    if (now - before >= HANG_MS && !Debug.isDebuggerConnected() && foreground()) {
+                        try {
+                            if (CrashLog.isEnabled(app)) write(app, now - before, true);
+                        } catch (Throwable ignored) {}
+                    }
                     asked = now;
                     sAnswered = now;
                     main.post(answer);
@@ -66,7 +75,7 @@ final class HangWatch {
                 if (!written && now - asked >= HANG_MS) {
                     written = true;  // once per hang
                     try {
-                        if (CrashLog.isEnabled(app)) write(app, now - asked);
+                        if (CrashLog.isEnabled(app)) write(app, now - asked, false);
                     } catch (Throwable ignored) {}
                 }
             }
@@ -76,7 +85,14 @@ final class HangWatch {
         t.start();
     }
 
-    private static void write(Context c, long late) throws Exception {
+    // In the foreground (visible to the player), as Android sees this process.
+    private static boolean foreground() {
+        android.app.ActivityManager.RunningAppProcessInfo i = new android.app.ActivityManager.RunningAppProcessInfo();
+        android.app.ActivityManager.getMyMemoryState(i);
+        return i.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE;
+    }
+
+    private static void write(Context c, long late, boolean wholeProcess) throws Exception {
         File dir = CrashLog.dir(c);
         dir.mkdirs();
         String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date());
@@ -85,7 +101,9 @@ final class HangWatch {
         sb.append("Mareshine ").append(CrashLog.BuildConfigInfo.version(c)).append(", ").append(Build.MANUFACTURER)
             .append(' ').append(Build.MODEL).append(", Android ").append(Build.VERSION.RELEASE).append('\n')
             .append("process ").append(process).append(", pid ").append(android.os.Process.myPid()).append('\n')
-            .append("the main thread has not answered for ").append(late).append(" ms\n");
+            .append(wholeProcess
+                ? "the whole process stood still for " + late + " ms, in the foreground (this watch too)\n"
+                : "the main thread has not answered for " + late + " ms\n");
         Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
         Thread mainThread = Looper.getMainLooper().getThread();
         List<Thread> threads = new ArrayList<>(all.keySet());
