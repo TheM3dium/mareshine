@@ -1,7 +1,7 @@
 Reason: port: save states (port_savestate.h) are saved and loaded at the top of the frame loop, exactly or by warping and putting Mario back
 --- a/src/System/Application.cpp
 +++ b/src/System/Application.cpp
-@@ -994,6 +994,284 @@
+@@ -994,6 +994,305 @@
  }
  #endif
  
@@ -13,6 +13,7 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
 +#include <Player/Mario.hpp>
 +#include <Player/WaterGun.hpp>
 +#include <string.h>
++#include <THPPlayer/THPPlayer.h>
 +
 +// patch zzzz-savestate-02: closes the pause menu as Continue does.
 +void PauseMenuCloseForStateLoad();
@@ -176,6 +177,25 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
 +	dir->setNextStage((u16)(((sStateLoad.area + 1) << 8) | sStateLoad.episode), nullptr);
 +}
 +
++// Delfino Plaza's movie (ex128x144_q0.thp, a screen of the plaza) is read
++// and decoded by threads of its own, which an exact load leaves where they
++// were: the decoder holds the frame it was at, while the loaded memory has
++// the player at another frame, so it went on decoding a frame that was not
++// there and crashed (report 49edd50c). The movie starts again with new
++// threads, as it does when the stage starts.
++static void ApplicationStateRestartMovie()
++{
++	if (!ActivePlayer.open || ActivePlayer.state == 0)
++		return;
++	const u8 state = ActivePlayer.state;
++	const u8 loop  = ActivePlayer.playFlag;
++	const s32 track = ActivePlayer.curAudioTrack;
++	THPPlayerStop();
++	if (THPPlayerPrepare(0, loop, track) && state == 2)
++		THPPlayerPlay();
++	OSReport("[savestate] the stage's movie started again\n");
++}
++
 +// Loads `path`: exactly when this build can (the screen is black for it, and
 +// fades back in), else its portable part.
 +static void ApplicationStateLoad(TApplication* app, TMarDirector* dir, bool paused, const char* path)
@@ -186,6 +206,7 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
 +	// moment, its fader too (as it was, not black)
 +	if (port_savestate_load_exact(path, &sStateLoad, &hasPortable)) {
 +		sStateLoadPhase = STATE_LOAD_IDLE;
++		ApplicationStateRestartMovie();
 +		if (faded) {
 +			app->mFader->setColor(JUtility::TColor(0, 0, 0, 0));
 +			app->mFader->setFadeStatus(TSMSFader::FADE_STATUS_FULLY_FADED_OUT);
@@ -286,7 +307,7 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
  // TODO: frame 0x50 short (0x70 before the display's video was read through
  // getVideo()): retail's low region runs to 0xac (the TRect temp) where ours
  // ended at 0x38, i.e. inline temporaries from an expansion this body lacks;
-@@ -1002,6 +1280,9 @@
+@@ -1002,6 +1301,9 @@
  {
  	u32 nextState = APP_STATE_DEFAULT;
  	while (nextState <= APP_STATE_DEFAULT) {
@@ -296,7 +317,7 @@ Reason: port: save states (port_savestate.h) are saved and loaded at the top of 
  		mDisplay->startRendering();
  
  		ApplicationStartTimerTwice(mDisplay->getVideo()->mLastRetraceTime, 0);
-@@ -1071,6 +1352,10 @@
+@@ -1071,6 +1373,10 @@
  			mFader->update();
  			mFader->draw(
  			    JDrama::TRect(0, 0, mode.fbWidth, mode.efbHeight));
