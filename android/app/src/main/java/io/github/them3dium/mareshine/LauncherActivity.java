@@ -105,11 +105,15 @@ public class LauncherActivity extends AppActivity {
         checkIsoAndRefreshUi();
         // something new to show (Intro), once the settings are up to date:
         // Settings.upgrade tells an update from a new install
-        DataDir.ensureLayout(this);
-        String intro = savedInstanceState == null ? Intro.pending(this) : null;
-        if (intro != null) {
-            startActivity(new Intent(this, IntroActivity.class).putExtra(IntroActivity.EXTRA_ID, intro));
-            overridePendingTransition(0, 0);  // the intro fades itself in
+        // A data folder of its own the app cannot reach (after a reinstall,
+        // Android's backup brings back the folder but not "All files access"):
+        // asked about first, or nothing seen or set would ever be kept.
+        String intro = null;
+        if (isDataDirProblem()) {
+            if (savedInstanceState == null) askLostDataDir();
+        } else {
+            DataDir.ensureLayout(this);
+            if (savedInstanceState == null) intro = showPendingIntro();
         }
         boolean restarting = getIntent() != null && getIntent().getBooleanExtra(EXTRA_AUTOSTART, false);
         handleAutostart(getIntent());
@@ -119,7 +123,7 @@ public class LauncherActivity extends AppActivity {
         if (fromGame) syncAfterGame();
         if (savedInstanceState == null && !fromGame && mFoundIsoFile != null
                 && getSharedPreferences("sunshine", MODE_PRIVATE).getBoolean(SettingsActivity.PREF_AUTOSTART, false)
-                && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting && intro == null) {
+                && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting && intro == null && !isDataDirProblem()) {
             tvStatus.post(this::launchGame);
         }
     }
@@ -148,7 +152,55 @@ public class LauncherActivity extends AppActivity {
     }
 
     private boolean isDataDirProblem() {
-        return DataDir.isCustom(this) && (!hasAllFilesAccess() || !DataDir.get(this).canWrite());
+        if (!DataDir.isCustom(this)) return false;
+        if (!hasAllFilesAccess()) return true;
+        File dir = DataDir.get(this);
+        return !(dir.isDirectory() || dir.mkdirs()) || !dir.canWrite();
+    }
+
+    // the next intro, if any, started; its id
+    private String showPendingIntro() {
+        String intro = Intro.pending(this);
+        if (intro != null) {
+            startActivity(new Intent(this, IntroActivity.class).putExtra(IntroActivity.EXTRA_ID, intro));
+            overridePendingTransition(0, 0);  // the intro fades itself in
+        }
+        return intro;
+    }
+
+    private boolean mAllFilesForLostDir;
+
+    // The data folder the player picked cannot be opened: access back, or the app's own folder.
+    private void askLostDataDir() {
+        boolean access = hasAllFilesAccess();
+        new DlDialog(this)
+            .setTitle(t("Data folder not reachable"))
+            .setMessage(t("Your saves and settings are kept in:\n%s\n\nMareshine cannot open this folder. After a "
+                + "reinstall Android brings the folder back, but not \"All files access\". Allow it again to keep "
+                + "playing with what is there, or use the app's own folder and start fresh (the old folder stays as it is).",
+                DataDir.get(this).getAbsolutePath()))
+            .setCancelable(false)
+            .setPositiveButton(access ? t("Try again") : t("Allow access"), (d, w) -> {
+                if (access) {
+                    if (isDataDirProblem()) askLostDataDir();
+                    else dataDirFixed();
+                    return;
+                }
+                mAllFilesForLostDir = true;
+                requestAllFilesAccess();
+            })
+            .setNeutralButton(t("Use app folder"), (d, w) -> {
+                DataDir.reset(this);
+                dataDirFixed();
+            })
+            .show();
+    }
+
+    private void dataDirFixed() {
+        DataDir.ensureLayout(this);
+        refreshDataDirUi();
+        checkIsoAndRefreshUi();
+        showPendingIntro();
     }
 
     private String mLang;
@@ -466,6 +518,12 @@ public class LauncherActivity extends AppActivity {
             if (SettingsActivity.ACTION_PICK_ISO.equals(action)) openFilePicker();
             else if (SettingsActivity.ACTION_VERIFY_ISO.equals(action)) verifyIso(false);
             else if (SettingsActivity.ACTION_DATA_DIR.equals(action)) showDataDirDialog();
+            return;
+        }
+        if (requestCode == REQUEST_ALL_FILES && mAllFilesForLostDir) {
+            mAllFilesForLostDir = false;
+            if (isDataDirProblem()) askLostDataDir();
+            else dataDirFixed();
             return;
         }
         if (requestCode == REQUEST_ALL_FILES && mAllFilesForPlayOnly) {
