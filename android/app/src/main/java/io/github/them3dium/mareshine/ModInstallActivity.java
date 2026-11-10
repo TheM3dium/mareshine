@@ -309,6 +309,9 @@ public class ModInstallActivity extends AppActivity {
                 if (r.isEclipse()) EclipseMod.installed(this, r);
                 else installed(r, dest, target, null);
             }
+            // its code, when it is a plugin the app knows (ModPlugin): fetched now,
+            // else (offline, say) before it plays
+            if (r.code && ModPlugin.known(this, r.id) != null) ModPlugin.fetch(this, r.id, dest);
             String msg = t("%s is installed and switched on. Play starts it; switch it off in Mods to play Super Mario "
                 + "Sunshine again.", r.name);
             if (picked != null) msg += "\n\n" + t("The downloaded file is not needed any more and can be deleted.");

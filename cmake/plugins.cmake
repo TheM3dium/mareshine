@@ -42,6 +42,26 @@ string(SUBSTRING ${_layout_hash} 0 16 MARESHINE_PLUGIN_GAME)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_port_headers})
 message(STATUS "Mareshine plugin game build: ${MARESHINE_PLUGIN_GAME}")
 
+# The plugins the app fetches (android/app/src/main/assets/plugins.json) must
+# be made for this build, or the game would turn every one of them down.
+set(_known ${MARESHINE_ROOT}/android/app/src/main/assets/plugins.json)
+if(EXISTS ${_known})
+  file(READ ${_known} _json)
+  string(JSON _n LENGTH "${_json}")
+  if(_n GREATER 0)
+    math(EXPR _last "${_n} - 1")
+    foreach(i RANGE ${_last})
+      string(JSON _id MEMBER "${_json}" ${i})
+      string(JSON _game GET "${_json}" ${_id} game)
+      if(NOT _game STREQUAL MARESHINE_PLUGIN_GAME)
+        message(WARNING "plugins.json: ${_id} is made for game build ${_game}, this is "
+          "${MARESHINE_PLUGIN_GAME}: rebuild it and publish it with this release")
+      endif()
+    endforeach()
+  endif()
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_known})
+endif()
+
 target_compile_definitions(sms PRIVATE MARESHINE_PLUGIN_GAME="${MARESHINE_PLUGIN_GAME}")
 target_link_libraries(sms PRIVATE ${CMAKE_DL_LIBS})
 if(NOT ANDROID AND NOT WIN32 AND NOT APPLE)
