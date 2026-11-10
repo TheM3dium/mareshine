@@ -32,7 +32,10 @@ android {
                 arguments '-DANDROID_STL=c++_static',
                           '-DANDROID_PLATFORM=android-26',
                           '-DCMAKE_BUILD_TYPE=RelWithDebInfo',
-                          "-DSMS_ECLIPSE=${project.findProperty('mareshine.eclipse') ?: 'OFF'}"
+                          "-DSMS_ECLIPSE=${project.findProperty('mareshine.eclipse') ?: 'OFF'}",
+                          // -Pmareshine.plugins=<folder>: mods' plugins to build next to the game
+                          // (cmake/plugins.cmake); never packaged, see `targets` below
+                          "-DMARESHINE_PLUGINS_DIR=${project.findProperty('mareshine.plugins') ?: ''}"
                 // Keep asserts/logs relative to the repository; anonymize external paths.
                 def home = System.getProperty('user.home')
                 def sourceRoot = rootProject.projectDir.parentFile.absolutePath
