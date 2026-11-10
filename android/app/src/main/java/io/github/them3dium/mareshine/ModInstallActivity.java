@@ -245,6 +245,17 @@ public class ModInstallActivity extends AppActivity {
                     if (in == null) throw new IOException("cannot open " + picked);
                     result = applyPatch(r, iso, in, image);
                 }
+            } else if (r.file.toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
+                // a .zip (Super Mario Tropical Freeze): the patch streamed out of it
+                try (InputStream raw = open(picked, archive);
+                     java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(
+                         new java.io.BufferedInputStream(raw, 1 << 16))) {
+                    for (java.util.zip.ZipEntry e; (e = zip.getNextEntry()) != null; ) {
+                        if (!e.getName().replace('\\', '/').equals(r.patch)) continue;
+                        result = applyPatch(r, iso, zip, image);
+                        break;
+                    }
+                }
             } else try (ParcelFileDescriptor pfd = picked != null ? getContentResolver().openFileDescriptor(picked, "r") : null;
                  FileInputStream pin = pfd != null ? new FileInputStream(pfd.getFileDescriptor()) : null;
                  SevenZFile z = pin != null ? SevenZFile.builder().setSeekableByteChannel(pin.getChannel()).get()

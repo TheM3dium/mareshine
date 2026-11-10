@@ -794,6 +794,20 @@ extern "C" void port_dvd_init(void)
 // All of disc file `path`, read at once with no drive timing, for host use
 // outside the game (the window icon). Returns a malloc'd buffer, NULL if the
 // file is missing or unreadable.
+extern "C" int port_dvd_from_mod(const char* path)
+{
+	if (!path || g_fst.empty())
+		return 0;
+	s32 e = lookup(path);
+	if (e < 0 || g_fst[e].dir || !g_fst[e].from_host)
+		return 0;
+	const std::string& host = g_fst[e].host;
+	for (const char* pack : {port_hd_cutscene_directory(), port_language_pack_dir()})
+		if (pack && *pack && host.rfind(std::string(pack) + "/", 0) == 0)
+			return 0;
+	return 1;
+}
+
 extern "C" void* port_dvd_read_file(const char* path, size_t* size)
 {
 	s32 e = lookup(path);

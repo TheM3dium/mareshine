@@ -913,6 +913,7 @@
  "Which language?": "¿Qué idioma?",
  "Install %s": "Instalar %s",
  "%s is made by %s. Download it from its page (the .7z file, do not unpack it), then pick the downloaded file here. It is made from your own Super Mario Sunshine disc (North American, GMSE01) and needs about %.1f GB.": "%s es obra de %s. Descárgalo de su página (el archivo .7z, sin descomprimir) y luego elige aquí el archivo descargado. Se crea a partir de tu propio disco de Super Mario Sunshine (Norteamérica, GMSE01) y ocupa unos %.1f GB.",
+ "%s is made by %s. Download it from its page (the .zip file, do not unpack it), then pick the downloaded file here. It is made from your own Super Mario Sunshine disc (North American, GMSE01) and needs about %.1f GB.": "%s es obra de %s. Descárgalo de su página (el archivo .zip, sin descomprimir) y luego elige aquí el archivo descargado. Se crea a partir de tu propio disco de Super Mario Sunshine (Norteamérica, GMSE01) y ocupa unos %.1f GB.",
  "Open download page": "Abrir la página de descarga",
  "Pick downloaded file": "Elegir el archivo descargado",
  "The %s translation is made by %s. Download it from its page (the .7z file, do not unpack it), then pick the downloaded file here. It is made from your own disc like the game itself.": "La traducción %s es obra de %s. Descárgala de su página (el archivo .7z, sin descomprimir) y luego elige aquí el archivo descargado. Se crea a partir de tu propio disco, como el juego.",

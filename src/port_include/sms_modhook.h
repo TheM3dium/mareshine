@@ -132,6 +132,8 @@ typedef char count_of_2_is_not_true_256_is_false[
 		unsigned int sms_mod_w_;                                                                   \
 		sms_mod_word((addr), &sms_mod_w_) ? sms_mod_w_ : (unsigned int)(original);                 \
 	})
+// The instruction at retail `addr` a code mod overwrote with a nop.
+#define SMS_MOD_NOPPED(addr) (SMS_MOD_WORD((addr), 0u) == 0x60000000u)
 // A table a mod moved by rewriting the lis/addi pair that loads its address:
 // the halves it wrote at hiAddr and loAddr (the instructions' immediates),
 // else the original table.

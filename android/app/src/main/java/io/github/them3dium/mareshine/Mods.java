@@ -240,7 +240,7 @@ public final class Mods {
 
     // The names of the switched-on mods we do not offer: not the app's own, not in the catalog.
     public static List<String> unapprovedOn(Context ctx) {
-        java.util.Set<String> approved = new java.util.HashSet<>(java.util.Arrays.asList("eclipse", "sunburn"));
+        java.util.Set<String> approved = new java.util.HashSet<>(java.util.Arrays.asList("eclipse", "sunburn", "tropicalfreeze"));
         for (Release r : catalog(ctx)) approved.add(r.id);
         List<String> out = new ArrayList<>();
         for (Mod m : list(ctx)) if (m.enabled && !approved.contains(m.id)) out.add(m.name);
@@ -615,7 +615,7 @@ public final class Mods {
                 for (int i = 0; i < inc.length(); i++) r.incompatible[i] = cleanId(inc.optString(i));
             }
             // what the catalog leaves out comes from the app's own entry
-            for (Release own : new Release[] {ECLIPSE, ECLIPSE_DE, SUNBURN}) {
+            for (Release own : new Release[] {ECLIPSE, ECLIPSE_DE, SUNBURN, TROPICAL_FREEZE}) {
                 if (!own.id.equals(id)) continue;
                 if (r.icon.isEmpty()) r.icon = own.icon;
                 if (r.preview.isEmpty()) r.preview = own.preview;
@@ -684,7 +684,30 @@ public final class Mods {
             + "* New Game Plus and a real reward for all 120 shines.";
     }
 
-    private static final List<Release> RELEASES = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE, SUNBURN));
+    // Super Mario Tropical Freeze v1.3 by Super Mario Elements: its patch (a .zip
+    // with an xdelta using LZMA secondary compression) onto the North American
+    // disc, picked by the player from its page; its code (rebuilt from
+    // TropicalFreeze.kxe's machine code) is a plugin the mod brings
+    // (plugin/<abi>/, ModPlugin), not part of the app
+    public static final Release TROPICAL_FREEZE = new Release("tropicalfreeze", "Super Mario Tropical Freeze", "v1.3",
+        "Super Mario Elements", "Isle Delfino frozen over: icy floors, fog and new music.",
+        "https://gamebanana.com/mods/641352", new String[0], "patch_and_read_me_ef4fe.zip", 1127513020L,
+        "9108ef1b774eb6623a94d3daa3620047", "PATCH and READ ME/Super Mario Sunshine Tropical Freeze 1.3.xdelta",
+        "0c6d2edae9fdf40dfc410ff1623e4119", "9c40b2edf3dcabdc445b52ae2d42efb5", 1459978240L,
+        "Super Mario Tropical Freeze v1.3.iso", true);
+
+    static {
+        TROPICAL_FREEZE.credits = "Super Mario Elements";
+        TROPICAL_FREEZE.icon = "asset:mods/tropicalfreeze-disc.png";
+        TROPICAL_FREEZE.incompatible = new String[] {"eclipse", "sunburn"};
+        TROPICAL_FREEZE.overlay = true;
+        TROPICAL_FREEZE.about = "Super Mario Tropical Freeze turns Isle Delfino into a frozen island:\n\n"
+            + "* New maps, models, music and movies.\n"
+            + "* Icy floors to slide on.\n"
+            + "* Fog over the stages.";
+    }
+
+    private static final List<Release> RELEASES = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE, SUNBURN, TROPICAL_FREEZE));
     private static long sCatalogTime = -1;
 
     static File catalogFile(Context ctx) { return new File(ctx.getFilesDir(), "catalog.json"); }
@@ -694,7 +717,7 @@ public final class Mods {
         long t = f.isFile() ? f.lastModified() : 0;
         if (t == sCatalogTime) return;
         sCatalogTime = t;
-        List<Release> all = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE, SUNBURN));
+        List<Release> all = new ArrayList<>(Arrays.asList(ECLIPSE, ECLIPSE_DE, SUNBURN, TROPICAL_FREEZE));
         if (t != 0) {
             try {
                 JSONArray a = new JSONObject(readText(f)).optJSONArray("releases");

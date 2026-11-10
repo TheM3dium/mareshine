@@ -1,0 +1,247 @@
+Reason: port: code-mod hooks (sms_modhook.h) for Super Mario Tropical Freeze's module: its oilRun and checkGraffito, its ice floor as wet ground for sliding, and the life meter colours and particle load it nops
+--- a/src/Player/MarioRun.cpp
++++ b/src/Player/MarioRun.cpp
+@@ -24,6 +24,18 @@
+ #include <Player/MarioDirtyStrings.hpp>
+ #include <sms_modhook.h>
+ 
++#ifdef TARGET_PC
++// Super Mario Tropical Freeze slides on its ice floor (type 0x901) as on wet
++// ground: while Mario stands on it, it rewrites the first type isWetGround()
++// compares with (`cmplwi r4, 4`, at retail `addr`) to 0x901, the other three
++// (0x4004, 0x8004, 0xC004) still count.
++static inline bool MarioRunWetGround(const TBGCheckData* plane, unsigned int addr)
++{
++	u16 first = SMS_MOD_WORD(addr, 0x28040004u) & 0xFFFF;
++	return plane->mBGType == first || (plane->isWetGround() && plane->mBGType != 4);
++}
++#endif
++
+ BOOL TMario::considerRotateStart()
+ {
+ 	int direction;
+@@ -293,7 +305,11 @@
+ 		return;
+ 	}
+ 
++#ifdef TARGET_PC
++	if (MarioRunWetGround(getGroundPlane(), 0x8025C7AC)) {
++#else
+ 	if (getGroundPlane()->isWetGround()) {
++#endif
+ 		if (getGroundPlane()->mNormal.y > 0.99f) {
+ 			*arg0 = mSlipParamsWaterGround.mSlideAcceleUp.get();
+ 			*arg1 = mSlipParamsWaterGround.mSlideAcceleDown.get();
+@@ -499,7 +515,11 @@
+ 		slipFr = mSlipParamsAllSlider.mSlipFriction.get();
+ 	} else if (mGroundPlane->isUnk2()) {
+ 		slipFr = mSlipParams45.mSlipFriction.get();
++#ifdef TARGET_PC
++	} else if (MarioRunWetGround(mGroundPlane, 0x8025BE00)) {
++#else
+ 	} else if (mGroundPlane->isWetGround()) {
++#endif
+ 		if (mGroundPlane->getNormal().y > 0.99f)
+ 			slipFr = mSlipParamsWaterGround.mSlipFriction.get();
+ 		else
+@@ -1919,7 +1939,13 @@
+ 		break;
+ 
+ 	case MARIO_STATUS_OIL_RUN:
++#ifdef TARGET_PC
++		// Super Mario Tropical Freeze (retail 0x802588CC): its own oilRun,
++		// ice that keeps Mario's speed.
++		ret = SMS_MOD_CALLM_R(0x802588CC, TMario, oilRun, oilRun(), this);
++#else
+ 		ret = oilRun();
++#endif
+ 		break;
+ 
+ 	case MARIO_STATUS_OIL_SLIP:
+--- a/src/Player/MarioMove.cpp
++++ b/src/Player/MarioMove.cpp
+@@ -1130,6 +1130,14 @@
+ 
+ void TMario::checkGraffito()
+ {
++#ifdef TARGET_PC
++	// Super Mario Tropical Freeze (a branch at retail 0x80252BDC): its own
++	// checkGraffito, goop that throws Mario off Yoshi and fills FLUDD.
++	if (void* sms_mod_t_ = SMS_MOD_SITE(0x80252BDC)) {
++		((void (*)(TMario*))sms_mod_t_)(this);
++		return;
++	}
++#endif
+ 	const TBGCheckData* ground = MarioGraffitoGround(this);
+ 	if (ground->isIllegalData())
+ 		return;
+--- a/src/Player/MarioParticle.cpp
++++ b/src/Player/MarioParticle.cpp
+@@ -10,6 +10,9 @@
+ #include <JSystem/JParticle/JPACallback.hpp>
+ #include <JSystem/JParticle/JPAEmitter.hpp>
+ #include <JSystem/JParticle/JPAParticle.hpp>
++#ifdef TARGET_PC
++#include <sms_modhook.h>
++#endif
+ 
+ // rogue includes needed for matching sinit & bss
+ #include <MSound/MSSetSound.hpp>
+@@ -386,10 +389,22 @@
+ 
+ void TMario::frontSlipEffect()
+ {
++#ifdef TARGET_PC
++	// Super Mario Tropical Freeze, on its ice floor: `li r0, 1` over the
++	// state's load (retail 0x80263CAC) slides every catch, and a nop over the
++	// first emit (0x80263CD4) leaves out the water splash.
++	u32 catchState = SMS_MOD_WORD(0x80263CAC, 0xA01F0084u) == 0x38000001u ? 1 : mStatusState;
++	if (getGroundPlane()->isWetGround()
++	    || (mStatus == MARIO_STATUS_CATCH && catchState == 1)) {
++		if (!SMS_MOD_NOPPED(0x80263CD4))
++			gpMarioParticleManager->emitAndBindToMtxPtr(PARTICLE_MS_M_WATSLIDE_A,
++			                                            getCenterAnmMtx(), 3, this);
++#else
+ 	if (getGroundPlane()->isWetGround()
+ 	    || (mStatus == MARIO_STATUS_CATCH && mStatusState == 1)) {
+ 		gpMarioParticleManager->emitAndBindToMtxPtr(PARTICLE_MS_M_WATSLIDE_A,
+ 		                                            getCenterAnmMtx(), 3, this);
++#endif
+ 		gpMarioParticleManager->emitAndBindToMtxPtr(PARTICLE_MS_M_WATSLIDE_B,
+ 		                                            getCenterAnmMtx(), 1, this);
+ 		gpMarioParticleManager->emitAndBindToMtxPtr(PARTICLE_MS_M_WATSLIDE_C,
+--- a/src/GC2D/GCConsole2.cpp
++++ b/src/GC2D/GCConsole2.cpp
+@@ -158,28 +158,44 @@
+ // fabricated. Only startInsertLife() uses this shape; the copy inside
+ // perform's life-meter block goes through J2DPicture::setWhite instead, which is
+ // where the ROM's eight out-of-line JUtility::TColor::set calls come from.
+-static inline void updateLifeMeterColors(TGCConsole2* console, bool airMode)
++#ifdef TARGET_PC
++// Super Mario Tropical Freeze keeps its own life meter's colours: it nops
++// some of these white stores (retail addresses in the callers), whose
++// panes then keep the white they had.
++#define GCConsole2White(site, store)                                                              \
++	do {                                                                                           \
++		if (!SMS_MOD_NOPPED(site))                                                                 \
++			store;                                                                                 \
++	} while (0)
++#else
++#define GCConsole2White(site, store) store
++#endif
++
++// The callers pass where the unk178 white store of each branch (4 or more
++// segments, fewer) is at retail; see GCConsole2White.
++static inline void updateLifeMeterColors(TGCConsole2* console, bool airMode,
++                                         u32 fullSite, u32 lowSite)
+ {
+ 	if (console->unk1CC[0] >= 4) {
+ 		if (airMode) {
+-			((J2DPicture*)console->unk178->getPane())->mWhite = 0x00FFFFFF;
++			GCConsole2White(fullSite, ((J2DPicture*)console->unk178->getPane())->mWhite = 0x00FFFFFF);
+ 			((J2DPicture*)console->unk178->getPane())->mBlack = 0x003CFF00;
+ 			((J2DPicture*)console->unk17C[0])->mWhite         = 0x00FFFFFF;
+ 			((J2DPicture*)console->unk17C[0])->mBlack         = 0x003CFF00;
+ 		} else {
+-			((J2DPicture*)console->unk178->getPane())->mWhite = 0xFFFFFFFF;
++			GCConsole2White(fullSite, ((J2DPicture*)console->unk178->getPane())->mWhite = 0xFFFFFFFF);
+ 			((J2DPicture*)console->unk178->getPane())->mBlack = 0;
+ 			((J2DPicture*)console->unk17C[0])->mWhite         = 0xFFFFFFFF;
+ 			((J2DPicture*)console->unk17C[0])->mBlack         = 0;
+ 		}
+ 	} else {
+ 		if (airMode) {
+-			((J2DPicture*)console->unk178->getPane())->mWhite = 0x0010FFFF;
++			GCConsole2White(lowSite, ((J2DPicture*)console->unk178->getPane())->mWhite = 0x0010FFFF);
+ 			((J2DPicture*)console->unk178->getPane())->mBlack = 0x003CFF00;
+ 			((J2DPicture*)console->unk17C[0])->mWhite         = 0x0010FFFF;
+ 			((J2DPicture*)console->unk17C[0])->mBlack         = 0x003CFF00;
+ 		} else {
+-			((J2DPicture*)console->unk178->getPane())->mWhite = 0x7F7F7FFF;
++			GCConsole2White(lowSite, ((J2DPicture*)console->unk178->getPane())->mWhite = 0x7F7F7FFF);
+ 			((J2DPicture*)console->unk178->getPane())->mBlack = 0;
+ 			((J2DPicture*)console->unk17C[0])->mWhite         = 0x7F7F7FFF;
+ 			((J2DPicture*)console->unk17C[0])->mBlack         = 0;
+@@ -1391,11 +1407,11 @@
+ 			else
+ 				unk17C[i * 2]->hide();
+ 		}
+-		((J2DPicture*)unk178->getPane())->mWhite = 0xFFFFFFFF;
++		GCConsole2White(0x8014C178, ((J2DPicture*)unk178->getPane())->mWhite = 0xFFFFFFFF);
+ 		((J2DPicture*)unk178->getPane())->mBlack = 0;
+-		((J2DPicture*)unk174->getPane())->mWhite = 0xFF4C00C8;
++		GCConsole2White(0x8014C1A0, ((J2DPicture*)unk174->getPane())->mWhite = 0xFF4C00C8);
+ 		((J2DPicture*)unk174->getPane())->mBlack = 0xFF4C0000;
+-		updateLifeMeterColors(this, false);
++		updateLifeMeterColors(this, false, 0x8014C1D4, 0x8014C228);
+ 	} else if (param_1 == 1) {
+ 		for (int i = 1; i < 9; ++i) {
+ 			((J2DPicture*)unk17C[i * 2])->mWhite = 0x00FFFFFF;
+@@ -1405,9 +1421,9 @@
+ 			else
+ 				unk17C[i * 2]->hide();
+ 		}
+-		((J2DPicture*)unk174->getPane())->mWhite = 0x0000FF78;
++		GCConsole2White(0x8014C38C, ((J2DPicture*)unk174->getPane())->mWhite = 0x0000FF78);
+ 		((J2DPicture*)unk174->getPane())->mBlack = 0x0000FF00;
+-		updateLifeMeterColors(this, true);
++		updateLifeMeterColors(this, true, 0x8014C3D0, 0x8014C42C);
+ 	}
+ 
+ 	unk51 = 1;
+@@ -1468,11 +1484,11 @@
+ 			else
+ 				unk17C[i * 2]->hide();
+ 		}
+-		((J2DPicture*)unk178->getPane())->mWhite = 0xFFFFFFFF;
++		GCConsole2White(0x8014BB90, ((J2DPicture*)unk178->getPane())->mWhite = 0xFFFFFFFF);
+ 		((J2DPicture*)unk178->getPane())->mBlack = 0;
+-		((J2DPicture*)GCConsole2Unk174(this)->getPane())->mWhite = 0xFF4C00C8;
++		GCConsole2White(0x8014BBB8, ((J2DPicture*)GCConsole2Unk174(this)->getPane())->mWhite = 0xFF4C00C8);
+ 		((J2DPicture*)unk174->getPane())->mBlack = 0xFF4C0000;
+-		updateLifeMeterColors(this, false);
++		updateLifeMeterColors(this, false, 0x8014BBEC, 0x8014BC40);
+ 	} else if (param_1 == 1) {
+ 		for (int i = 0; i < 9; ++i) {
+ 			((J2DPicture*)unk17C[i * 2])->mWhite = 0x00FFFFFF;
+@@ -1482,11 +1498,11 @@
+ 			else
+ 				unk17C[i * 2]->hide();
+ 		}
+-		((J2DPicture*)unk178->getPane())->mWhite = 0x00FFFFFF;
++		GCConsole2White(0x8014BE24, ((J2DPicture*)unk178->getPane())->mWhite = 0x00FFFFFF);
+ 		((J2DPicture*)unk178->getPane())->mBlack = 0x003CFF00;
+-		((J2DPicture*)unk174->getPane())->mWhite = 0x0000FF78;
++		GCConsole2White(0x8014BE4C, ((J2DPicture*)unk174->getPane())->mWhite = 0x0000FF78);
+ 		((J2DPicture*)unk174->getPane())->mBlack = 0x0000FF00;
+-		updateLifeMeterColors(this, true);
++		updateLifeMeterColors(this, true, 0x8014BE80, 0x8014BED4);
+ 	}
+ 
+ 	unk38 = 1;
+--- a/src/Map/MapEventMare.cpp
++++ b/src/Map/MapEventMare.cpp
+@@ -15,6 +15,9 @@
+ #include <JSystem/JDrama/JDRViewObjPtrList.hpp>
+ #include <JSystem/J3D/J3DGraphAnimator/J3DJoint.hpp>
+ #include <stdio.h>
++#ifdef TARGET_PC
++#include <sms_modhook.h>
++#endif
+ 
+ // rogue includes needed for matching sinit & bss
+ #include <MSound/MSSetSound.hpp>
+@@ -527,6 +530,13 @@
+ 		joint      = joint->getYounger();
+ 	}
+ 
++#ifdef TARGET_PC
++	// Super Mario Tropical Freeze nops the load (retail 0x801A535C): its
++	// map has no such particle; the flag is still set.
++	if (SMS_MOD_NOPPED(0x801A535C))
++		gParticleFlagLoaded[MAP_MAP_MS_MARE_BLOCKUP] = true;
++	else
++#endif
+ 	SMS_LoadParticle("/scene/map/map/ms_mare_blockup.jpa",
+ 	                 MAP_MAP_MS_MARE_BLOCKUP);
+ }

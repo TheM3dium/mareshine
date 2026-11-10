@@ -143,10 +143,14 @@ final class ModFlows {
             translation(a, r);
             return;
         }
-        a.choice(t("Install %s", r.name),
-            t("%s is made by %s. Download it from its page (the .7z file, do not unpack it), then pick the "
+        String text = r.file.toLowerCase(java.util.Locale.ROOT).endsWith(".zip")
+            ? "%s is made by %s. Download it from its page (the .zip file, do not unpack it), then pick the "
                 + "downloaded file here. It is made from your own Super Mario Sunshine disc (North American, GMSE01) "
-                + "and needs about %.1f GB.", r.name, r.credits, r.imageSize / 1e9),
+                + "and needs about %.1f GB."
+            : "%s is made by %s. Download it from its page (the .7z file, do not unpack it), then pick the "
+                + "downloaded file here. It is made from your own Super Mario Sunshine disc (North American, GMSE01) "
+                + "and needs about %.1f GB.";
+        a.choice(t("Install %s", r.name), t(text, r.name, r.credits, r.imageSize / 1e9),
             new String[] {t("Open download page"), t("Pick downloaded file")},
             new Runnable[] {() -> openPage(a, r.page), () -> pick(a, PICK_TRANSLATION)});
     }
