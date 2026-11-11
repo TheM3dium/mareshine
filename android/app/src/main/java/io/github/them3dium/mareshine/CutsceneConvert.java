@@ -65,6 +65,9 @@ final class CutsceneConvert {
         return o.toByteArray();
     }
 
+    // The THP's frames are read in order and decoded into bitmaps on three
+    // threads, drawn one by one through EGL onto the encoder's input surface
+    // and muxed into the MP4, written beside it and renamed once complete.
     @SuppressWarnings("unchecked")
     static void convert(File thp, File mp4, Progress p) throws Exception {
         try (RandomAccessFile f = new RandomAccessFile(thp, "r")) {

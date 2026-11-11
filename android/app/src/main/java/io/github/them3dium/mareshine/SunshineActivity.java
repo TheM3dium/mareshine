@@ -25,6 +25,13 @@ import java.io.File;
 
 import static io.github.them3dium.mareshine.L.t;
 
+// The game's screen, in the game's own process (":game"): SDL's activity,
+// started by the launcher with the disc to play. It sets the environment the
+// game reads its settings from (settings.txt and the app's own values), the
+// loader that places the game library (getLibraries, getArguments), the
+// whole screen without system bars, and the app's side of the game: the
+// shader popup, achievement banners, save state and skip notices, rumble and
+// haptics, the menu hint and the ways into the quick menu (GameMenuActivity).
 public class SunshineActivity extends SDLActivity {
     // The game runs in a process of its own (":game"), which Android often keeps
     // after the game ends, and with it the environment of the last start: the

@@ -338,6 +338,10 @@ final class Updates {
             .show();
     }
 
+    // Yes in ask(): the release's APK into the cache, with a progress box the
+    // player can cancel; kept only when it has the size GitHub gave and is
+    // signed with this app's key, then handed to Android's installer.
+    // Android first needs the permission to install apps from Mareshine.
     private static void download(Activity a, Release r) {
         if (Build.VERSION.SDK_INT >= 26 && !a.getPackageManager().canRequestPackageInstalls()) {
             new DlDialog(a)

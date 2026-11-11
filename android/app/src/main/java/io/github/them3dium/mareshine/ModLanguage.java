@@ -153,14 +153,6 @@ final class ModLanguage {
     // them, as a disc file mod (files/) given after the pack (SMS_MOD).
     static File mergedDir(Mods.Mod m, String code) { return new File(m.dir, "language-" + code); }
 
-    // The skip list, made now if it is missing or out of date (seconds: the
-    // stages' archives of both discs are unpacked); null when it cannot be made.
-    // A file the mod changed is left out of the pack, and made again from the
-    // mod's own (mergedDir): a message the mod kept, or took from elsewhere in
-    // the game, gets the pack's text; one with only a name changed in it gets
-    // that change in the pack's text; only what is new stays English. In a
-    // whole archive (the options screen) the mod's changed pictures go into
-    // the pack's.
     // the skip list made already for this mod image, pack and disc
     static boolean ready(Context ctx, Mods.Mod m, String code, File usDisc) {
         File image = stamp(m), files = new File(new File(DataDir.languagesDir(ctx), code), "files"), out = skipFile(m, code);
@@ -172,6 +164,14 @@ final class ModLanguage {
         }
     }
 
+    // The skip list, made now if it is missing or out of date (seconds: the
+    // stages' archives of both discs are unpacked); null when it cannot be made.
+    // A file the mod changed is left out of the pack, and made again from the
+    // mod's own (mergedDir): a message the mod kept, or took from elsewhere in
+    // the game, gets the pack's text; one with only a name changed in it gets
+    // that change in the pack's text; only what is new stays English. In a
+    // whole archive (the options screen) the mod's changed pictures go into
+    // the pack's.
     static File prepare(Context ctx, Mods.Mod m, String code, File usDisc) {
         File image = stamp(m), files = new File(new File(DataDir.languagesDir(ctx), code), "files");
         if (image == null || usDisc == null || !usDisc.isFile() || !files.isDirectory()) return null;

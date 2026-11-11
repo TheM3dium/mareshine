@@ -1237,6 +1237,13 @@ static void dlReplayState(const DlEntry& e) {
     }
 }
 
+// GXCallDisplayList. A list seen before is replayed from the cache when
+// nothing it reads has changed (dlReusable): its decoded runs go into the
+// batch (straight from the arena, already on the GPU, when that is on), or,
+// for a list that only sets state, its decoded commands are applied again.
+// Otherwise it is parsed and recorded anew. A list that changes three times
+// in a row is then parsed without recording for a growing number of calls
+// (e.skip), and past 96 MB the cache starts over.
 void callDisplayList(const uint8_t* data, uint32_t size) {
     if (!data || !dlCacheEnabled() || !rendererReady() || s_dlRec) {
         runCommands(data, size);
