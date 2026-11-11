@@ -5,12 +5,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.Environment;
-import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
@@ -19,15 +17,21 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Locale;
 import java.util.concurrent.Executors;
 
 import static io.github.them3dium.mareshine.L.t;
 
+// The main menu: the logo, the disc's state, PLAY (or RESTART while the game
+// runs), SETTINGS and QUIT. It finds the disc (DiscFinder), copies one the
+// player picks into the data folder (UriCopy), checks it before it plays
+// (DiscCheck: the header, once the hash, and for a hash that differs each
+// game file), and starts the game (SunshineActivity) once whatever comes
+// first is done: a mod's conversion or language, the data folder's access.
+// It also shows what waits after a start: intros, a crash or freeze from the
+// last session, updates of the app and of mods, and syncing after a game.
 public class LauncherActivity extends AppActivity {
     // Set by the in-game menu's "Restart game": start the game again at once.
     public static final String EXTRA_AUTOSTART = "autostart";
@@ -300,77 +304,10 @@ public class LauncherActivity extends AppActivity {
         }
     }
 
-    // a European Super Mario Sunshine (GMSP01): only for building language packs
-    static boolean isEuropeanDisc(File f) {
-        try (java.io.RandomAccessFile r = new java.io.RandomAccessFile(f, "r")) {
-            byte[] id = new byte[6];
-            r.readFully(id);
-            return new String(id, java.nio.charset.StandardCharsets.ISO_8859_1).startsWith("GMSP");
-        } catch (IOException e) {
-            return false;
-        }
-    }
+    // Where the disc is looked for: DiscFinder.
+    static boolean isEuropeanDisc(File f) { return DiscFinder.isEuropean(f); }
 
-    static File findIsoFile(android.content.Context ctx) {
-        // 0. The data folder (root or iso/): GMSE01.iso, else any .iso/.gcm there
-        File dataDir = DataDir.get(ctx);
-        for (File dir : new File[] { DataDir.romDir(ctx), dataDir }) {
-            File f = new File(dir, "GMSE01.iso");
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) return f;
-            File[] files = dir.listFiles();
-            if (files == null) continue;
-            java.util.Arrays.sort(files);
-            File any = null;
-            for (File c : files) {
-                String n = c.getName().toLowerCase(Locale.ROOT);
-                if ((n.endsWith(".iso") || n.endsWith(".gcm") || n.endsWith(".ciso") || n.endsWith(".nkit.iso"))
-                        && c.canRead() && c.length() > 10 * 1024 * 1024) {
-                    // the game's own disc first: a European one may sit here for
-                    // building language packs
-                    if (DiscCheck.checkHeader(c).ok) return c;
-                    if (any == null && !isEuropeanDisc(c)) any = c;
-                }
-            }
-            if (any != null) return any;
-        }
-
-        // 1. External files directory (App private storage: Android/data/io.github.them3dium.mareshine/files/GMSE01.iso)
-        File extFiles = ctx.getExternalFilesDir(null);
-        if (extFiles != null) {
-            File f = new File(extFiles, "GMSE01.iso");
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) return f;
-            f = new File(extFiles, "disc.iso");
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) return f;
-        }
-
-        // 2. Internal files directory
-        File intFiles = ctx.getFilesDir();
-        if (intFiles != null) {
-            File f = new File(intFiles, "GMSE01.iso");
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) return f;
-        }
-
-        // 3. Common public storage paths (if readable)
-        String[] candidates = new String[] {
-            "/sdcard/Download/GMSE01.iso",
-            "/sdcard/Download/Super Mario Sunshine (USA).iso",
-            "/sdcard/Download/Super Mario Sunshine.iso",
-            "/sdcard/sms/GMSE01.iso",
-            "/sdcard/sms/Super Mario Sunshine.iso",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/GMSE01.iso",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/Super Mario Sunshine.iso",
-            Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/Super Mario Sunshine (USA).iso",
-        };
-
-        for (String path : candidates) {
-            File f = new File(path);
-            if (f.exists() && f.canRead() && f.length() > 10 * 1024 * 1024) {
-                return f;
-            }
-        }
-
-        return null;
-    }
+    static File findIsoFile(android.content.Context ctx) { return DiscFinder.find(ctx); }
 
     private void refreshDataDirUi() {
         File dir = DataDir.get(this);
@@ -575,13 +512,7 @@ public class LauncherActivity extends AppActivity {
         panelInfo.setVisibility(View.VISIBLE);
         tvProgress.setText(t("Checking the selected file..."));
         Executors.newSingleThreadExecutor().execute(() -> {
-            long size = -1;
-            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-                if (cursor != null) {
-                    int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
-                    if (sizeIndex != -1 && cursor.moveToFirst()) size = cursor.getLong(sizeIndex);
-                }
-            } catch (Exception ignored) {}
+            long size = UriCopy.size(getContentResolver(), uri);
             DiscCheck.Result check;
             try (InputStream in = getContentResolver().openInputStream(uri)) {
                 check = in == null ? null : DiscCheck.checkStream(in, size);
@@ -619,107 +550,82 @@ public class LauncherActivity extends AppActivity {
         });
     }
 
+    // The picked image becomes GMSE01.iso in the data folder (iso/ in a folder
+    // of the player's own); the launcher waits with everything else meanwhile.
     private void copyIsoFromUri(Uri uri) {
         mCopying = true;
         tvStatus.setText(t("⏳  Copying disc…"));
         tvStatus.setTextColor(0xFFFFC531);
         setInfoPanel(true);
         tvPath.setText(t("The selected file passed the header check and is being copied."));
-        tvProgress.setVisibility(View.VISIBLE);
-        progressBar.setVisibility(View.VISIBLE);
-        btnPlay.setEnabled(false);
-        btnSettings.setEnabled(false);
+        busyStart(t("Copying ISO... %.1f MB copied", 0.0), null);
 
         Executors.newSingleThreadExecutor().execute(() -> {
-            File destDir = isoDestDir();
-            destDir.mkdirs();
-            File destFile = new File(destDir, "GMSE01.iso");
-            File tempFile = new File(destDir, "GMSE01.iso.tmp");
-
-            try (InputStream in = getContentResolver().openInputStream(uri);
-                 OutputStream out = new FileOutputStream(tempFile)) {
-
-                if (in == null) {
-                    throw new IOException(t("Could not open the selected file."));
-                }
-
-                long totalBytes = -1;
-                try {
-                    Cursor cursor = getContentResolver().query(uri, null, null, null, null);
-                    if (cursor != null) {
-                        int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
-                        if (sizeIndex != -1 && cursor.moveToFirst()) {
-                            totalBytes = cursor.getLong(sizeIndex);
-                        }
-                        cursor.close();
-                    }
-                } catch (Exception ignored) {}
-
-                byte[] buffer = new byte[128 * 1024]; // 128 KB
-                long bytesCopied = 0;
-                int bytesRead;
-                long lastUpdate = System.currentTimeMillis();
-
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, bytesRead);
-                    bytesCopied += bytesRead;
-
+            final long total = UriCopy.size(getContentResolver(), uri);
+            final double mb = 1024.0 * 1024.0;
+            final long[] shown = {0};
+            String error = null;
+            try {
+                File dir = isoDestDir();
+                dir.mkdirs();
+                UriCopy.copy(getContentResolver(), uri, new File(dir, "GMSE01.iso"), done -> {
                     long now = System.currentTimeMillis();
-                    if (now - lastUpdate > 100) {
-                        lastUpdate = now;
-                        final long current = bytesCopied;
-                        final long total = totalBytes;
-                        runOnUiThread(() -> {
-                            if (total > 0) {
-                                int pct = (int) ((current * 100) / total);
-                                progressBar.setIndeterminate(false);
-                                progressBar.setProgress(pct);
-                                tvProgress.setText(t("Copying ISO... %d%% (%.1f MB / %.1f MB)",
-                                    pct, current / (1024.0 * 1024.0), total / (1024.0 * 1024.0)));
-                            } else {
-                                progressBar.setIndeterminate(true);
-                                tvProgress.setText(t("Copying ISO... %.1f MB copied",
-                                    current / (1024.0 * 1024.0)));
-                            }
-                        });
-                    }
-                }
-                out.flush();
-
-                if (destFile.exists()) {
-                    destFile.delete();
-                }
-                if (!tempFile.renameTo(destFile)) {
-                    throw new IOException(t("Could not replace the final file."));
-                }
-
-                runOnUiThread(() -> {
-                    mCopying = false;
-                    tvProgress.setVisibility(View.GONE);
-                    progressBar.setVisibility(View.GONE);
-                    btnSettings.setEnabled(true);
-                    Toast.makeText(this, t("ISO copied successfully."), Toast.LENGTH_SHORT).show();
-                    checkIsoAndRefreshUi();
+                    if (now - shown[0] < 100) return;
+                    shown[0] = now;
+                    runOnUiThread(() -> {
+                        if (total > 0) {
+                            int pct = (int) (done * 100 / total);
+                            busyProgress(pct, t("Copying ISO... %d%% (%.1f MB / %.1f MB)", pct, done / mb, total / mb));
+                        } else {
+                            busyProgress(-1, t("Copying ISO... %.1f MB copied", done / mb));
+                        }
+                    });
                 });
-
             } catch (Exception e) {
-                if (tempFile.exists()) {
-                    tempFile.delete();
-                }
-                runOnUiThread(() -> {
-                    tvProgress.setVisibility(View.GONE);
-                    progressBar.setVisibility(View.GONE);
-                    mCopying = false;
-                    btnSettings.setEnabled(true);
-                    checkIsoAndRefreshUi();
-                    new DlDialog(this)
-                        .setTitle(t("Error copying the ISO"))
-                        .setMessage(t("An error occurred while copying the file: %s", e.getMessage()))
-                        .setPositiveButton(t("OK"), null)
-                        .show();
-                });
+                error = e.getMessage();
             }
+            final String err = error;
+            runOnUiThread(() -> {
+                mCopying = false;
+                busyEnd();
+                if (err == null) Toast.makeText(this, t("ISO copied successfully."), Toast.LENGTH_SHORT).show();
+                checkIsoAndRefreshUi();
+                if (err != null) new DlDialog(this)
+                    .setTitle(t("Error copying the ISO"))
+                    .setMessage(t("An error occurred while copying the file: %s", err))
+                    .setPositiveButton(t("OK"), null)
+                    .show();
+            });
         });
+    }
+
+    // The progress line under the message panel, for the copy and the checks:
+    // PLAY and SETTINGS wait meanwhile. A tap on the line calls onTap (cancel).
+    private void busyStart(String text, Runnable onTap) {
+        panelInfo.setVisibility(View.VISIBLE);
+        tvProgress.setVisibility(View.VISIBLE);
+        tvProgress.setText(text);
+        tvProgress.setOnClickListener(onTap == null ? null : v -> onTap.run());
+        progressBar.setVisibility(View.VISIBLE);
+        progressBar.setIndeterminate(false);
+        progressBar.setProgress(0);
+        btnPlay.setEnabled(false);
+        btnSettings.setEnabled(false);
+    }
+
+    // pct < 0: how far is not known
+    private void busyProgress(int pct, String text) {
+        progressBar.setIndeterminate(pct < 0);
+        if (pct >= 0) progressBar.setProgress(pct);
+        tvProgress.setText(text);
+    }
+
+    // PLAY comes back with checkIsoAndRefreshUi (only for a disc that works)
+    private void busyEnd() {
+        tvProgress.setVisibility(View.GONE);
+        tvProgress.setOnClickListener(null);
+        progressBar.setVisibility(View.GONE);
+        btnSettings.setEnabled(true);
     }
 
     // Before the game loads the ISO: the header must fit, and a plain ISO is
@@ -805,15 +711,7 @@ public class LauncherActivity extends AppActivity {
         final File iso = mFoundIsoFile;
         if (iso == null) return;
         mVerifyCancelled = false;
-        tvProgress.setVisibility(View.VISIBLE);
-        progressBar.setVisibility(View.VISIBLE);
-        progressBar.setIndeterminate(false);
-        progressBar.setProgress(0);
-        tvProgress.setText(t("Checking the game files... %d%% (tap to cancel)", 0));
-        panelInfo.setVisibility(View.VISIBLE);
-        tvProgress.setOnClickListener(v -> mVerifyCancelled = true);
-        btnPlay.setEnabled(false);
-        btnSettings.setEnabled(false);
+        busyStart(t("Checking the game files... %d%% (tap to cancel)", 0), () -> mVerifyCancelled = true);
         Executors.newSingleThreadExecutor().execute(() -> {
             java.util.List<String> broken = null;
             String error = null;
@@ -825,10 +723,7 @@ public class LauncherActivity extends AppActivity {
                         if (now - last[0] < 150) return;
                         last[0] = now;
                         int pct = (int) (done * 100 / Math.max(1, total));
-                        runOnUiThread(() -> {
-                            progressBar.setProgress(pct);
-                            tvProgress.setText(t("Checking the game files... %d%% (tap to cancel)", pct));
-                        });
+                        runOnUiThread(() -> busyProgress(pct, t("Checking the game files... %d%% (tap to cancel)", pct)));
                     }
                     @Override public boolean cancelled() { return mVerifyCancelled; }
                 });
@@ -838,10 +733,7 @@ public class LauncherActivity extends AppActivity {
             final java.util.List<String> result = broken;
             final String err = error;
             runOnUiThread(() -> {
-                tvProgress.setVisibility(View.GONE);
-                tvProgress.setOnClickListener(null);
-                progressBar.setVisibility(View.GONE);
-                btnSettings.setEnabled(true);
+                busyEnd();
                 checkIsoAndRefreshUi();
                 if (err != null) {
                     new DlDialog(this).setTitle(t("Error reading the ISO")).setMessage(err)
@@ -861,15 +753,7 @@ public class LauncherActivity extends AppActivity {
         final File iso = mFoundIsoFile;
         if (iso == null) return;
         mVerifyCancelled = false;
-        tvProgress.setVisibility(View.VISIBLE);
-        progressBar.setVisibility(View.VISIBLE);
-        progressBar.setIndeterminate(false);
-        progressBar.setProgress(0);
-        tvProgress.setText(t("Checking ISO hash... %d%% (tap to cancel)", 0));
-        panelInfo.setVisibility(View.VISIBLE);
-        tvProgress.setOnClickListener(v -> mVerifyCancelled = true);
-        btnPlay.setEnabled(false);
-        btnSettings.setEnabled(false);
+        busyStart(t("Checking ISO hash... %d%% (tap to cancel)", 0), () -> mVerifyCancelled = true);
         Executors.newSingleThreadExecutor().execute(() -> {
             String sha1 = null;
             String error = null;
@@ -881,10 +765,7 @@ public class LauncherActivity extends AppActivity {
                         if (now - last[0] < 150) return;
                         last[0] = now;
                         int pct = (int) (done * 100 / Math.max(1, total));
-                        runOnUiThread(() -> {
-                            progressBar.setProgress(pct);
-                            tvProgress.setText(t("Checking ISO hash... %d%% (tap to cancel)", pct));
-                        });
+                        runOnUiThread(() -> busyProgress(pct, t("Checking ISO hash... %d%% (tap to cancel)", pct)));
                     }
                     @Override public boolean cancelled() { return mVerifyCancelled; }
                 });
@@ -893,10 +774,7 @@ public class LauncherActivity extends AppActivity {
             }
             final String result = sha1, err = error;
             runOnUiThread(() -> {
-                tvProgress.setVisibility(View.GONE);
-                tvProgress.setOnClickListener(null);
-                progressBar.setVisibility(View.GONE);
-                btnSettings.setEnabled(true);
+                busyEnd();
                 if (err != null) {
                     checkIsoAndRefreshUi();
                     new DlDialog(this).setTitle(t("Error reading the ISO")).setMessage(err)
