@@ -500,8 +500,22 @@ public class LauncherActivity extends AppActivity {
 
     private boolean mCopying;
 
+    // iso/ in the data folder: the first place DiscFinder looks, so the copy
+    // is the disc that is played even when another image already lies there.
     private File isoDestDir() {
-        return DataDir.isCustom(this) ? DataDir.romDir(this) : DataDir.defaultDir(this);
+        return DataDir.romDir(this);
+    }
+
+    // After a successful copy: the disc found before, when it lies in the data
+    // folder (iso/ or the folder itself) and is not the copy, is the one the
+    // player replaced. A European disc stays (it may be there for language
+    // packs), and so does anything outside the data folder.
+    private static void removeReplacedDisc(File old, File copy, File dataDir) {
+        if (old == null || old.equals(copy) || !old.isFile()) return;
+        File parent = old.getParentFile();
+        if (parent == null) return;
+        boolean inDataFolder = parent.equals(copy.getParentFile()) || parent.equals(dataDir);
+        if (inDataFolder && !DiscFinder.isEuropean(old)) old.delete();
     }
 
     // Reads the start of the picked file first: an image the game cannot use
@@ -550,10 +564,11 @@ public class LauncherActivity extends AppActivity {
         });
     }
 
-    // The picked image becomes GMSE01.iso in the data folder (iso/ in a folder
-    // of the player's own); the launcher waits with everything else meanwhile.
+    // The picked image becomes iso/GMSE01.iso in the data folder and replaces
+    // the disc used so far; the launcher waits with everything else meanwhile.
     private void copyIsoFromUri(Uri uri) {
         mCopying = true;
+        final File before = mFoundIsoFile;
         tvStatus.setText(t("⏳  Copying disc…"));
         tvStatus.setTextColor(0xFFFFC531);
         setInfoPanel(true);
@@ -568,7 +583,8 @@ public class LauncherActivity extends AppActivity {
             try {
                 File dir = isoDestDir();
                 dir.mkdirs();
-                UriCopy.copy(getContentResolver(), uri, new File(dir, "GMSE01.iso"), done -> {
+                File dest = new File(dir, "GMSE01.iso");
+                UriCopy.copy(getContentResolver(), uri, dest, done -> {
                     long now = System.currentTimeMillis();
                     if (now - shown[0] < 100) return;
                     shown[0] = now;
@@ -581,6 +597,7 @@ public class LauncherActivity extends AppActivity {
                         }
                     });
                 });
+                removeReplacedDisc(before, dest, DataDir.get(this));
             } catch (Exception e) {
                 error = e.getMessage();
             }
