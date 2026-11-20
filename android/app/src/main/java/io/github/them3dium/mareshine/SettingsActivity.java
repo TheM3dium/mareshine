@@ -131,7 +131,7 @@ public class SettingsActivity extends AppActivity {
             super.set(i);
             if (Winter.ON.equals(key)) {
                 // turned on here: snow and music too; either way the question is answered for the season
-                if ("1".equals(values[i])) { mSettings.put(Winter.SNOW, "1"); mSettings.put(Winter.MUSIC, "100"); }
+                if ("1".equals(values[i])) { mSettings.put(Winter.SNOW, "1"); mSettings.put(Winter.LIGHTS, "1"); mSettings.put(Winter.MUSIC, "100"); }
                 mSettings.put(Winter.ASKED, Integer.toString(Winter.season(mSettings)));
                 Settings.write(SettingsActivity.this, mSettings);
                 refreshValues();
@@ -458,6 +458,15 @@ public class SettingsActivity extends AppActivity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackgroundResource(R.drawable.dl_panel);
+        // the winter event: the window's border glows softly with the music,
+        // out into the screen around it (not over the game)
+        if (!mInGame && Winter.lights(Settings.read(this))) {
+            panel.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {
+                getDrawable(R.drawable.dl_panel), MusicGlowDrawable.border(getResources(), 12)}));
+            // a foreground: the background stays a plain colour, which AppActivity
+            // carries on under a camera cutout (the glow is only outside the panel)
+            root.setForeground(MusicGlowDrawable.around(getResources(), 12, 24, 20));
+        }
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         plp.setMargins(dp(24), dp(20), dp(24), dp(20));
@@ -531,7 +540,11 @@ public class SettingsActivity extends AppActivity {
         // body
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.HORIZONTAL);
-        panel.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        // the lists stop a little above the window's bottom border, so what
+        // scrolls goes under that edge instead of over the border
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        blp.bottomMargin = dp(10);
+        panel.addView(body, blp);
 
         ScrollView scroll = new ScrollView(this);
         mList = new LinearLayout(this);
@@ -2421,6 +2434,8 @@ public class SettingsActivity extends AppActivity {
             add(new WinterToggle(Winter.ON, "Winter event",
                 "Until 6 January: the winter logo, light snow in the menus and Christmas music."));
             add(new WinterToggle(Winter.SNOW, "Snow", "Light snowfall in the menus while the winter event is on."));
+            add(new WinterToggle(Winter.LIGHTS, "Lights",
+                "The chain of lights on the logo and the glow round this window, playing along with the Christmas music."));
             add(new Choice(Winter.MUSIC, "Christmas music",
                 "Music in the menus while the winter event is on, at its own volume. The speaker under the logo "
                     + "steps through the same.",

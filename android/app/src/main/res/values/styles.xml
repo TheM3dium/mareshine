@@ -46,7 +46,7 @@
     <!-- the winter event's buttons under the launcher's logo: music (a speaker,
          its volume step) and snow (a snowflake, struck through when off) -->
     <style name="WinterSwitch">
-        <item name="android:layout_width">52dp</item>
+        <item name="android:layout_width">48dp</item>
         <item name="android:layout_height">44dp</item>
         <item name="android:background">@drawable/winter_switch</item>
         <item name="android:padding">9dp</item>

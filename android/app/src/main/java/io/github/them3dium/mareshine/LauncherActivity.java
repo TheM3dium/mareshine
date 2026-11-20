@@ -1007,12 +1007,12 @@ public class LauncherActivity extends AppActivity {
 
     // --- the winter event (Winter.java) ------------------------------------
 
-    // The winter logo and the two switches under it while the event is on;
+    // The winter logo and the switches under it while the event is on;
     // the normal logo and no switches otherwise.
     private void showWinter() {
         java.util.Map<String, String> s = io.github.them3dium.mareshine.Settings.read(this);
         boolean on = Winter.on(s);
-        ((WinterLogoView) findViewById(R.id.ivLogo)).setWinter(on);
+        ((WinterLogoView) findViewById(R.id.ivLogo)).setWinter(on, Winter.lights(s));
         findViewById(R.id.winterSwitches).setVisibility(on ? View.VISIBLE : View.GONE);
         if (!on) return;
         // some flakes stay on the winter logo's snow for a while
@@ -1037,6 +1037,11 @@ public class LauncherActivity extends AppActivity {
             showWinter();
         });
         snow.setOnClickListener(v -> switchWinter(Winter.SNOW, !snowOn));
+        android.widget.ImageView lights = findViewById(R.id.winterLights);
+        boolean lightsOn = Winter.lights(s);
+        lights.setImageResource(lightsOn ? R.drawable.winter_lights : R.drawable.winter_lights_off);
+        lights.setContentDescription(t("Lights") + ": " + t(lightsOn ? "On" : "Off"));
+        lights.setOnClickListener(v -> switchWinter(Winter.LIGHTS, !lightsOn));
         // the player: previous / play-pause / next and the timeline. Muted counts
         // as paused: play then turns the music up again, to the first step.
         View prev = findViewById(R.id.winterPrev), next = findViewById(R.id.winterNext);
@@ -1056,7 +1061,36 @@ public class LauncherActivity extends AppActivity {
             showWinter();
         });
         timeline.invalidate();
+        // ‹ folds all the others (and the timeline) away, › out again
+        android.widget.ImageView fold = findViewById(R.id.winterFold);
+        boolean folded = "1".equals(s.get(Winter.FOLDED));
+        android.view.ViewGroup row = findViewById(R.id.winterRow);
+        for (int i = 0; i < row.getChildCount(); i++)
+            if (row.getChildAt(i) != fold) row.getChildAt(i).setVisibility(folded ? View.GONE : View.VISIBLE);
+        timeline.setVisibility(folded ? View.GONE : View.VISIBLE);
+        fold.setImageResource(folded ? R.drawable.winter_expand : R.drawable.winter_collapse);
+        fold.setContentDescription(t(folded ? "Show the winter switches" : "Hide the winter switches"));
+        fold.setOnClickListener(v -> {
+            Winter.set(this, Winter.FOLDED, !folded);
+            showWinter();
+            fold.requestFocus();
+        });
+        // folded, the arrow pulses softly so it is found again
+        if (folded && mFoldPulse == null) {
+            mFoldPulse = android.animation.ObjectAnimator.ofFloat(fold, View.ALPHA, 1f, 0.35f);
+            mFoldPulse.setDuration(1400);
+            mFoldPulse.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+            mFoldPulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            mFoldPulse.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+            mFoldPulse.start();
+        } else if (!folded && mFoldPulse != null) {
+            mFoldPulse.cancel();
+            mFoldPulse = null;
+            fold.setAlpha(1f);
+        }
     }
+
+    private android.animation.ObjectAnimator mFoldPulse;
 
     private static android.graphics.Bitmap sWinterLogo;
 

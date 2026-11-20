@@ -22,7 +22,7 @@ import java.util.Map;
  * the settings opened from the quick menu.
  *
  * <p>All of it is kept in settings.txt (so Sync carries it to other devices):
- * {@link #ON} and {@link #SNOW} ("1"/"0"), {@link #MUSIC} (the music's own
+ * {@link #ON}, {@link #SNOW} and {@link #LIGHTS} ("1"/"0"), {@link #MUSIC} (the music's own
  * volume in percent, one of {@link #MUSIC_STEPS}) and {@link #ASKED}, the
  * season the question was answered in. {@link #FORCE} = 1 shows the season out
  * of its dates, for testing.
@@ -32,6 +32,9 @@ final class Winter {
 
     static final String ON = "SMS_LAUNCHER_WINTER";
     static final String SNOW = "SMS_LAUNCHER_WINTER_SNOW";
+    static final String LIGHTS = "SMS_LAUNCHER_WINTER_LIGHTS";
+    /** The switches under the logo folded away ("1"). */
+    static final String FOLDED = "SMS_LAUNCHER_WINTER_FOLDED";
     static final String MUSIC = "SMS_LAUNCHER_WINTER_MUSIC";
     static final String ASKED = "SMS_LAUNCHER_WINTER_ASKED";
     static final String FORCE = "SMS_LAUNCHER_WINTER_FORCE";
@@ -55,6 +58,9 @@ final class Winter {
     static boolean on(Map<String, String> s) { return season(s) >= 0 && "1".equals(s.get(ON)); }
 
     static boolean snow(Map<String, String> s) { return on(s) && !"0".equals(s.get(SNOW)); }
+
+    /** The lights that play with the music: the logo's chain and the glow round the Settings window. */
+    static boolean lights(Map<String, String> s) { return on(s) && !"0".equals(s.get(LIGHTS)); }
 
     /**
      * The music's button steps through these: full, muted, then up again in
@@ -94,7 +100,7 @@ final class Winter {
     static void answer(Context c, boolean on) {
         Map<String, String> s = Settings.read(c);
         s.put(ON, on ? "1" : "0");
-        if (on) { s.put(SNOW, "1"); s.put(MUSIC, "100"); }
+        if (on) { s.put(SNOW, "1"); s.put(LIGHTS, "1"); s.put(MUSIC, "100"); }
         s.put(ASKED, Integer.toString(season(s)));
         Settings.write(c, s);
     }

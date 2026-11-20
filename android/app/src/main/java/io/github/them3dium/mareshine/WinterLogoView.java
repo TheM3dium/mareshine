@@ -96,10 +96,10 @@ public class WinterLogoView extends ImageView {
         for (int b = 0; b < BANDS; b++) mTints[b] = new PorterDuffColorFilter(GLOW_COLORS[b], PorterDuff.Mode.SRC_IN);
     }
 
-    /** Shows the winter logo with its lights (or the normal logo without). */
-    void setWinter(boolean on) {
+    /** Shows the winter logo, with its lights on or off (or the normal logo). */
+    void setWinter(boolean on, boolean lights) {
         setImageResource(on ? R.drawable.mareshine_logo_winter : R.drawable.mareshine_logo);
-        mLights = on && load();
+        mLights = on && lights && load();
         mLast = 0;
         invalidate();
     }
@@ -108,15 +108,7 @@ public class WinterLogoView extends ImageView {
         try {
             if (sLit == null) sLit = BitmapFactory.decodeResource(getResources(), R.drawable.winter_logo_lights);
             if (sGlow == null) sGlow = BitmapFactory.decodeResource(getResources(), R.drawable.winter_glow);
-            for (int t = 0; t < sTracks.length; t++) {
-                if (sTracks[t] != null) continue;
-                try (InputStream in = getResources().openRawResource(LIGHT_TRACKS[t])) {
-                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(90_000);
-                    byte[] b = new byte[16384];
-                    for (int n; (n = in.read(b)) > 0; ) out.write(b, 0, n);
-                    sTracks[t] = out.toByteArray();
-                }
-            }
+            loadTracks(getResources());
             mGlowSrc.set(0, 0, sGlow.getWidth(), sGlow.getHeight());
             return sLit != null;
         } catch (Exception e) {
@@ -178,9 +170,59 @@ public class WinterLogoView extends ImageView {
         else mLast = 0;
     }
 
-    /** A band's level (0..1) at a position of the track, between its frames. */
-    private float level(int ms, int band) {
-        byte[] track = mTrack;
+    private static void loadTracks(android.content.res.Resources res) throws java.io.IOException {
+        for (int t = 0; t < sTracks.length; t++) {
+            if (sTracks[t] != null) continue;
+            try (InputStream in = res.openRawResource(LIGHT_TRACKS[t])) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(90_000);
+                byte[] b = new byte[16384];
+                for (int n; (n = in.read(b)) > 0; ) out.write(b, 0, n);
+                sTracks[t] = out.toByteArray();
+            }
+        }
+    }
+
+    /**
+     * How much is going on in the music now (0..1: all bands' levels, averaged),
+     * or -1 while it does not play. For other things that move with it.
+     */
+    static float musicEnergy(android.content.res.Resources res) {
+        int pos = Winter.musicPosition();
+        if (pos < 0) return -1;
+        try {
+            loadTracks(res);
+        } catch (java.io.IOException e) {
+            return -1;
+        }
+        byte[] track = sTracks[Winter.musicTrack() % sTracks.length];
+        if (track == null) return -1;
+        float sum = 0;
+        for (int b = 0; b < BANDS; b++) sum += level(track, pos, b);
+        return sum / BANDS;
+    }
+
+    /**
+     * The music's five bands now (bass .. treble, 0..1) into {@code out};
+     * false while it does not play.
+     */
+    static boolean musicBands(android.content.res.Resources res, float[] out) {
+        int pos = Winter.musicPosition();
+        if (pos < 0) return false;
+        try {
+            loadTracks(res);
+        } catch (java.io.IOException e) {
+            return false;
+        }
+        byte[] track = sTracks[Winter.musicTrack() % sTracks.length];
+        if (track == null) return false;
+        for (int b = 0; b < BANDS && b < out.length; b++) out[b] = level(track, pos, b);
+        return true;
+    }
+
+    private float level(int ms, int band) { return level(mTrack, ms, band); }
+
+    /** A band's level (0..1) at a position of a track, between its frames. */
+    private static float level(byte[] track, int ms, int band) {
         int frames = track.length / BANDS;
         if (frames == 0) return 1f;
         float f = (ms * FPS / 1000f) % frames;
