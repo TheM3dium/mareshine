@@ -46,48 +46,37 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
-                <!-- folds the others (and the timeline) away, and out again -->
-                <ImageView
-                    android:id="@+id/winterFold"
-                    style="@style/WinterSwitch"
-                    android:layout_width="34dp"
-                    android:background="@drawable/winter_fold"
-                    android:paddingStart="5dp"
-                    android:paddingEnd="5dp"
-                    android:src="@drawable/winter_collapse" />
-
                 <ImageView
                     android:id="@+id/winterMusic"
-                    style="@style/WinterSwitch"
-                    android:layout_marginStart="6dp" />
+                    style="@style/WinterSwitch" />
 
                 <ImageView
                     android:id="@+id/winterPrev"
                     style="@style/WinterSwitch"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="10dp"
                     android:src="@drawable/winter_prev" />
 
                 <ImageView
                     android:id="@+id/winterPlay"
                     style="@style/WinterSwitch"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="10dp"
                     android:src="@drawable/winter_pause" />
 
                 <ImageView
                     android:id="@+id/winterNext"
                     style="@style/WinterSwitch"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="10dp"
                     android:src="@drawable/winter_next" />
 
                 <ImageView
                     android:id="@+id/winterSnow"
                     style="@style/WinterSwitch"
-                    android:layout_marginStart="6dp" />
+                    android:layout_marginStart="10dp" />
 
                 <ImageView
                     android:id="@+id/winterLights"
                     style="@style/WinterSwitch"
-                    android:layout_marginStart="6dp" />
+                    android:layout_marginStart="10dp" />
             </LinearLayout>
 
             <io.github.them3dium.mareshine.WinterTimeline
@@ -95,6 +84,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="24dp"
                 android:layout_marginTop="4dp" />
+
+            <!-- folds the switches and the timeline away (up), and out again;
+                 red, so it is seen -->
+            <ImageView
+                android:id="@+id/winterFold"
+                style="@style/WinterSwitch"
+                android:layout_width="56dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/winter_fold"
+                android:padding="3dp"
+                android:src="@drawable/winter_collapse"
+                android:tint="@color/winter_fold_tint" />
         </LinearLayout>
     </LinearLayout>
 

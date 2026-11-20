@@ -2431,23 +2431,10 @@ public class SettingsActivity extends AppActivity {
         }
         if (!mInGame && Winter.inSeason(this)) {
             section("WINTER");
+            // music, snow and lights have their switches under the launcher's logo
             add(new WinterToggle(Winter.ON, "Winter event",
-                "Until 6 January: the winter logo, light snow in the menus and Christmas music."));
-            add(new WinterToggle(Winter.SNOW, "Snow", "Light snowfall in the menus while the winter event is on."));
-            add(new WinterToggle(Winter.LIGHTS, "Lights",
-                "The chain of lights on the logo and the glow round this window, playing along with the Christmas music."));
-            add(new Choice(Winter.MUSIC, "Christmas music",
-                "Music in the menus while the winter event is on, at its own volume. The speaker under the logo "
-                    + "steps through the same.",
-                "100", new String[] {"0", "33", "66", "100"}, new String[] {"Off", "Low", "Medium", "High"}) {
-                @Override int index() {  // older settings: "1" was full
-                    return "1".equals(mSettings.get(key)) ? values.length - 1 : super.index();
-                }
-                @Override void set(int i) {
-                    super.set(i);
-                    updateWinter();
-                }
-            });
+                "Until 6 January: the winter logo with its lights, light snow in the menus and Christmas music. "
+                    + "Music, snow and lights have their own switches under the logo on the main screen."));
         }
         section("CONTROLLER");
         add(new Toggle(MenuKeys.KEY, "Swap A and B in menus", "For Nintendo-style controllers: B confirms and A goes back in the app's menus. The game's own buttons stay as they are.", false, false) {

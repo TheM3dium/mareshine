@@ -1061,12 +1061,11 @@ public class LauncherActivity extends AppActivity {
             showWinter();
         });
         timeline.invalidate();
-        // ‹ folds all the others (and the timeline) away, › out again
+        // the arrow under the timeline folds the switches and the timeline away (up), and out again
         android.widget.ImageView fold = findViewById(R.id.winterFold);
         boolean folded = "1".equals(s.get(Winter.FOLDED));
         android.view.ViewGroup row = findViewById(R.id.winterRow);
-        for (int i = 0; i < row.getChildCount(); i++)
-            if (row.getChildAt(i) != fold) row.getChildAt(i).setVisibility(folded ? View.GONE : View.VISIBLE);
+        row.setVisibility(folded ? View.GONE : View.VISIBLE);
         timeline.setVisibility(folded ? View.GONE : View.VISIBLE);
         fold.setImageResource(folded ? R.drawable.winter_expand : R.drawable.winter_collapse);
         fold.setContentDescription(t(folded ? "Show the winter switches" : "Hide the winter switches"));
