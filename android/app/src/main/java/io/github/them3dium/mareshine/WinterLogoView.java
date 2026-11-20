@@ -75,7 +75,7 @@ public class WinterLogoView extends ImageView {
     private static final float FLOOR = 0.12f;
 
     private static final byte[][] sTracks = new byte[Winter.TRACKS.length][];
-    private static final int[] LIGHT_TRACKS = {R.raw.winter_lights_1, R.raw.winter_lights_2};
+    private static final int[] LIGHT_TRACKS = {R.raw.winter_lights_1, R.raw.winter_lights_2, R.raw.winter_lights_3};
     private byte[] mTrack;
     private static Bitmap sLit, sGlow;
 

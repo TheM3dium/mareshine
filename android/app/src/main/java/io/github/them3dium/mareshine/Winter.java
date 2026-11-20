@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * The winter event of the app's menus: a winter logo, light snowfall and
- * Christmas music (two tracks, one after the other), from 24 November to 6 January.
+ * Christmas music (three tracks, one after the other), from 24 November to 6 January.
  *
  * <p>At the first start in a season the launcher asks whether to turn it on
  * ({@link #needsAsking}). Snow and music each have their own switch (by the
@@ -140,7 +140,7 @@ final class Winter {
     // The tracks play one after the other, round and round.
 
     /** The tracks, in order; each has its light organ track at the same index (WinterLogoView). */
-    static final int[] TRACKS = {R.raw.winter_music_1, R.raw.winter_music_2};
+    static final int[] TRACKS = {R.raw.winter_music_1, R.raw.winter_music_2, R.raw.winter_music_3};
 
     private static MediaPlayer sPlayer;
     private static int sTrack;
