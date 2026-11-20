@@ -49,6 +49,25 @@ final class Achievements {
         return !"0".equals(Settings.read(c).getOrDefault(SETTING, "1"));
     }
 
+    /**
+     * Whether a cheat is on (Settings -> CHEATS): then the game unlocks none
+     * but Pro Hacker (port_ach_cheats_active in platform/achievements, which
+     * reads the same keys: platform/misc/port_cheats.cpp).
+     */
+    static boolean cheatsOn(Context c) {
+        java.util.Map<String, String> s = Settings.read(c);
+        for (String k : new String[] {"SMS_CHEAT_GOD_MODE", "SMS_CHEAT_INFINITE_LIVES", "SMS_CHEAT_INFINITE_FLUDD", "SMS_CHEAT_MOON_JUMP"})
+            if ("1".equals(s.get(k))) return true;
+        for (String k : new String[] {"SMS_CHEAT_MOVEMENT_SPEED", "SMS_CHEAT_JUMP_HEIGHT", "SMS_CHEAT_COIN_MULTIPLIER"}) {
+            String v = s.get(k);
+            if (v != null && !v.trim().isEmpty() && !"1".equals(v.trim())) return true;
+        }
+        return false;
+    }
+
+    /** The one a cheat unlocks ("sms.pro.hacker", and the mods' own). */
+    static boolean isHacker(Def d) { return d.id != null && d.id.endsWith(".pro.hacker"); }
+
     // the mods' games with achievements: mod id -> game (platform/achievements)
     private static final String[][] MOD_GAMES = {{"sunburn", "sunburn"}, {"eclipse", "eclipse"}};
     private static final String[][] DISC_GAMES = {{"GMSE03", "sunburn"}, {"GMSE04", "eclipse"}};

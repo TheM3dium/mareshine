@@ -20,10 +20,13 @@ import static io.github.them3dium.mareshine.L.t;
 // secret one shows as ??? until it is unlocked (or only its title). Two tabs:
 // ALL, and UNLOCKED with only the ones unlocked, in the same order. The list
 // is the game's being played (Achievements.game: a mod's own, or Sunshine's),
-// named under the title. From
+// named under the title. While a cheat is on (Achievements.cheatsOn) the
+// game unlocks none but Pro Hacker, so all others grey out under a note. From
 // Settings → ACHIEVEMENTS (which also turns them on or off) and from the quick
 // menu in the game.
 public class AchievementsActivity extends AppActivity {
+
+    private boolean mCheats;
     private LinearLayout mList;
     private TextView mSwitch;
     private ScrollView mScroll;
@@ -106,6 +109,16 @@ public class AchievementsActivity extends AppActivity {
         mSwitch.setVisibility(Achievements.enabled(this) ? View.GONE : View.VISIBLE);
         panel.addView(mSwitch);
 
+        // a cheat on: the game unlocks none but Pro Hacker, so the list greys out
+        mCheats = Achievements.enabled(this) && Achievements.cheatsOn(this);
+        TextView cheats = new TextView(this);
+        cheats.setTextSize(15);
+        cheats.setTextColor(0xFFFFC93C);
+        cheats.setPadding(0, dp(4), 0, dp(6));
+        cheats.setText(t("Cheats are on, so no achievements can be unlocked (except one). Turn your cheats off 🙂"));
+        cheats.setVisibility(mCheats ? View.VISIBLE : View.GONE);
+        panel.addView(cheats);
+
         mScroll = new ScrollView(this);
         mList = new LinearLayout(this);
         mList.setOrientation(LinearLayout.VERTICAL);
@@ -186,7 +199,9 @@ public class AchievementsActivity extends AppActivity {
         row.setBackgroundResource(R.drawable.dl_row);
         row.setPadding(dp(10), dp(6), dp(12), dp(6));
         row.setFocusable(true); // for scrolling with a controller or remote
-        row.setAlpha(d.unlocked ? 1f : 0.55f);
+        // with a cheat on, all but Pro Hacker grey out (unlocked ones too: nothing more comes)
+        boolean grey = mCheats && !Achievements.isHacker(d);
+        row.setAlpha(grey ? 0.28f : d.unlocked ? 1f : 0.55f);
         LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT);
         rlp.bottomMargin = dp(4);

@@ -24,7 +24,7 @@ void port_log(const char* fmt, ...);
 const char* port_card_dir(void);
 __attribute__((weak)) int SDL_AndroidSendMessage(unsigned int command, int param);
 extern int port_cheat_god_mode, port_cheat_movement_speed, port_cheat_jump_height, port_cheat_infinite_lives,
-    port_cheat_infinite_fludd, port_cheat_coin_multiplier;
+    port_cheat_infinite_fludd, port_cheat_coin_multiplier, port_cheat_moon_jump;
 }
 
 namespace {
@@ -488,7 +488,7 @@ extern "C" int port_ach_is_secret(int a) { return a >= 0 && a < PORT_ACH_COUNT &
 
 extern "C" int port_ach_cheats_active(void)
 {
-	return port_cheat_god_mode || port_cheat_infinite_lives || port_cheat_infinite_fludd
+	return port_cheat_god_mode || port_cheat_infinite_lives || port_cheat_infinite_fludd || port_cheat_moon_jump
 	    || port_cheat_movement_speed != 1 || port_cheat_jump_height != 1 || port_cheat_coin_multiplier != 1;
 }
 
