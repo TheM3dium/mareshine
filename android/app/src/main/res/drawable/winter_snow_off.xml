@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the winter snow off (Winter.java): the snowflake struck through -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <group android:scaleX="0.82" android:scaleY="0.82" android:pivotX="12" android:pivotY="12">
+    <path android:strokeColor="#99FFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M12,12 L12.00,2.50 M12.00,6.11 L14.06,3.66 M12.00,6.11 L9.94,3.66 M12,12 L3.77,7.25 M6.90,9.05 L5.80,6.05 M6.90,9.05 L3.75,9.61 M12,12 L3.77,16.75 M6.90,14.95 L3.75,14.39 M6.90,14.95 L5.80,17.95 M12,12 L12.00,21.50 M12.00,17.89 L9.94,20.34 M12.00,17.89 L14.06,20.34 M12,12 L20.23,16.75 M17.10,14.95 L18.20,17.95 M17.10,14.95 L20.25,14.39 M12,12 L20.23,7.25 M17.10,9.05 L20.25,9.61 M17.10,9.05 L18.20,6.05" />
+    </group>
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.4" android:strokeLineCap="round"
+        android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M3.5,3.5 L20.5,20.5" />
+</vector>

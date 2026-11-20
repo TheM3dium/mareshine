@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The winter event's switches under the logo (music, snow): a frosty pill,
+     gold when focused (D-pad, remote) or pressed, like the update box. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <solid android:color="#FFFFD45A" />
+            <stroke android:width="2dp" android:color="#FFFFD45A" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <gradient android:angle="0" android:startColor="#CCFFB020" android:endColor="#F2FFD45A" />
+            <stroke android:width="2dp" android:color="#FFFFD45A" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <solid android:color="#5539A0E0" />
+            <stroke android:width="1.5dp" android:color="#CCE8F6FF" />
+        </shape>
+    </item>
+</selector>

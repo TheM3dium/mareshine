@@ -33,6 +33,52 @@ public class AppActivity extends Activity {
     protected void onResume() {
         super.onResume();
         MenuKeys.load(this);
+        if (mWinter) {
+            Winter.screenShown(this);
+            updateSnow();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mWinter) Winter.screenHidden();
+    }
+
+    // The winter event (Winter): snow over the whole screen, music while a
+    // menu screen is in front. Not on screens over the game, nor on one that
+    // shows the game's screen itself (keepClearOfSystemUi false).
+    private boolean mWinter;
+    private SnowView mSnow;
+
+    // a swipe is a gust of wind for the snow (it takes nothing from the screen's views)
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        if (mSnow != null) mSnow.touch(ev);
+        return super.dispatchTouchEvent(ev);
+    }
+
+    /** The snow over this screen, or null while it does not snow. */
+    SnowView snow() { return mSnow; }
+
+    /** After a switch changed: snow on or off, music started or stopped. */
+    void updateWinter() {
+        if (!mWinter) return;
+        updateSnow();
+        Winter.updateMusic(this);
+    }
+
+    private void updateSnow() {
+        boolean snow = Winter.snow(Settings.read(this));
+        if (snow && mSnow == null) {
+            mSnow = new SnowView(this);
+            ((android.view.ViewGroup) getWindow().getDecorView()).addView(mSnow,
+                new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        } else if (!snow && mSnow != null) {
+            ((android.view.ViewGroup) mSnow.getParent()).removeView(mSnow);
+            mSnow = null;
+        }
     }
 
     @Override
@@ -129,6 +175,7 @@ public class AppActivity extends Activity {
     @Override
     protected void onPostCreate(android.os.Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
+        mWinter = keepClearOfSystemUi() && Winter.shownOn(this);
         View content = findViewById(android.R.id.content);
         if (content != null && keepClearOfSystemUi()) {
             // the screen's background goes on under the cutout and the bars

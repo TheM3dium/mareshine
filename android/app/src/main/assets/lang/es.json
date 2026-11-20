@@ -1022,5 +1022,21 @@
  "How far the stick has to go while you aim with R+: above 100% FLUDD turns fast with less movement. The game limits how fast it can turn.": "Cuánto hay que mover el stick al apuntar con R+: por encima del 100 % FLUDD gira rápido con menos movimiento. El juego limita lo rápido que puede girar.",
  "Data folder not reachable": "Carpeta de datos no accesible",
  "Use app folder": "Usar carpeta de la app",
- "Your saves and settings are kept in:\n%s\n\nMareshine cannot open this folder. After a reinstall Android brings the folder back, but not \"All files access\". Allow it again to keep playing with what is there, or use the app's own folder and start fresh (the old folder stays as it is).": "Tus partidas y ajustes están en:\n%s\n\nMareshine no puede abrir esta carpeta. Tras una reinstalación, Android recupera la carpeta, pero no el «Acceso a todos los archivos». Vuelve a permitirlo para seguir jugando con lo que hay ahí, o usa la carpeta propia de la app y empieza de cero (la carpeta antigua se queda como está)."
+ "Your saves and settings are kept in:\n%s\n\nMareshine cannot open this folder. After a reinstall Android brings the folder back, but not \"All files access\". Allow it again to keep playing with what is there, or use the app's own folder and start fresh (the old folder stays as it is).": "Tus partidas y ajustes están en:\n%s\n\nMareshine no puede abrir esta carpeta. Tras una reinstalación, Android recupera la carpeta, pero no el «Acceso a todos los archivos». Vuelve a permitirlo para seguir jugando con lo que hay ahí, o usa la carpeta propia de la app y empieza de cero (la carpeta antigua se queda como está).",
+ "❄️ Winter in Mareshine": "❄️ Invierno en Mareshine",
+ "Until 6 January it can snow in the menus, with Christmas music and a winter logo. Turn it on?\n\nMusic and snow each have a switch under the logo, and all of it can be turned off in Settings → OTHER.": "Hasta el 6 de enero puede nevar en los menús, con música navideña y un logo de invierno. ¿Activarlo?\n\nLa música y la nieve tienen cada una un interruptor bajo el logo, y todo se puede desactivar en Ajustes → OTROS.",
+ "Turn on": "Activar",
+ "No, thanks": "No, gracias",
+ "WINTER": "INVIERNO",
+ "Winter event": "Evento de invierno",
+ "Until 6 January: the winter logo, light snow in the menus and Christmas music.": "Hasta el 6 de enero: el logo de invierno, nieve ligera en los menús y música navideña.",
+ "Snow": "Nieve",
+ "Light snowfall in the menus while the winter event is on.": "Nieve ligera en los menús mientras el evento de invierno está activo.",
+ "Christmas music": "Música navideña",
+ "Music in the menus while the winter event is on, at its own volume. The speaker under the logo steps through the same.": "Música en los menús mientras el evento de invierno está activo, con su propio volumen. El altavoz bajo el logo recorre los mismos niveles.",
+ "Next song": "Siguiente canción",
+ "Previous song": "Canción anterior",
+ "Play": "Reproducir",
+ "Pause": "Pausa",
+ "Song position": "Posición en la canción"
 }

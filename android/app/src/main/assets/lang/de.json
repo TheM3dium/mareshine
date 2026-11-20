@@ -1023,5 +1023,21 @@
  "How far the stick has to go while you aim with R+: above 100% FLUDD turns fast with less movement. The game limits how fast it can turn.": "Wie weit der Stick beim Zielen mit R+ gehen muss: Über 100 % dreht sich FLUDD schon mit weniger Bewegung schnell. Das Spiel begrenzt, wie schnell es sich drehen kann.",
  "Data folder not reachable": "Datenordner nicht erreichbar",
  "Use app folder": "App-Ordner nehmen",
- "Your saves and settings are kept in:\n%s\n\nMareshine cannot open this folder. After a reinstall Android brings the folder back, but not \"All files access\". Allow it again to keep playing with what is there, or use the app's own folder and start fresh (the old folder stays as it is).": "Deine Spielstände und Einstellungen liegen in:\n%s\n\nMareshine kann diesen Ordner nicht öffnen. Nach einer Neuinstallation holt Android den Ordner zurück, aber nicht den „Zugriff auf alle Dateien“. Erlaube ihn wieder, um mit dem weiterzuspielen, was dort liegt, oder nimm den App-Ordner und fang neu an (der alte Ordner bleibt, wie er ist)."
+ "Your saves and settings are kept in:\n%s\n\nMareshine cannot open this folder. After a reinstall Android brings the folder back, but not \"All files access\". Allow it again to keep playing with what is there, or use the app's own folder and start fresh (the old folder stays as it is).": "Deine Spielstände und Einstellungen liegen in:\n%s\n\nMareshine kann diesen Ordner nicht öffnen. Nach einer Neuinstallation holt Android den Ordner zurück, aber nicht den „Zugriff auf alle Dateien“. Erlaube ihn wieder, um mit dem weiterzuspielen, was dort liegt, oder nimm den App-Ordner und fang neu an (der alte Ordner bleibt, wie er ist).",
+ "❄️ Winter in Mareshine": "❄️ Winter in Mareshine",
+ "Until 6 January it can snow in the menus, with Christmas music and a winter logo. Turn it on?\n\nMusic and snow each have a switch under the logo, and all of it can be turned off in Settings → OTHER.": "Bis zum 6. Januar kann es in den Menüs schneien, mit Weihnachtsmusik und einem Winter-Logo. Einschalten?\n\nMusik und Schnee haben je einen Schalter unter dem Logo, und alles lässt sich unter Einstellungen → SONSTIGES ausschalten.",
+ "Turn on": "Einschalten",
+ "No, thanks": "Nein, danke",
+ "WINTER": "WINTER",
+ "Winter event": "Winter-Event",
+ "Until 6 January: the winter logo, light snow in the menus and Christmas music.": "Bis zum 6. Januar: das Winter-Logo, leichter Schnee in den Menüs und Weihnachtsmusik.",
+ "Snow": "Schnee",
+ "Light snowfall in the menus while the winter event is on.": "Leichter Schneefall in den Menüs, solange das Winter-Event an ist.",
+ "Christmas music": "Weihnachtsmusik",
+ "Music in the menus while the winter event is on, at its own volume. The speaker under the logo steps through the same.": "Musik in den Menüs, solange das Winter-Event an ist, mit eigener Lautstärke. Der Lautsprecher unter dem Logo schaltet durch dieselben Stufen.",
+ "Next song": "Nächstes Lied",
+ "Previous song": "Vorheriges Lied",
+ "Play": "Abspielen",
+ "Pause": "Pause",
+ "Song position": "Stelle im Lied"
 }

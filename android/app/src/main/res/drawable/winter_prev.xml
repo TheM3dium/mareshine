@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the winter music's previous track (Winter.java): a bar and a play triangle backwards -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.5"
+        android:strokeLineJoin="round" android:pathData="M19,5.5 L8.5,12 L19,18.5 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,5 L7,5 L7,19 L4,19 Z" />
+</vector>

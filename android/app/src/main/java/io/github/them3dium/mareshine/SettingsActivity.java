@@ -122,6 +122,24 @@ public class SettingsActivity extends AppActivity {
         @Override void click() { step(1); } // on/off flips at once
     }
 
+    // The winter event's switches (Winter): snow and music change at once.
+    private class WinterToggle extends Toggle {
+        // the event is off until turned on; snow and music are on within it
+        WinterToggle(String key, String label, String desc) { super(key, label, desc, !Winter.ON.equals(key), false); }
+
+        @Override void set(int i) {
+            super.set(i);
+            if (Winter.ON.equals(key)) {
+                // turned on here: snow and music too; either way the question is answered for the season
+                if ("1".equals(values[i])) { mSettings.put(Winter.SNOW, "1"); mSettings.put(Winter.MUSIC, "100"); }
+                mSettings.put(Winter.ASKED, Integer.toString(Winter.season(mSettings)));
+                Settings.write(SettingsActivity.this, mSettings);
+                refreshValues();
+            }
+            updateWinter();
+        }
+    }
+
     // A percentage from settings.txt: left/right steps on the row; OK opens a
     // slider and a number field on the right for any value in [min, max].
     private class Slider extends Row {
@@ -2397,6 +2415,24 @@ public class SettingsActivity extends AppActivity {
         if (!mInGame) {
             section("TOUR");
             add(new Action("Tour", "Watch the app's tour again: all of it or only the newest features.", null, this::askTour));
+        }
+        if (!mInGame && Winter.inSeason(this)) {
+            section("WINTER");
+            add(new WinterToggle(Winter.ON, "Winter event",
+                "Until 6 January: the winter logo, light snow in the menus and Christmas music."));
+            add(new WinterToggle(Winter.SNOW, "Snow", "Light snowfall in the menus while the winter event is on."));
+            add(new Choice(Winter.MUSIC, "Christmas music",
+                "Music in the menus while the winter event is on, at its own volume. The speaker under the logo "
+                    + "steps through the same.",
+                "100", new String[] {"0", "33", "66", "100"}, new String[] {"Off", "Low", "Medium", "High"}) {
+                @Override int index() {  // older settings: "1" was full
+                    return "1".equals(mSettings.get(key)) ? values.length - 1 : super.index();
+                }
+                @Override void set(int i) {
+                    super.set(i);
+                    updateWinter();
+                }
+            });
         }
         section("CONTROLLER");
         add(new Toggle(MenuKeys.KEY, "Swap A and B in menus", "For Nintendo-style controllers: B confirms and A goes back in the app's menus. The game's own buttons stay as they are.", false, false) {
