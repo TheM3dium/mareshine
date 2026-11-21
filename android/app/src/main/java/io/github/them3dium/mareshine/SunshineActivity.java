@@ -139,7 +139,11 @@ public class SunshineActivity extends SDLActivity {
             nativeSetenv("SMS_MOD_OPTIONS", Mods.optionsForGame(this));
             // the cutscene frames the app ships (frames added by an update too)
             String frame = Settings.read(this).getOrDefault("SMS_CUTSCENE_FRAME", "0");
-            if (!frame.equals("0") && !frame.isEmpty()) CutscenePack.installFrames(this);
+            if (!frame.equals("0") && !frame.isEmpty()) {
+                CutscenePack.installFrames(this);
+                File f = CutscenePack.frameFor(this);
+                if (f.isFile()) nativeSetenv("SMS_CUTSCENE_FRAME", f.getAbsolutePath());
+            }
             if (CrashLog.isEnabled(this)) {
                 nativeSetenv("SMS_LOG_DIR", CrashLog.dir(this).getAbsolutePath());
                 nativeSetenv("SMS_DEVICE_INFO", "app " + CrashLog.BuildConfigInfo.version(this)
