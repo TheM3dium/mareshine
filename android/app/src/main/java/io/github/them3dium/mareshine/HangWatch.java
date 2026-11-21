@@ -30,6 +30,7 @@ import java.util.Map;
 final class HangWatch {
     private static final long STEP_MS = 500, HANG_MS = 3000;
     private static final long FROZEN_MS = 1500;  // a step this late: the process itself was stopped
+    private static final long MAX_STALL_MS = 60000;  // longer: frozen by Android, not a hang
     private static final int MAX_FILES = 5, MAX_BYTES = 256 * 1024;
 
     private static volatile long sAnswered;
@@ -44,6 +45,7 @@ final class HangWatch {
             long asked = SystemClock.uptimeMillis();
             sAnswered = asked;
             boolean written = false;
+            boolean wasForeground = foreground();
             main.post(answer);
             while (true) {
                 long before = SystemClock.uptimeMillis();
@@ -55,17 +57,25 @@ final class HangWatch {
                 long now = SystemClock.uptimeMillis();
                 // Android froze the whole process (in the background): not a hang;
                 // but in the foreground, a stall of the whole process is noted
+                // Only a stall that began and ended in the foreground, and was short
+                // enough to be one (Android ends a frozen app's turn within seconds):
+                // a process Android froze in the background is thawed, and in the
+                // foreground, before this watch runs again, hours later.
                 if (now - before > STEP_MS + FROZEN_MS || Debug.isDebuggerConnected()) {
-                    if (now - before >= HANG_MS && !Debug.isDebuggerConnected() && foreground()) {
+                    long late = now - before;
+                    boolean fg = foreground();
+                    if (late >= HANG_MS && late <= MAX_STALL_MS && !Debug.isDebuggerConnected() && wasForeground && fg) {
                         try {
-                            if (CrashLog.isEnabled(app)) write(app, now - before, true);
+                            if (CrashLog.isEnabled(app)) write(app, late, true);
                         } catch (Throwable ignored) {}
                     }
+                    wasForeground = fg;
                     asked = now;
                     sAnswered = now;
                     main.post(answer);
                     continue;
                 }
+                wasForeground = foreground();
                 if (sAnswered >= asked) {  // answered: ask again
                     written = false;
                     asked = now;
