@@ -260,6 +260,8 @@ public class LauncherActivity extends AppActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        mAutoFoldHandler.removeCallbacks(mAutoFold);
+        mAutoFoldArmed = false;
         try { unregisterReceiver(mShaderProgress); } catch (IllegalArgumentException ignored) {}
     }
 
@@ -997,6 +999,7 @@ public class LauncherActivity extends AppActivity {
             CrashLog.markGameStarted(this);
             // the shader compile goes on during the game (SunshineActivity shows it)
             findViewById(R.id.panelShaders).setVisibility(View.GONE);
+            Winter.gameStarting();
             Intent intent = new Intent(this, SunshineActivity.class);
             intent.putExtra("sms_disc", mFoundIsoFile.getAbsolutePath());
             startActivity(intent);
@@ -1014,7 +1017,7 @@ public class LauncherActivity extends AppActivity {
         boolean on = Winter.on(s);
         ((WinterLogoView) findViewById(R.id.ivLogo)).setWinter(on, Winter.lights(s));
         findViewById(R.id.winterSwitches).setVisibility(on ? View.VISIBLE : View.GONE);
-        if (!on) return;
+        if (!on) { autoFoldLater(false); return; }
         // some flakes stay on the winter logo's snow for a while
         if (snow() != null) {
             if (sWinterLogo == null)
@@ -1065,6 +1068,14 @@ public class LauncherActivity extends AppActivity {
         android.widget.ImageView fold = findViewById(R.id.winterFold);
         boolean folded = "1".equals(s.get(Winter.FOLDED));
         android.view.ViewGroup row = findViewById(R.id.winterRow);
+        // folding in or out glides (the logo and the buttons under it move along)
+        if ((row.getVisibility() == View.GONE) != folded) {
+            android.transition.AutoTransition glide = new android.transition.AutoTransition();
+            glide.setDuration(450);
+            glide.setInterpolator(new android.view.animation.DecelerateInterpolator());
+            android.transition.TransitionManager.beginDelayedTransition(
+                (android.view.ViewGroup) findViewById(android.R.id.content), glide);
+        }
         row.setVisibility(folded ? View.GONE : View.VISIBLE);
         timeline.setVisibility(folded ? View.GONE : View.VISIBLE);
         fold.setImageResource(folded ? R.drawable.winter_expand : R.drawable.winter_collapse);
@@ -1087,9 +1098,36 @@ public class LauncherActivity extends AppActivity {
             mFoldPulse = null;
             fold.setAlpha(1f);
         }
+        autoFoldLater(!folded);
     }
 
     private android.animation.ObjectAnimator mFoldPulse;
+
+    /** How long the winter switches stay out while nothing is touched or pressed (ms). */
+    private static final long AUTO_FOLD_MS = 10000;
+    private final android.os.Handler mAutoFoldHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean mAutoFoldArmed;
+    // the switches fold away by themselves, gently, once they are left alone
+    private final Runnable mAutoFold = () -> {
+        mAutoFoldArmed = false;
+        if (isFinishing() || !Winter.on(io.github.them3dium.mareshine.Settings.read(this))) return;
+        Winter.set(this, Winter.FOLDED, true);
+        showWinter();
+    };
+
+    /** (Re)starts the wait before the switches fold away, or stops it. */
+    private void autoFoldLater(boolean out) {
+        mAutoFoldHandler.removeCallbacks(mAutoFold);
+        mAutoFoldArmed = out;
+        if (out) mAutoFoldHandler.postDelayed(mAutoFold, AUTO_FOLD_MS);
+    }
+
+    @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        // any touch or key press: the switches stay out a while longer
+        if (mAutoFoldArmed) autoFoldLater(true);
+    }
 
     private static android.graphics.Bitmap sWinterLogo;
 

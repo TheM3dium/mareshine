@@ -160,6 +160,16 @@ final class Winter {
         if (sPlayer != null && sPlayer.isPlaying()) sPlayer.pause();
     };
 
+    /**
+     * The game starts: the music stops at once, not after the short wait
+     * meant for going from one menu screen to the next (it would play into
+     * the game's first sounds).
+     */
+    static void gameStarting() {
+        sMain.removeCallbacks(sStop);
+        sStop.run();
+    }
+
     /** A menu screen came to the front (onResume). */
     static void screenShown(Activity a) {
         sScreens++;
