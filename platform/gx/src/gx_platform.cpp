@@ -50,6 +50,9 @@ extern "C" void port_android_performance_shutdown(void) __attribute__((weak));
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #endif
+#ifdef __ANDROID__
+#include <vulkan/vulkan.h>
+#endif
 
 // USB ids of the GameCube adapters the PAD layer reads itself, which SDL must
 // leave alone (platform/pad/gc_adapter.cpp); none without it.
@@ -319,6 +322,53 @@ static float fsrScale(float scale, float outW, float outH) {
 // the app gets this one: a file per entry under the app's storage, so a
 // shader is built for Vulkan once, not again in every session (the stutter
 // of a first draw). Bounded at 128 MB; past that, new entries are not kept.
+// ANGLE's own workaround for older Mali drivers, which the ANGLE that ships
+// with Android 15 lacks: on job-manager Mali GPUs (Bifrost and older, such as
+// the Mali-G52; maxDrawIndirectCount 1) with a driver from r46 up to r50,
+// extended dynamic state and vertex-input dynamic state break the driver
+// (newer ANGLE: vk_renderer.cpp, issuetracker.google.com/336411904; "fixed in
+// r51"). The Mali-G52's r49p1 crashed in Delfino Plaza within seconds without
+// it (moto g15, 24 Nov 2026) and ran with it. ANGLE takes the overrides from
+// ANGLE_FEATURE_OVERRIDES_DISABLED, read when its display is made; an override
+// already set (or SMS_ANGLE_FEATURES=keep) is left alone.
+#ifdef __ANDROID__
+static void angleMaliWorkarounds() {
+    const char* keep = getenv("SMS_ANGLE_FEATURES");
+    if ((keep && !strcmp(keep, "keep")) || getenv("ANGLE_FEATURE_OVERRIDES_DISABLED")) return;
+    void* lib = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+    if (!lib) return;
+    auto getProc = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(lib, "vkGetInstanceProcAddr"));
+    auto create = getProc ? reinterpret_cast<PFN_vkCreateInstance>(getProc(nullptr, "vkCreateInstance")) : nullptr;
+    VkInstance inst = VK_NULL_HANDLE;
+    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    app.apiVersion = VK_API_VERSION_1_1;
+    VkInstanceCreateInfo ci = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    ci.pApplicationInfo = &app;
+    if (create && create(&ci, nullptr, &inst) == VK_SUCCESS) {
+        auto enumerate = reinterpret_cast<PFN_vkEnumeratePhysicalDevices>(getProc(inst, "vkEnumeratePhysicalDevices"));
+        auto props = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(getProc(inst, "vkGetPhysicalDeviceProperties"));
+        auto destroy = reinterpret_cast<PFN_vkDestroyInstance>(getProc(inst, "vkDestroyInstance"));
+        uint32_t n = 1;
+        VkPhysicalDevice dev = VK_NULL_HANDLE;
+        const VkResult r = enumerate ? enumerate(inst, &n, &dev) : VK_ERROR_INITIALIZATION_FAILED;
+        if (props && (r == VK_SUCCESS || r == VK_INCOMPLETE) && dev) {
+            VkPhysicalDeviceProperties p;
+            props(dev, &p);
+            const uint32_t major = VK_VERSION_MAJOR(p.driverVersion);
+            const bool arm = p.vendorID == 0x13B5, jobManager = p.limits.maxDrawIndirectCount <= 1;
+            if (arm && jobManager && major >= 46 && major < 51) {
+                setenv("ANGLE_FEATURE_OVERRIDES_DISABLED",
+                       "supportsExtendedDynamicState:supportsExtendedDynamicState2:supportsVertexInputDynamicState", 1);
+                logmsg("ANGLE: %s driver %u.%u.%u, extended dynamic state off (the driver's r46-r50 bug)",
+                       p.deviceName, major, VK_VERSION_MINOR(p.driverVersion), VK_VERSION_PATCH(p.driverVersion));
+            }
+        }
+        if (destroy) destroy(inst, nullptr);
+    }
+    dlclose(lib);
+}
+#endif
+
 std::string s_angleCacheDir;  // set when ANGLE is loaded
 std::atomic<long long> s_angleCacheBytes{-1};
 
@@ -466,6 +516,7 @@ bool openWindow(float scale) {
             setenv("SDL_VIDEO_EGL_DRIVER", egl.c_str(), 1);
             setenv("SDL_VIDEO_GL_DRIVER", gles.c_str(), 1);
             logmsg("graphics driver: ANGLE (Vulkan), the system's, from %s", dir.c_str());
+            angleMaliWorkarounds();
             s_angleCacheDir = dir + "cache/";
         } else {
             if (g) dlclose(g);
