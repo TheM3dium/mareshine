@@ -48,6 +48,7 @@ public class IntroActivity extends AppActivity {
         String next;   // the orange button's own word (null: Next, or Got it on the last page)
         boolean logo;  // the winter logo with its lights as the picture
         boolean middle; // the text in the middle of the screen, see-through (the fireworks are above it)
+        int textDelay;  // ms the text waits before it fades in, for a picture that tells it first
 
         Page(String title, String text, Picture picture) {
             this.title = title;
@@ -378,6 +379,7 @@ public class IntroActivity extends AppActivity {
                     + "floors, fog and new music. You find it in the mod menu under SEARCH MODS."),
                 (c, p, w, h, ms) -> drawGift(c, p, w, h, ms, true));
             tf.back = true;
+            tf.textDelay = 1900;  // the present opens and the disc comes up first, then what it is
             mPages.add(tf);
             // a new install that skipped the tours: the event and the present, not an update's changes
             if (Intro.brief(this, mId) && !mPages.isEmpty()) return;
@@ -1518,8 +1520,9 @@ public class IntroActivity extends AppActivity {
         });
         mPanel.setAlpha(0f);
         // the mods' first page: the text after the discs have landed
-        long wait = index == 0 && Intro.MOD_MANAGER.equals(mId) ? LAND + 300 : 0;
-        mPanel.animate().alpha(1f).setStartDelay(wait).setDuration(350).start();
+        // (a page's own wait: the present opens first)
+        long wait = index == 0 && Intro.MOD_MANAGER.equals(mId) ? LAND + 300 : page.textDelay;
+        mPanel.animate().alpha(1f).setStartDelay(wait).setDuration(page.textDelay > 0 ? 700 : 350).start();
         mButtons.removeAllViews();
         Button first;
         if (!page.choices.isEmpty()) {
@@ -1647,8 +1650,9 @@ public class IntroActivity extends AppActivity {
                 finish();
                 overridePendingTransition(0, 0);
             } else {
+                LauncherActivity.sFadeIn = true;  // the main menu fades in after the last intro
                 finish();
-                overridePendingTransition(android.R.anim.fade_in, 0);
+                overridePendingTransition(0, 0);
             }
         }).start();
     }

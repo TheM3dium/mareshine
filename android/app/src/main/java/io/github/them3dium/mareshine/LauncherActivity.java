@@ -270,9 +270,20 @@ public class LauncherActivity extends AppActivity {
         try { unregisterReceiver(mShaderProgress); } catch (IllegalArgumentException ignored) {}
     }
 
+    // set by the last intro as it ends: the main menu fades in instead of jumping in
+    static boolean sFadeIn;
+
     @Override
     protected void onResume() {
         super.onResume();
+        if (sFadeIn) {  // back from the last intro, which faded out
+            sFadeIn = false;
+            View root = findViewById(android.R.id.content);
+            if (root != null) {
+                root.setAlpha(0f);
+                root.animate().alpha(1f).setDuration(800).start();
+            }
+        }
         final boolean firstStart = !sStartMarked;  // the process's first launcher: StartLog
         sStartMarked = true;
         if (firstStart) StartLog.mark(this, "launcher resuming");
