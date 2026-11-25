@@ -689,8 +689,13 @@ bool openWindow(float scale) {
 #ifdef __ANDROID__
         if (port_android_performance_render_thread) port_android_performance_render_thread();
 #endif
-    }, nullptr)) glt::installProxies();
-    else SDL_GL_MakeCurrent(s_window, s_glctx);
+    }, nullptr)) {
+        glt::installProxies();
+        logmsg("GL thread: on (the driver's calls leave the game's thread)");
+    } else {
+        SDL_GL_MakeCurrent(s_window, s_glctx);
+        logmsg("GL thread: off (SMS_GX_GL_THREAD=0 or not available)");
+    }
     return true;
 }
 

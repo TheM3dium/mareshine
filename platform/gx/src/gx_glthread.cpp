@@ -138,6 +138,12 @@ bool enabled() {
     if (on < 0) {
         const char* e = getenv("SMS_GX_GL_THREAD");
         on = !(e && e[0] == '0');
+#ifdef __ANDROID__
+        // android/bootstrap.cpp sets SMS_GX_GL_THREAD=0 before settings.txt is
+        // read; SMS_ANDROID_GL_THREAD=1 there tries the GL thread anyway (an
+        // experiment: the game thread then hands the driver's work to another core)
+        if (const char* a = getenv("SMS_ANDROID_GL_THREAD"); a && *a) on = a[0] != '0';
+#endif
 #if defined(_WIN32) && !defined(_WIN64)
         on = 0;  // the proxies do not follow 32-bit Windows' __stdcall GL entry points
 #endif
