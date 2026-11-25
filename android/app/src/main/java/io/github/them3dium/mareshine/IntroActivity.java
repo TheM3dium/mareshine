@@ -385,18 +385,18 @@ public class IntroActivity extends AppActivity {
             mPages.add(ach);
         }
         if (AppActivity.isTouch(this)) {
-            Page stick = new Page(t("A finer touch stick"),
-                t("The touch stick answers the smallest movement now: a little push already walks, and the rim is "
-                    + "full speed. The stick you hold also grows a little, for more room.\n\nNew: the stick can "
-                    + "keep its place instead of starting where your thumb lands. You find this under "
-                    + "Settings → Input → Touch behavior → Stick centre."),
+            Page stick = new Page(t("A more precise touch stick"),
+                t("The touch stick is more precise now: walking slowly and running fast now flow into each other. The "
+                    + "stick you hold also grows, which gives your thumb more room.\n\nAt players' "
+                    + "request: the stick's centre can now be fixed instead of following your thumb. "
+                    + "Settings → Input → Touch behavior → Fixed stick centre."),
                 this::drawStick);
             stick.back = !mPages.isEmpty();
             mPages.add(stick);
         }
         Page speed = new Page(t("More speed on weaker devices"),
             t("With Mareshine 2.2.0 we have looked after weaker devices. They are often weak on a single core but mostly "
-                + "have several CPU cores, and the performance mode uses exactly those for Mareshine. On a moto g15 "
+                + "have several CPU cores, and the performance mode uses exactly those for Mareshine. On a Moto G15 "
                 + "this gives nearly steady 30 FPS at 1.5 times the resolution, instead of about 20.\n\nMareshine "
                 + "suggests the performance mode by itself on devices it suits. Otherwise turn it on under "
                 + "Settings → Video → Performance mode."),

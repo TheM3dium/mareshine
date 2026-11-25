@@ -1975,7 +1975,7 @@ public class SettingsActivity extends AppActivity {
             + "alike; the C-stick's and FLUDD's sensitivity count for controllers too. Button feedback pauses "
             + "while the game itself vibrates and stays off when the smartphone's vibration is set to 0%.";
         p.labels = new String[] {"Hide when idle", "Invert horizontal (X)", "Invert vertical (Y)", "Button feedback",
-            "Stick centre"};
+            "Fixed stick centre"};
         p.sections = new String[] {"Display", "Camera (C-stick and swipe)", null, "Feedback", "Touch sticks"};
         p.values = new java.util.function.Supplier[5];
         p.gold = new java.util.function.BooleanSupplier[5];
@@ -2012,9 +2012,9 @@ public class SettingsActivity extends AppActivity {
             mSettings.put("SMS_TOUCH_HAPTIC", p.gold[3].getAsBoolean() ? "0" : "1");
             saved();
         };
-        // the touch sticks start where the thumb lands, or keep their place (platform/pad/touch.cpp)
+        // off: the touch sticks start where the thumb lands; on: they keep their place (platform/pad/touch.cpp)
         p.gold[4] = () -> !"0".equals(mSettings.getOrDefault("SMS_TOUCH_STICK_FIXED", "0"));
-        p.values[4] = () -> p.gold[4].getAsBoolean() ? "Fixed" : "Follows thumb";
+        p.values[4] = () -> p.gold[4].getAsBoolean() ? "On" : "Off";
         p.acts[4] = () -> {
             mSettings.put("SMS_TOUCH_STICK_FIXED", p.gold[4].getAsBoolean() ? "0" : "1");
             saved();
