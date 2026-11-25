@@ -1,0 +1,28 @@
+{
+  "files": [
+    {
+      "name": "overlay.png",
+      "url": "https://github.com/TheM3dium/mareshine/releases/download/plugins/cutscene_frame_winter.png",
+      "sha256": "3ee464cdbf30c2aa0b76ed3e1131c85722b27cc785f135c363979057c2503c54",
+      "size": 1145803
+    },
+    {
+      "name": "overlay_20x9.png",
+      "url": "https://github.com/TheM3dium/mareshine/releases/download/plugins/cutscene_frame_winter_20x9.png",
+      "sha256": "a35578da1faea1b309f96444784145eeea8d7ef8fcd860842e64c0aeb5e3e016",
+      "size": 2118269
+    },
+    {
+      "name": "overlay_Entrance.png",
+      "url": "https://github.com/TheM3dium/mareshine/releases/download/plugins/cutscene_frame_winter_Entrance.png",
+      "sha256": "168d41557706f3af32d77eec1bda2a929729564581fbb9fdd4fb6c7b55fcde99",
+      "size": 1150349
+    },
+    {
+      "name": "overlay_Entrance_20x9.png",
+      "url": "https://github.com/TheM3dium/mareshine/releases/download/plugins/cutscene_frame_winter_Entrance_20x9.png",
+      "sha256": "a8a93375a17c4f4fd3998e8b3fb529a54869fc581b788966221f8d6e19aa8869",
+      "size": 2118725
+    }
+  ]
+}

@@ -22,6 +22,8 @@
 //   SMS_STICK_SENSITIVITY / SMS_CSTICK_SENSITIVITY  percent, as for a controller:
 //                         the touch sticks
 //   SMS_SWIPE_SENSITIVITY percent: how fast a swipe turns the camera
+//   SMS_TOUCH_STICK_FIXED the sticks keep their centre where the layout puts
+//                         them instead of starting where the thumb lands
 //   SMS_SAVESTATE_DELAY=0 SAVE and LOAD act at once instead of once held
 #include "touch.h"
 #include "touch_gamecube.h"
@@ -108,6 +110,7 @@ struct Config {
 	bool rSlider = false, haptic = false, stateDelay = true;
 	int style = 1;  // 0 classic discs (SMS_TOUCH_STYLE=classic), 1 GameCube outlines
 	bool camX = false, camY = false;
+	bool stickFixed = false;  // SMS_TOUCH_STICK_FIXED
 	float sens[3] = { 1, 1, 1 };  // the left stick, the C-stick, the swipe camera
 	Place place[ID_COUNT];
 };
@@ -151,6 +154,7 @@ void readConfig(Config& c)
 	}
 	c.camX = envOn("SMS_CAMERA_INVERT_X", false);
 	c.camY = envOn("SMS_CAMERA_INVERT_Y", false);
+	c.stickFixed = envOn("SMS_TOUCH_STICK_FIXED", false);
 	for (int i = 0; i < ID_COUNT; i++)
 		c.place[i] = { kDefs[i].x, kDefs[i].y, kDefs[i].r, true };
 	if (c.style == 1)  // the GameCube style: the buttons where the controller has them
@@ -350,6 +354,10 @@ void down(int64_t id, float x, float y)
 	f.ax = f.x = x;
 	f.ay = f.y = y;
 	f.holds = pick(x, y);
+	if ((f.holds == STICK || f.holds == CSTICK) && g_cfg.stickFixed) {
+		f.ax = g_cfg.place[f.holds].x * g_w;  // the stick stays put; the thumb is already a deflection
+		f.ay = g_cfg.place[f.holds].y * g_h;
+	}
 	if (f.holds >= 0 && f.holds < ID_COUNT)
 		g_tapped |= 1u << f.holds;
 	switch (f.holds) {
@@ -416,14 +424,25 @@ void up(int64_t id)
 	*f = g_fingers[--g_fingerCount];
 }
 
-// A stick's value (-100..100 each way) for the finger holding it, and its knob's place.
+// A held stick is drawn this much larger, and reaches as much farther, so the
+// thumb has more room for small movements.
+const float kHeldScale = 1.15f;
+
+// The game passes every stick through the SDK's PADClamp (Padclamp.c): each axis
+// loses its first 15 (a real stick's dead zone) and the stick is capped at 72
+// (the C-stick at 59). A touch stick has no dead zone, so the thumb's deflection
+// is mapped onto what the game keeps: the smallest movement already walks, the
+// rim is full speed.
+const int kClampMin = 15, kClampMax[2] = { 72, 59 };
+
+// A stick's raw pad value for the finger holding it, and its knob's place.
 bool stickValue(int id, int& vx, int& vy, float& kx, float& ky)
 {
 	for (int i = 0; i < g_fingerCount; i++) {
 		const Finger& f = g_fingers[i];
 		if (f.holds != id)
 			continue;
-		const float reach = g_cfg.place[id].r * g_h * 0.75f;
+		const float reach = g_cfg.place[id].r * g_h * 0.75f * kHeldScale;
 		float dx = f.x - f.ax, dy = f.y - f.ay, d = sqrtf(dx * dx + dy * dy);
 		if (d > reach) {
 			dx *= reach / d;
@@ -432,15 +451,21 @@ bool stickValue(int id, int& vx, int& vy, float& kx, float& ky)
 		}
 		kx = f.ax + dx;
 		ky = f.ay + dy;
-		if (d < reach * 0.1f) {
-			vx = vy = 0;
-		} else {
-			// the stick's sensitivity, as for a controller: above 100% the rim
-			// is reached with less movement
-			const float k = fminf(g_cfg.sens[id == CSTICK ? 1 : 0], reach / d) / reach * 100;
-			vx = (int)lroundf(dx * k);
-			vy = (int)lroundf(-dy * k);
-		}
+		vx = vy = 0;
+		if (d < g_h * 0.003f)  // only a landing thumb's jitter
+			return true;
+		// the stick's sensitivity, as for a controller: above 100% the rim
+		// is reached with less movement
+		const int c = id == CSTICK ? 1 : 0;
+		const float t = fminf(d / reach * g_cfg.sens[c], 1.0f);
+		const float g = t * (kClampMax[c] - kClampMin);  // what the game should see
+		const float gx = g * dx / d, gy = -g * dy / d;
+		auto raw = [](float v) {
+			const int m = (int)lroundf(fabsf(v));
+			return m == 0 ? 0 : (v < 0 ? -(m + kClampMin) : m + kClampMin);
+		};
+		vx = raw(gx);
+		vy = raw(gy);
 		return true;
 	}
 	return false;
@@ -837,10 +862,11 @@ void buildAtlas()
 	g_atlasSent = false;
 }
 
-void put(std::vector<GXPCSprite>& out, int pic, float cx, float cy)
+void put(std::vector<GXPCSprite>& out, int pic, float cx, float cy, float scale = 1)
 {
 	const Cut& c = g_cuts[pic];
-	GXPCSprite s = { cx - c.w * 0.5f, cy - c.h * 0.5f, (float)c.w, (float)c.h, c.u, c.v, c.w, c.h };
+	const float w = c.w * scale, h = c.h * scale;
+	GXPCSprite s = { cx - w * 0.5f, cy - h * 0.5f, w, h, c.u, c.v, c.w, c.h };
 	out.push_back(s);
 }
 
@@ -1086,8 +1112,9 @@ extern "C" void touch_controls_draw(int winW, int winH)
 					bx = g_fingers[i].ax;
 					by = g_fingers[i].ay;
 				}
-		put(out, base, bx, by);
-		put(out, base + (active ? 2 : 1), kx, ky);
+		const float scale = active ? kHeldScale : 1;
+		put(out, base, bx, by, scale);
+		put(out, base + (active ? 2 : 1), kx, ky, scale);
 	}
 	for (int i = BTN_A; i < ID_COUNT; i++) {
 		if (off(i))

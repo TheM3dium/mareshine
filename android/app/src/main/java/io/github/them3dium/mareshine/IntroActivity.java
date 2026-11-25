@@ -384,6 +384,16 @@ public class IntroActivity extends AppActivity {
             ach.back = true;
             mPages.add(ach);
         }
+        if (AppActivity.isTouch(this)) {
+            Page stick = new Page(t("A finer touch stick"),
+                t("The touch stick answers the smallest movement now: a little push already walks, and the rim is "
+                    + "full speed. The stick you hold also grows a little, for more room.\n\nNew: the stick can "
+                    + "keep its place instead of starting where your thumb lands. You find this under "
+                    + "Settings → Input → Touch behavior → Stick centre."),
+                this::drawStick);
+            stick.back = !mPages.isEmpty();
+            mPages.add(stick);
+        }
         Page speed = new Page(t("More speed on weaker devices"),
             t("With Mareshine 2.2.0 we have looked after weaker devices. They are often weak on a single core but mostly "
                 + "have several CPU cores, and the performance mode uses exactly those for Mareshine. On a moto g15 "
@@ -629,6 +639,34 @@ public class IntroActivity extends AppActivity {
         // a glint on its rim, now and then
         float t = (ms % 2600) / 2600f;
         star(c, p, cx + cw * 0.34f, y0 + ch * 0.08f, dp(11) * (t < 0.4f ? (float) Math.sin(t / 0.4 * Math.PI) : 0f), 0xFFFFFFFF);
+    }
+
+    // a touch stick, held: its knob going from a small push to the rim and round
+    private void drawStick(Canvas c, Paint p, float w, float h, long ms) {
+        float top = areaTop(h), bottom = areaBottom(h), cx = w / 2f, cy = (top + bottom) / 2;
+        float r = Math.min((bottom - top) * 0.42f, dp(92));
+        float loop = (ms % 5200) / 5200f;
+        // how far out: a little, then more and more, then back
+        float out = loop < 0.25f ? 0.18f : loop < 0.7f ? 0.18f + 0.82f * ((loop - 0.25f) / 0.45f) : 1f - 0.82f * ((loop - 0.7f) / 0.3f);
+        double a = ms / 620.0;
+        float kx = cx + (float) Math.cos(a) * r * 0.62f * out, ky = cy + (float) Math.sin(a) * r * 0.62f * out;
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xCC0A1420);
+        c.drawCircle(cx, cy, r, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(dp(4));
+        p.setColor(0xFFD6DCE4);
+        c.drawCircle(cx, cy, r, p);
+        // the speed it gives, as an arc round it: from a walk to a run
+        p.setStrokeWidth(dp(5));
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setColor(out > 0.85f ? 0xFF46E06A : 0xFFFFC531);
+        c.drawArc(new android.graphics.RectF(cx - r - dp(12), cy - r - dp(12), cx + r + dp(12), cy + r + dp(12)),
+            -90, 360 * out, false, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xFFC9CFD6);
+        c.drawCircle(kx, ky, r * 0.42f, p);
     }
 
     // a speed gauge, its needle going up and staying there, trembling a little

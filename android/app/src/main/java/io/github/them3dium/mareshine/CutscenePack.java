@@ -133,13 +133,10 @@ final class CutscenePack {
             String[] names = c.getAssets().list("");
             if (names == null) return;
             for (String n : names) {
+                // (the winter frame is not among them: it is a download, WinterFrame)
                 if (!n.startsWith("cutscene_frame") || !n.endsWith(".png")) continue;
-                // cutscene_frame_winter*.png: the winter frame, in winter/ under the same names
-                boolean winter = n.startsWith(WINTER_PREFIX);
-                String rest = winter ? n.substring(WINTER_PREFIX.length()) : n.substring("cutscene_frame".length());
-                File d = winter ? new File(dir, "winter") : dir;
-                d.mkdirs();
-                File f = new File(d, rest.equals(".png") ? "overlay.png" : "overlay" + rest);
+                String rest = n.substring("cutscene_frame".length());
+                File f = new File(dir, rest.equals(".png") ? "overlay.png" : "overlay" + rest);
                 if (f.isFile()) continue;
                 try (InputStream in = c.getAssets().open(n); OutputStream out = new FileOutputStream(f)) {
                     byte[] buf = new byte[1 << 16];
@@ -151,8 +148,6 @@ final class CutscenePack {
             }
         } catch (IOException ignored) {}
     }
-
-    private static final String WINTER_PREFIX = "cutscene_frame_winter";
 
     // Settings → Video: which frame (with the frame on and no mod's frame):
     // auto (the winter one while the winter event is on), normal or winter
@@ -169,8 +164,9 @@ final class CutscenePack {
         if (mod != null) return mod;
         String style = frameStyle(c);
         boolean winter = style.equals("winter") || (style.equals("auto") && Winter.on(Settings.read(c)));
-        File w = new File(new File(dir(c), "winter"), "overlay.png");
-        return winter && w.isFile() ? w : new File(dir(c), "overlay.png");
+        // the winter images are a download (WinterFrame): until all are there, the normal frame
+        File w = new File(WinterFrame.dir(c), "overlay.png");
+        return winter && WinterFrame.complete(c) ? w : new File(dir(c), "overlay.png");
     }
 
     static long size(File f) {

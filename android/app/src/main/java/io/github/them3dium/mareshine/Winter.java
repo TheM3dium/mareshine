@@ -107,6 +107,7 @@ final class Winter {
         }
         s.put(ASKED, Integer.toString(season(s)));
         Settings.write(c, s);
+        if (on) WinterFrame.fetchIfNeeded(c);  // the winter cutscene frame is a download
     }
 
     static void set(Context c, String key, boolean on) {

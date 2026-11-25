@@ -285,6 +285,7 @@ public class LauncherActivity extends AppActivity {
         checkIsoAndRefreshUi();
         gameButtons();
         showWinter();
+        WinterFrame.fetchIfNeeded(this);  // after a start offline: try again
         if (firstStart) {
             StartLog.mark(this, "launcher: disc looked at");
             getWindow().getDecorView().post(() -> StartLog.mark(this, "launcher shown"));

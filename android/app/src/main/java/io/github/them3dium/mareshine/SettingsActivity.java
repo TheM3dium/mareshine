@@ -134,6 +134,7 @@ public class SettingsActivity extends AppActivity {
                 if ("1".equals(values[i])) { mSettings.put(Winter.SNOW, "1"); mSettings.put(Winter.LIGHTS, "1"); mSettings.put(Winter.MUSIC, "100"); }
                 mSettings.put(Winter.ASKED, Integer.toString(Winter.season(mSettings)));
                 Settings.write(SettingsActivity.this, mSettings);
+                if ("1".equals(values[i])) WinterFrame.fetchIfNeeded(SettingsActivity.this);
                 refreshValues();
             }
             updateWinter();
@@ -1708,6 +1709,7 @@ public class SettingsActivity extends AppActivity {
         String st = mSettings.getOrDefault(CutscenePack.FRAME_STYLE_SETTING, "auto");
         mSettings.put(CutscenePack.FRAME_STYLE_SETTING, st.equals("auto") ? "normal" : st.equals("normal") ? "winter" : "auto");
         saved();
+        WinterFrame.fetchIfNeeded(this);
         restartNote();
     }
 
@@ -1972,11 +1974,12 @@ public class SettingsActivity extends AppActivity {
             + "C-stick's (also under Stick Behavior) and counts for the touch C-stick, swiping and controllers "
             + "alike; the C-stick's and FLUDD's sensitivity count for controllers too. Button feedback pauses "
             + "while the game itself vibrates and stays off when the smartphone's vibration is set to 0%.";
-        p.labels = new String[] {"Hide when idle", "Invert horizontal (X)", "Invert vertical (Y)", "Button feedback"};
-        p.sections = new String[] {"Display", "Camera (C-stick and swipe)", null, "Feedback"};
-        p.values = new java.util.function.Supplier[4];
-        p.gold = new java.util.function.BooleanSupplier[4];
-        p.acts = new Runnable[4];
+        p.labels = new String[] {"Hide when idle", "Invert horizontal (X)", "Invert vertical (Y)", "Button feedback",
+            "Stick centre"};
+        p.sections = new String[] {"Display", "Camera (C-stick and swipe)", null, "Feedback", "Touch sticks"};
+        p.values = new java.util.function.Supplier[5];
+        p.gold = new java.util.function.BooleanSupplier[5];
+        p.acts = new Runnable[5];
         // the C-stick's own switches (Stick Behavior shows the same)
         String[] camKeys = {"SMS_CAMERA_INVERT_X", "SMS_CAMERA_INVERT_Y"};
         for (int i = 0; i < camKeys.length; i++) {
@@ -2007,6 +2010,13 @@ public class SettingsActivity extends AppActivity {
         p.values[3] = () -> p.gold[3].getAsBoolean() ? "On" : "Off";
         p.acts[3] = () -> {
             mSettings.put("SMS_TOUCH_HAPTIC", p.gold[3].getAsBoolean() ? "0" : "1");
+            saved();
+        };
+        // the touch sticks start where the thumb lands, or keep their place (platform/pad/touch.cpp)
+        p.gold[4] = () -> !"0".equals(mSettings.getOrDefault("SMS_TOUCH_STICK_FIXED", "0"));
+        p.values[4] = () -> p.gold[4].getAsBoolean() ? "Fixed" : "Follows thumb";
+        p.acts[4] = () -> {
+            mSettings.put("SMS_TOUCH_STICK_FIXED", p.gold[4].getAsBoolean() ? "0" : "1");
             saved();
         };
         return p;

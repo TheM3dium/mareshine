@@ -447,22 +447,18 @@ public class ModInstallActivity extends AppActivity {
 
     static final String WINTER_FRAME = "winter-frame";
 
-    // The app's winter cutscene frame (assets cutscene_frame_winter*.png) as
-    // an option's frames/overlay*.png; false when the app has none.
+    // The app's winter cutscene frame (a download: WinterFrame, fetched now
+    // if it is not there yet) as an option's frames/overlay*.png; false when
+    // it cannot be had (offline), and the switch is then left out.
     private boolean winterFrame(File folder) {
-        String[] names;
-        try {
-            names = getAssets().list("");
-        } catch (IOException e) {
-            return false;
-        }
+        if (!WinterFrame.complete(this) && !WinterFrame.fetch(this)) return false;
+        File[] images = WinterFrame.dir(this).listFiles((d, n) -> n.startsWith("overlay") && n.endsWith(".png"));
         File frames = new File(folder, "frames");
         boolean any = false;
-        for (String n : names == null ? new String[0] : names) {
-            if (!n.startsWith("cutscene_frame_winter") || !n.endsWith(".png")) continue;
+        for (File src : images == null ? new File[0] : images) {
             frames.mkdirs();
-            File f = new File(frames, "overlay" + n.substring("cutscene_frame_winter".length()));
-            try (InputStream in = getAssets().open(n); OutputStream out = new FileOutputStream(f)) {
+            File f = new File(frames, src.getName());
+            try (InputStream in = new java.io.FileInputStream(src); OutputStream out = new FileOutputStream(f)) {
                 byte[] buf = new byte[1 << 16];
                 for (int k; (k = in.read(buf)) > 0; ) out.write(buf, 0, k);
                 any = true;

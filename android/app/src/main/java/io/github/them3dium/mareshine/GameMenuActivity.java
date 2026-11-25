@@ -326,7 +326,7 @@ public class GameMenuActivity extends AppActivity {
 
     private static final String[] TOUCH_KEYS = {
         "SMS_TOUCH_CONTROLS", "SMS_TOUCH_OPACITY", "SMS_TOUCH_AUTOHIDE", "SMS_TOUCH_LAYOUT", "SMS_TOUCH_STYLE", "SMS_TOUCH_LAYOUT_GAMECUBE",
-        "SMS_SWIPE_SENSITIVITY"};
+        "SMS_SWIPE_SENSITIVITY", "SMS_TOUCH_STICK_FIXED"};
     // the controller's (platform/pad/pad.cpp reads them again on SMS_PAD_REV);
     // a key not set goes as "", which the game takes as its default
     private static final String[] PAD_KEYS = {
