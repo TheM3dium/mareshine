@@ -174,6 +174,40 @@ public final class Mods {
             File f = new File(dir, "textures");
             return f.isDirectory() ? f : null;
         }
+
+        // its cutscene frame: frames/overlay.png (with overlay_20x9.png and
+        // overlay_<movie>.png beside it, as in cutscenes/), null without one
+        public File frame() { return frameIn(dir); }
+    }
+
+    static File frameIn(File d) {
+        File f = new File(new File(d, "frames"), "overlay.png");
+        return f.isFile() ? f : null;
+    }
+
+    // The cutscene frame the enabled mods bring (a mod's frames/ or a switched-on
+    // option's), the last one in the mods' order; null with none.
+    public static File frame(Context ctx) {
+        File out = null;
+        for (Mod m : list(ctx)) {
+            if (!m.enabled) continue;
+            if (m.frame() != null) out = m.frame();
+            for (File f : m.optionFolders())
+                if (frameIn(f) != null) out = frameIn(f);
+        }
+        return out;
+    }
+
+    // the name of the enabled mod whose frame is used, or null
+    public static String frameModName(Context ctx) {
+        String out = null;
+        for (Mod m : list(ctx)) {
+            if (!m.enabled) continue;
+            if (m.frame() != null) out = m.name;
+            for (File f : m.optionFolders())
+                if (frameIn(f) != null) out = m.name;
+        }
+        return out;
     }
 
     public static File dir(Context ctx) { return new File(DataDir.get(ctx), "mods"); }
@@ -463,7 +497,7 @@ public final class Mods {
             } catch (Exception e) {
                 return null;
             }
-        } else if (m.files() == null && m.textures() == null) {
+        } else if (m.files() == null && m.textures() == null && m.frame() == null) {
             return null;
         }
         if (m.id.isEmpty()) return null;

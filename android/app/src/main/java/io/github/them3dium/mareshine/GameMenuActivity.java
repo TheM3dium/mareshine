@@ -365,7 +365,8 @@ public class GameMenuActivity extends AppActivity {
     static boolean liveSetting(String key) {
         for (String k : TOUCH_KEYS) if (k.equals(key)) return true;
         for (String k : PAD_KEYS) if (k.equals(key)) return true;
-        return key.equals("SMS_VIBRATION_CONTROLLER") || key.equals("SMS_VIBRATION_PHONE");
+        return key.equals("SMS_VIBRATION_CONTROLLER") || key.equals("SMS_VIBRATION_PHONE")
+            || key.startsWith(Winter.ON);  // the winter event is the menus' own, not the game's
     }
 
     // The settings the game started with (SunshineActivity writes them): what

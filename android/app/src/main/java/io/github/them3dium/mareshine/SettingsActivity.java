@@ -122,6 +122,24 @@ public class SettingsActivity extends AppActivity {
         @Override void click() { step(1); } // on/off flips at once
     }
 
+    // The winter event's switches (Winter): snow and music change at once.
+    private class WinterToggle extends Toggle {
+        // the event is off until turned on; snow and music are on within it
+        WinterToggle(String key, String label, String desc) { super(key, label, desc, !Winter.ON.equals(key), false); }
+
+        @Override void set(int i) {
+            super.set(i);
+            if (Winter.ON.equals(key)) {
+                // turned on here: snow and music too; either way the question is answered for the season
+                if ("1".equals(values[i])) { mSettings.put(Winter.SNOW, "1"); mSettings.put(Winter.LIGHTS, "1"); mSettings.put(Winter.MUSIC, "100"); }
+                mSettings.put(Winter.ASKED, Integer.toString(Winter.season(mSettings)));
+                Settings.write(SettingsActivity.this, mSettings);
+                refreshValues();
+            }
+            updateWinter();
+        }
+    }
+
     // A percentage from settings.txt: left/right steps on the row; OK opens a
     // slider and a number field on the right for any value in [min, max].
     private class Slider extends Row {
@@ -440,6 +458,15 @@ public class SettingsActivity extends AppActivity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackgroundResource(R.drawable.dl_panel);
+        // the winter event: the window's border glows softly with the music,
+        // out into the screen around it (not over the game)
+        if (!mInGame && Winter.lights(Settings.read(this))) {
+            panel.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {
+                getDrawable(R.drawable.dl_panel), MusicGlowDrawable.border(getResources(), 12)}));
+            // a foreground: the background stays a plain colour, which AppActivity
+            // carries on under a camera cutout (the glow is only outside the panel)
+            root.setForeground(MusicGlowDrawable.around(getResources(), 12, 24, 20));
+        }
         FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         plp.setMargins(dp(24), dp(20), dp(24), dp(20));
@@ -513,7 +540,11 @@ public class SettingsActivity extends AppActivity {
         // body
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.HORIZONTAL);
-        panel.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        // the lists stop a little above the window's bottom border, so what
+        // scrolls goes under that edge instead of over the border
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        blp.bottomMargin = dp(10);
+        panel.addView(body, blp);
 
         ScrollView scroll = new ScrollView(this);
         mList = new LinearLayout(this);
@@ -1562,6 +1593,9 @@ public class SettingsActivity extends AppActivity {
             + "10–20 minutes); the large original files can be deleted after that.\n\n"
             + "Frame around cutscenes fills the black bars beside the movies with an image. You can replace it with "
             + "your own (cutscenes/overlay.png in your data folder, best 1920×1080).\n\n"
+            + "Frame style picks the normal or the winter frame; Automatic shows the winter one during the winter "
+            + "event. A mod can bring a frame of its own (a frames folder with overlay.png); while it is on, its "
+            + "frame is used.\n\n"
             + "Wide movies across the screen shows the wide movies larger, across the whole widescreen.";
 
     private boolean cutscenesOn() {
@@ -1617,12 +1651,14 @@ public class SettingsActivity extends AppActivity {
         p.intro = CUTSCENE_INTRO;
         p.more = CUTSCENE_MORE;
         p.labels = new String[] {"HD cutscenes", "Download HD cutscenes", "Convert to MP4 (for weaker devices)",
-            "Frame around cutscenes", "Wide movies across the screen", "Skip movies"};
+            "Frame around cutscenes", "Frame style", "Wide movies across the screen", "Skip movies"};
         p.values = new java.util.function.Supplier[] {this::cutsceneModeLabel, this::cutsceneState, this::mp4State,
-            () -> frameOn() ? "On" : "Off", () -> fillOn() ? "On" : "Off", () -> skipMoviesOn() ? "On" : "Off"};
+            () -> frameOn() ? "On" : "Off", this::frameStyleLabel, () -> fillOn() ? "On" : "Off",
+            () -> skipMoviesOn() ? "On" : "Off"};
         p.gold = new java.util.function.BooleanSupplier[] {() -> mp4On() || cutscenesOn(), () -> false, () -> false,
-            this::frameOn, this::fillOn, this::skipMoviesOn};
+            this::frameOn, () -> false, this::fillOn, this::skipMoviesOn};
         p.acts = new Runnable[] {this::nextCutsceneMode, this::chooseCutscenes, this::chooseMp4, this::toggleFrame,
+            this::nextFrameStyle,
             () -> { mSettings.put(FILL_SETTING, fillOn() ? "0" : "1"); saved(); },
             () -> { mSettings.put(SKIP_MOVIES_SETTING, skipMoviesOn() ? "0" : "1"); saved(); }};
         return p;
@@ -1644,6 +1680,28 @@ public class SettingsActivity extends AppActivity {
     private boolean frameOn() {
         String v = mSettings.getOrDefault(FRAME_SETTING, "0");
         return !v.equals("0") && !v.isEmpty();
+    }
+
+    // which frame: a mod's (it comes first), else automatic (the winter one
+    // during the winter event), normal or winter
+    private String frameStyleLabel() {
+        String mod = Mods.frameModName(this);
+        if (mod != null) return t("Mod: %s", mod);
+        String st = mSettings.getOrDefault(CutscenePack.FRAME_STYLE_SETTING, "auto");
+        return st.equals("normal") ? "Normal" : st.equals("winter") ? "Winter" : "Automatic";
+    }
+
+    private void nextFrameStyle() {
+        String mod = Mods.frameModName(this);
+        if (mod != null) {
+            android.widget.Toast.makeText(this, t("The frame of the mod %s is used. Turn the mod off to choose here.", mod),
+                android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        String st = mSettings.getOrDefault(CutscenePack.FRAME_STYLE_SETTING, "auto");
+        mSettings.put(CutscenePack.FRAME_STYLE_SETTING, st.equals("auto") ? "normal" : st.equals("normal") ? "winter" : "auto");
+        saved();
+        restartNote();
     }
 
     private boolean ensureFrameFile() {
@@ -2397,6 +2455,13 @@ public class SettingsActivity extends AppActivity {
         if (!mInGame) {
             section("TOUR");
             add(new Action("Tour", "Watch the app's tour again: all of it or only the newest features.", null, this::askTour));
+        }
+        if (!mInGame && Winter.inSeason(this)) {
+            section("WINTER");
+            // music, snow and lights have their switches under the launcher's logo
+            add(new WinterToggle(Winter.ON, "Winter event",
+                "Until 6 January: the winter logo with its lights, light snow in the menus and Christmas music. "
+                    + "Music, snow and lights have their own switches under the logo on the main screen."));
         }
         section("CONTROLLER");
         add(new Toggle(MenuKeys.KEY, "Swap A and B in menus", "For Nintendo-style controllers: B confirms and A goes back in the app's menus. The game's own buttons stay as they are.", false, false) {

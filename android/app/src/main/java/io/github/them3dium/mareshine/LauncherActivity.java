@@ -91,7 +91,7 @@ public class LauncherActivity extends AppActivity {
         }
         // The logo sits in the middle on the left; while the message panel shows
         // and would reach it (a low screen), it moves up just clear of it.
-        View logo = findViewById(R.id.ivLogo);
+        View logo = findViewById(R.id.logoBox);
         View messages = (View) panelInfo.getParent();
         messages.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             float gap = 10 * getResources().getDisplayMetrics().density;
@@ -121,6 +121,9 @@ public class LauncherActivity extends AppActivity {
             DataDir.ensureLayout(this);
             if (savedInstanceState == null) intro = showPendingIntro();
         }
+        // the winter event's question, once a season (after any intro: it waits behind it)
+        boolean askWinter = savedInstanceState == null && !isDataDirProblem() && Winter.needsAsking(this);
+        if (askWinter) askWinter();
         boolean restarting = getIntent() != null && getIntent().getBooleanExtra(EXTRA_AUTOSTART, false);
         handleAutostart(getIntent());
         // "Start game automatically" (Settings → GAME): straight into the game
@@ -129,7 +132,7 @@ public class LauncherActivity extends AppActivity {
         if (fromGame) syncAfterGame();
         if (savedInstanceState == null && !fromGame && mFoundIsoFile != null
                 && getSharedPreferences("sunshine", MODE_PRIVATE).getBoolean(SettingsActivity.PREF_AUTOSTART, false)
-                && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting && intro == null && !isDataDirProblem()) {
+                && DiscCheck.checkHeader(mFoundIsoFile).ok && !restarting && intro == null && !askWinter && !isDataDirProblem()) {
             tvStatus.post(this::launchGame);
         }
     }
@@ -257,6 +260,8 @@ public class LauncherActivity extends AppActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        mAutoFoldHandler.removeCallbacks(mAutoFold);
+        mAutoFoldArmed = false;
         try { unregisterReceiver(mShaderProgress); } catch (IllegalArgumentException ignored) {}
     }
 
@@ -277,6 +282,7 @@ public class LauncherActivity extends AppActivity {
         if (firstStart) StartLog.mark(this, "launcher: services and update check started");
         checkIsoAndRefreshUi();
         gameButtons();
+        showWinter();
         if (firstStart) {
             StartLog.mark(this, "launcher: disc looked at");
             getWindow().getDecorView().post(() -> StartLog.mark(this, "launcher shown"));
@@ -993,12 +999,154 @@ public class LauncherActivity extends AppActivity {
             CrashLog.markGameStarted(this);
             // the shader compile goes on during the game (SunshineActivity shows it)
             findViewById(R.id.panelShaders).setVisibility(View.GONE);
+            Winter.gameStarting();
             Intent intent = new Intent(this, SunshineActivity.class);
             intent.putExtra("sms_disc", mFoundIsoFile.getAbsolutePath());
             startActivity(intent);
         } else {
             Toast.makeText(this, t("Please select a valid ISO first."), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // --- the winter event (Winter.java) ------------------------------------
+
+    // The winter logo and the switches under it while the event is on;
+    // the normal logo and no switches otherwise.
+    private void showWinter() {
+        java.util.Map<String, String> s = io.github.them3dium.mareshine.Settings.read(this);
+        boolean on = Winter.on(s);
+        ((WinterLogoView) findViewById(R.id.ivLogo)).setWinter(on, Winter.lights(s));
+        findViewById(R.id.winterSwitches).setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) { autoFoldLater(false); return; }
+        // some flakes stay on the winter logo's snow for a while
+        if (snow() != null) {
+            if (sWinterLogo == null)
+                sWinterLogo = android.graphics.BitmapFactory.decodeResource(getResources(), R.drawable.mareshine_logo_winter);
+            snow().setLanding(findViewById(R.id.ivLogo), sWinterLogo);
+        }
+        android.widget.ImageView music = findViewById(R.id.winterMusic), snow = findViewById(R.id.winterSnow);
+        int level = Winter.musicLevel(s);
+        boolean snowOn = Winter.snow(s);
+        music.setImageResource(level == 0 ? R.drawable.winter_sound_off
+            : level <= 33 ? R.drawable.winter_sound_1 : level <= 66 ? R.drawable.winter_sound_2 : R.drawable.winter_sound_3);
+        snow.setImageResource(snowOn ? R.drawable.winter_snow : R.drawable.winter_snow_off);
+        music.setContentDescription(t("Christmas music") + ": " + (level == 0 ? t("Off") : level + "%"));
+        snow.setContentDescription(t("Snow") + ": " + t(snowOn ? "On" : "Off"));
+        // full, muted, then up again in three steps (Winter.MUSIC_STEPS)
+        music.setOnClickListener(v -> {
+            if (level == 0) Winter.unmute(this);  // like play: on again, not still paused
+            else Winter.setMusicLevel(this, Winter.nextMusicLevel(level));
+            updateWinter();
+            showWinter();
+        });
+        snow.setOnClickListener(v -> switchWinter(Winter.SNOW, !snowOn));
+        android.widget.ImageView lights = findViewById(R.id.winterLights);
+        boolean lightsOn = Winter.lights(s);
+        lights.setImageResource(lightsOn ? R.drawable.winter_lights : R.drawable.winter_lights_off);
+        lights.setContentDescription(t("Lights") + ": " + t(lightsOn ? "On" : "Off"));
+        lights.setOnClickListener(v -> switchWinter(Winter.LIGHTS, !lightsOn));
+        // the player: previous / play-pause / next and the timeline. Muted counts
+        // as paused: play then turns the music up again, to the first step.
+        View prev = findViewById(R.id.winterPrev), next = findViewById(R.id.winterNext);
+        android.widget.ImageView play = findViewById(R.id.winterPlay);
+        View timeline = findViewById(R.id.winterTimeline);
+        boolean paused = Winter.userPaused() || level == 0;
+        play.setImageResource(paused ? R.drawable.winter_play : R.drawable.winter_pause);
+        prev.setContentDescription(t("Previous song"));
+        next.setContentDescription(t("Next song"));
+        play.setContentDescription(t(paused ? "Play" : "Pause"));
+        timeline.setContentDescription(t("Song position"));
+        prev.setOnClickListener(v -> { Winter.previousTrack(this); showWinter(); });
+        next.setOnClickListener(v -> { Winter.nextTrack(this); showWinter(); });
+        play.setOnClickListener(v -> {
+            if (level == 0) Winter.unmute(this);
+            else Winter.togglePause(this);
+            showWinter();
+        });
+        timeline.invalidate();
+        // the arrow under the timeline folds the switches and the timeline away (up), and out again
+        android.widget.ImageView fold = findViewById(R.id.winterFold);
+        boolean folded = "1".equals(s.get(Winter.FOLDED));
+        android.view.ViewGroup row = findViewById(R.id.winterRow);
+        // folding in or out glides (the logo and the buttons under it move along)
+        if ((row.getVisibility() == View.GONE) != folded) {
+            android.transition.AutoTransition glide = new android.transition.AutoTransition();
+            glide.setDuration(450);
+            glide.setInterpolator(new android.view.animation.DecelerateInterpolator());
+            android.transition.TransitionManager.beginDelayedTransition(
+                (android.view.ViewGroup) findViewById(android.R.id.content), glide);
+        }
+        row.setVisibility(folded ? View.GONE : View.VISIBLE);
+        timeline.setVisibility(folded ? View.GONE : View.VISIBLE);
+        fold.setImageResource(folded ? R.drawable.winter_expand : R.drawable.winter_collapse);
+        fold.setContentDescription(t(folded ? "Show the winter switches" : "Hide the winter switches"));
+        fold.setOnClickListener(v -> {
+            Winter.set(this, Winter.FOLDED, !folded);
+            showWinter();
+            fold.requestFocus();
+        });
+        // folded, the arrow pulses softly so it is found again
+        if (folded && mFoldPulse == null) {
+            mFoldPulse = android.animation.ObjectAnimator.ofFloat(fold, View.ALPHA, 1f, 0.35f);
+            mFoldPulse.setDuration(1400);
+            mFoldPulse.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+            mFoldPulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            mFoldPulse.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+            mFoldPulse.start();
+        } else if (!folded && mFoldPulse != null) {
+            mFoldPulse.cancel();
+            mFoldPulse = null;
+            fold.setAlpha(1f);
+        }
+        autoFoldLater(!folded);
+    }
+
+    private android.animation.ObjectAnimator mFoldPulse;
+
+    /** How long the winter switches stay out while nothing is touched or pressed (ms). */
+    private static final long AUTO_FOLD_MS = 10000;
+    private final android.os.Handler mAutoFoldHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean mAutoFoldArmed;
+    // the switches fold away by themselves, gently, once they are left alone
+    private final Runnable mAutoFold = () -> {
+        mAutoFoldArmed = false;
+        if (isFinishing() || !Winter.on(io.github.them3dium.mareshine.Settings.read(this))) return;
+        Winter.set(this, Winter.FOLDED, true);
+        showWinter();
+    };
+
+    /** (Re)starts the wait before the switches fold away, or stops it. */
+    private void autoFoldLater(boolean out) {
+        mAutoFoldHandler.removeCallbacks(mAutoFold);
+        mAutoFoldArmed = out;
+        if (out) mAutoFoldHandler.postDelayed(mAutoFold, AUTO_FOLD_MS);
+    }
+
+    @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        // any touch or key press: the switches stay out a while longer
+        if (mAutoFoldArmed) autoFoldLater(true);
+    }
+
+    private static android.graphics.Bitmap sWinterLogo;
+
+    private void switchWinter(String key, boolean on) {
+        Winter.set(this, key, on);
+        updateWinter();
+        showWinter();
+    }
+
+    private void askWinter() {
+        new DlDialog(this)
+            .setTitle(t("❄️ Winter in Mareshine"))
+            .setMessage(t("Until 6 January it can snow in the menus, with Christmas music and a winter logo. "
+                + "Turn it on?\n\nMusic and snow each have a switch under the logo, and all of it can be "
+                + "turned off in Settings → OTHER."))
+            .setPositiveButton(t("Turn on"), (d, w) -> { Winter.answer(this, true); updateWinter(); showWinter(); })
+            .setNegativeButton(t("No, thanks"), (d, w) -> Winter.answer(this, false))
+            .setCancelable(false)
+            .show();
     }
 
     // Once a day (Settings → MODS → Look for updates automatically): mods with

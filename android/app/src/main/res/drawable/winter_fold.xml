@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The fold arrow by the winter switches: just the arrow, gold like the
+     switches only when focused (D-pad, remote) or pressed. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <solid android:color="#FFFFD45A" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <gradient android:angle="0" android:startColor="#CCFFB020" android:endColor="#F2FFD45A" />
+        </shape>
+    </item>
+    <item android:drawable="@android:color/transparent" />
+</selector>

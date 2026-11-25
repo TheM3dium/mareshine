@@ -9,16 +9,96 @@
     android:layout_height="match_parent"
     android:background="#0A1B30">
 
-    <!-- title: the Mareshine logo (LauncherActivity moves it up when the message panel would reach it) -->
-    <ImageView
-        android:id="@+id/ivLogo"
+    <!-- title: the Mareshine logo (LauncherActivity moves it up when the message
+         panel would reach it); in the winter event (Winter.java) the winter logo,
+         with the switches for the music (volume, player, timeline) and snow right under it, its chain of
+         lights playing along with the music (WinterLogoView) -->
+    <LinearLayout
+        android:id="@+id/logoBox"
         android:layout_width="380dp"
         android:layout_height="wrap_content"
         android:layout_gravity="start|center_vertical"
         android:layout_marginStart="40dp"
-        android:adjustViewBounds="true"
-        android:contentDescription="Mareshine"
-        android:src="@drawable/mareshine_logo" />
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <io.github.them3dium.mareshine.WinterLogoView
+            android:id="@+id/ivLogo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:adjustViewBounds="true"
+            android:contentDescription="Mareshine"
+            android:src="@drawable/mareshine_logo" />
+
+        <!-- the winter switches: the music's volume and player (with its
+             timeline under them), the snow and the lights -->
+        <LinearLayout
+            android:id="@+id/winterSwitches"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/winterRow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/winterMusic"
+                    style="@style/WinterSwitch" />
+
+                <ImageView
+                    android:id="@+id/winterPrev"
+                    style="@style/WinterSwitch"
+                    android:layout_marginStart="10dp"
+                    android:src="@drawable/winter_prev" />
+
+                <ImageView
+                    android:id="@+id/winterPlay"
+                    style="@style/WinterSwitch"
+                    android:layout_marginStart="10dp"
+                    android:src="@drawable/winter_pause" />
+
+                <ImageView
+                    android:id="@+id/winterNext"
+                    style="@style/WinterSwitch"
+                    android:layout_marginStart="10dp"
+                    android:src="@drawable/winter_next" />
+
+                <ImageView
+                    android:id="@+id/winterSnow"
+                    style="@style/WinterSwitch"
+                    android:layout_marginStart="10dp" />
+
+                <ImageView
+                    android:id="@+id/winterLights"
+                    style="@style/WinterSwitch"
+                    android:layout_marginStart="10dp" />
+            </LinearLayout>
+
+            <io.github.them3dium.mareshine.WinterTimeline
+                android:id="@+id/winterTimeline"
+                android:layout_width="match_parent"
+                android:layout_height="24dp"
+                android:layout_marginTop="4dp" />
+
+            <!-- folds the switches and the timeline away (up), and out again;
+                 red, so it is seen -->
+            <ImageView
+                android:id="@+id/winterFold"
+                style="@style/WinterSwitch"
+                android:layout_width="56dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/winter_fold"
+                android:padding="3dp"
+                android:src="@drawable/winter_collapse"
+                android:tint="@color/winter_fold_tint" />
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- top left, at start only: a newer release on GitHub (Updates.java); the
          bar runs down and the box hides itself; a click asks to update -->
