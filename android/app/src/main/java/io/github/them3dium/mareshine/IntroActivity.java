@@ -47,7 +47,6 @@ public class IntroActivity extends AppActivity {
         Runnable linkAction;
         String next;   // the orange button's own word (null: Next, or Got it on the last page)
         boolean logo;  // the winter logo with its lights as the picture
-        Runnable shown;  // run each time the page comes
         boolean middle; // the text in the middle of the screen, see-through (the fireworks are above it)
 
         Page(String title, String text, Picture picture) {
@@ -378,7 +377,6 @@ public class IntroActivity extends AppActivity {
                     + "floors, fog and new music. You find it in the mod menu under SEARCH MODS."),
                 (c, p, w, h, ms) -> drawGift(c, p, w, h, ms, true));
             tf.back = true;
-            tf.shown = Winter::swell;  // the music comes up as it opens
             mPages.add(tf);
             Page ach = new Page(t("Achievements for the mods"),
                 t("Super Mario Sunburn and Super Mario Eclipse now have achievements of their own."),
@@ -387,8 +385,10 @@ public class IntroActivity extends AppActivity {
             mPages.add(ach);
         }
         Page fixes = new Page(t("Steadier than before"),
-            t("Phones with a Mali-G52 no longer crash with the ANGLE graphics driver: Mareshine now works "
-                + "around the driver's bug. Other crashes are fixed too, and freeze reports no longer come up by mistake."),
+            t("Phones with a Mali-G52 crashed with the ANGLE graphics driver: a bug in the driver, which Mareshine "
+                + "now gets round with a workaround of its own. Other crashes are fixed too, "
+                + "and freeze reports no longer come up by mistake.\n\nOur test farm has grown, and more devices will "
+                + "follow: all to give you the best possible performance on every device."),
             this::drawCheck);
         fixes.back = !mPages.isEmpty();
         mPages.add(fixes);
@@ -1319,7 +1319,6 @@ public class IntroActivity extends AppActivity {
         mLink.setText(page.link != null ? page.link : "");
         mLink.setVisibility(page.link != null ? View.VISIBLE : View.GONE);
         mWinterLogo.setVisibility(page.logo ? View.VISIBLE : View.GONE);
-        if (page.shown != null) page.shown.run();
         FrameLayout.LayoutParams panel = (FrameLayout.LayoutParams) mPanel.getLayoutParams();
         panel.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * (page.middle ? 0.4f : 0.17f));
         mPanel.setLayoutParams(panel);

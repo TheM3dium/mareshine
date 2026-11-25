@@ -206,44 +206,8 @@ final class Winter {
             return;
         }
         if (!sPlayer.isPlaying()) sPlayer.start();
-        sLevel = musicLevel(s);
-        applyVolume();
-    }
-
-    private static int sLevel;
-
-    private static void applyVolume() {
-        float v = Math.min(1f, gain(sLevel) * (float) Math.pow(10, sSwellDb / 20));
+        float v = gain(musicLevel(s));
         sPlayer.setVolume(v, v);
-    }
-
-    // A swell: the music comes up for a moment and settles again (the present
-    // opening in the winter update's intro).
-    private static final float SWELL_DB = 9f;
-    private static final long SWELL_UP = 900, SWELL_HOLD = 3200, SWELL_DOWN = 3000;
-    private static float sSwellDb;
-    private static long sSwellStart;
-    private static final Runnable sSwell = new Runnable() {
-        @Override
-        public void run() {
-            long t = android.os.SystemClock.uptimeMillis() - sSwellStart;
-            float k = t < SWELL_UP ? t / (float) SWELL_UP
-                : t < SWELL_UP + SWELL_HOLD ? 1f
-                : Math.max(0f, 1f - (t - SWELL_UP - SWELL_HOLD) / (float) SWELL_DOWN);
-            k = k * k * (3 - 2 * k);  // eased at both ends
-            boolean done = t >= SWELL_UP + SWELL_HOLD + SWELL_DOWN;
-            sSwellDb = done ? 0f : SWELL_DB * k;
-            if (sPlayer != null) applyVolume();
-            if (!done) sMain.postDelayed(this, 40);
-        }
-    };
-
-    /** The music louder for a few seconds, fading in and back out; nothing while it does not play. */
-    static void swell() {
-        if (sPlayer == null || !sPlayer.isPlaying()) return;
-        sSwellStart = android.os.SystemClock.uptimeMillis();
-        sMain.removeCallbacks(sSwell);
-        sMain.post(sSwell);
     }
 
     private static boolean open() {

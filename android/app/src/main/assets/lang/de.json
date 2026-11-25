@@ -1056,7 +1056,7 @@
  "Achievements for the mods": "Achievements für die Mods",
  "Super Mario Sunburn and Super Mario Eclipse now have achievements of their own.": "Super Mario Sunburn und Super Mario Eclipse haben jetzt eigene Achievements.",
  "Steadier than before": "Stabiler als vorher",
- "Phones with a Mali-G52 no longer crash with the ANGLE graphics driver: Mareshine now works around the driver's bug. Other crashes are fixed too, and freeze reports no longer come up by mistake.": "Handys mit Mali-G52 stürzen mit dem ANGLE-Grafiktreiber nicht mehr ab: Mareshine umgeht den Fehler des Treibers jetzt selbst. Weitere Abstürze sind behoben, und Freeze-Meldungen kommen nicht mehr irrtümlich.",
+ "Phones with a Mali-G52 crashed with the ANGLE graphics driver: a bug in the driver, which Mareshine now gets round with a workaround of its own. Other crashes are fixed too, and freeze reports no longer come up by mistake.\n\nOur test farm has grown, and more devices will follow: all to give you the best possible performance on every device.": "Handys mit Mali-G52 stürzten mit dem ANGLE-Grafiktreiber ab: ein Fehler im Treiber, den Mareshine jetzt mit einem eigenen Workaround umgeht. Weitere Abstürze sind behoben, und Freeze-Meldungen kommen nicht mehr irrtümlich.\n\nUnsere Testfarm ist gewachsen, und es folgen weitere Geräte: alles, um euch auf allen Geräten die bestmögliche Performance zu bieten.",
  "Happy New Year!": "Frohes neues Jahr!",
  "TheM3dium wishes all of you a happy new year. Thank you for using Mareshine!": "TheM3dium wünscht euch allen ein frohes neues Jahr. Danke, dass ihr Mareshine nutzt!",
  "❄️ It is getting frosty in Mareshine": "❄️ Es wird frostig in Mareshine",
