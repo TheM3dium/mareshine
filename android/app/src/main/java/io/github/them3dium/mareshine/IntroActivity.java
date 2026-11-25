@@ -384,6 +384,15 @@ public class IntroActivity extends AppActivity {
             ach.back = true;
             mPages.add(ach);
         }
+        Page speed = new Page(t("More speed on weaker devices"),
+            t("With Mareshine 2.2.0 we have looked after weaker devices. They are often weak on a single core but mostly "
+                + "have several CPU cores, and the performance mode uses exactly those for Mareshine. On a moto g15 "
+                + "this gives nearly steady 30 FPS at 1.5 times the resolution, instead of about 20.\n\nMareshine "
+                + "suggests the performance mode by itself on devices it suits. Otherwise turn it on under "
+                + "Settings → Video → Performance mode."),
+            this::drawGauge);
+        speed.back = !mPages.isEmpty();
+        mPages.add(speed);
         Page fixes = new Page(t("Steadier than before"),
             t("Mali-G52 devices with an outdated driver version crashed together with ANGLE. This is a bug on older "
                 + "Android versions, which Mareshine now gets round with an exclusive workaround. Other crashes and "
@@ -620,6 +629,34 @@ public class IntroActivity extends AppActivity {
         // a glint on its rim, now and then
         float t = (ms % 2600) / 2600f;
         star(c, p, cx + cw * 0.34f, y0 + ch * 0.08f, dp(11) * (t < 0.4f ? (float) Math.sin(t / 0.4 * Math.PI) : 0f), 0xFFFFFFFF);
+    }
+
+    // a speed gauge, its needle going up and staying there, trembling a little
+    private void drawGauge(Canvas c, Paint p, float w, float h, long ms) {
+        float top = areaTop(h), bottom = areaBottom(h), cx = w / 2f;
+        float r = Math.min((bottom - top) * 0.62f, dp(120)), cy = bottom - dp(6);
+        android.graphics.RectF arc = new android.graphics.RectF(cx - r, cy - r, cx + r, cy + r);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(r * 0.12f);
+        p.setColor(0xFF1E3A5C);
+        c.drawArc(arc, 180, 180, false, p);
+        float up = Math.max(0f, Math.min(1f, (ms - 300) / 1400f));
+        up = up * up * (3 - 2 * up);
+        float at = 0.38f + 0.5f * up + (up >= 1f ? 0.012f * (float) Math.sin(ms / 90.0) : 0f);  // 0 left, 1 right
+        // the part reached: from orange to green as it goes up
+        p.setShader(new android.graphics.SweepGradient(cx, cy, new int[] {0xFFFFA41C, 0xFFFFA41C, 0xFFFFC531, 0xFF46E06A},
+            new float[] {0f, 0.5f, 0.72f, 1f}));
+        c.drawArc(arc, 180, 180 * at, false, p);
+        p.setShader(null);
+        // the needle
+        double a = Math.PI * (1 - at);
+        p.setStrokeWidth(r * 0.05f);
+        p.setColor(TEXT);
+        c.drawLine(cx, cy, cx + (float) Math.cos(a) * r * 0.78f, cy - (float) Math.sin(a) * r * 0.78f, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        p.setStyle(Paint.Style.FILL);
+        c.drawCircle(cx, cy, r * 0.09f, p);
     }
 
     // a check mark in a ring, drawn in

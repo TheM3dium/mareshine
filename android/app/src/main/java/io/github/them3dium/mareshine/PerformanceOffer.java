@@ -37,8 +37,8 @@ final class PerformanceOffer {
         }
         p.edit().putBoolean(ASKED, true).apply();
         new DlDialog(a).setTitle(t("Turn on the performance mode?"))
-            .setMessage(t("Your phone has only two fast CPU cores. The performance mode keeps the game on them and "
-                + "gives the graphics driver a core of its own; on phones like yours this can raise the frame rate a lot. "
+            .setMessage(t("Your device has only two fast CPU cores. The performance mode keeps the game on them and "
+                + "gives the graphics driver a core of its own; on devices like yours this can raise the frame rate a lot. "
                 + "You can switch it off any time under Settings, Video, Performance mode."))
             .setNegativeButton(t("No thanks"), null)
             .setPositiveButton(t("Turn on"), (d, w) -> Settings.put(a, KEY, "1"))
