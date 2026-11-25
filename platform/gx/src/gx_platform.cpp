@@ -1271,6 +1271,19 @@ void sms_gx_pump_events(void) {
 #ifdef __ANDROID__
         if (ev.type == SDL_APP_WILLENTERBACKGROUND && port_android_performance_pause)
             port_android_performance_pause();
+        // With the GL thread (SMS_ANDROID_GL_THREAD=1) the context is current
+        // there, not on this thread, so SDL's pause/resume (SDL_androidevents.c)
+        // neither backs it up nor moves it to the surface Android makes on
+        // resume. Bind it again on the GL thread, now with the new surface.
+        if (ev.type == SDL_APP_DIDENTERFOREGROUND && glt::active()) {
+            glt::sync([] {
+                SDL_GL_MakeCurrent(s_window, nullptr);
+                if (SDL_GL_MakeCurrent(s_window, s_glctx) != 0)
+                    logmsg("GL thread: context not bound again after resume: %s", SDL_GetError());
+                else
+                    logmsg("GL thread: context bound again after resume");
+            });
+        }
 #endif
         if (s_eventCb) s_eventCb(&ev);
         if (ev.type == SDL_QUIT ||
