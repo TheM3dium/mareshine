@@ -738,9 +738,9 @@ public class IntroActivity extends AppActivity {
             // its sounds: when it starts and when it bursts (not for those already up on the first frame)
             if (mFxSeen && n != mFxCycle[k]) {
                 mFxPopped[k] = false;
-                fx(mFxStart, x / w, seed, 0.196f, 0.7f, 1f);
+                fx(mFxStart, x / w, seed, 0.176f, 0.7f, 1f);
             }
-            if (mFxSeen && t >= 0.22f && !mFxPopped[k] && n == mFxCycle[k]) fx(mFxPop, x / w, seed, 0.14f, 0.85f, 1.15f);
+            if (mFxSeen && t >= 0.22f && !mFxPopped[k] && n == mFxCycle[k]) fx(mFxPop, x / w, seed, 0.119f, 0.85f, 1.15f);
             if (t >= 0.22f || !mFxSeen) mFxPopped[k] = t >= 0.22f;
             mFxCycle[k] = n;
             p.setStyle(Paint.Style.FILL);
