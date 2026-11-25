@@ -38,7 +38,10 @@ void configurePerformanceCores() {
     static thread_local bool attempted = false;
     if (attempted) return;
     attempted = true;
+    // the performance mode (the app's one switch) turns this on;
+    // SMS_ANDROID_PERFORMANCE_CORES=0/1 overrides it
     const char* enabled = getenv("SMS_ANDROID_PERFORMANCE_CORES");
+    if (!enabled || !*enabled) enabled = getenv("SMS_ANDROID_PERFORMANCE_MODE");
     if (!enabled || !*enabled || enabled[0] == '0') {
         fprintf(stderr, "[android] performance cores: disabled for TID %d\n", gettid());
         return;

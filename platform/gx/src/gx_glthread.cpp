@@ -140,8 +140,10 @@ bool enabled() {
         on = !(e && e[0] == '0');
 #ifdef __ANDROID__
         // android/bootstrap.cpp sets SMS_GX_GL_THREAD=0 before settings.txt is
-        // read; SMS_ANDROID_GL_THREAD=1 there tries the GL thread anyway (an
-        // experiment: the game thread then hands the driver's work to another core)
+        // read; the performance mode (SMS_ANDROID_PERFORMANCE_MODE=1, the app's
+        // one switch) runs the GL thread anyway, so the game thread hands the
+        // driver's work to another core. SMS_ANDROID_GL_THREAD=0/1 overrides it.
+        if (const char* m = getenv("SMS_ANDROID_PERFORMANCE_MODE"); m && m[0] == '1') on = 1;
         if (const char* a = getenv("SMS_ANDROID_GL_THREAD"); a && *a) on = a[0] != '0';
 #endif
 #if defined(_WIN32) && !defined(_WIN64)

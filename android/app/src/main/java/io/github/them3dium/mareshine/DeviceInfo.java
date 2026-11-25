@@ -39,18 +39,21 @@ final class DeviceInfo {
     private DeviceInfo() {}
 
     // The launcher, each time it shows: the question once there is a game to play, else the sending.
-    static void onLauncher(Activity a) {
-        if (Ratings.URL.isEmpty()) return;
+    // true when it asked (a dialog is up)
+    static boolean onLauncher(Activity a) {
+        if (Ratings.URL.isEmpty()) return false;
         SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         // asked before the question named the achievements: a yes is asked again, a no stays
         if (p.getBoolean(ASKED, false) && p.getInt(CONSENT, 1) < CONSENT_NOW && !on(a))
             p.edit().putInt(CONSENT, CONSENT_NOW).apply();
         if (!p.getBoolean(ASKED, false) || p.getInt(CONSENT, 1) < CONSENT_NOW) {
-            if (LauncherActivity.findIsoFile(a) != null) ask(a);
-            return;
+            if (LauncherActivity.findIsoFile(a) == null) return false;
+            ask(a);
+            return true;
         }
         send(a.getApplicationContext());
         flushAchievements(a.getApplicationContext());
+        return false;
     }
 
     private static boolean on(Context c) { return "1".equals(Settings.read(c).get(KEY)); }

@@ -1357,14 +1357,10 @@ public class SettingsActivity extends AppActivity {
             "Copies what the game draws into its own textures back to the game's memory, as on the GameCube. Turning it off can raise FPS on weaker devices; the goop map is always copied, so cleaning goop still works. Restart the game after changing this.",
             true, false));
         section("PERFORMANCE");
-        add(new Toggle("SMS_ANDROID_PERFORMANCE_CORES", "Use the fast CPU cores",
-            "Keeps the game on your device's fastest CPU cores. Helps most on phones with only two fast cores "
-                + "(many cheaper ones). Restart the game after changing this.",
-            false, false));
-        add(new Toggle("SMS_ANDROID_GL_THREAD", "Graphics thread – Experimental",
-            "Hands the graphics driver's work to a thread of its own, so the game and the driver run on two "
-                + "cores at once. Can help a lot on slower phones; turn it off if the picture stays black after "
-                + "switching apps. Restart the game after changing this.",
+        add(new Toggle(PerformanceOffer.KEY, "Performance mode",
+            "Keeps the game on your device's fastest CPU cores and gives the graphics driver a core of its own. "
+                + "Helps most on cheaper phones with only two fast cores; on fast phones it changes little. "
+                + "If the picture stays black after switching apps, turn it off. Restart the game after changing this.",
             false, false));
         section("GRAPHICS DRIVER");
         add(new Toggle("SMS_ANGLE", "ANGLE (Vulkan) – Alpha",
