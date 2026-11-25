@@ -40,12 +40,13 @@ const Def kDefs[PORT_ACH_COUNT] = {
 #include "achievements_list.h"
 #include "achievements_list_sunburn.h"
 #include "achievements_list_eclipse.h"
+#include "achievements_list_tf.h"
 #undef ACH_SECRET
 #undef ACH
 };
 
 // the games with achievements, as SMS_ACHIEVEMENTS_GAME names them
-const char* const kGames[] = { "sms", "sunburn", "eclipse" };
+const char* const kGames[] = { "sms", "sunburn", "eclipse", "tf" };
 
 // SunshineActivity.COMMAND_ACHIEVEMENTS; param = how many were unlocked
 const unsigned kCommandAchievements = 0x8004;
@@ -272,6 +273,7 @@ int s_new = 0;            // unlocked since the last flush
 std::vector<int> s_fresh; // unlocked since the last port_ach_take_new
 bool s_dirty = false;     // unlocked.json needs writing
 bool s_runs_dirty = false;
+std::map<std::string, unsigned> s_bits; // port_ach_bits_add, by achievement id
 bool s_state_loaded = false; // in this session
 int s_active = -1;           // the save file being played
 time_t s_runs_saved = 0;
@@ -384,6 +386,10 @@ void load_runs()
 	Json* t = f.find("total_ms");
 	if (t && t->type == Json::NUM)
 		s_total_ms = (unsigned long long)t->num;
+	if (Json* b = f.find("bits"))
+		for (auto& kv : b->obj)
+			if (kv.second.type == Json::NUM)
+				s_bits[kv.first] = (unsigned)kv.second.num;
 	Json* a = f.find("files");
 	if (a && a->type == Json::ARR)
 		for (size_t i = 0; i < a->arr.size() && i < PORT_ACH_SLOTS; i++) {
@@ -415,6 +421,12 @@ void save_runs()
 			r.at("shines") = Json::number(s_runs[i].shines);
 		}
 		a.arr.push_back(r);
+	}
+	if (!s_bits.empty()) {
+		Json& b = f.at("bits");
+		b = Json::object();
+		for (auto& kv : s_bits)
+			f.at("bits").at(kv.first.c_str()) = Json::number(kv.second);
 	}
 	write_file(runs_path(), f);
 }
@@ -658,4 +670,20 @@ extern "C" const char* port_ach_mod_take_boss(void)
 	snprintf(taken, sizeof taken, "%s", s_mod_boss);
 	s_mod_boss[0] = 0;
 	return taken;
+}
+
+extern "C" void port_ach_bits_add(int a, int bit)
+{
+	a = resolve(a);
+	if (!s_enabled || a < 0 || bit < 0 || bit > 31)
+		return;
+	unsigned& m = s_bits[kDefs[a].id];
+	if (m & (1u << bit))
+		return;
+	m |= 1u << bit;
+	s_runs_dirty = true;
+	int n = 0;
+	for (unsigned v = m; v; v &= v - 1)
+		n++;
+	port_ach_progress(a, n);
 }

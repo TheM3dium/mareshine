@@ -69,8 +69,8 @@ final class Achievements {
     static boolean isHacker(Def d) { return d.id != null && d.id.endsWith(".pro.hacker"); }
 
     // the mods' games with achievements: mod id -> game (platform/achievements)
-    private static final String[][] MOD_GAMES = {{"sunburn", "sunburn"}, {"eclipse", "eclipse"}};
-    private static final String[][] DISC_GAMES = {{"GMSE03", "sunburn"}, {"GMSE04", "eclipse"}};
+    private static final String[][] MOD_GAMES = {{"sunburn", "sunburn"}, {"eclipse", "eclipse"}, {"tropicalfreeze", "tf"}};
+    private static final String[][] DISC_GAMES = {{"GMSE03", "sunburn"}, {"GMSE04", "eclipse"}, {"GMSE12", "tf"}};
 
     // The game whose achievements count now: "sms", a mod's game, or null for a
     // mod's game that has none (the mod being played: Mods.activeGame)

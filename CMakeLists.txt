@@ -286,6 +286,7 @@ if(ANDROID)
   # Mario), and the game's rumble option kept equal to the app's vibration.
   target_sources(sms_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_game.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_mods.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform/achievements/ach_tf.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform/pad/rumble_game.cpp)
 endif()
 # port_include must stay ahead of the game headers: its dolphin/types.h
@@ -368,7 +369,7 @@ list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/(eclipse|plugins)
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/plugin_new\\.cpp$")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/tests/")
 # game code (sms_game, above), and Mareshine's achievements are Android's
-list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/ach_(game|mods)\\.cpp$")
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/ach_(game|mods|tf)\\.cpp$")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/pad/rumble_game\\.cpp$")
 if(NOT ANDROID)
   list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/")

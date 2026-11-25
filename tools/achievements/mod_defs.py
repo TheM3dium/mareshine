@@ -208,9 +208,88 @@ eclipse = [
 ] + [shared(s) for s in ("glitch.out_of_bounds", "glitch.under_floor", "glitch.too_fast", "glitch.too_high",
                          "glitch.hunter")]
 
+# --- Super Mario Tropical Freeze ------------------------------------------------
+# Sunshine in winter: the same levels, Shines and texts. Sunshine's list (but
+# its app setting, the Fine-Tuner), winter titles here and there, and ice.
+TF_WINTER = {
+    "story.first_shine": T("Holiday with Frostbite", "Urlaub mit Frostbeulen"),
+    "story.shadow_mario_all": T("Shadows in the Snow", "Schatten im Schnee"),
+    "story.true_ending": T("Winter Holiday at Last", "Endlich Winterurlaub"),
+    "boss.petey.defeat": T("Frost Flower Picked", "Eisblume gepflückt"),
+    "boss.gooper.defeat": T("Frozen Sushi", "Tiefkühl-Sushi"),
+    "boss.wiggler.nohit": T("Barefoot in the Snow", "Barfuß über den Schnee"),
+    "boss.mecha_bowser.defeat": T("Bobsleigh Duel", "Bobbahn-Duell"),
+    "boss.bowser.nohit": T("Ice Bath Master", "Eisbad-Meister"),
+    "shines.3": T("First Flakes", "Erste Flocken"),
+    "shines.30": T("Snowman", "Schneemann"),
+    "shines.50": T("Winter Solstice", "Wintersonnenwende"),
+    "shines.70": T("Sun on the Snow", "Sonne im Schnee"),
+    "shines.120": T("Thaw", "Tauwetter"),
+    "blue_coins.50": T("Frozen Blue", "Blau gefroren"),
+    "world.gelato.episodes": T("Ski Patrol", "Pistenwärter"),
+    "world.gelato.secrets": T("Snow Sculptor", "Schneekünstler"),
+    "world.gelato.blue_coins": T("Every Snowflake", "Jede Schneeflocke"),
+    "world.noki.episodes": T("Ice Diver", "Eistaucher"),
+    "world.noki.blue_coins": T("Every Icefall", "Jeder Eisfall"),
+    "world.pinna.coins100": T("Winter Market Till", "Wintermarkt-Kasse"),
+    "world.bianco.blue_coins": T("Slopes Covered", "Hügel abgefahren"),
+    "plaza.shines": T("Snow Shoveller", "Schneeschipper"),
+    "plaza.blue_coins": T("Black Ice", "Pflaster-Glatteis"),
+    "bonus.super_slide": T("Sledge Ride", "Schlittenpartie"),
+    "live.sunglasses": T("Snow Goggles", "Schneebrille"),
+    "live.shirt": T("Hawaii in the Snow", "Hawaii im Schnee"),
+    "fun.on_fire": T("Warm at Last", "Endlich warm"),
+    "fun.yoshi_juice": T("Yoshi Slush", "Yoshi-Slush"),
+    "fun.playtime_10h": T("Hibernation", "Winterschlaf"),
+}
+TF_DESC = {
+    "live.sunglasses": T("Borrow sunglasses from a Pianta against the glare of the snow.",
+                         "Leih dir von einem Pianta eine Sonnenbrille gegen das Gleißen im Schnee."),
+    "live.shirt": T("Borrow a Hawaiian shirt from a Pianta, cold or not.",
+                    "Leih dir von einem Pianta ein Hawaiihemd, trotz der Kälte."),
+    "fun.yoshi_juice": T("Let Yoshi turn to slush in the icy water.", "Lass Yoshi im eiskalten Wasser zu Slush werden."),
+}
+
+
+def winter(suffix, en_de):
+    """Sunshine's texts with the winter title (German and English; the others keep Sunshine's)."""
+    title = dict(SMS_BY_SUFFIX[suffix]["title"])
+    title.update(en_de)
+    if suffix not in TF_DESC:
+        return title, None
+    desc = dict(SMS_BY_SUFFIX[suffix]["description"])
+    desc.update(TF_DESC[suffix])
+    return title, desc
+
+
+tf_cats = [SMS_CATS["story"], cat("ice", "❄️", T("Ice", "Eis")), SMS_CATS["boss"], SMS_CATS["shines"],
+           SMS_CATS["worlds"], SMS_CATS["plaza"], SMS_CATS["live"], SMS_CATS["fun"], SMS_CATS["pro"],
+           SMS_CATS["glitch"]]
+tf = []
+for a in SMS["achievements"]:
+    suf = a["id"].split(".", 1)[1]
+    if suf == "fun.fine_tuner":
+        continue  # the app's Settings: Sunshine's
+    if suf in TF_WINTER:
+        title, desc = winter(suf, TF_WINTER[suf])
+        tf.append(shared(suf, title=title, description=desc))
+    else:
+        tf.append(shared(suf))
+tf += [
+    own("ice.skate_10s", "ice", T("Figure Skating", "Eiskunstlauf"),
+        T("Slide over ice for 10 seconds in a row.", "Rutsch 10 Sekunden am Stück über Eis.")),
+    own("ice.momentum_jump", "ice", T("Taking the Momentum", "Schwung mitgenommen"),
+        T("Jump off an ice floor at full speed.", "Spring mit vollem Tempo von einer Eisfläche ab.")),
+    own("ice.all_worlds", "ice", T("Ice Desert", "Eiswüste"),
+        T("Slide over ice in all seven worlds.", "Rutsch in allen sieben Welten über Eis."), target=7),
+    own("ice.no_brakes", "ice", T("Brake Failure", "Bremsversagen"),
+        T("Slide off the ice and lose a life.", "Rutsch auf Eis in einen Abgrund."), secret=True),
+]
+
 GAMES = [
     ("sunburn", "Super Mario Sunburn", ["GMSE03"], sunburn_cats, sunburn),
     ("eclipse", "Super Mario Eclipse", ["GMSE04"], eclipse_cats, eclipse),
+    ("tf", "Super Mario Tropical Freeze", ["GMSE12"], tf_cats, tf),
 ]
 
 

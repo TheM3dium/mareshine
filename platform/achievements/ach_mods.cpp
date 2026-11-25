@@ -59,7 +59,7 @@ void setRange(bool isShine, unsigned long a, unsigned long b)
 
 void testAll()
 {
-	bool eclipse = game("eclipse");
+	bool eclipse = game("eclipse"); // (Sunburn and Tropical Freeze: Sunshine's flags)
 	setRange(true, 0, eclipse ? 239 : 119);
 	setRange(false, 0x10078, 0x10078 + 9 * 50 - 1); // Sunshine's blue coins
 	if (eclipse)
@@ -392,10 +392,14 @@ extern "C" void port_ach_mods_save_file(int shines)
 
 // every frame a level is played (and loaded): the live checks, and
 // SMS_ACH_TEST once per save file
+extern "C" void port_ach_tf_frame(void); // ach_tf.cpp (Super Mario Tropical Freeze)
+
 extern "C" void port_ach_mods_playing(void)
 {
 	if (game("eclipse") && gpMarioOriginal)
 		eclipseFrame(gpMarioOriginal);
+	if (game("tf"))
+		port_ach_tf_frame();
 	static int s_done = -1;
 	static const char* s_spec = getenv("SMS_ACH_TEST");
 	if (!s_spec || !*s_spec || !port_ach_dev_build()) // a dev build's alone: no unlocks for free

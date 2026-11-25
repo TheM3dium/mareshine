@@ -60,7 +60,7 @@ final class Sync {
     private static final String CARD = "card", STATES = "states/";
     // every game's achievements (Achievements.unlockedFile): Sunshine's and the mods'
     private static final String[] ACH = {"achievements/unlocked.json", "achievements/unlocked-sunburn.json",
-        "achievements/unlocked-eclipse.json"};
+        "achievements/unlocked-eclipse.json", "achievements/unlocked-tf.json"};
     private static final String MANIFEST = "manifest.json";
     private static final int KEEP_BACKUPS = 5;
 

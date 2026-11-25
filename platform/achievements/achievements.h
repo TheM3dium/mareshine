@@ -22,6 +22,7 @@ enum {
 	PORT_ACH_MODS_FIRST = PORT_ACH_SMS_COUNT - 1,
 #include "achievements_list_sunburn.h"
 #include "achievements_list_eclipse.h"
+#include "achievements_list_tf.h"
 #undef ACH_SECRET
 #undef ACH
 	PORT_ACH_COUNT
@@ -51,6 +52,9 @@ void port_ach_mod_state(const char* key, int value);
 int port_ach_mod_get(const char* key, int missing, int clear);
 void port_ach_mod_boss(const char* boss);
 const char* port_ach_mod_take_boss(void);
+// Bits kept with the save files' timers (runs-<game>.json): `bit` set in the
+// achievement's set, whose progress is how many are set (ice in all worlds)
+void port_ach_bits_add(int a, int bit);
 const char* port_ach_id(int a);
 int port_ach_target(int a);
 int port_ach_is_unlocked(int a);
