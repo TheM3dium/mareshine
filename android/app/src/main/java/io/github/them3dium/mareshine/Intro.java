@@ -42,6 +42,11 @@ final class Intro {
 
     private static final String SEEN = "SMS_LAUNCHER_INTROS_SEEN";
     private static final String ASK = "SMS_LAUNCHER_INTROS_ASK";
+    // A new install that skips the tours still hears of the winter update, in
+    // short and at its next start: LATER holds an intro back until then, BRIEF
+    // has it leave out what only tells an update's changes.
+    private static final String LATER = "SMS_LAUNCHER_INTROS_LATER";
+    private static final String BRIEF = "SMS_LAUNCHER_INTROS_BRIEF";
 
     private static boolean applies(Context c, String id) {
         switch (id) {
@@ -69,11 +74,20 @@ final class Intro {
 
     // the next intro to show, or null
     static String pending(Context c) {
-        List<String> seen = list(Settings.read(c), SEEN);
-        for (String id : ALL) if (!seen.contains(id) && applies(c, id)) return id;
+        List<String> seen = list(Settings.read(c), SEEN), later = list(Settings.read(c), LATER);
+        for (String id : ALL) if (!seen.contains(id) && !later.contains(id) && applies(c, id)) return id;
         String newYear = newYear(Settings.read(c));
         return newYear != null && !seen.contains(newYear) ? newYear : null;
     }
+
+    // for the launcher's start: what waited for the next start is due now
+    static void newStart(Context c) {
+        Map<String, String> m = Settings.read(c);
+        if (m.remove(LATER) != null) Settings.write(c, m);
+    }
+
+    // whether the intro leaves out an update's changes (a new install that skipped the tours)
+    static boolean brief(Context c, String id) { return list(Settings.read(c), BRIEF).contains(id); }
 
     static boolean isNewYear(String id) { return id != null && id.startsWith(NEW_YEAR); }
 
@@ -103,9 +117,13 @@ final class Intro {
         seen.add(WELCOME);
         for (String id : ALL) {
             boolean show = all || (newest && Arrays.asList(NEWEST).contains(id));
+            // skipped altogether: the winter update comes all the same, in short, at the next start
+            if (!show && !all && !newest && WINTER_UPDATE.equals(id)) continue;
             if (!show && !seen.contains(id)) seen.add(id);
         }
         m.put(SEEN, String.join(",", seen));
+        if (!all && !newest) { m.put(LATER, WINTER_UPDATE); m.put(BRIEF, WINTER_UPDATE); }
+        else { m.remove(LATER); m.remove(BRIEF); }
         m.remove(ASK);
         m.remove(ASK_WELCOME);
         Settings.write(c, m);
@@ -126,6 +144,12 @@ final class Intro {
         ask.remove(id);
         if (ask.isEmpty()) m.remove(ASK);
         else m.put(ASK, String.join(",", ask));
+        for (String key : new String[] {LATER, BRIEF}) {
+            List<String> l = list(m, key);
+            l.remove(id);
+            if (l.isEmpty()) m.remove(key);
+            else m.put(key, String.join(",", l));
+        }
         Settings.write(c, m);
     }
 

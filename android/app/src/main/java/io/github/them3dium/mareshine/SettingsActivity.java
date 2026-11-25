@@ -2201,7 +2201,7 @@ public class SettingsActivity extends AppActivity {
                 + "(doldecomp/sms). Its contributors spent years turning the game back into source code, function by "
                 + "function, largely by hand, and naming its functions and variables. That work is the base of Mareshine and of "
                 + "most other ports of Super Mario Sunshine I know of.\n\nMareshine's own part is the Android app around it: the launcher, "
-                + "controls, menus, mods and the fixes that make the game run well on phones. These are built with the "
+                + "controls, menus, mods and the fixes that make the game run well on Android devices. These are built with the "
                 + "help of AI.\n\nI want to thank them for that."))
             .setNeutralButton(t("Open the project"), (d, w) -> ModFlows.openPage(this, "https://github.com/doldecomp/sms"))
             .setPositiveButton(t("OK"), null)
@@ -2612,7 +2612,7 @@ public class SettingsActivity extends AppActivity {
                 + "names of your files and folders taken out. You can add a note and see first what is sent.",
             () -> "", () -> ReportSend.ask(this, "manual")));
         if (!Ratings.URL.isEmpty()) add(new Toggle(DeviceInfo.KEY, "Anonymous device info",
-            "Sends anonymous info about your device once after each install and update: phone model, graphics chip, "
+            "Sends anonymous info about your device once after each install and update: device model, graphics chip, "
                 + "Android and app version, a few settings and the active mod; and which achievements you unlock, "
                 + "to find ones that do not work.", false, false));
         section("RESET");

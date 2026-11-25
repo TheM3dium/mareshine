@@ -60,8 +60,8 @@ final class DeviceInfo {
 
     private static void ask(Activity a) {
         new DlDialog(a).setTitle(t("Send anonymous device info?"))
-            .setMessage(t("To see which phones and graphics chips have problems, Mareshine can send anonymous info "
-                + "about your device once after each install and update: phone model, graphics chip, Android and app "
+            .setMessage(t("To see which devices and graphics chips have problems, Mareshine can send anonymous info "
+                + "about your device once after each install and update: device model, graphics chip, Android and app "
                 + "version, a few settings and the active mod. It also sends which achievement you unlock, so "
                 + "achievements that do not work stand out. No names and no files, and your IP address is not "
                 + "kept. You can change this at any time in Settings, under OTHER."))

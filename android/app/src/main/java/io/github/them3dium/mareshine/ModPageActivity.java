@@ -283,7 +283,7 @@ public class ModPageActivity extends AppActivity {
         LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         plp.setMargins(dp(40), dp(10), dp(40), dp(12));
         col.addView(panel, plp);
-        String title = mPageOption != null ? mPageOption.label
+        String title = mPageOption != null ? t(mPageOption.label)
             : mMod.name + (mMod.version.isEmpty() ? "" : " " + mMod.version);
         TextView head = text(title, 0xFFFFA41C, 26, false);
         panel.addView(head);
@@ -511,7 +511,7 @@ public class ModPageActivity extends AppActivity {
 
     private void refresh() {
         showScore();
-        mOnOff.setText(mMod.enabled ? "ON" : "OFF");
+        mOnOff.setText(t(mMod.enabled ? "ON" : "OFF"));
         mOnOff.setTextColor(mMod.enabled ? ON : DIM);
         mOnOff.setContentDescription(t(mMod.enabled ? "On" : "Off"));
         showButtons();
@@ -582,14 +582,14 @@ public class ModPageActivity extends AppActivity {
 
     // a button: the label, and below it a toggle's or choice's value
     private Button optionButton(Mods.Option o, int index) {
-        Button b = button(o.label);
+        Button b = button(t(o.label));
         if (o.isToggle() || o.isChoice()) {
             String value = shown(o);
             boolean lit = o.isToggle() && mMod.value(o).equals("1");
-            android.text.SpannableStringBuilder s = new android.text.SpannableStringBuilder(o.label + "\n" + value);
-            s.setSpan(new android.text.style.RelativeSizeSpan(0.75f), 0, o.label.length(), 0);
-            s.setSpan(new android.text.style.ForegroundColorSpan(DIM), 0, o.label.length(), 0);
-            if (lit) s.setSpan(new android.text.style.ForegroundColorSpan(GOLD), o.label.length() + 1, s.length(), 0);
+            android.text.SpannableStringBuilder s = new android.text.SpannableStringBuilder(t(o.label) + "\n" + value);
+            s.setSpan(new android.text.style.RelativeSizeSpan(0.75f), 0, t(o.label).length(), 0);
+            s.setSpan(new android.text.style.ForegroundColorSpan(DIM), 0, t(o.label).length(), 0);
+            if (lit) s.setSpan(new android.text.style.ForegroundColorSpan(GOLD), t(o.label).length() + 1, s.length(), 0);
             b.setText(s);
             b.setLineSpacing(0, 0.9f);
         }
@@ -653,7 +653,7 @@ public class ModPageActivity extends AppActivity {
                 changed();
             };
         }
-        choice(o.label, o.text.isEmpty() ? null : o.text, labels, acts);
+        choice(t(o.label), o.text.isEmpty() ? null : o.text, labels, acts);
     }
 
     // A mod's own game's language is the game language of Settings: picking
@@ -673,7 +673,7 @@ public class ModPageActivity extends AppActivity {
                     changed();
                 }});
         }
-        choice(o.label, null, labels, acts);
+        choice(t(o.label), null, labels, acts);
     }
 
     // its HD textures: off, Mareshine's pack (when installed), or a pack of its own (imported the first time)
@@ -695,7 +695,7 @@ public class ModPageActivity extends AppActivity {
                 changed();
             };
         }
-        choice(o.label, o.text.isEmpty() ? null : o.text, labels, acts);
+        choice(t(o.label), o.text.isEmpty() ? null : o.text, labels, acts);
     }
 
     // a long press: Super Mario Eclipse's languages and HD textures to delete
@@ -762,7 +762,7 @@ public class ModPageActivity extends AppActivity {
             row.setClickable(true);
             LinearLayout info = new LinearLayout(this);
             info.setOrientation(LinearLayout.VERTICAL);
-            info.addView(text(o.label, TEXT, 18, true));
+            info.addView(text(t(o.label), TEXT, 18, true));
             if (!o.text.isEmpty()) info.addView(text(o.text, DIM, 14, false));
             row.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             String value = o.isToggle() || o.isChoice() ? shown(o) : o.isPage() ? "›" : "↗";

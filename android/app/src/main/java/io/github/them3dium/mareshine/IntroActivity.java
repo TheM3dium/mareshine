@@ -378,12 +378,15 @@ public class IntroActivity extends AppActivity {
                 (c, p, w, h, ms) -> drawGift(c, p, w, h, ms, true));
             tf.back = true;
             mPages.add(tf);
+            // a new install that skipped the tours: the event and the present, not an update's changes
+            if (Intro.brief(this, mId) && !mPages.isEmpty()) return;
             Page ach = new Page(t("Achievements for the mods"),
                 t("Super Mario Sunburn, Super Mario Eclipse and Super Mario Tropical Freeze now have achievements of their own."),
                 this::drawTrophy);
             ach.back = true;
             mPages.add(ach);
         }
+        if (Intro.brief(this, mId) && !mPages.isEmpty()) return;
         if (AppActivity.isTouch(this)) {
             Page stick = new Page(t("A more precise touch stick"),
                 t("The touch stick is more precise now: walking slowly and running fast now flow into each other. The "

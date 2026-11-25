@@ -119,7 +119,10 @@ public class LauncherActivity extends AppActivity {
             if (savedInstanceState == null) askLostDataDir();
         } else {
             DataDir.ensureLayout(this);
-            if (savedInstanceState == null) intro = showPendingIntro();
+            if (savedInstanceState == null) {
+                Intro.newStart(this);
+                intro = showPendingIntro();
+            }
         }
         // the winter event's question, once a season; not behind an intro (the
         // winter update's intro asks it itself, and after another one the
