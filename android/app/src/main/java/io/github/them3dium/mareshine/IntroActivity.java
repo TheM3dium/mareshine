@@ -372,23 +372,23 @@ public class IntroActivity extends AppActivity {
             gift.next = t("Open");
             gift.back = !mPages.isEmpty() && mPages.get(0).choices.isEmpty();
             mPages.add(gift);
-            Page tf = new Page("Super Mario Tropical Freeze",
+            Page tf = new Page("Super Mario Tropical Freeze!",
                 t("The mod by Super Mario Elements now runs in Mareshine: Isle Delfino frozen over, with icy "
                     + "floors, fog and new music. You find it in the mod menu under SEARCH MODS."),
                 (c, p, w, h, ms) -> drawGift(c, p, w, h, ms, true));
             tf.back = true;
             mPages.add(tf);
             Page ach = new Page(t("Achievements for the mods"),
-                t("Super Mario Sunburn and Super Mario Eclipse now have achievements of their own."),
+                t("Super Mario Sunburn, Super Mario Eclipse and Super Mario Tropical Freeze now have achievements of their own."),
                 this::drawTrophy);
             ach.back = true;
             mPages.add(ach);
         }
         Page fixes = new Page(t("Steadier than before"),
-            t("Phones with a Mali-G52 crashed with the ANGLE graphics driver: a bug in the driver, which Mareshine "
-                + "now gets round with a workaround of its own. Other crashes are fixed too, "
-                + "and freeze reports no longer come up by mistake.\n\nOur test farm has grown, and more devices will "
-                + "follow: all to give you the best possible performance on every device."),
+            t("Mali-G52 devices with an outdated driver version crashed together with ANGLE. This is a bug on older "
+                + "Android versions, which Mareshine now gets round with an exclusive workaround. Other crashes and "
+                + "bugs are fixed, and the freeze report no longer comes up by mistake.\n\nOur test farm has grown, "
+                + "and more devices will follow, to give you the best possible performance on every device."),
             this::drawCheck);
         fixes.back = !mPages.isEmpty();
         mPages.add(fixes);
@@ -575,13 +575,27 @@ public class IntroActivity extends AppActivity {
         c.drawPath(s, p);
     }
 
-    // a golden cup between the two mods' discs
+    // a golden cup, the three mods' discs going round it
     private void drawTrophy(Canvas c, Paint p, float w, float h, long ms) {
         float top = areaTop(h), bottom = areaBottom(h), room = bottom - top, cx = w / 2f;
         float ch = room * 0.72f, cw = ch * 0.62f, y0 = top + (room - ch) / 2 + (float) Math.sin(ms / 900.0) * dp(3);
-        float r = Math.min(room * 0.24f, dp(58));
-        disc(c, p, mSunburnDisc, cx - cw - r * 0.9f, top + room / 2, r, ms * 0.03f, 255);
-        disc(c, p, mEclipseDisc, cx + cw + r * 0.9f, top + room / 2, r, -ms * 0.03f, 255);
+        float r = Math.min(room * 0.2f, dp(50));
+        android.graphics.Bitmap[] discs = {mSunburnDisc, mTfDisc, mEclipseDisc};
+        // those at the back of their round first, behind the cup
+        for (int i = 0; i < 3; i++) orbit(c, p, discs[i], i, cx, top + room * 0.52f, cw + r * 1.5f, room * 0.13f, r, ms, false);
+        drawCup(c, p, cx, y0, cw, ch, ms);
+        for (int i = 0; i < 3; i++) orbit(c, p, discs[i], i, cx, top + room * 0.52f, cw + r * 1.5f, room * 0.13f, r, ms, true);
+    }
+
+    private void orbit(Canvas c, Paint p, android.graphics.Bitmap b, int i, float cx, float cy, float a, float b2,
+            float r, long ms, boolean front) {
+        double ang = ms * 0.0007 + i * 2 * Math.PI / 3;
+        if ((Math.sin(ang) >= 0) != front) return;
+        float depth = 0.85f + 0.15f * (float) Math.sin(ang);  // a little smaller at the back
+        disc(c, p, b, cx + (float) Math.cos(ang) * a, cy + (float) Math.sin(ang) * b2, r * depth, ms * 0.03f, 255);
+    }
+
+    private void drawCup(Canvas c, Paint p, float cx, float y0, float cw, float ch, long ms) {
         // the handles
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(cw * 0.1f);

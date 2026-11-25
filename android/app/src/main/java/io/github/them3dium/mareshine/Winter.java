@@ -100,7 +100,11 @@ final class Winter {
     static void answer(Context c, boolean on) {
         Map<String, String> s = Settings.read(c);
         s.put(ON, on ? "1" : "0");
-        if (on) { s.put(SNOW, "1"); s.put(LIGHTS, "1"); s.put(MUSIC, "100"); }
+        if (on) {
+            s.put(SNOW, "1"); s.put(LIGHTS, "1");
+            s.put(MUSIC, "66");  // the middle step: full proved loud to start with
+            s.remove(FOLDED);  // the switches out, to be seen (they fold away by themselves later)
+        }
         s.put(ASKED, Integer.toString(season(s)));
         Settings.write(c, s);
     }
