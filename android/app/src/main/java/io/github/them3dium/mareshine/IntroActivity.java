@@ -47,6 +47,8 @@ public class IntroActivity extends AppActivity {
         Runnable linkAction;
         String next;   // the orange button's own word (null: Next, or Got it on the last page)
         boolean logo;  // the winter logo with its lights as the picture
+        Runnable shown;  // run each time the page comes
+        boolean middle; // the text in the middle of the screen, see-through (the fireworks are above it)
 
         Page(String title, String text, Picture picture) {
             this.title = title;
@@ -339,13 +341,16 @@ public class IntroActivity extends AppActivity {
     private WinterLogoView mWinterLogo;
     private android.graphics.Bitmap mTfDisc;
 
+    private static final String WINTER_TEXT = "Until 6 January winter moves into Mareshine, and it gets Christmassy. "
+        + "During the winter event snow falls, the Mareshine logo and parts of the menu light up, and three pieces of "
+        + "music made exclusively for the event play, inspired by the instruments of Super Mario Sunshine. All of it can be "
+        + "switched off as you like.";
+
     private void winterUpdate() {
         // the event's question first, so the music plays only for those who want it
         if (Winter.needsAsking(this)) {
             Page ask = new Page(t("❄️ It is getting frosty in Mareshine"),
-                t("Until 6 January it can snow in the menus, with Christmas music and a winter logo. "
-                    + "Turn it on?\n\nMusic and snow each have a switch under the logo, and all of it can be "
-                    + "turned off in Settings → OTHER."),
+                t(WINTER_TEXT) + "\n\n" + t("Turn it on?"),
                 (c, p, w, h, ms) -> { });
             ask.logo = true;
             ask.choice(t("Turn on"), () -> answerWinter(true)).choice(t("No, thanks"), () -> answerWinter(false));
@@ -353,8 +358,7 @@ public class IntroActivity extends AppActivity {
         } else if (Winter.inSeason(this)) {
             // already answered (a test build, or the question came before this intro): the event all the same
             Page event = new Page(t("❄️ It is getting frosty in Mareshine"),
-                t("Until 6 January: the winter logo with its lights, light snow in the menus and Christmas music. "
-                    + "Music, snow and lights have their own switches under the logo on the main screen."),
+                t(WINTER_TEXT),
                 (c, p, w, h, ms) -> { });
             event.logo = true;
             mPages.add(event);
@@ -374,6 +378,7 @@ public class IntroActivity extends AppActivity {
                     + "floors, fog and new music. You find it in the mod menu under SEARCH MODS."),
                 (c, p, w, h, ms) -> drawGift(c, p, w, h, ms, true));
             tf.back = true;
+            tf.shown = Winter::swell;  // the music comes up as it opens
             mPages.add(tf);
             Page ach = new Page(t("Achievements for the mods"),
                 t("Super Mario Sunburn and Super Mario Eclipse now have achievements of their own."),
@@ -635,14 +640,91 @@ public class IntroActivity extends AppActivity {
         mPages.add(new Page(t("Happy New Year!"),
             t("TheM3dium wishes all of you a happy new year. Thank you for using my app!"),
             (c, p, w, h, ms) -> drawFireworks(c, p, w, h, ms, year)));
+        mPages.get(mPages.size() - 1).middle = true;
+        // soft sounds for the rockets, for those who have the event's music on
+        if (Winter.music(Settings.read(this))) fireworkSounds();
     }
 
+    // The rockets' two sounds: a whoosh for the start (res/raw/firework_start,
+    // "Cartoon Rocket Whoosh" by Universfield, from Pixabay, shortened and
+    // softened) and a soft pop with a crackle for the burst, made here.
+    private android.media.SoundPool mFx;
+    private int mFxStart, mFxPop;
+    private volatile boolean mFxReady;
+    private final int[] mFxCycle = new int[ROCKETS];
+    private final boolean[] mFxPopped = new boolean[ROCKETS];
+    private boolean mFxSeen;
+
+    private void fireworkSounds() {
+        mFx = new android.media.SoundPool.Builder().setMaxStreams(6)
+            .setAudioAttributes(new android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_GAME)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+            .build();
+        final android.media.SoundPool pool = mFx;
+        final int[] loaded = {0};
+        pool.setOnLoadCompleteListener((sp, id, status) -> { if (status == 0 && ++loaded[0] == 2) mFxReady = true; });
+        new Thread(() -> {
+            try {
+                java.io.File pop = new java.io.File(getCacheDir(), "firework-pop.wav");
+                wav(pop, pop());
+                mFxStart = pool.load(this, R.raw.firework_start, 1);
+                mFxPop = pool.load(pop.getAbsolutePath(), 1);
+            } catch (Exception ignored) {}  // then the fireworks are silent
+        }, "FireworkSounds").start();
+    }
+
+    private static final int FX_RATE = 22050;
+
+    private static short[] pop() {
+        int n = FX_RATE * 90 / 100;
+        short[] out = new short[n];
+        java.util.Random r = new java.util.Random(11);
+        double low = 0;
+        for (int i = 0; i < n; i++) {
+            double t = i / (double) FX_RATE;
+            // the burst: a dull thump under noise that dies away fast
+            low += (r.nextDouble() * 2 - 1 - low) * (0.05 + 0.5 * Math.exp(-t * 18));
+            double v = low * Math.exp(-t * 9) * 0.9 + Math.sin(2 * Math.PI * 85 * t) * Math.exp(-t * 16) * 0.5;
+            // then the crackle: single ticks, fewer and softer
+            if (t > 0.12 && r.nextDouble() < 0.012 * Math.exp(-(t - 0.12) * 3)) v += (r.nextDouble() * 2 - 1) * 0.35 * Math.exp(-(t - 0.12) * 4);
+            out[i] = (short) (32767 * Math.max(-1, Math.min(1, v)));
+        }
+        return out;
+    }
+
+    private static void wav(java.io.File f, short[] pcm) throws java.io.IOException {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(44 + pcm.length * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        b.put("RIFF".getBytes("US-ASCII")).putInt(36 + pcm.length * 2).put("WAVEfmt ".getBytes("US-ASCII"))
+            .putInt(16).putShort((short) 1).putShort((short) 1).putInt(FX_RATE).putInt(FX_RATE * 2)
+            .putShort((short) 2).putShort((short) 16).put("data".getBytes("US-ASCII")).putInt(pcm.length * 2);
+        for (short v : pcm) b.putShort(v);
+        try (java.io.OutputStream o = new java.io.FileOutputStream(f)) {
+            o.write(b.array());
+        }
+    }
+
+    // a rocket's sound: softer and at a slightly different pitch each time (the
+    // whoosh only ever lower), left or right as it is on the screen
+    private void fx(int id, float x, int seed, float volume, float lowest, float highest) {
+        if (!mFxReady || mFx == null) return;
+        float pan = Math.max(0f, Math.min(1f, x)), v = volume * (0.7f + 0.3f * ((seed >>> 5 & 255) / 255f));
+        mFx.play(id, v * (1 - pan * 0.6f), v * (0.4f + pan * 0.6f), 1, 0, lowest + (highest - lowest) * ((seed >>> 9 & 255) / 255f));
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mFx != null) { mFx.release(); mFx = null; }
+    }
+
+    private static final int ROCKETS = 7;
     private static final int[] FIREWORKS = {0xFFFFC531, 0xFFFF3D8B, 0xFF2FB8C9, 0xFF46E06A, 0xFFFF7A1C, 0xFFB98CFF, 0xFFF4F8FF};
 
     // rockets going up and bursting all over the night sky, the year below
     private void drawFireworks(Canvas c, Paint p, float w, float h, long ms, String year) {
         c.drawColor(0xFF050D1C);
-        final int rockets = 7;
+        final int rockets = ROCKETS;
         final float period = 2800f;
         for (int k = 0; k < rockets; k++) {
             float at = ms + k * period / rockets + (k % 2) * 310;
@@ -650,9 +732,17 @@ public class IntroActivity extends AppActivity {
             float t = (at % period) / period;
             int seed = (k * 73856093) ^ (n * 19349663);
             float x = w * (0.1f + 0.8f * (((seed >>> 3) & 1023) / 1023f));
-            float y = h * (0.14f + 0.42f * (((seed >>> 13) & 1023) / 1023f));
+            float y = h * (0.1f + 0.36f * (((seed >>> 13) & 1023) / 1023f));  // the upper half, above the text
             int color = FIREWORKS[((seed >>> 23) & 0x7FFFFFFF) % FIREWORKS.length];
             float size = dp(70) + dp(60) * (((seed >>> 7) & 255) / 255f);
+            // its sounds: when it starts and when it bursts (not for those already up on the first frame)
+            if (mFxSeen && n != mFxCycle[k]) {
+                mFxPopped[k] = false;
+                fx(mFxStart, x / w, seed, 0.196f, 0.7f, 1f);
+            }
+            if (mFxSeen && t >= 0.22f && !mFxPopped[k] && n == mFxCycle[k]) fx(mFxPop, x / w, seed, 0.14f, 0.85f, 1.15f);
+            if (t >= 0.22f || !mFxSeen) mFxPopped[k] = t >= 0.22f;
+            mFxCycle[k] = n;
             p.setStyle(Paint.Style.FILL);
             if (t < 0.22f) {
                 // the rocket, on its way up
@@ -692,6 +782,7 @@ public class IntroActivity extends AppActivity {
                 c.drawCircle(px, py, dp(3), p);
             }
         }
+        mFxSeen = true;
         // the year, golden, glowing a little
         float ty = areaBottom(h) - dp(10), size = Math.min(dp(84), (areaBottom(h) - areaTop(h)) * 0.5f);
         float glow = 0.75f + 0.25f * (float) Math.sin(ms / 600.0);
@@ -1228,6 +1319,11 @@ public class IntroActivity extends AppActivity {
         mLink.setText(page.link != null ? page.link : "");
         mLink.setVisibility(page.link != null ? View.VISIBLE : View.GONE);
         mWinterLogo.setVisibility(page.logo ? View.VISIBLE : View.GONE);
+        if (page.shown != null) page.shown.run();
+        FrameLayout.LayoutParams panel = (FrameLayout.LayoutParams) mPanel.getLayoutParams();
+        panel.topMargin = Math.round(getResources().getDisplayMetrics().heightPixels * (page.middle ? 0.4f : 0.17f));
+        mPanel.setLayoutParams(panel);
+        mPanel.getBackground().mutate().setAlpha(page.middle ? 150 : 255);
         if (page.logo) mPanel.post(() -> {  // between the text and the buttons, once they are laid out
             float h = mView.getHeight(), top = areaTop(h), bottom = areaBottom(h);
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mWinterLogo.getLayoutParams();
