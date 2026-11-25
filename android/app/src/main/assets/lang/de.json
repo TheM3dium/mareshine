@@ -1061,5 +1061,9 @@
  "TheM3dium wishes all of you a happy new year. Thank you for using Mareshine!": "TheM3dium wünscht euch allen ein frohes neues Jahr. Danke, dass ihr Mareshine nutzt!",
  "❄️ It is getting frosty in Mareshine": "❄️ Es wird frostig in Mareshine",
  "Until 6 January winter moves into Mareshine, and it gets Christmassy. During the winter event snow falls, the Mareshine logo and parts of the menu light up, and three pieces of music made exclusively for the event play, inspired by the instruments of Super Mario Sunshine. All of it can be switched off as you like.": "Bis zum 6. Januar zieht der Winter in Mareshine ein, und es wird weihnachtlich. Im Winter-Event fällt Schnee, das Mareshine-Logo und Teile des Menüs leuchten mit Lichteffekten, und es gibt drei exklusiv für das Event erstellte Musikstücke, inspiriert von den Instrumenten aus Super Mario Sunshine. Alles lässt sich nach Bedarf abschalten.",
- "Turn it on?": "Einschalten?"
+ "Turn it on?": "Einschalten?",
+ "Use the fast CPU cores": "Schnelle CPU-Kerne nutzen",
+ "Keeps the game on your device's fastest CPU cores. Helps most on phones with only two fast cores (many cheaper ones). Restart the game after changing this.": "Hält das Spiel auf den schnellsten CPU-Kernen deines Geräts. Hilft am meisten bei Handys mit nur zwei schnellen Kernen (viele günstigere). Starte das Spiel nach dem Ändern neu.",
+ "Graphics thread – Experimental": "Grafik-Thread – Experimentell",
+ "Hands the graphics driver's work to a thread of its own, so the game and the driver run on two cores at once. Can help a lot on slower phones; turn it off if the picture stays black after switching apps. Restart the game after changing this.": "Gibt die Arbeit des Grafiktreibers an einen eigenen Thread ab, sodass Spiel und Treiber gleichzeitig auf zwei Kernen laufen. Kann auf langsameren Handys viel bringen; schalte es aus, wenn das Bild nach einem App-Wechsel schwarz bleibt. Starte das Spiel nach dem Ändern neu."
 }

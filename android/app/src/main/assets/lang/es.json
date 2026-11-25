@@ -1060,5 +1060,9 @@
  "TheM3dium wishes all of you a happy new year. Thank you for using Mareshine!": "TheM3dium os desea a todos un feliz año nuevo. ¡Gracias por usar Mareshine!",
  "❄️ It is getting frosty in Mareshine": "❄️ Llega el frío a Mareshine",
  "Until 6 January winter moves into Mareshine, and it gets Christmassy. During the winter event snow falls, the Mareshine logo and parts of the menu light up, and three pieces of music made exclusively for the event play, inspired by the instruments of Super Mario Sunshine. All of it can be switched off as you like.": "Hasta el 6 de enero el invierno llega a Mareshine y todo se vuelve navideño. Durante el evento de invierno cae nieve, el logo de Mareshine y partes del menú se iluminan, y suenan tres piezas de música creadas en exclusiva para el evento, inspiradas en los instrumentos de Super Mario Sunshine. Todo se puede desactivar cuando quieras.",
- "Turn it on?": "¿Activarlo?"
+ "Turn it on?": "¿Activarlo?",
+ "Use the fast CPU cores": "Usar los núcleos rápidos",
+ "Keeps the game on your device's fastest CPU cores. Helps most on phones with only two fast cores (many cheaper ones). Restart the game after changing this.": "Mantiene el juego en los núcleos más rápidos de tu dispositivo. Ayuda sobre todo en móviles con solo dos núcleos rápidos (muchos de los más económicos). Reinicia el juego después de cambiarlo.",
+ "Graphics thread – Experimental": "Hilo gráfico – Experimental",
+ "Hands the graphics driver's work to a thread of its own, so the game and the driver run on two cores at once. Can help a lot on slower phones; turn it off if the picture stays black after switching apps. Restart the game after changing this.": "Pasa el trabajo del controlador gráfico a un hilo propio, para que el juego y el controlador funcionen a la vez en dos núcleos. Puede ayudar mucho en móviles lentos; desactívalo si la imagen se queda negra al cambiar de app. Reinicia el juego después de cambiarlo."
 }
