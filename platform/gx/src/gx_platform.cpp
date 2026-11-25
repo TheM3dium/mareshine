@@ -841,7 +841,17 @@ void onDisplayCopy(const void* xfb) {
     s_frame++;
     GXPC_OverlayFrame();
     dumpFrame(xfb);
-    const bool skip = s_skipPresent && s_presentCost >= kSkipPresentCost;
+    bool skip = s_skipPresent && s_presentCost >= kSkipPresentCost;
+#ifdef __ANDROID__
+    // With the GL thread the game thread's own work is small, so the VI layer
+    // asks to skip whenever the present is slow, but on Android (no vsync)
+    // a slow present is the GPU behind, not a wait for the display: leaving
+    // a frame out barely helps it, and the picture alternated between 30 and
+    // 15 FPS (moto g15, Delfino Plaza at scale 1.5). Every frame is shown
+    // then; SMS_ANDROID_PRESENT_SKIP=1 keeps the skipping.
+    static const bool keepSkip = envTrue("SMS_ANDROID_PRESENT_SKIP");
+    if (skip && glt::active() && !keepSkip) skip = false;
+#endif
     s_skipPresent = false;
     s_lastPresent = 0;
     if (!s_autoPresent) return;
