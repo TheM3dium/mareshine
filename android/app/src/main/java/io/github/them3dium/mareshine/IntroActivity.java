@@ -110,7 +110,7 @@ public class IntroActivity extends AppActivity {
     protected void onResume() {
         super.onResume();
         if (mMusic) {
-            Winter.screenShown(this);
+            if (!mQuiet) Winter.screenShown(this);
             updateIntroSnow();
         }
     }
@@ -139,7 +139,7 @@ public class IntroActivity extends AppActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (mMusic) Winter.screenHidden();
+        if (mMusic && !mQuiet) Winter.screenHidden();
     }
 
     @Override
@@ -156,6 +156,7 @@ public class IntroActivity extends AppActivity {
         List<View> items = new ArrayList<>();
         if (mLink != null && mLink.getVisibility() == View.VISIBLE) items.add(mLink);
         if (mButtons != null) for (int i = 0; i < mButtons.getChildCount(); i++) items.add(mButtons.getChildAt(i));
+        if (mSound != null) items.add(mSound);
         return items;
     }
 
@@ -733,8 +734,94 @@ public class IntroActivity extends AppActivity {
             t("TheM3dium wishes all of you a happy new year. Thank you for using Mareshine!"),
             (c, p, w, h, ms) -> drawFireworks(c, p, w, h, ms, year)));
         mPages.get(mPages.size() - 1).middle = true;
-        // soft sounds for the rockets, for those who have the event's music on
-        if (Winter.music(Settings.read(this))) fireworkSounds();
+        // soft sounds for the rockets, for those who have the event's music on;
+        // the others can turn them on with the speaker in the corner
+        mFxOn = Winter.music(Settings.read(this));
+        if (mFxOn) fireworkSounds();
+    }
+
+    // The speaker in the corner of the new year's greeting: the rockets' sounds
+    // (and the event's music, for those who have it) on or off. Nobody who
+    // turned the music down is made to hear the fireworks.
+    private View mSound;
+    private boolean mFxOn, mQuiet;
+
+    private void toggleSound() {
+        mFxOn = !mFxOn;
+        if (mFxOn && mFx == null) fireworkSounds();
+        if (mMusic && mQuiet == mFxOn) {  // the music with it
+            mQuiet = !mFxOn;
+            if (mQuiet) Winter.screenHidden();
+            else Winter.screenShown(this);
+        }
+        mSound.setContentDescription(t("Fireworks sound") + ": " + t(mFxOn ? "On" : "Off"));
+        mSound.invalidate();
+    }
+
+    private final class SoundButton extends View {
+        private final Paint mP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path mCone = new android.graphics.Path();
+
+        SoundButton() {
+            super(IntroActivity.this);
+            setFocusable(true);
+            setClickable(true);
+            setContentDescription(t("Fireworks sound") + ": " + t(mFxOn ? "On" : "Off"));
+            setOnClickListener(v -> toggleSound());
+        }
+
+        @Override
+        protected void onFocusChanged(boolean gain, int direction, android.graphics.Rect previous) {
+            super.onFocusChanged(gain, direction, previous);
+            invalidate();
+        }
+
+        @Override
+        protected void drawableStateChanged() {
+            super.drawableStateChanged();
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f, cx = w / 2f, cy = h / 2f;
+            mP.setStyle(Paint.Style.FILL);
+            mP.setColor(isPressed() ? 0xCC1D4673 : 0xAA102A44);
+            c.drawCircle(cx, cy, r - dp(2), mP);
+            mP.setStyle(Paint.Style.STROKE);
+            mP.setStrokeWidth(dp(2));
+            mP.setColor(isFocused() ? 0xFFFFF3C4 : 0x66F4F8FF);
+            c.drawCircle(cx, cy, r - dp(2), mP);
+            // the speaker: its box and cone, left of the middle
+            int ink = mFxOn ? 0xFFF4F8FF : 0xFF9AAAC0;
+            float u = r * 0.2f, x = cx - u * 1.9f;
+            mCone.rewind();
+            mCone.moveTo(x, cy - u * 0.75f);
+            mCone.lineTo(x + u, cy - u * 0.75f);
+            mCone.lineTo(x + u * 2.1f, cy - u * 1.8f);
+            mCone.lineTo(x + u * 2.1f, cy + u * 1.8f);
+            mCone.lineTo(x + u, cy + u * 0.75f);
+            mCone.lineTo(x, cy + u * 0.75f);
+            mCone.close();
+            mP.setStyle(Paint.Style.FILL);
+            mP.setColor(ink);
+            c.drawPath(mCone, mP);
+            mP.setStyle(Paint.Style.STROKE);
+            mP.setStrokeCap(Paint.Cap.ROUND);
+            mP.setStrokeWidth(dp(2.2f));
+            float sx = x + u * 2.7f;
+            if (mFxOn) {  // two waves
+                for (int i = 1; i <= 2; i++) {
+                    float a = u * (0.75f + i * 0.75f);
+                    c.drawArc(sx - a - u * 0.4f, cy - a, sx + a - u * 0.4f, cy + a, -42, 84, false, mP);
+                }
+            } else {      // a cross
+                float a = u * 0.75f, mx = sx + u * 0.75f;
+                c.drawLine(mx - a, cy - a, mx + a, cy + a, mP);
+                c.drawLine(mx - a, cy + a, mx + a, cy - a, mP);
+            }
+            mP.setStrokeCap(Paint.Cap.BUTT);
+        }
     }
 
     // The rockets' two sounds: a whoosh for the start (res/raw/firework_start,
@@ -799,7 +886,7 @@ public class IntroActivity extends AppActivity {
     // a rocket's sound: softer and at a slightly different pitch each time (the
     // whoosh only ever lower), left or right as it is on the screen
     private void fx(int id, float x, int seed, float volume, float lowest, float highest) {
-        if (!mFxReady || mFx == null) return;
+        if (!mFxOn || !mFxReady || mFx == null) return;
         float pan = Math.max(0f, Math.min(1f, x)), v = volume * (0.7f + 0.3f * ((seed >>> 5 & 255) / 255f));
         mFx.play(id, v * (1 - pan * 0.6f), v * (0.4f + pan * 0.6f), 1, 0, lowest + (highest - lowest) * ((seed >>> 9 & 255) / 255f));
     }
@@ -1391,6 +1478,13 @@ public class IntroActivity extends AppActivity {
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM);
         blp.bottomMargin = Math.round(dp(14));
         root.addView(mButtons, blp);
+        if (Intro.isNewYear(mId)) {
+            mSound = new SoundButton();
+            int size = Math.round(dp(52)), edge = Math.round(dp(18));
+            FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(size, size, Gravity.BOTTOM | Gravity.END);
+            slp.setMargins(0, 0, edge, edge);
+            root.addView(mSound, slp);
+        }
         setContentView(root);
     }
 
