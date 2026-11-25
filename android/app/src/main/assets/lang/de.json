@@ -729,6 +729,7 @@
  "Some changes take effect after RESTART.": "Einige Änderungen gelten erst nach NEU STARTEN.",
  "Preparing the language for %s…": "Sprache für %s wird vorbereitet…",
  "%1$s: %2$d%% translated. Texts the mod changed stay in English.": "%1$s: %2$d %% übersetzt. Texte, die der Mod geändert hat, bleiben englisch.",
+ "Winter Frame": "Winterrahmen",
  "HD Textures": "HD-Texturen",
  "HD textures": "HD-Texturen",
  "Mareshine's HD texture pack is not installed or switched off. Install it in Settings → VIDEO → HD textures.": "Mareshines HD-Texturpaket ist nicht installiert oder ausgeschaltet. Installiere es unter EINSTELLUNGEN → GRAFIK → HD-Texturen.",

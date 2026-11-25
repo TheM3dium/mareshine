@@ -576,6 +576,9 @@ public final class Mods {
         // and the mods it does not work with (written into its mod.json)
         public String preview = "", about = "";
         public String[] incompatible = new String[0];
+        // its page gets a Winter Frame switch (on at first): the app's winter
+        // cutscene frame as the mod's own (frames/ of the option's folder)
+        public boolean winterFrame;
 
         boolean isEclipse() { return id.equals("eclipse") || base.equals("eclipse"); }
 
@@ -698,10 +701,12 @@ public final class Mods {
 
     static {
         TROPICAL_FREEZE.credits = "Super Mario Elements";
+        TROPICAL_FREEZE.rating = 4;
         TROPICAL_FREEZE.preview = "https://images.gamebanana.com/img/ss/mods/694acca3d702d.jpg";
         TROPICAL_FREEZE.icon = "asset:mods/tropicalfreeze-disc.png";
         TROPICAL_FREEZE.incompatible = new String[] {"eclipse", "sunburn"};
         TROPICAL_FREEZE.overlay = true;
+        TROPICAL_FREEZE.winterFrame = true;
         TROPICAL_FREEZE.about = "Super Mario Tropical Freeze turns Isle Delfino into a frozen island:\n\n"
             + "* New maps, models, music and movies.\n"
             + "* Icy floors to slide on.\n"
