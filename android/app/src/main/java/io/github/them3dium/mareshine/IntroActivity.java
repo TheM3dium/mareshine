@@ -638,7 +638,7 @@ public class IntroActivity extends AppActivity {
     private void newYear() {
         String year = mId.substring(mId.lastIndexOf('_') + 1);
         mPages.add(new Page(t("Happy New Year!"),
-            t("TheM3dium wishes all of you a happy new year. Thank you for using my app!"),
+            t("TheM3dium wishes all of you a happy new year. Thank you for using Mareshine!"),
             (c, p, w, h, ms) -> drawFireworks(c, p, w, h, ms, year)));
         mPages.get(mPages.size() - 1).middle = true;
         // soft sounds for the rockets, for those who have the event's music on
