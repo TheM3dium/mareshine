@@ -13,9 +13,12 @@ import java.util.zip.Adler32;
 // Applies a VCDIFF delta (RFC 3284), as xdelta3 writes it: a mod's patch onto
 // the player's own disc image (Mods). The same decoder as
 // tools/mods/vcdiff.py: the default code table, VCD_SOURCE and VCD_TARGET
-// windows and xdelta3's per-window Adler-32; deltas with secondary compression
-// or a custom code table are refused. The delta is read as a stream, so it can
-// come straight out of its archive.
+// windows, xdelta3's per-window Adler-32 and xdelta3's LZMA secondary
+// compression (-S lzma: each compressed section is its decoded size as a
+// varint, then the next piece of one .xz stream per kind of section that runs
+// on through all windows). DJW/FGK secondary compression and custom code
+// tables are refused. The delta is read as a stream, so it can come straight
+// out of its archive.
 public final class Vcdiff {
     private Vcdiff() {}
 
@@ -26,6 +29,59 @@ public final class Vcdiff {
     public interface Progress {
         // the output written so far; false to stop
         boolean update(long written);
+    }
+
+    private static final int LZMA_ID = 2;  // xdelta3's VCD_LZMA_ID
+
+    // One kind of section's .xz stream, fed a window's piece at a time. xdelta3
+    // flushes the stream at the end of each section, so decoding exactly the
+    // section's size never reads past the piece it was given.
+    private static final class Unlzma extends InputStream {
+        private byte[] buf = new byte[0];
+        private int pos;
+        private org.tukaani.xz.XZInputStream xz;
+
+        byte[] section(byte[] sec) throws IOException {
+            int[] p = {0};
+            long size;
+            try {
+                size = varint(sec, p);
+            } catch (ArrayIndexOutOfBoundsException e) {
+                throw new VcdiffException("broken LZMA section");
+            }
+            if (size > Integer.MAX_VALUE) throw new VcdiffException("LZMA section too large");
+            buf = sec;
+            pos = p[0];
+            byte[] out = new byte[(int) size];
+            try {
+                if (xz == null) xz = new org.tukaani.xz.XZInputStream(this);
+                int off = 0;
+                while (off < out.length) {
+                    int r = xz.read(out, off, out.length - off);
+                    if (r < 0) throw new VcdiffException("LZMA section ends early");
+                    off += r;
+                }
+            } catch (VcdiffException e) {
+                throw e;
+            } catch (IOException e) {
+                throw new VcdiffException("broken LZMA section: " + e.getMessage());
+            }
+            return out;
+        }
+
+        @Override public int read() throws IOException {
+            if (pos >= buf.length) throw new VcdiffException("LZMA section ends early");
+            return buf[pos++] & 0xFF;
+        }
+
+        @Override public int read(byte[] b, int off, int len) throws IOException {
+            if (len == 0) return 0;
+            if (pos >= buf.length) throw new VcdiffException("LZMA section ends early");
+            int n = Math.min(len, buf.length - pos);
+            System.arraycopy(buf, pos, b, off, n);
+            pos += n;
+            return n;
+        }
     }
 
     private static final int NOOP = 0, ADD = 1, RUN = 2, COPY = 3;
@@ -66,7 +122,9 @@ public final class Vcdiff {
             if (u8(delta) != 0xD6 || u8(delta) != 0xC3 || u8(delta) != 0xC4 || u8(delta) != 0x00)
                 throw new VcdiffException("not a VCDIFF delta");
             int hdr = u8(delta);
-            if ((hdr & 1) != 0) throw new VcdiffException("secondary compression is not supported");
+            if ((hdr & 1) != 0 && u8(delta) != LZMA_ID)
+                throw new VcdiffException("only LZMA secondary compression is supported");
+            Unlzma[] decs = {new Unlzma(), new Unlzma(), new Unlzma()};
             if ((hdr & 2) != 0) throw new VcdiffException("custom code tables are not supported");
             if ((hdr & 4) != 0) skip(delta, varint(delta));  // application header
             long written = 0;
@@ -91,11 +149,16 @@ public final class Vcdiff {
                 }
                 varint(delta);  // length of the delta encoding
                 int tlen = (int) varint(delta);
-                if (u8(delta) != 0) throw new VcdiffException("compressed window sections are not supported");
+                int comp = u8(delta);
+                if (comp != 0 && (hdr & 1) == 0)
+                    throw new VcdiffException("compressed window sections without a secondary compressor");
                 int dlen = (int) varint(delta), ilen = (int) varint(delta), alen = (int) varint(delta);
                 long cksum = -1;
                 if ((win & 4) != 0) cksum = ((long) u8(delta) << 24) | (u8(delta) << 16) | (u8(delta) << 8) | u8(delta);
                 byte[] data = read(delta, dlen), inst = read(delta, ilen), addr = read(delta, alen);
+                if ((comp & 1) != 0) data = decs[0].section(data);
+                if ((comp & 2) != 0) inst = decs[1].section(inst);
+                if ((comp & 4) != 0) addr = decs[2].section(addr);
                 byte[] target = new byte[tlen];
                 decodeWindow(target, seg, slen, data, inst, addr);
                 if (cksum >= 0) {

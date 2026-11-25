@@ -362,8 +362,10 @@ file(GLOB_RECURSE SMS_PLATFORM_SOURCES CONFIGURE_DEPENDS
 # platform/gx/CMakeLists.txt defining a library target `sms_gx`, it is linked
 # in and its strong GX* definitions replace the weak stubs.
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/gx/")
-# platform/mods/eclipse is built by cmake/eclipse.cmake, and only with SMS_ECLIPSE.
-list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/eclipse/")
+# platform/mods/eclipse and the plugins' module are built by cmake/eclipse.cmake, and only with SMS_ECLIPSE.
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/(eclipse|plugins)/")
+# a plugin's own new and delete (cmake/plugins.cmake), built into each plugin
+list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/mods/plugin_new\\.cpp$")
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/tests/")
 # game code (sms_game, above), and Mareshine's achievements are Android's
 list(FILTER SMS_PLATFORM_SOURCES EXCLUDE REGEX "/platform/achievements/ach_(game|mods)\\.cpp$")
@@ -597,3 +599,6 @@ elseif(SMS_BUNDLE_DISC)
     VERBATIM)
   add_custom_target(sms_standalone ALL DEPENDS ${_standalone})
 endif()
+
+# Mods' native plugins (src/port_include/mareshine_plugin.h)
+include(cmake/plugins.cmake)

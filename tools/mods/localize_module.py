@@ -90,7 +90,10 @@ def main(objcopy, path):
     listing = path + ".local"
     with open(listing, "w") as f:
         f.write("".join(n + "\n" for n in names))
-    subprocess.run([objcopy, "--localize-symbols=" + listing, path], check=True)
+    # nothing to do (all its own already local); GNU objcopy 2.47 fails on an
+    # empty listing
+    if names:
+        subprocess.run([objcopy, "--localize-symbols=" + listing, path], check=True)
     print("localize_module: %d definitions made local in %s" % (len(names), path))
 
 

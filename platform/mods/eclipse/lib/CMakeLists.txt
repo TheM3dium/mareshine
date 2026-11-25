@@ -25,6 +25,8 @@ endforeach()
 file(GLOB MOVESET_SOURCES ${MOVESET_SRC}/src/*.cpp ${MOVESET_SRC}/src/*/*.cpp)
 file(GLOB ECLIPSE_SOURCES ${ECLIPSE_SRC}/src/*.c ${ECLIPSE_SRC}/src/*.cpp ${ECLIPSE_SRC}/src/*/*.c ${ECLIPSE_SRC}/src/*/*.cpp)
 file(GLOB SUNBURN_SOURCES ${SUNBURN_SRC}/src/*.cpp ${SUNBURN_SRC}/src/*/*.cpp)
+# Mareshine's plugins on the engine (platform/mods/plugins.cpp loads them)
+file(GLOB PLUGINS_SOURCES ${PORT_MODS}/plugins/src/*.cpp)
 
 set(_shi ${SHI_SRC}/include ${SHI_SRC}/include/JSystem ${SHI_SRC}/include/Dolphin ${SHI_SRC}/include/SMS
   ${SHI_SRC}/include/Kamek ${SHI_SRC}/include/Kuribo)
@@ -101,6 +103,12 @@ target_include_directories(sunburn_objs PRIVATE ${PORT_MODS}/eclipse/shim ${PORT
 target_compile_definitions(sunburn_objs PRIVATE ${_defs})
 target_compile_options(sunburn_objs PRIVATE ${_opts})
 
+add_library(plugins_objs OBJECT ${PLUGINS_SOURCES})
+target_include_directories(plugins_objs PRIVATE ${PORT_MODS}/eclipse/shim ${PORT_MODS}/include
+  ${BSE_SRC}/include ${_shi})
+target_compile_definitions(plugins_objs PRIVATE ${_defs})
+target_compile_options(plugins_objs PRIVATE ${_opts})
+
 # The partial links below run the compiler driver as a linker, for this target.
 if(APPLE AND CMAKE_OSX_ARCHITECTURES)
   set(_ld_arch -arch ${CMAKE_OSX_ARCHITECTURES})
@@ -128,7 +136,7 @@ set(_modules)
 # Game mods (a game of their own; one of them runs, SMS_CODE_MODS names it):
 # their constructors get a section each (tools/mods/tag_ctors.py, ELF only).
 set(_game_modules eclipse sunburn)
-foreach(m moveset eclipse sunburn)
+foreach(m moveset plugins eclipse sunburn)
   target_compile_options(${m}_objs PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
   set(_o ${CMAKE_CURRENT_BINARY_DIR}/${m}_module.o)
   set(_partial_objects $<TARGET_OBJECTS:${m}_objs>)

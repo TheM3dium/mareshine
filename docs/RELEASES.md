@@ -34,3 +34,18 @@ That is why the stable version a beta goes back to has a versionCode far above t
 | 2.1.5 | 1018 |
 | test builds of 2.1.6 | 1019 |
 | 2.1.6 | 1020 |
+| test builds after 2.1.6 | 1021 |
+
+The next release needs at least 1022.
+
+## Mods' plugins
+
+A mod's native code can be a plugin the app fetches (`ModPlugin.java`, `src/port_include/mareshine_plugin.h`): `android/app/src/main/assets/plugins.json` lists, per mod, the game build it is made for and, per ABI, its URL and SHA-256.
+The files are assets of the release tagged `plugins`, named `lib<mod>-<game build>-<abi>.so`.
+
+The game build is a hash of the game's headers. A release that changes none of them keeps it, and the plugins stay as they are.
+When it changes, the configure step warns (`plugins.json: … is made for game build …`). Then, before publishing the release:
+
+1. Build each plugin against the release tree: `-Pmareshine.plugins=<folder with the plugins' sources>` (Android: `ninja <plugin>` in the arm64-v8a build folder).
+2. Put the new game build, SHA-256 and size into `plugins.json`, and build the APK again.
+3. Upload the plugin to the `plugins` release under its new name. Keep the older files there: older app versions still fetch them.

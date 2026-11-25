@@ -228,7 +228,8 @@ extern "C" ctor_t __stop_sms_mod_ctors[] __attribute__((weak));
 // Game mods (each a game of its own: Super Mario Eclipse, Super Mario
 // Sunburn) keep their constructors in a section each (tools/mods/tag_ctors.py,
 // ELF only); SMS_CODE_MODS names the one that runs, with the shared modules
-// above. Elsewhere theirs are among the shared ones, and all of them run.
+// above, and without it the one made for the disc (its game code and maker)
+// runs. Elsewhere theirs are among the shared ones, and all of them run.
 #if !defined(__APPLE__) && !defined(_WIN32)
 #define SMS_GAME_MOD(name)                                                       \
 	extern "C" ctor_t __start_sms_mod_ctors_##name[] __attribute__((weak));     \
@@ -238,20 +239,22 @@ SMS_GAME_MOD(sunburn)
 #undef SMS_GAME_MOD
 struct GameMod {
 	const char* name;
+	const char* disc; // the disc's game code and maker
 	ctor_t* begin;
 	ctor_t* end;
 };
 static const GameMod s_game_mods[] = {
-	{"eclipse", __start_sms_mod_ctors_eclipse, __stop_sms_mod_ctors_eclipse},
-	{"sunburn", __start_sms_mod_ctors_sunburn, __stop_sms_mod_ctors_sunburn},
+	{"eclipse", "GMSE04", __start_sms_mod_ctors_eclipse, __stop_sms_mod_ctors_eclipse},
+	{"sunburn", "GMSE03", __start_sms_mod_ctors_sunburn, __stop_sms_mod_ctors_sunburn},
 };
 #else
 struct GameMod {
 	const char* name;
+	const char* disc;
 	ctor_t* begin;
 	ctor_t* end;
 };
-static const GameMod s_game_mods[] = {{"", nullptr, nullptr}};
+static const GameMod s_game_mods[] = {{"", nullptr, nullptr, nullptr}};
 #endif
 static const GameMod* s_game_mod;  // the game mod that runs; null: all of them
 static bool s_all_game_mods = true;
@@ -296,7 +299,10 @@ extern "C" void sms_mod_activate(void)
 		for (const GameMod& g : s_game_mods)
 			if (!strcmp(g.name, e))
 				s_game_mod = &g;
-		if (!s_game_mod) {
+		// a mod whose code is a plugin it brings (SMS_PLUGIN, platform/mods/plugins.cpp):
+		// the shared modules, which start it
+		const char* plugin = getenv("SMS_PLUGIN");
+		if (!s_game_mod && !(plugin && *plugin)) {
 			fprintf(stderr, "[mod] SMS_CODE_MODS=%s: no such game mod linked in; code mods off\n", e);
 			return;
 		}
@@ -344,6 +350,15 @@ extern "C" void sms_mod_start(void)
 		return;
 	started = true;
 	fill_boot_info();
+	// none named: the one made for this disc, if one is linked in
+	if (s_all_game_mods) {
+		const char* id = static_cast<const char*>(DVDGetCurrentDiskID());
+		for (const GameMod& g : s_game_mods)
+			if (g.disc && any_ctor(g.begin, g.end) && !memcmp(id, g.disc, 6)) {
+				s_game_mod      = &g;
+				s_all_game_mods = false;
+			}
+	}
 	run_ctors(__start_sms_mod_ctors, __stop_sms_mod_ctors);
 	for (const GameMod& g : s_game_mods)
 		if (s_all_game_mods || &g == s_game_mod) {

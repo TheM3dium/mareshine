@@ -489,6 +489,10 @@ extern "C" void port_thp_opened(const char* name, u32 width, u32 height, u32 fra
     const char* dir = getenv("SMS_HD_MOVIES_MP4");
     if (!dir || !*dir || !strcmp(dir, "0") || !name)
         return;
+    if (port_dvd_from_mod(name)) {  // a mod's own movie (Super Mario Tropical Freeze's)
+        port_log("[thp] %s is a mod's own movie: no HD picture\n", name);
+        return;
+    }
     std::string stem = name;
     if (size_t slash = stem.find_last_of('/'); slash != std::string::npos)
         stem = stem.substr(slash + 1);

@@ -654,6 +654,7 @@ public class LauncherActivity extends AppActivity {
     // Before the game loads the ISO: the header must fit, and a plain ISO is
     // hashed once (the result is remembered until the file changes).
     private void launchGame() {
+        mModPluginTried = false;
         if (mFoundIsoFile == null || !mFoundIsoFile.exists()) {
             Toast.makeText(this, t("Please select a valid ISO first."), Toast.LENGTH_SHORT).show();
             return;
@@ -941,7 +942,7 @@ public class LauncherActivity extends AppActivity {
         }); }, 1500); // the game's process needs a moment to go away
     }
 
-    private boolean mModLanguageReady, mModConverting;
+    private boolean mModLanguageReady, mModConverting, mModPluginTried;
 
     private void startSunshineNow() {
         // a mod's own game in a pack's language: which pack files fit, worked
@@ -973,6 +974,29 @@ public class LauncherActivity extends AppActivity {
                     mModConverting = false;
                 });
             }, "ModGame").start();
+            return;
+        }
+        // its code, when it is a plugin the app knows and the one in its folder is
+        // missing or another (ModPlugin): fetched first, quietly; without it
+        // (offline, say) the mod plays without its code, and the next start tries again
+        // (once for each PLAY: launchGame clears it)
+        if (!mModPluginTried && ModPlugin.needsFetch(this, mod)) {
+            mModPluginTried = true;
+            final Mods.Mod m = mod;
+            new Thread(() -> {
+                ModPlugin.fetch(this, m.id, m.dir);
+                runOnUiThread(this::startSunshineNow);
+            }, "ModPlugin").start();
+            return;
+        }
+        // still not there (offline, say): its game needs its code, so not without it
+        if (mModPluginTried && ModPlugin.needsFetch(this, mod)) {
+            new DlDialog(this)
+                .setTitle(t("%s needs one more file", mod.name))
+                .setMessage(t("%s needs a small file that is downloaded once (under 1 MB). Connect to the internet, "
+                    + "then press PLAY again.", mod.name))
+                .setPositiveButton(t("OK"), null)
+                .show();
             return;
         }
         String code = ModLanguage.code(this, mod);

@@ -5,10 +5,14 @@ standard library.
     python3 vcdiff.py SOURCE DELTA OUTPUT
 
 Supports the default code table, VCD_SOURCE and VCD_TARGET windows and
-xdelta3's per-window Adler-32 checksum. Deltas that use secondary
-compression (xdelta3 -S djw/lzma) or a custom code table are refused.
+xdelta3's per-window Adler-32 checksum, and xdelta3's LZMA secondary
+compression (xdelta3 -S lzma: each compressed section is its decoded size
+as a varint, then the next piece of one .xz stream per kind of section that
+runs on through all windows). DJW or FGK secondary compression and
+custom code tables are refused.
 """
 
+import lzma
 import mmap
 import os
 import sys
@@ -127,6 +131,22 @@ def _decode_window(target, seg, slen, data, inst, addr):
         raise VcdiffError("window sections do not add up")
 
 
+LZMA_ID = 2  # xdelta3's VCD_LZMA_ID
+
+
+def _unlzma(dec, section):
+    """One section compressed by xdelta3 -S lzma: its decoded size, then the
+    next piece of the xz stream that dec decodes."""
+    size, pos = _varint(section, 0)
+    try:
+        out = dec.decompress(section[pos:], size)
+    except lzma.LZMAError as e:
+        raise VcdiffError("broken LZMA section: %s" % e)
+    if len(out) != size:
+        raise VcdiffError("LZMA section has the wrong size")
+    return out
+
+
 def apply(source_path, delta_path, out_path, progress=None):
     """Write out_path = delta applied to source_path. progress(done, total)
     is called with the delta bytes read so far."""
@@ -139,12 +159,13 @@ def apply(source_path, delta_path, out_path, progress=None):
             if df.read(4) != b"\xd6\xc3\xc4\x00":
                 raise VcdiffError("not a VCDIFF delta")
             hdr = df.read(1)[0]
-            if hdr & 1:
-                raise VcdiffError("secondary compression is not supported")
+            if hdr & 1 and df.read(1)[0] != LZMA_ID:
+                raise VcdiffError("only LZMA secondary compression is supported")
             if hdr & 2:
                 raise VcdiffError("custom code tables are not supported")
             if hdr & 4:
                 df.read(_read_varint(df))  # application header
+            decs = [lzma.LZMADecompressor(lzma.FORMAT_XZ) for _ in range(3)]
             written = 0
             while True:
                 c = df.read(1)
@@ -166,8 +187,9 @@ def apply(source_path, delta_path, out_path, progress=None):
                         of.seek(written)
                 _read_varint(df)  # length of the delta encoding
                 tlen = _read_varint(df)
-                if df.read(1)[0]:
-                    raise VcdiffError("compressed window sections are not supported")
+                comp = df.read(1)[0]
+                if comp and not hdr & 1:
+                    raise VcdiffError("compressed window sections without a secondary compressor")
                 dlen = _read_varint(df)
                 ilen = _read_varint(df)
                 alen = _read_varint(df)
@@ -175,6 +197,9 @@ def apply(source_path, delta_path, out_path, progress=None):
                 data, inst, addr = df.read(dlen), df.read(ilen), df.read(alen)
                 if len(data) + len(inst) + len(addr) != dlen + ilen + alen:
                     raise VcdiffError("truncated delta")
+                if comp:
+                    data, inst, addr = (_unlzma(decs[i], s) if comp & (1 << i) else s
+                                        for i, s in enumerate((data, inst, addr)))
                 target = bytearray(tlen)
                 _decode_window(target, seg, slen, data, inst, addr)
                 if cksum is not None and zlib.adler32(target) != cksum:

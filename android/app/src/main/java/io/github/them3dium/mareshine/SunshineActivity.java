@@ -118,6 +118,12 @@ public class SunshineActivity extends SDLActivity {
             String achGame = Achievements.game(this);
             if (achGame == null) nativeSetenv("SMS_ACHIEVEMENTS", "0");
             else if (!achGame.equals("sms")) nativeSetenv("SMS_ACHIEVEMENTS_GAME", achGame);
+            // its code, when the mod brings it as a plugin (ModPlugin)
+            String plugin = image != null && image.code ? ModPlugin.prepare(this, image) : null;
+            if (plugin != null) {
+                nativeSetenv("SMS_PLUGIN", plugin);
+                nativeSetenv("SMS_APP_VERSION", CrashLog.BuildConfigInfo.version(this));
+            }
             // Mareshine's language packs are Sunshine's: not in a mod's own game
             // (a pack would replace the mod's own text)
             if (image != null) {

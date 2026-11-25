@@ -12,6 +12,9 @@ const char* port_hd_cutscene_directory(void);
 // for its picture (platform/thp/mp4_movies.cpp); the THP keeps the sound,
 // timing, subtitles and rumble.
 void port_thp_opened(const char* name, u32 width, u32 height, u32 frames);
+// 1 when a mod (not the HD cutscene or language pack) serves this disc file: a mod's own
+// movie, which an HD picture of the original must not cover (platform/dvd).
+int port_dvd_from_mod(const char* path);
 void port_thp_closed(void);
 void port_thp_draw_frame(s32 frame);
 // Draws the HD picture for the frame being drawn into the THP's rectangle;

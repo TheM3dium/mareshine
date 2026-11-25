@@ -245,6 +245,17 @@ public class ModInstallActivity extends AppActivity {
                     if (in == null) throw new IOException("cannot open " + picked);
                     result = applyPatch(r, iso, in, image);
                 }
+            } else if (r.file.toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
+                // a .zip (Super Mario Tropical Freeze): the patch streamed out of it
+                try (InputStream raw = open(picked, archive);
+                     java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(
+                         new java.io.BufferedInputStream(raw, 1 << 16))) {
+                    for (java.util.zip.ZipEntry e; (e = zip.getNextEntry()) != null; ) {
+                        if (!e.getName().replace('\\', '/').equals(r.patch)) continue;
+                        result = applyPatch(r, iso, zip, image);
+                        break;
+                    }
+                }
             } else try (ParcelFileDescriptor pfd = picked != null ? getContentResolver().openFileDescriptor(picked, "r") : null;
                  FileInputStream pin = pfd != null ? new FileInputStream(pfd.getFileDescriptor()) : null;
                  SevenZFile z = pin != null ? SevenZFile.builder().setSeekableByteChannel(pin.getChannel()).get()
@@ -298,6 +309,9 @@ public class ModInstallActivity extends AppActivity {
                 if (r.isEclipse()) EclipseMod.installed(this, r);
                 else installed(r, dest, target, null);
             }
+            // its code, when it is a plugin the app knows (ModPlugin): fetched now,
+            // else (offline, say) before it plays
+            if (r.code && ModPlugin.known(this, r.id) != null) ModPlugin.fetch(this, r.id, dest);
             String msg = t("%s is installed and switched on. Play starts it; switch it off in Mods to play Super Mario "
                 + "Sunshine again.", r.name);
             if (picked != null) msg += "\n\n" + t("The downloaded file is not needed any more and can be deleted.");
@@ -397,7 +411,11 @@ public class ModInstallActivity extends AppActivity {
         if (r.rating >= 0) o.put("rating", r.rating);
         if (!r.preview.isEmpty()) o.put("preview", r.preview);
         if (r.incompatible.length > 0) o.put("incompatible", new org.json.JSONArray(java.util.Arrays.asList(r.incompatible)));
-        o.put("options", new org.json.JSONArray().put(new org.json.JSONObject().put("type", "link")
+        org.json.JSONArray options = new org.json.JSONArray();
+        if (r.winterFrame && winterFrame(new File(dir, WINTER_FRAME)))
+            options.put(new org.json.JSONObject().put("type", "toggle").put("id", WINTER_FRAME)
+                .put("label", "Winter Frame").put("default", true).put("folder", WINTER_FRAME));
+        o.put("options", options.put(new org.json.JSONObject().put("type", "link")
             .put("label", "Website").put("url", r.page)));
         // its disc when the app ships one (Sunburn), else its disc's banner
         File disc = new File(dir, "disc.png"), icon = new File(dir, "icon.png");
@@ -425,6 +443,34 @@ public class ModInstallActivity extends AppActivity {
             out.write(o.toString(2).getBytes("UTF-8"));
         }
         Mods.setEnabled(this, r.id, true);
+    }
+
+    static final String WINTER_FRAME = "winter-frame";
+
+    // The app's winter cutscene frame (assets cutscene_frame_winter*.png) as
+    // an option's frames/overlay*.png; false when the app has none.
+    private boolean winterFrame(File folder) {
+        String[] names;
+        try {
+            names = getAssets().list("");
+        } catch (IOException e) {
+            return false;
+        }
+        File frames = new File(folder, "frames");
+        boolean any = false;
+        for (String n : names == null ? new String[0] : names) {
+            if (!n.startsWith("cutscene_frame_winter") || !n.endsWith(".png")) continue;
+            frames.mkdirs();
+            File f = new File(frames, "overlay" + n.substring("cutscene_frame_winter".length()));
+            try (InputStream in = getAssets().open(n); OutputStream out = new FileOutputStream(f)) {
+                byte[] buf = new byte[1 << 16];
+                for (int k; (k = in.read(buf)) > 0; ) out.write(buf, 0, k);
+                any = true;
+            } catch (IOException e) {
+                f.delete();
+            }
+        }
+        return any && new File(frames, "overlay.png").isFile();
     }
 
     private InputStream open(Uri picked, File archive) throws IOException {
