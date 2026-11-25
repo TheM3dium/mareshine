@@ -1358,8 +1358,9 @@ public class SettingsActivity extends AppActivity {
             true, false));
         section("PERFORMANCE");
         add(new Toggle(PerformanceOffer.KEY, "Performance mode",
-            "Keeps the game on your device's fastest CPU cores and gives the graphics driver a core of its own. "
-                + "Helps most on cheaper phones with only two fast cores; on fast phones it changes little. "
+            "Turns on multithreading: keeps the game on your device's fastest CPU cores and gives the graphics "
+                + "driver a core of its own. Helps most on cheaper devices with only two fast cores; on fast "
+                + "devices it changes little. "
                 + "If the picture stays black after switching apps, turn it off. Restart the game after changing this.",
             false, false));
         section("GRAPHICS DRIVER");
