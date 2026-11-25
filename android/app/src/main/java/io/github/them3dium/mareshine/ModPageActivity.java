@@ -291,7 +291,8 @@ public class ModPageActivity extends AppActivity {
         panel.addView(mScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         if (mPageOption == null) {
             // "* " lists become bullets; a text with a list reads from the left
-            String about = ("\n" + mMod.description).replaceAll("\n[*-] ", "\n• ").substring(1);
+            // the built-in mods' texts are in the app's language files
+            String about = ("\n" + t(mMod.description)).replaceAll("\n[*-] ", "\n• ").substring(1);
             TextView desc = text(about, TEXT, 19, false);
             desc.setGravity(about.contains("\n•") ? Gravity.START : Gravity.CENTER_HORIZONTAL);
             desc.setPadding(0, dp(6), 0, dp(6));
