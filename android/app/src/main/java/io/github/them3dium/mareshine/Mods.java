@@ -698,6 +698,7 @@ public final class Mods {
 
     static {
         TROPICAL_FREEZE.credits = "Super Mario Elements";
+        TROPICAL_FREEZE.preview = "https://images.gamebanana.com/img/ss/mods/694acca3d702d.jpg";
         TROPICAL_FREEZE.icon = "asset:mods/tropicalfreeze-disc.png";
         TROPICAL_FREEZE.incompatible = new String[] {"eclipse", "sunburn"};
         TROPICAL_FREEZE.overlay = true;
