@@ -121,8 +121,10 @@ public class LauncherActivity extends AppActivity {
             DataDir.ensureLayout(this);
             if (savedInstanceState == null) intro = showPendingIntro();
         }
-        // the winter event's question, once a season (after any intro: it waits behind it)
-        boolean askWinter = savedInstanceState == null && !isDataDirProblem() && Winter.needsAsking(this);
+        // the winter event's question, once a season; not behind an intro (the
+        // winter update's intro asks it itself, and after another one the
+        // next start does)
+        boolean askWinter = savedInstanceState == null && intro == null && !isDataDirProblem() && Winter.needsAsking(this);
         if (askWinter) askWinter();
         boolean restarting = getIntent() != null && getIntent().getBooleanExtra(EXTRA_AUTOSTART, false);
         handleAutostart(getIntent());

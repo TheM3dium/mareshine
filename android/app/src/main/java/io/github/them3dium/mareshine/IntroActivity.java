@@ -45,6 +45,8 @@ public class IntroActivity extends AppActivity {
         boolean back;  // a Back button, to the choice before
         String link;   // a button in the middle of the picture, and what it does
         Runnable linkAction;
+        String next;   // the orange button's own word (null: Next, or Got it on the last page)
+        boolean logo;  // the winter logo with its lights as the picture
 
         Page(String title, String text, Picture picture) {
             this.title = title;
@@ -84,7 +86,9 @@ public class IntroActivity extends AppActivity {
         L.init(this);
         mId = getIntent().getStringExtra(EXTRA_ID);
         if (mId == null) { finish(); return; }
-        mAsks = Intro.asks(this, mId) || Intro.WELCOME.equals(mId);
+        mAsks = Intro.asks(this, mId) || Intro.WELCOME.equals(mId) || Intro.WINTER_UPDATE.equals(mId);
+        // the winter event's music plays behind these two, once it is on
+        mMusic = Intro.WINTER_UPDATE.equals(mId) || Intro.isNewYear(mId);
         pages();
         for (int i = mPages.size() - 1; i >= 0; i--) if (mPages.get(i).asks && !mAsks) mPages.remove(i);
         if (mPages.isEmpty()) { finishIntro(); return; }
@@ -96,6 +100,45 @@ public class IntroActivity extends AppActivity {
         View root = findViewById(android.R.id.content);
         root.setAlpha(0f);
         root.animate().alpha(1f).setStartDelay(150).setDuration(700).start();
+    }
+
+    private boolean mMusic;
+    private SnowView mIntroSnow;
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mMusic) {
+            Winter.screenShown(this);
+            updateIntroSnow();
+        }
+    }
+
+    // It snows over these intros too while the event's snow is on (AppActivity
+    // leaves it out on screens laid out like the game's, as this one is).
+    private void updateIntroSnow() {
+        boolean snow = mMusic && Winter.snow(Settings.read(this));
+        if (snow && mIntroSnow == null) {
+            mIntroSnow = new SnowView(this);
+            ((ViewGroup) getWindow().getDecorView()).addView(mIntroSnow, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        } else if (!snow && mIntroSnow != null) {
+            ((ViewGroup) mIntroSnow.getParent()).removeView(mIntroSnow);
+            mIntroSnow = null;
+        }
+    }
+
+    // a swipe is a gust of wind for the snow
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        if (mIntroSnow != null) mIntroSnow.touch(ev);
+        return super.dispatchTouchEvent(ev);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mMusic) Winter.screenHidden();
     }
 
     @Override
@@ -154,7 +197,10 @@ public class IntroActivity extends AppActivity {
             case Intro.SWAP_AB: swapAb(); break;
             case Intro.TOUR_AGAIN: tourAgain(); break;
             case Intro.WELCOME: welcome(); break;
-            default: break;
+            case Intro.WINTER_UPDATE: winterUpdate(); break;
+            default:
+                if (Intro.isNewYear(mId)) newYear();
+                break;
         }
     }
 
@@ -286,6 +332,372 @@ public class IntroActivity extends AppActivity {
         mPages.add(new Page(t("Missed a tour?"), t("You can watch every tour again at any time."), this::drawLogo));
         mTourAfter = 0;
         mTourSteps = Tour.AGAIN;
+    }
+
+    // --- the winter update (2.2) ----------------------------------------------
+
+    private WinterLogoView mWinterLogo;
+    private android.graphics.Bitmap mTfDisc;
+
+    private void winterUpdate() {
+        // the event's question first, so the music plays only for those who want it
+        if (Winter.needsAsking(this)) {
+            Page ask = new Page(t("❄️ It is getting frosty in Mareshine"),
+                t("Until 6 January it can snow in the menus, with Christmas music and a winter logo. "
+                    + "Turn it on?\n\nMusic and snow each have a switch under the logo, and all of it can be "
+                    + "turned off in Settings → OTHER."),
+                (c, p, w, h, ms) -> { });
+            ask.logo = true;
+            ask.choice(t("Turn on"), () -> answerWinter(true)).choice(t("No, thanks"), () -> answerWinter(false));
+            mPages.add(ask);
+        } else if (Winter.inSeason(this)) {
+            // already answered (a test build, or the question came before this intro): the event all the same
+            Page event = new Page(t("❄️ It is getting frosty in Mareshine"),
+                t("Until 6 January: the winter logo with its lights, light snow in the menus and Christmas music. "
+                    + "Music, snow and lights have their own switches under the logo on the main screen."),
+                (c, p, w, h, ms) -> { });
+            event.logo = true;
+            mPages.add(event);
+        }
+        mEclipseDisc = asset(EclipseMod.DISC_ASSET);
+        mSunburnDisc = asset("mods/sunburn-disc.png");
+        mTfDisc = asset("mods/tropicalfreeze-disc.png");
+        if (Mods.MENU && mTfDisc != null) {
+            Page gift = new Page(t("It stays frosty"),
+                t("We have a present for you. Open it!"),
+                (c, p, w, h, ms) -> drawGift(c, p, w, h, ms, false));
+            gift.next = t("Open");
+            gift.back = !mPages.isEmpty() && mPages.get(0).choices.isEmpty();
+            mPages.add(gift);
+            Page tf = new Page("Super Mario Tropical Freeze",
+                t("The mod by Super Mario Elements now runs in Mareshine: Isle Delfino frozen over, with icy "
+                    + "floors, fog and new music. You find it in the mod menu under SEARCH MODS."),
+                (c, p, w, h, ms) -> drawGift(c, p, w, h, ms, true));
+            tf.back = true;
+            mPages.add(tf);
+            Page ach = new Page(t("Achievements for the mods"),
+                t("Super Mario Sunburn and Super Mario Eclipse now have achievements of their own."),
+                this::drawTrophy);
+            ach.back = true;
+            mPages.add(ach);
+        }
+        Page fixes = new Page(t("Steadier than before"),
+            t("Phones with a Mali-G52 no longer crash with the ANGLE graphics driver: Mareshine now works "
+                + "around the driver's bug. Other crashes are fixed too, and freeze reports no longer come up by mistake."),
+            this::drawCheck);
+        fixes.back = !mPages.isEmpty();
+        mPages.add(fixes);
+    }
+
+    private void answerWinter(boolean on) {
+        Winter.answer(this, on);
+        Winter.updateMusic(this);
+        updateIntroSnow();
+        show(mIndex + 1);
+    }
+
+    private static final int GIFT_RED = 0xFFD42A2A, GIFT_RED_LIT = 0xFFE64545, GOLD = 0xFFFFC531, GOLD_DARK = 0xFFDD9A12;
+
+    // A red present with a golden ribbon and bow. Closed, it shakes now and
+    // then; opening, the lid flies off, a golden beam rises and the mod's disc
+    // comes up in it.
+    private void drawGift(Canvas c, Paint p, float w, float h, long ms, boolean open) {
+        float top = areaTop(h), bottom = areaBottom(h), room = bottom - top;
+        float bh = room * 0.56f, bw = bh * 1.2f, cx = w / 2f, by = bottom - dp(4);
+        float bodyTop = by - bh * 0.74f;
+        // closed: a shake every now and then; opening: a stronger one first
+        float shake;
+        if (open) {
+            shake = ms < 450 ? (float) Math.sin(ms / 450.0 * 8 * Math.PI) * 6f * (1 - ms / 450f) : 0f;
+        } else {
+            float t = (ms % 2400) / 2400f;
+            shake = t < 0.25f ? (float) Math.sin(t / 0.25 * 6 * Math.PI) * 5f * (1 - t / 0.25f) : 0f;
+        }
+        float lid = open ? Math.max(0f, Math.min(1f, (ms - 450) / 650f)) : 0f;  // the lid's way off
+        float beam = open ? Math.max(0f, Math.min(1f, (ms - 500) / 700f)) : 0f;
+        float rise = open ? Math.max(0f, Math.min(1f, (ms - 850) / 1100f)) : 0f;
+
+        if (beam > 0) {
+            // the beam: narrow at the box, wide at the top, breathing a little
+            float spread = bw * (1.5f + 0.06f * (float) Math.sin(ms / 700.0));
+            android.graphics.Path b = new android.graphics.Path();
+            b.moveTo(cx - bw * 0.42f, bodyTop);
+            b.lineTo(cx - spread, 0);
+            b.lineTo(cx + spread, 0);
+            b.lineTo(cx + bw * 0.42f, bodyTop);
+            b.close();
+            p.setStyle(Paint.Style.FILL);
+            p.setShader(new android.graphics.LinearGradient(0, bodyTop, 0, 0,
+                0xFFD95A | (Math.round(235 * beam) << 24), 0x00FFD95A, android.graphics.Shader.TileMode.CLAMP));
+            c.drawPath(b, p);
+            // its bright core
+            android.graphics.Path core = new android.graphics.Path();
+            core.moveTo(cx - bw * 0.2f, bodyTop);
+            core.lineTo(cx - spread * 0.45f, 0);
+            core.lineTo(cx + spread * 0.45f, 0);
+            core.lineTo(cx + bw * 0.2f, bodyTop);
+            core.close();
+            p.setShader(new android.graphics.LinearGradient(0, bodyTop, 0, 0,
+                0xFFF6C8 | (Math.round(170 * beam) << 24), 0x00FFF6C8, android.graphics.Shader.TileMode.CLAMP));
+            c.drawPath(core, p);
+            p.setShader(null);
+        }
+        if (rise > 0 && mTfDisc != null) {
+            // the disc, up out of the box, then floating and turning
+            float r = Math.min(room * 0.25f, dp(64));
+            float restY = top + r + dp(2), fromY = bodyTop + r * 0.2f;
+            float e = backOut(rise), y = fromY + (restY - fromY) * e;
+            if (rise >= 1f) y += (float) Math.sin((ms - 1950) / 800.0) * dp(4);
+            float size = r * (0.35f + 0.65f * Math.min(1f, e));
+            // rays behind it
+            p.setColor(0xFFD34A | (Math.round(110 * rise) << 24));
+            android.graphics.Path ray = new android.graphics.Path();
+            for (int i = 0; i < 12; i++) {
+                double a0 = Math.toRadians(ms * 0.02 + i * 30), a1 = Math.toRadians(ms * 0.02 + i * 30 + 12);
+                ray.moveTo(cx, y);
+                ray.lineTo(cx + (float) Math.cos(a0) * size * 2.1f, y + (float) Math.sin(a0) * size * 2.1f);
+                ray.lineTo(cx + (float) Math.cos(a1) * size * 2.1f, y + (float) Math.sin(a1) * size * 2.1f);
+                ray.close();
+            }
+            c.drawPath(ray, p);
+            p.setShader(new android.graphics.RadialGradient(cx, y, size * 1.7f,
+                0xFFE27A | (Math.round(220 * rise) << 24), 0x00FFE27A, android.graphics.Shader.TileMode.CLAMP));
+            c.drawCircle(cx, y, size * 1.7f, p);
+            p.setShader(null);
+            disc(c, p, mTfDisc, cx, y, size, ms * 0.03f, 255);
+            // sparks going up the beam
+            for (int i = 0; i < 14; i++) {
+                float sp = ((ms / 2600f) + i * 0.173f) % 1f;
+                float sx = cx + bw * (((i * 0.37f) % 1f) - 0.5f) * (0.8f + sp * 1.6f);
+                float sy = bodyTop - sp * (bodyTop - top + dp(30));
+                p.setColor(0xFFFFFF | (Math.round(200 * rise * (float) Math.sin(sp * Math.PI)) << 24));
+                c.drawCircle(sx, sy, dp(1.4f + (i % 3) * 0.7f), p);
+            }
+        }
+
+        c.save();
+        c.rotate(shake, cx, by);
+        // the box
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(GIFT_RED);
+        android.graphics.RectF body = new android.graphics.RectF(cx - bw / 2, bodyTop, cx + bw / 2, by);
+        c.drawRoundRect(body, dp(5), dp(5), p);
+        p.setColor(0x26000000);  // its right side in a little shade
+        c.drawRect(cx + bw * 0.22f, bodyTop, cx + bw / 2, by, p);
+        p.setColor(0x33000000);  // and under the lid
+        c.drawRect(cx - bw / 2, bodyTop, cx + bw / 2, bodyTop + bh * 0.07f, p);
+        ribbon(c, p, cx - bw * 0.085f, bodyTop, cx + bw * 0.085f, by);
+        // the lid, with the bow: flying off to the upper right when it opens
+        float lx = lid * lid * bw * 0.9f, ly = -(float) Math.sin(lid * Math.PI * 0.75) * bh * 1.5f;
+        int alpha = Math.round(255 * (1 - Math.max(0f, (lid - 0.55f) / 0.45f)));
+        if (alpha > 0) {
+            int layer = alpha < 255 ? c.saveLayerAlpha(0, 0, w, h, alpha) : c.save();
+            c.translate(lx, ly);
+            c.rotate(lid * 70f, cx, bodyTop);
+            float lt = bodyTop - bh * 0.2f, lb = bodyTop + bh * 0.05f;
+            p.setColor(GIFT_RED_LIT);
+            c.drawRoundRect(new android.graphics.RectF(cx - bw * 0.56f, lt, cx + bw * 0.56f, lb), dp(5), dp(5), p);
+            ribbon(c, p, cx - bw * 0.085f, lt, cx + bw * 0.085f, lb);
+            bow(c, p, cx, lt, bw, bh);
+            c.restoreToCount(layer);
+        }
+        c.restore();
+
+        if (!open) {
+            // a few glints around it
+            for (int i = 0; i < 6; i++) {
+                float t = ((ms / 1800f) + i * 0.31f) % 1f;
+                double a = 0.15 + i * (Math.PI - 0.3) / 5;
+                float gx = cx + (float) Math.cos(a) * bw * 0.85f, gy = bodyTop + bh * 0.2f - (float) Math.sin(a) * bh * 0.75f;
+                star(c, p, gx, gy, dp(7) * (float) Math.sin(t * Math.PI), GOLD);
+            }
+        }
+    }
+
+    // a golden band between two edges, lighter along its middle
+    private void ribbon(Canvas c, Paint p, float l, float t, float r, float b) {
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(GOLD);
+        c.drawRect(l, t, r, b, p);
+        p.setColor(0x66FFFFFF);
+        c.drawRect(l + (r - l) * 0.38f, t, l + (r - l) * 0.56f, b, p);
+    }
+
+    // the bow on the lid: two loops, two ends and the knot
+    private void bow(Canvas c, Paint p, float cx, float y, float bw, float bh) {
+        float lw = bw * 0.26f, lh = bh * 0.2f;
+        for (int side = -1; side <= 1; side += 2) {
+            c.save();
+            c.rotate(side * -22f, cx, y);
+            android.graphics.RectF loop = new android.graphics.RectF(side > 0 ? cx : cx - lw, y - lh, side > 0 ? cx + lw : cx, y);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(GOLD_DARK);
+            c.drawOval(loop, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(bw * 0.05f);
+            p.setColor(GOLD);
+            c.drawOval(loop, p);
+            c.restore();
+            // an end, hanging down over the lid
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(GOLD);
+            android.graphics.Path end = new android.graphics.Path();
+            end.moveTo(cx, y - lh * 0.2f);
+            end.lineTo(cx + side * bw * 0.2f, y + bh * 0.1f);
+            end.lineTo(cx + side * bw * 0.11f, y + bh * 0.13f);
+            end.close();
+            c.drawPath(end, p);
+        }
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(GOLD);
+        c.drawCircle(cx, y - lh * 0.3f, bw * 0.06f, p);
+    }
+
+    // a four-pointed glint
+    private void star(Canvas c, Paint p, float x, float y, float r, int color) {
+        if (r <= 0.5f) return;
+        android.graphics.Path s = new android.graphics.Path();
+        for (int i = 0; i < 8; i++) {
+            double a = i * Math.PI / 4;
+            float d = i % 2 == 0 ? r : r * 0.3f;
+            float px = x + (float) Math.cos(a) * d, py = y + (float) Math.sin(a) * d;
+            if (i == 0) s.moveTo(px, py);
+            else s.lineTo(px, py);
+        }
+        s.close();
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(color);
+        c.drawPath(s, p);
+    }
+
+    // a golden cup between the two mods' discs
+    private void drawTrophy(Canvas c, Paint p, float w, float h, long ms) {
+        float top = areaTop(h), bottom = areaBottom(h), room = bottom - top, cx = w / 2f;
+        float ch = room * 0.72f, cw = ch * 0.62f, y0 = top + (room - ch) / 2 + (float) Math.sin(ms / 900.0) * dp(3);
+        float r = Math.min(room * 0.24f, dp(58));
+        disc(c, p, mSunburnDisc, cx - cw - r * 0.9f, top + room / 2, r, ms * 0.03f, 255);
+        disc(c, p, mEclipseDisc, cx + cw + r * 0.9f, top + room / 2, r, -ms * 0.03f, 255);
+        // the handles
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(cw * 0.1f);
+        p.setColor(GOLD_DARK);
+        c.drawOval(new android.graphics.RectF(cx - cw * 0.78f, y0 + ch * 0.06f, cx - cw * 0.2f, y0 + ch * 0.42f), p);
+        c.drawOval(new android.graphics.RectF(cx + cw * 0.2f, y0 + ch * 0.06f, cx + cw * 0.78f, y0 + ch * 0.42f), p);
+        // the bowl, the stem and the foot
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(GOLD);
+        android.graphics.Path bowl = new android.graphics.Path();
+        bowl.moveTo(cx - cw * 0.5f, y0);
+        bowl.lineTo(cx + cw * 0.5f, y0);
+        bowl.cubicTo(cx + cw * 0.5f, y0 + ch * 0.5f, cx + cw * 0.18f, y0 + ch * 0.6f, cx, y0 + ch * 0.6f);
+        bowl.cubicTo(cx - cw * 0.18f, y0 + ch * 0.6f, cx - cw * 0.5f, y0 + ch * 0.5f, cx - cw * 0.5f, y0);
+        bowl.close();
+        c.drawPath(bowl, p);
+        c.drawRect(cx - cw * 0.07f, y0 + ch * 0.58f, cx + cw * 0.07f, y0 + ch * 0.82f, p);
+        p.setColor(GOLD_DARK);
+        c.drawRoundRect(new android.graphics.RectF(cx - cw * 0.36f, y0 + ch * 0.82f, cx + cw * 0.36f, y0 + ch), dp(4), dp(4), p);
+        p.setColor(0x55FFFFFF);
+        c.drawRect(cx - cw * 0.34f, y0 + ch * 0.06f, cx - cw * 0.22f, y0 + ch * 0.36f, p);
+        // a glint on its rim, now and then
+        float t = (ms % 2600) / 2600f;
+        star(c, p, cx + cw * 0.34f, y0 + ch * 0.08f, dp(11) * (t < 0.4f ? (float) Math.sin(t / 0.4 * Math.PI) : 0f), 0xFFFFFFFF);
+    }
+
+    // a check mark in a ring, drawn in
+    private void drawCheck(Canvas c, Paint p, float w, float h, long ms) {
+        float top = areaTop(h), bottom = areaBottom(h), cx = w / 2f, cy = (top + bottom) / 2;
+        float r = Math.min((bottom - top) * 0.36f, dp(80));
+        float ring = Math.max(0f, Math.min(1f, ms / 600f)), mark = Math.max(0f, Math.min(1f, (ms - 500) / 450f));
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeJoin(Paint.Join.ROUND);
+        p.setStrokeWidth(r * 0.14f);
+        p.setColor(0xFF46E06A);
+        c.drawArc(new android.graphics.RectF(cx - r, cy - r, cx + r, cy + r), -90, 360 * ring, false, p);
+        if (mark > 0) {
+            float[] x = {cx - r * 0.45f, cx - r * 0.1f, cx + r * 0.5f}, y = {cy + r * 0.02f, cy + r * 0.38f, cy - r * 0.36f};
+            float a = Math.min(1f, mark / 0.4f), b = Math.max(0f, (mark - 0.4f) / 0.6f);
+            android.graphics.Path m = new android.graphics.Path();
+            m.moveTo(x[0], y[0]);
+            m.lineTo(x[0] + (x[1] - x[0]) * a, y[0] + (y[1] - y[0]) * a);
+            if (b > 0) m.lineTo(x[1] + (x[2] - x[1]) * b, y[1] + (y[2] - y[1]) * b);
+            c.drawPath(m, p);
+        }
+        p.setStrokeCap(Paint.Cap.BUTT);
+        p.setStrokeJoin(Paint.Join.MITER);
+        p.setStyle(Paint.Style.FILL);
+    }
+
+    // --- a happy new year -----------------------------------------------------
+
+    private void newYear() {
+        String year = mId.substring(mId.lastIndexOf('_') + 1);
+        mPages.add(new Page(t("Happy New Year!"),
+            t("TheM3dium wishes all of you a happy new year. Thank you for using my app!"),
+            (c, p, w, h, ms) -> drawFireworks(c, p, w, h, ms, year)));
+    }
+
+    private static final int[] FIREWORKS = {0xFFFFC531, 0xFFFF3D8B, 0xFF2FB8C9, 0xFF46E06A, 0xFFFF7A1C, 0xFFB98CFF, 0xFFF4F8FF};
+
+    // rockets going up and bursting all over the night sky, the year below
+    private void drawFireworks(Canvas c, Paint p, float w, float h, long ms, String year) {
+        c.drawColor(0xFF050D1C);
+        final int rockets = 7;
+        final float period = 2800f;
+        for (int k = 0; k < rockets; k++) {
+            float at = ms + k * period / rockets + (k % 2) * 310;
+            int n = (int) (at / period);
+            float t = (at % period) / period;
+            int seed = (k * 73856093) ^ (n * 19349663);
+            float x = w * (0.1f + 0.8f * (((seed >>> 3) & 1023) / 1023f));
+            float y = h * (0.14f + 0.42f * (((seed >>> 13) & 1023) / 1023f));
+            int color = FIREWORKS[((seed >>> 23) & 0x7FFFFFFF) % FIREWORKS.length];
+            float size = dp(70) + dp(60) * (((seed >>> 7) & 255) / 255f);
+            p.setStyle(Paint.Style.FILL);
+            if (t < 0.22f) {
+                // the rocket, on its way up
+                float u = t / 0.22f, e = 1 - (1 - u) * (1 - u), ry = h + (y - h) * e;
+                p.setColor(0xFFF3B0 | (200 << 24));
+                c.drawCircle(x, ry, dp(2.2f), p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(dp(1.6f));
+                p.setColor(0xFFF3B0 | (90 << 24));
+                c.drawLine(x, ry, x, ry + dp(26) * (1 - u * 0.6f), p);
+                p.setStyle(Paint.Style.FILL);
+                continue;
+            }
+            float u = (t - 0.22f) / 0.78f;
+            float out = 1 - (1 - u) * (1 - u) * (1 - u), fall = dp(46) * u * u;
+            int alpha = Math.round(255 * (float) Math.pow(1 - u, 0.7));
+            if (alpha <= 2) continue;
+            // the flash of the burst
+            if (u < 0.12f) {
+                p.setColor(0xFFFFFF | (Math.round(150 * (1 - u / 0.12f)) << 24));
+                c.drawCircle(x, y, size * 0.35f * (u / 0.12f + 0.3f), p);
+            }
+            for (int i = 0; i < 40; i++) {
+                double a = i * (2 * Math.PI / 40) + (seed & 63) * 0.05;
+                float d = size * out * (i % 2 == 0 ? 1f : 0.62f);
+                float px = x + (float) Math.cos(a) * d, py = y + (float) Math.sin(a) * d + fall;
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(dp(1.3f));
+                p.setColor(color & 0x00FFFFFF | ((alpha / 2) << 24));
+                c.drawLine(x + (float) Math.cos(a) * d * 0.8f, y + (float) Math.sin(a) * d * 0.8f + fall, px, py, p);
+                p.setStyle(Paint.Style.FILL);
+                // twinkling towards the end
+                int tw = u > 0.55f && ((i + ms / 90) % 3 == 0) ? alpha / 3 : alpha;
+                p.setColor(color & 0x00FFFFFF | ((tw / 5) << 24));
+                c.drawCircle(px, py, dp(7), p);  // its glow
+                p.setColor(color & 0x00FFFFFF | (tw << 24));
+                c.drawCircle(px, py, dp(3), p);
+            }
+        }
+        // the year, golden, glowing a little
+        float ty = areaBottom(h) - dp(10), size = Math.min(dp(84), (areaBottom(h) - areaTop(h)) * 0.5f);
+        float glow = 0.75f + 0.25f * (float) Math.sin(ms / 600.0);
+        p.setShadowLayer(dp(18) * glow, 0, 0, 0xFFFFA41C);
+        text(c, p, year, w / 2f, ty, size, GOLD, Paint.Align.CENTER);
+        p.clearShadowLayer();
     }
 
     private android.graphics.Bitmap mLogo;
@@ -744,6 +1156,15 @@ public class IntroActivity extends AppActivity {
         root.addView(mView, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
+        // the winter logo, its lights running along the chain or dancing to the music
+        mWinterLogo = new WinterLogoView(this, null);
+        mWinterLogo.setWinter(true, true);
+        mWinterLogo.setChase(true);
+        mWinterLogo.setAdjustViewBounds(true);
+        mWinterLogo.setVisibility(View.GONE);
+        root.addView(mWinterLogo, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            Math.round(getResources().getDisplayMetrics().heightPixels * 0.4f), Gravity.CENTER_HORIZONTAL | Gravity.TOP));
+
         // the text, at the top between the shoulder buttons
         mPanel = new LinearLayout(this);
         mPanel.setOrientation(LinearLayout.VERTICAL);
@@ -806,6 +1227,14 @@ public class IntroActivity extends AppActivity {
         mText.setText(page.text);
         mLink.setText(page.link != null ? page.link : "");
         mLink.setVisibility(page.link != null ? View.VISIBLE : View.GONE);
+        mWinterLogo.setVisibility(page.logo ? View.VISIBLE : View.GONE);
+        if (page.logo) mPanel.post(() -> {  // between the text and the buttons, once they are laid out
+            float h = mView.getHeight(), top = areaTop(h), bottom = areaBottom(h);
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mWinterLogo.getLayoutParams();
+            lp.topMargin = Math.round(top);
+            lp.height = Math.max(1, Math.round(bottom - top));
+            mWinterLogo.setLayoutParams(lp);
+        });
         mPanel.setAlpha(0f);
         // the mods' first page: the text after the discs have landed
         long wait = index == 0 && Intro.MOD_MANAGER.equals(mId) ? LAND + 300 : 0;
@@ -833,7 +1262,7 @@ public class IntroActivity extends AppActivity {
                 skip.setOnClickListener(v -> skip());
                 addButton(skip);
             }
-            first = button(t(last ? "Got it" : "Next"), true);
+            first = button(page.next != null ? page.next : t(last ? "Got it" : "Next"), true);
             first.setOnClickListener(v -> {
                 if (mIndex == mTourAfter) startTour();
                 else show(mIndex + 1);

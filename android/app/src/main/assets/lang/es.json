@@ -1048,5 +1048,15 @@
  "Frame style": "Estilo del marco",
  "Winter": "Invierno",
  "Mod: %s": "Mod: %s",
- "The frame of the mod %s is used. Turn the mod off to choose here.": "Se usa el marco del mod %s. Desactiva el mod para elegir aquí."
+ "The frame of the mod %s is used. Turn the mod off to choose here.": "Se usa el marco del mod %s. Desactiva el mod para elegir aquí.",
+ "It stays frosty": "Sigue haciendo frío",
+ "We have a present for you. Open it!": "Tenemos un regalo para vosotros. ¡Abridlo!",
+ "The mod by Super Mario Elements now runs in Mareshine: Isle Delfino frozen over, with icy floors, fog and new music. You find it in the mod menu under SEARCH MODS.": "El mod de Super Mario Elements ya funciona en Mareshine: Isla Delfino congelada, con suelos helados, niebla y música nueva. Lo encuentras en el menú de mods, en BUSCAR MODS.",
+ "Achievements for the mods": "Logros para los mods",
+ "Super Mario Sunburn and Super Mario Eclipse now have achievements of their own.": "Super Mario Sunburn y Super Mario Eclipse ahora tienen sus propios logros.",
+ "Steadier than before": "Más estable que antes",
+ "Phones with a Mali-G52 no longer crash with the ANGLE graphics driver: Mareshine now works around the driver's bug. Other crashes are fixed too, and freeze reports no longer come up by mistake.": "Los teléfonos con Mali-G52 ya no se cierran con el controlador gráfico ANGLE: Mareshine ahora evita el fallo del controlador. También se han corregido otros cierres, y los avisos de bloqueo ya no aparecen por error.",
+ "Happy New Year!": "¡Feliz Año Nuevo!",
+ "TheM3dium wishes all of you a happy new year. Thank you for using my app!": "TheM3dium os desea a todos un feliz año nuevo. ¡Gracias por usar mi app!",
+ "❄️ It is getting frosty in Mareshine": "❄️ Llega el frío a Mareshine"
 }

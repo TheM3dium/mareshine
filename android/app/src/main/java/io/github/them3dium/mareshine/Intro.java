@@ -27,12 +27,17 @@ final class Intro {
     static final String SWAP_AB = "swap_ab";                // A and B can change places in the menus
     static final String TOUR_AGAIN = "tour_again";          // every tour can be watched again
     static final String WELCOME = "welcome";                // a new install: which tours to see
+    static final String WINTER_UPDATE = "winter_2_2";       // 2.2: the winter event, Tropical Freeze, what else is new
+    // A happy new year, once, from 31 December to the winter event's last day
+    // (6 January): its id carries the new year, so it comes again a year on.
+    private static final String NEW_YEAR = "new_year_";
+    private static final String NEW_YEAR_FORCE = "SMS_LAUNCHER_NEW_YEAR_FORCE";  // "1": any day, for testing
 
     // in the order they are shown
-    private static final String[] ALL = {WELCOME, GAMECUBE_TOUCH, EDITOR_FOLD, MOD_MANAGER, SKIP_MOVIES, GYRO_AIMING,
-        SWAP_AB, TOUR_AGAIN};
+    private static final String[] ALL = {WELCOME, WINTER_UPDATE, GAMECUBE_TOUCH, EDITOR_FOLD, MOD_MANAGER, SKIP_MOVIES,
+        GYRO_AIMING, SWAP_AB, TOUR_AGAIN};
     private static final String[] UPDATES_ONLY = {EDITOR_FOLD, TOUR_AGAIN};
-    private static final String[] NEWEST = {GYRO_AIMING, SWAP_AB, TOUR_AGAIN};
+    private static final String[] NEWEST = {WINTER_UPDATE, GYRO_AIMING, SWAP_AB, TOUR_AGAIN};
     private static final String ASK_WELCOME = "SMS_INTRO_WELCOME";
 
     private static final String SEEN = "SMS_LAUNCHER_INTROS_SEEN";
@@ -48,6 +53,7 @@ final class Intro {
                 return c.getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_GYROSCOPE);
             case SWAP_AB: return controllerConnected();       // shown once one is there
             case TOUR_AGAIN: return true;
+            case WINTER_UPDATE: return true;
             case WELCOME: return "1".equals(Settings.read(c).get(ASK_WELCOME));
             default: return false;
         }
@@ -65,7 +71,19 @@ final class Intro {
     static String pending(Context c) {
         List<String> seen = list(Settings.read(c), SEEN);
         for (String id : ALL) if (!seen.contains(id) && applies(c, id)) return id;
-        return null;
+        String newYear = newYear(Settings.read(c));
+        return newYear != null && !seen.contains(newYear) ? newYear : null;
+    }
+
+    static boolean isNewYear(String id) { return id != null && id.startsWith(NEW_YEAR); }
+
+    // the new year's greeting due today, or null
+    private static String newYear(Map<String, String> s) {
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        int m = c.get(java.util.Calendar.MONTH), d = c.get(java.util.Calendar.DAY_OF_MONTH), y = c.get(java.util.Calendar.YEAR);
+        if (m == java.util.Calendar.DECEMBER && d == 31) return NEW_YEAR + (y + 1);
+        if (m == java.util.Calendar.JANUARY && d <= 6) return NEW_YEAR + y;
+        return "1".equals(s.get(NEW_YEAR_FORCE)) ? NEW_YEAR + (y + 1) : null;
     }
 
     // whether the intro asks for a choice (an update), not only shows

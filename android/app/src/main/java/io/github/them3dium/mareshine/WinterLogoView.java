@@ -96,6 +96,14 @@ public class WinterLogoView extends ImageView {
         for (int b = 0; b < BANDS; b++) mTints[b] = new PorterDuffColorFilter(GLOW_COLORS[b], PorterDuff.Mode.SRC_IN);
     }
 
+    private boolean mChase;
+
+    /** Without music the lights run along the chain instead of all being on (the winter update's intro). */
+    void setChase(boolean chase) {
+        mChase = chase;
+        invalidate();
+    }
+
     /** Shows the winter logo, with its lights on or off (or the normal logo). */
     void setWinter(boolean on, boolean lights) {
         setImageResource(on ? R.drawable.mareshine_logo_winter : R.drawable.mareshine_logo);
@@ -131,7 +139,8 @@ public class WinterLogoView extends ImageView {
         boolean playing = pos >= 0 && mTrack != null;
         boolean settling = false;
         for (int b = 0; b < BANDS; b++) {
-            float target = playing ? FLOOR + (1 - FLOOR) * level(pos, b) : 1f;
+            float target = playing ? FLOOR + (1 - FLOOR) * level(pos, b)
+                : mChase ? FLOOR + (1 - FLOOR) * (0.5f + 0.5f * (float) Math.sin(now / 260.0 - b * 2 * Math.PI / BANDS)) : 1f;
             // the track has its own fade; this only smooths music on / off
             float k = playing ? 1f : 1 - (float) Math.exp(-dt * 4);
             mShown[b] += (target - mShown[b]) * k;
@@ -166,7 +175,7 @@ public class WinterLogoView extends ImageView {
         }
         canvas.restoreToCount(save);
 
-        if (playing || settling) postInvalidateOnAnimation();
+        if (playing || settling || mChase) postInvalidateOnAnimation();
         else mLast = 0;
     }
 
