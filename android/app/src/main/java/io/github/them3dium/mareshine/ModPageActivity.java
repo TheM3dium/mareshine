@@ -593,9 +593,33 @@ public class ModPageActivity extends AppActivity {
             b.setText(s);
             b.setLineSpacing(0, 0.9f);
         }
-        b.setOnClickListener(v -> act(o, index));
+        // a frame the mod brings shows only with the frame around cutscenes on: greyed until then
+        if (needsFrame(o)) b.setAlpha(0.4f);
+        b.setOnClickListener(v -> {
+            if (needsFrame(o)) {  // a hint first, the second tap turns the frame on
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - mFrameHint < 4000) {
+                    mFrameHint = 0;
+                    CutscenePack.turnFrameOn(this);
+                    refresh();
+                } else {
+                    mFrameHint = now;
+                    android.widget.Toast.makeText(this, t(CutscenePack.FRAME_OFF_HINT), android.widget.Toast.LENGTH_LONG).show();
+                }
+                return;
+            }
+            act(o, index);
+        });
         b.setOnLongClickListener(v -> longPress(o));
         return b;
+    }
+
+    private long mFrameHint;  // when the hint "the frame is off" was last shown
+
+    // a switch for a cutscene frame of the mod's, while the frame around cutscenes is off
+    private boolean needsFrame(Mods.Option o) {
+        return o.isToggle() && !o.folder.isEmpty() && Mods.frameIn(new java.io.File(mMod.dir, o.folder)) != null
+            && !CutscenePack.frameOn(this);
     }
 
     private void act(Mods.Option o, int index) {

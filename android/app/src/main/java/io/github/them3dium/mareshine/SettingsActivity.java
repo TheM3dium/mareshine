@@ -1416,6 +1416,7 @@ public class SettingsActivity extends AppActivity {
         String[] sections;
         java.util.function.Supplier<String>[] values;
         java.util.function.BooleanSupplier[] gold; // the value is shown gold (switched on)
+        java.util.function.BooleanSupplier[] dim;  // the row is greyed (it needs another switch); null: none
         Runnable[] acts;
         boolean orderedNavigation;
         Slider inlineSlider;   // shown in the panel itself, under a heading of its own name
@@ -1587,6 +1588,8 @@ public class SettingsActivity extends AppActivity {
             boolean g = mPanel.gold[i].getAsBoolean();
             mPanelValues[i].setText(t(mPanel.values[i].get()));
             mPanelValues[i].setTextColor(g ? GOLD : TEXT);
+            boolean dim = mPanel.dim != null && mPanel.dim[i] != null && mPanel.dim[i].getAsBoolean();
+            ((View) mPanelValues[i].getParent()).setAlpha(dim ? 0.4f : 1f);
         }
     }
 
@@ -1665,6 +1668,8 @@ public class SettingsActivity extends AppActivity {
             () -> skipMoviesOn() ? "On" : "Off"};
         p.gold = new java.util.function.BooleanSupplier[] {() -> mp4On() || cutscenesOn(), () -> false, () -> false,
             this::frameOn, () -> false, this::fillOn, this::skipMoviesOn};
+        // the style only counts with the frame on: greyed until then
+        p.dim = new java.util.function.BooleanSupplier[] {null, null, null, null, () -> !frameOn(), null, null};
         p.acts = new Runnable[] {this::nextCutsceneMode, this::chooseCutscenes, this::chooseMp4, this::toggleFrame,
             this::nextFrameStyle,
             () -> { mSettings.put(FILL_SETTING, fillOn() ? "0" : "1"); saved(); },
@@ -1699,7 +1704,21 @@ public class SettingsActivity extends AppActivity {
         return st.equals("normal") ? "Normal" : st.equals("winter") ? "Winter" : "Automatic";
     }
 
+    private long mFrameHint;  // when the hint "the frame is off" was last shown
+
     private void nextFrameStyle() {
+        // with the frame off the style does nothing: a hint first, the second tap turns the frame on
+        if (!frameOn()) {
+            long now = android.os.SystemClock.uptimeMillis();
+            if (now - mFrameHint < 4000) {
+                mFrameHint = 0;
+                toggleFrame();
+            } else {
+                mFrameHint = now;
+                android.widget.Toast.makeText(this, t(CutscenePack.FRAME_OFF_HINT), android.widget.Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
         String mod = Mods.frameModName(this);
         if (mod != null) {
             android.widget.Toast.makeText(this, t("The frame of the mod %s is used. Turn the mod off to choose here.", mod),

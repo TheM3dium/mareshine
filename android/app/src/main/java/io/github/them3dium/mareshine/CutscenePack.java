@@ -158,6 +158,26 @@ final class CutscenePack {
         return v.equals("normal") || v.equals("winter") ? v : "auto";
     }
 
+    static final String FRAME_SETTING = "SMS_CUTSCENE_FRAME";
+    static final String FRAME_OFF_HINT = "The frame is off. Tap again to turn it on.";
+
+    // whether the frame around cutscenes is on (Settings → Video); off, no frame shows, a mod's neither
+    static boolean frameOn(Context c) {
+        String v = Settings.read(c).getOrDefault(FRAME_SETTING, "0");
+        return !v.equals("0") && !v.isEmpty();
+    }
+
+    // turns it on, as the switch in the settings does; false without the app's frame image
+    static boolean turnFrameOn(Context c) {
+        installFrames(c);
+        File f = new File(dir(c), "overlay.png");
+        if (!f.isFile()) return false;
+        java.util.Map<String, String> m = Settings.read(c);
+        m.put(FRAME_SETTING, f.getAbsolutePath());
+        Settings.write(c, m);
+        return true;
+    }
+
     // The frame image the game gets: an enabled mod's, else the chosen style's.
     static File frameFor(Context c) {
         File mod = Mods.frame(c);
