@@ -300,11 +300,12 @@ final class Winter {
     }
 
     // The tracks are mastered loud (brought to about -14.6 LUFS, like a streamed song) and
-    // is meant to stay in the background: the full step is 26 dB down (chosen
-    // by ear on a phone, 20.11.2026), the two lower ones 6 dB apart below it.
+    // is meant to stay in the background: the full step is 18 dB down, the two
+    // lower ones 6 dB apart below it (26 dB down, chosen on 20.11.2026, proved
+    // too quiet: the lowest step was hardly heard at full media volume).
     static float gain(int level) {
         if (level <= 0) return 0f;
-        float db = level <= 33 ? -38f : level <= 66 ? -32f : -26f;
+        float db = level <= 33 ? -30f : level <= 66 ? -24f : -18f;
         return (float) Math.pow(10, db / 20);
     }
 
