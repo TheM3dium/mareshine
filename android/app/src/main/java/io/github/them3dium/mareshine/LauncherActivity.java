@@ -278,6 +278,8 @@ public class LauncherActivity extends AppActivity {
         super.onResume();
         if (sFadeIn) {  // back from the last intro, which faded out
             sFadeIn = false;
+            // the winter switches are out once more, to be seen (they fold away by themselves)
+            if (Winter.on(io.github.them3dium.mareshine.Settings.read(this))) Winter.set(this, Winter.FOLDED, false);
             View root = findViewById(android.R.id.content);
             if (root != null) {
                 root.setAlpha(0f);
