@@ -118,7 +118,10 @@ final class WinterFrame {
         return all;
     }
 
-    static void download(String url, File to, long size) throws IOException {
+    static void download(String url, File to, long size) throws IOException { download(url, to, size, null); }
+
+    /** `bytes` hears of every piece written (for a progress bar). */
+    static void download(String url, File to, long size, java.util.function.LongConsumer bytes) throws IOException {
         long max = size > 0 ? size : 16L << 20;
         for (int redirects = 0; redirects < 8; redirects++) {
             java.net.URLConnection uc = new URL(url).openConnection();
@@ -143,6 +146,7 @@ final class WinterFrame {
                         got += n;
                         if (got > max) throw new IOException("larger than expected");
                         out.write(buf, 0, n);
+                        if (bytes != null) bytes.accept(n);
                     }
                 }
                 return;

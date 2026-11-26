@@ -421,9 +421,13 @@ public class IntroActivity extends AppActivity {
 
     private void answerWinter(boolean on) {
         Winter.answer(this, on);
-        Winter.updateMusic(this);
         updateIntroSnow();
-        show(mIndex + 1);
+        // turned on: the music is a download; the next page comes with it playing
+        final int next = mIndex + 1;
+        fetchWinterMusic(() -> {
+            Winter.updateMusic(this);
+            show(next);
+        });
     }
 
     private static final int GIFT_RED = 0xFFD42A2A, GIFT_RED_LIT = 0xFFE64545, GOLD = 0xFFFFC531, GOLD_DARK = 0xFFDD9A12;

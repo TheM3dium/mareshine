@@ -23,6 +23,12 @@ import java.util.Locale;
 // are. Offline, the next launcher start in the event tries again.
 final class WinterMusic {
     private static volatile boolean sRunning;
+    // the running fetch's bytes, for the progress dialog (AppActivity.fetchWinterMusic)
+    private static volatile long sDone, sTotal;
+
+    static boolean running() { return sRunning; }
+    static long done() { return sDone; }
+    static long total() { return sTotal; }
     private static final Handler sMain = new Handler(Looper.getMainLooper());
 
     private WinterMusic() {}
@@ -75,9 +81,8 @@ final class WinterMusic {
         Context app = c.getApplicationContext();
         if (sRunning || !Winter.on(Settings.read(app)) || complete(app)) return;
         sRunning = true;
-        // nothing shows the fetching otherwise, and the music comes a little later
-        sMain.post(() -> android.widget.Toast.makeText(app, L.t("Downloading the winter music…"),
-            android.widget.Toast.LENGTH_LONG).show());
+        sDone = 0;
+        sTotal = 0;
         new Thread(() -> {
             boolean ok = false;
             try {
@@ -94,12 +99,19 @@ final class WinterMusic {
         File d = dir(c);
         if (!d.isDirectory() && !d.mkdirs()) return false;
         boolean all = true;
+        List<WinterFrame.Item> todo = new ArrayList<>();
+        long total = 0;
         for (WinterFrame.Item it : list(c)) {
+            if (it.sha256.equals(WinterFrame.sha256(new File(d, it.name)))) continue;
+            todo.add(it);
+            total += it.size;
+        }
+        sTotal = total;
+        for (WinterFrame.Item it : todo) {
             File dst = new File(d, it.name);
-            if (it.sha256.equals(WinterFrame.sha256(dst))) continue;
             File part = new File(d, it.name + ".part");
             try {
-                WinterFrame.download(it.url, part, it.size);
+                WinterFrame.download(it.url, part, it.size, n -> sDone += n);
                 if (!it.sha256.equals(WinterFrame.sha256(part))) throw new IOException("SHA-256 differs");
                 dst.delete();
                 if (!part.renameTo(dst)) throw new IOException("cannot move to " + dst);

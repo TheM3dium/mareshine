@@ -1187,7 +1187,11 @@ public class LauncherActivity extends AppActivity {
             .setMessage(t("Until 6 January it can snow in the menus, with Christmas music and a winter logo. "
                 + "Turn it on?\n\nMusic and snow each have a switch under the logo, and all of it can be "
                 + "turned off in Settings → OTHER."))
-            .setPositiveButton(t("Turn on"), (d, w) -> { Winter.answer(this, true); updateWinter(); showWinter(); })
+            .setPositiveButton(t("Turn on"), (d, w) -> {
+                Winter.answer(this, true);
+                updateWinter();
+                fetchWinterMusic(this::showWinter);
+            })
             .setNegativeButton(t("No, thanks"), (d, w) -> Winter.answer(this, false))
             .setCancelable(false)
             .show();

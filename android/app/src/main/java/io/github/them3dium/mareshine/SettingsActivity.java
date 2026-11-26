@@ -136,7 +136,7 @@ public class SettingsActivity extends AppActivity {
                 Settings.write(SettingsActivity.this, mSettings);
                 if ("1".equals(values[i])) {
                     WinterFrame.fetchIfNeeded(SettingsActivity.this);
-                    WinterMusic.fetchIfNeeded(SettingsActivity.this);
+                    fetchWinterMusic(null);
                 }
                 refreshValues();
             }

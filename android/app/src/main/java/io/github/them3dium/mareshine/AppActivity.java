@@ -323,6 +323,49 @@ public class AppActivity extends Activity {
 
     static final String CHOICE_MESSAGE = "choice_message";
 
+    // The winter music's download, shown with the dialog and bar the mods'
+    // downloads have. `then` runs once: when the tracks are there, when the
+    // download gave up (offline: the event then runs without music until a
+    // later start fetches it), or when the dialog is closed (it goes on behind).
+    void fetchWinterMusic(Runnable then) {
+        if (!Winter.on(Settings.read(this)) || WinterMusic.complete(this)) {
+            if (then != null) then.run();
+            return;
+        }
+        WinterMusic.fetchIfNeeded(this);
+        final String text = L.t("Downloading the winter music…");
+        final android.app.Dialog dlg = choice(L.t("Winter music"), text, new String[0], new Runnable[0]);
+        final boolean[] ran = {false};
+        final Runnable once = () -> {
+            if (ran[0]) return;
+            ran[0] = true;
+            if (then != null) then.run();
+        };
+        dlg.setOnDismissListener(d -> once.run());
+        final long shown = android.os.SystemClock.uptimeMillis();
+        final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        h.post(new Runnable() {
+            @Override public void run() {
+                if (!dlg.isShowing()) return;
+                long done = WinterMusic.done(), total = WinterMusic.total();
+                boolean over = !WinterMusic.running();
+                if (total > 0) {
+                    if (over && WinterMusic.complete(AppActivity.this)) done = total;
+                    done = Math.min(done, total);
+                    choiceProgress(dlg, text + "\n" + String.format(java.util.Locale.ROOT, "%d %%  ·  %.1f / %.1f MB",
+                        done * 100 / total, done / 1e6, total / 1e6), (float) done / total);
+                }
+                // done: a moment to be seen, also when it took no time
+                if (over && android.os.SystemClock.uptimeMillis() - shown >= 1200) {
+                    Winter.updateMusic(AppActivity.this);
+                    dlg.dismiss();
+                    return;
+                }
+                h.postDelayed(this, 150);
+            }
+        });
+    }
+
     // "  ·  37 %" after a progress text (nothing when the total is unknown)
     static String pct(long done, long total) {
         return total > 0 ? "  ·  " + Math.min(100, done * 100 / total) + " %" : "";
