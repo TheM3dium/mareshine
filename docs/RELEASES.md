@@ -34,14 +34,17 @@ That is why the stable version a beta goes back to has a versionCode far above t
 | 2.1.5 | 1018 |
 | test builds of 2.1.6 | 1019 |
 | 2.1.6 | 1020 |
-| test builds after 2.1.6 | 1021 |
+| test builds after 2.1.6, and of 2.2.0 | 1021 to 1099 |
+| 2.2.0 | 1100 |
 
-The next release needs at least 1022.
+From 2.2.0 on a release takes the next full hundred (2.2.0 = 1100, the one after it 1200, hotfixes too), and test builds the numbers in between (1101 to 1199 after 2.2.0), so a test build never takes a release's number.
+The next release needs 1200.
 
 ## Mods' plugins
 
 A mod's native code can be a plugin the app fetches (`ModPlugin.java`, `src/port_include/mareshine_plugin.h`): `android/app/src/main/assets/plugins.json` lists, per mod, the game build it is made for and, per ABI, its URL and SHA-256.
 The files are assets of the release tagged `plugins`, named `lib<mod>-<game build>-<abi>.so`.
+The winter cutscene frame's images (`assets/winter-frame.json`) and the winter event's music (`assets/winter-music.json`) are assets of the same release, fetched when the winter event is turned on.
 
 The game build is a hash of the game's headers. A release that changes none of them keeps it, and the plugins stay as they are.
 When it changes, the configure step warns (`plugins.json: … is made for game build …`). Then, before publishing the release:
