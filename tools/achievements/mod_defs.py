@@ -280,8 +280,6 @@ tf += [
         T("Slide over ice for 10 seconds in a row.", "Rutsch 10 Sekunden am Stück über Eis.")),
     own("ice.momentum_jump", "ice", T("Taking the Momentum", "Schwung mitgenommen"),
         T("Jump off an ice floor at full speed.", "Spring mit vollem Tempo von einer Eisfläche ab.")),
-    own("ice.all_worlds", "ice", T("Ice Desert", "Eiswüste"),
-        T("Slide over ice in all seven worlds.", "Rutsch in allen sieben Welten über Eis."), target=7),
     own("ice.no_brakes", "ice", T("Brake Failure", "Bremsversagen"),
         T("Slide off the ice and lose a life.", "Rutsch auf Eis in einen Abgrund."), secret=True),
 ]

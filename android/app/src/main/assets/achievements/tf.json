@@ -285,20 +285,6 @@
    }
   },
   {
-   "id": "tf.ice.all_worlds",
-   "category": "ice",
-   "target": 7,
-   "secret": false,
-   "title": {
-    "en": "Ice Desert",
-    "de": "Eiswüste"
-   },
-   "description": {
-    "en": "Slide over ice in all seven worlds.",
-    "de": "Rutsch in allen sieben Welten über Eis."
-   }
-  },
-  {
    "id": "tf.ice.no_brakes",
    "category": "ice",
    "target": 0,

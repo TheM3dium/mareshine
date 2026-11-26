@@ -13,21 +13,6 @@ namespace {
 
 const u16 kIceFloor = 0x901; // the mod's ice floor (its collision type)
 
-// the seven worlds' stages, the bit each sets for "ice in all worlds"
-int worldBit(int stage)
-{
-	switch (stage) {
-	case 2: return 0; // Bianco Hills
-	case 3: return 1; // Ricco Harbor
-	case 4: return 2; // Gelato Beach
-	case 5: return 3; // Pinna Park
-	case 6: return 4; // Sirena Beach
-	case 9: return 5; // Noki Bay
-	case 8: return 6; // Pianta Village
-	default: return -1;
-	}
-}
-
 int s_onIce;      // frames in a row on the ice, on the ground
 int s_sinceIce = 1000; // frames since Mario was last on the ice
 bool s_wasDown;
@@ -48,9 +33,6 @@ extern "C" void port_ach_tf_frame(void)
 		// sliding: moving over it (standing still does not count for the 10 seconds)
 		s_onIce = m->mForwardVel > 5.0f || m->mForwardVel < -5.0f ? s_onIce + 1 : 0;
 		s_sinceIce = 0;
-		int bit = worldBit(gpApplication.mCurrArea.unk0);
-		if (bit >= 0)
-			port_ach_bits_add(PORT_ACH_TF_ICE_ALL_WORLDS, bit);
 		if (s_onIce >= 300) // 10 seconds at 30 a second
 			port_ach_unlock(PORT_ACH_TF_ICE_SKATE_10S);
 	} else {
