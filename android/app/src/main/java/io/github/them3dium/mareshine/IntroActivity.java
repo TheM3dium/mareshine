@@ -383,7 +383,7 @@ public class IntroActivity extends AppActivity {
             mPages.add(tf);
             // a new install that skipped the tours: the event and the present, not an update's changes
             if (Intro.brief(this, mId) && !mPages.isEmpty()) return;
-            Page ach = new Page(t("Achievements for the mods"),
+            Page ach = new Page(t("More achievements"),
                 t("Super Mario Sunburn, Super Mario Eclipse and Super Mario Tropical Freeze now have achievements of their own."),
                 this::drawTrophy);
             ach.back = true;
