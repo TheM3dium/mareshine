@@ -302,6 +302,7 @@ public class LauncherActivity extends AppActivity {
         gameButtons();
         showWinter();
         WinterFrame.fetchIfNeeded(this);  // after a start offline: try again
+        WinterMusic.fetchIfNeeded(this);
         if (firstStart) {
             StartLog.mark(this, "launcher: disc looked at");
             getWindow().getDecorView().post(() -> StartLog.mark(this, "launcher shown"));

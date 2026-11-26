@@ -61,7 +61,7 @@ final class WinterFrame {
     // Test builds: SMS_PLUGIN_BASE in settings.txt serves the files from
     // elsewhere (a test server or a file:// folder before they are published),
     // as for the mods' plugins; the SHA-256 still decides.
-    private static String base(Context c, String url) {
+    static String base(Context c, String url) {
         if (!CrashLog.BuildConfigInfo.version(c).contains("dev")) return url;
         String b = Settings.read(c).getOrDefault("SMS_PLUGIN_BASE", "").trim();
         if (b.isEmpty()) return url;
@@ -118,7 +118,7 @@ final class WinterFrame {
         return all;
     }
 
-    private static void download(String url, File to, long size) throws IOException {
+    static void download(String url, File to, long size) throws IOException {
         long max = size > 0 ? size : 16L << 20;
         for (int redirects = 0; redirects < 8; redirects++) {
             java.net.URLConnection uc = new URL(url).openConnection();

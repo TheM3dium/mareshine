@@ -107,7 +107,10 @@ final class Winter {
         }
         s.put(ASKED, Integer.toString(season(s)));
         Settings.write(c, s);
-        if (on) WinterFrame.fetchIfNeeded(c);  // the winter cutscene frame is a download
+        if (on) {  // the winter cutscene frame and the music are downloads
+            WinterFrame.fetchIfNeeded(c);
+            WinterMusic.fetchIfNeeded(c);
+        }
     }
 
     static void set(Context c, String key, boolean on) {
@@ -151,7 +154,7 @@ final class Winter {
     // The tracks play one after the other, round and round.
 
     /** The tracks, in order; each has its light organ track at the same index (WinterLogoView). */
-    static final int[] TRACKS = {R.raw.winter_music_1, R.raw.winter_music_2, R.raw.winter_music_3};
+    static final int[] TRACKS = {1, 2, 3};  // their numbers: the files are a download (WinterMusic)
 
     private static MediaPlayer sPlayer;
     private static int sTrack;
@@ -216,7 +219,12 @@ final class Winter {
     }
 
     private static boolean open() {
-        MediaPlayer p = MediaPlayer.create(sAppCtx, TRACKS[sTrack],
+        // the tracks are a download: without them no music yet (it starts once they are there)
+        if (!WinterMusic.complete(sAppCtx)) {
+            WinterMusic.fetchIfNeeded(sAppCtx);
+            return false;
+        }
+        MediaPlayer p = MediaPlayer.create(sAppCtx, android.net.Uri.fromFile(WinterMusic.track(sAppCtx, TRACKS[sTrack])), null,
             new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build(), 0);
         if (p == null) return false;

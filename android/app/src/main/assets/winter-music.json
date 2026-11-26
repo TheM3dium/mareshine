@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "name": "winter_music_1.ogg",
+      "url": "https://github.com/TheM3dium/mareshine/releases/download/plugins/winter_music_1.ogg",
+      "sha256": "f7acdb04072a03ac2c8ea71286814c1e02829b9a2a0a6e999b68c40381f04628",
+      "size": 2785545
+    },
+    {
+      "name": "winter_music_2.ogg",
+      "url": "https://github.com/TheM3dium/mareshine/releases/download/plugins/winter_music_2.ogg",
+      "sha256": "3fdefcc25fba5cbb5fcaee04a80fd181ac5813b5748774ac66c1bbc860b51892",
+      "size": 3568443
+    },
+    {
+      "name": "winter_music_3.ogg",
+      "url": "https://github.com/TheM3dium/mareshine/releases/download/plugins/winter_music_3.ogg",
+      "sha256": "01b8fcffc4e8a919541e134ef9430214d5e652667e251ca343bf80538808186f",
+      "size": 2947240
+    }
+  ]
+}

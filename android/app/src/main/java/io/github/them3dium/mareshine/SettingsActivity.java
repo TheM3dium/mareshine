@@ -134,7 +134,10 @@ public class SettingsActivity extends AppActivity {
                 if ("1".equals(values[i])) { mSettings.put(Winter.SNOW, "1"); mSettings.put(Winter.LIGHTS, "1"); mSettings.put(Winter.MUSIC, "100"); }
                 mSettings.put(Winter.ASKED, Integer.toString(Winter.season(mSettings)));
                 Settings.write(SettingsActivity.this, mSettings);
-                if ("1".equals(values[i])) WinterFrame.fetchIfNeeded(SettingsActivity.this);
+                if ("1".equals(values[i])) {
+                    WinterFrame.fetchIfNeeded(SettingsActivity.this);
+                    WinterMusic.fetchIfNeeded(SettingsActivity.this);
+                }
                 refreshValues();
             }
             updateWinter();
