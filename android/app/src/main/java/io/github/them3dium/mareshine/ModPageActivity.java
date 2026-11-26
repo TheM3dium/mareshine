@@ -710,7 +710,7 @@ public class ModPageActivity extends AppActivity {
             Mods.Value v = o.values.get(i);
             labels[i] = (v.id.equals(cur) ? "✓  " : "") + v.label;
             if (v.id.equals(ModLanguage.HD_DEFAULT) && !ModFlows.ownPackOn(this))
-                acts[i] = () -> choice(t("HD textures"), t("Mareshine's HD texture pack is not installed or switched "
+                acts[i] = () -> choice(t("HD textures"), t("The HD texture pack Mareshine uses is not installed or switched "
                     + "off. Install it in Settings → VIDEO → HD textures."), new String[] {t("OK")}, new Runnable[] {null});
             else if (v.id.equals(ModLanguage.HD_OWN) && !own.isDirectory())
                 acts[i] = () -> ModFlows.pick(this, ModFlows.PICK_TEXTURES);

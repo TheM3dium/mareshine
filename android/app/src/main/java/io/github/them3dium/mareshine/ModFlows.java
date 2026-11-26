@@ -72,7 +72,7 @@ final class ModFlows {
             return;
         }
         a.choice(t("Texture packs that do not go together"),
-            t("Mareshine's HD texture pack (Settings → VIDEO → HD textures) is on too. It is made for Super Mario "
+            t("The HD texture pack Mareshine uses (Settings → VIDEO → HD textures) is on too. It is made for Super Mario "
                 + "Sunshine: with Super Mario Eclipse's own pack, textures of both get mixed."),
             new String[] {t("Switch Mareshine's pack off"), t("Keep both on")}, new Runnable[] {() -> {
                 Settings.put(a, "SMS_HD_TEXTURES", "0");

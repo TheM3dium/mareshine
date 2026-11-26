@@ -66,7 +66,7 @@ final class ModLanguage {
         hd.id = HD;
         hd.label = L.t("HD Textures");
         hd.def = HD_DEFAULT;
-        hd.text = L.t("Mareshine's HD texture pack is made for Super Mario Sunshine and fits most of %s. Or import "
+        hd.text = L.t("The HD texture pack Mareshine uses is made for Super Mario Sunshine and may fit parts of %s. Or import "
             + "another Dolphin texture pack (.zip) for it.", m.name);
         hd.values.add(value(HD_OFF, L.t("Off")));
         hd.values.add(value(HD_DEFAULT, L.t("Default pack")));
