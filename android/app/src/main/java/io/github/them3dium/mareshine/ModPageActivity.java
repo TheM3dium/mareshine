@@ -531,6 +531,10 @@ public class ModPageActivity extends AppActivity {
     private String shown(Mods.Option o) {
         String v = mMod.value(o);
         if (o.isToggle()) return t(v.equals("1") ? "On" : "Off");
+        // the default HD pack while none is installed or it is off: say so, not "Default pack"
+        if (o.id.equals(ModLanguage.HD) && ModLanguage.applies(mMod) && ModLanguage.HD_DEFAULT.equals(ModLanguage.hd(mMod))
+                && !ModFlows.ownPackOn(this))
+            return t("No pack");
         Mods.Value val = o.value(v);
         return val != null ? val.label : v;
     }
