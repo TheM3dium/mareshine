@@ -18,7 +18,7 @@ import java.util.Locale;
 // The winter event's music is not in the APK (9 MB): assets/winter-music.json
 // lists its tracks (url, SHA-256, size), published as release assets. Turning
 // the winter event on (its question, the intro or Settings) fetches them into
-// the app's files; only files whose SHA-256 matches are kept. Until all are
+// the app's own folder; only files whose SHA-256 matches are kept. Until all are
 // there the event runs without music, and the music starts by itself once they
 // are. Offline, the next launcher start in the event tries again.
 final class WinterMusic {
@@ -27,7 +27,12 @@ final class WinterMusic {
 
     private WinterMusic() {}
 
-    static File dir(Context c) { return new File(c.getFilesDir(), "winter-music"); }
+    // in the app's own folder on the shared storage (always the app's to write, whatever data folder
+    // is chosen, and Android removes it with the app); inside the app only if that is not there
+    static File dir(Context c) {
+        File ext = c.getExternalFilesDir(null);
+        return new File(ext != null ? ext : c.getFilesDir(), "winter-music");
+    }
 
     /** The file of track {@code number} (1, 2, 3: Winter.TRACKS). */
     static File track(Context c, int number) { return new File(dir(c), "winter_music_" + number + ".ogg"); }
