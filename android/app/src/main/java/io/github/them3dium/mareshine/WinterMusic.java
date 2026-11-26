@@ -75,6 +75,9 @@ final class WinterMusic {
         Context app = c.getApplicationContext();
         if (sRunning || !Winter.on(Settings.read(app)) || complete(app)) return;
         sRunning = true;
+        // nothing shows the fetching otherwise, and the music comes a little later
+        sMain.post(() -> android.widget.Toast.makeText(app, L.t("Downloading the winter music…"),
+            android.widget.Toast.LENGTH_LONG).show());
         new Thread(() -> {
             boolean ok = false;
             try {
